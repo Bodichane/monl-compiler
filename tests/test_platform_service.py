@@ -26,7 +26,7 @@ workflow ManageNotes for Member
 """
 
 
-def test_validation_compile_inspection_et_archive_partagent_le_pipeline(tmp_path):
+def test_validation_compile_inspection_and_archive_share_the_pipeline(tmp_path):
     service = CompilationService(tmp_path)
     validation = service.validate(SPEC)
     assert validation.valid, validation.errors
@@ -57,7 +57,7 @@ def test_entrees_bornees_et_identifiants_opaques(tmp_path):
         service.inspect("../../etc/passwd")
 
 
-def test_worker_interrompu_ne_publie_aucun_projet(tmp_path, monkeypatch):
+def test_interrupted_worker_publishes_no_project(tmp_path, monkeypatch):
     service = CompilationService(tmp_path)
 
     def timeout(*args, **kwargs):

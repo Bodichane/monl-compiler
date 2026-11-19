@@ -1,17 +1,17 @@
-"""Un projet sans bloc `custom` ne reçoit plus `sandbox_ai.py`.
+"""A project without a `custom` block no longer gets `sandbox_ai.py`.
 
-LE DÉFAUT, MESURÉ SUR UNE ARCHIVE RÉELLEMENT TÉLÉCHARGÉE. Le fichier faisait
-**une ligne** — un commentaire — `app.py` l'importait en tête et n'en appelait
-jamais rien, et le supprimer faisait échouer le démarrage sur
-`ModuleNotFoundError`. Soit un fichier qui ne fait rien et qu'on ne peut pas
-enlever, dans une archive que l'usager ouvre et doit comprendre.
+THE DEFECT, MEASURED ON A REALLY DOWNLOADED ARCHIVE. The file was **one
+line** — a comment — `app.py` imported it at the top and never called
+anything from it, and deleting it made startup fail with
+`ModuleNotFoundError`. A file that does nothing and cannot be removed, in an
+archive the user opens and must understand.
 
-C'est le point 85 retourné : là-bas une règle déclarée ne produisait rien, ici
-un fichier vide portait le démarrage par accident. L'import était écrit en dur
-dans `runtime_socle.py`, sans jamais regarder si la spec avait un bloc.
+It is point 85 turned around: there a declared rule produced nothing, here
+an empty file carried startup by accident. The import was hard-coded in
+`runtime_socle.py`, without ever checking whether the spec had a block.
 
-Les deux sens sont éprouvés — sans quoi le correctif pourrait simplement ne
-plus jamais émettre le module, et la brique `custom` mourrait en silence.
+Both directions are tested — otherwise the fix could simply never emit the
+module again, and the `custom` brick would die silently.
 """
 from __future__ import annotations
 
@@ -54,8 +54,8 @@ def _compiler(source, dossier):
     return dossier
 
 
-def test_sans_bloc_custom_le_module_nest_ni_ecrit_ni_importe(tmp_path):
-    """Ni le fichier, ni l'import : rien qui ne serve à rien."""
+def test_without_custom_block_the_module_is_neither_written_nor_imported(tmp_path):
+    """Neither the file nor the import: nothing that serves no purpose."""
     dossier = _compiler(SANS_CUSTOM, tmp_path / "sans")
     app = (dossier / "app.py").read_text(encoding="utf-8")
 
@@ -65,12 +65,12 @@ def test_sans_bloc_custom_le_module_nest_ni_ecrit_ni_importe(tmp_path):
         "app.py importe un module qui n'existe pas — le serveur ne démarrerait pas")
 
 
-def test_sans_bloc_custom_le_backend_demarre_vraiment(tmp_path):
-    """La preuve qui compte : le module absent, Python charge l'application.
+def test_without_custom_block_the_backend_really_starts(tmp_path):
+    """The proof that counts: with the module absent, Python loads the application.
 
-    Une vérification de chaîne ne distingue pas un import retiré d'un import
-    déplacé. On importe donc réellement `app.py`, dans un interpréteur séparé
-    pour ne pas polluer celui de la suite.
+    A string check cannot tell a removed import from a moved one. So `app.py`
+    is really imported, in a separate interpreter so as not to pollute the
+    suite's.
     """
     dossier = _compiler(SANS_CUSTOM, tmp_path / "demarre")
     resultat = subprocess.run(
@@ -83,9 +83,9 @@ def test_sans_bloc_custom_le_backend_demarre_vraiment(tmp_path):
     assert "ok" in resultat.stdout
 
 
-def test_avec_un_bloc_custom_le_module_revient(tmp_path):
-    """LA CONTRE-ÉPREUVE. Sans elle, ne plus jamais émettre le module rendrait
-    ce fichier de tests vert tout en tuant la brique `custom`."""
+def test_with_a_custom_block_the_module_comes_back(tmp_path):
+    """THE COUNTER-PROOF. Without it, never emitting the module again would make
+    this test file green while killing the `custom` brick."""
     dossier = _compiler(AVEC_CUSTOM, tmp_path / "avec")
     app = (dossier / "app.py").read_text(encoding="utf-8")
     sandbox = (dossier / "sandbox_ai.py").read_text(encoding="utf-8")
@@ -95,11 +95,11 @@ def test_avec_un_bloc_custom_le_module_revient(tmp_path):
         f"la coquille de la fonction custom n'est pas écrite :\n{sandbox}")
 
 
-def test_les_deux_compilations_ne_rendent_pas_le_meme_app(tmp_path):
-    """Le témoin du point 85 : avec et sans doivent DIFFÉRER.
+def test_the_two_compilations_do_not_give_the_same_app(tmp_path):
+    """The point 85 witness: with and without must DIFFER.
 
-    Si les deux sorties étaient identiques, la condition qu'on vient d'écrire
-    ne produirait rien — exactement ce qu'on reproche au défaut d'origine.
+    If both outputs were identical, the condition just written would produce
+    nothing — exactly what the original defect is blamed for.
     """
     sans = _compiler(SANS_CUSTOM, tmp_path / "a") / "app.py"
     avec = _compiler(AVEC_CUSTOM, tmp_path / "b") / "app.py"

@@ -10,7 +10,7 @@ def _write(directory: Path, name: str, value: str) -> None:
     (directory / name).write_text(value, encoding="utf-8")
 
 
-def test_publication_remplace_le_jeu_complet_sans_toucher_les_autres_fichiers(tmp_path):
+def test_publishing_replaces_the_whole_set_without_touching_other_files(tmp_path):
     target = tmp_path / "projet"
     staging = tmp_path / "stage"
     target.mkdir()
@@ -27,7 +27,7 @@ def test_publication_remplace_le_jeu_complet_sans_toucher_les_autres_fichiers(tm
     assert (target / "frontend.txt").read_text(encoding="utf-8") == "créé par l'utilisateur"
 
 
-def test_publication_restaure_tous_les_anciens_fichiers_si_un_remplacement_echoue(
+def test_publishing_restores_all_old_files_if_a_replacement_fails(
     tmp_path, monkeypatch
 ):
     target = tmp_path / "projet"
@@ -71,7 +71,7 @@ def test_publication_refuse_un_staging_incomplet(tmp_path):
     assert not (target / "app.py").exists()
 
 
-def test_compile_project_ne_publie_rien_si_la_transaction_finale_echoue(
+def test_compile_project_publishes_nothing_if_the_final_transaction_fails(
     tmp_path, monkeypatch
 ):
     spec = tmp_path / "spec.ml"

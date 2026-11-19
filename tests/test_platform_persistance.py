@@ -1,4 +1,4 @@
-"""Preuves de la persistance commune des deux parties de la plateforme."""
+"""Proofs of the shared persistence of the platform's two parts."""
 
 import os
 import sqlite3
@@ -10,7 +10,7 @@ from monl_platform.identity import IdentityStore
 from monl_platform.store import PlatformStore
 
 
-def _descripteurs_sur(chemin):
+def _descriptors_on(chemin):
     dossier = "/proc/self/fd"
     if not os.path.isdir(dossier):
         pytest.skip("le décompte de descripteurs demande /proc")
@@ -30,7 +30,7 @@ def _fermer(connexion):
     connexion.close()
 
 
-def test_la_sauvegarde_couvre_identite_et_constructeur(tmp_path):
+def test_the_backup_covers_identity_and_builder(tmp_path):
     identities = IdentityStore(tmp_path)
     user = identities.register("alice@example.test", "MotDePasse-123")
     platform = PlatformStore(tmp_path)
@@ -51,25 +51,25 @@ def test_la_sauvegarde_couvre_identite_et_constructeur(tmp_path):
 
 
 @pytest.mark.skipif(not os.path.isdir("/proc/self/fd"), reason="/proc requis")
-def test_les_lectures_du_constructeur_ferment_leurs_connexions(tmp_path):
+def test_the_builder_reads_close_their_connections(tmp_path):
     identities = IdentityStore(tmp_path)
     user = identities.register("lecteur@example.test", "MotDePasse-123")
     platform = PlatformStore(tmp_path)
     project = uuid.uuid4().hex
     identities.add_project(user["id"], project, "Atelier")
     platform.create_project(user["id"], project, "atelier")
-    avant = _descripteurs_sur(platform.database)
+    avant = _descriptors_on(platform.database)
 
     for _ in range(500):
         assert platform.get_project(project)["project_id"] == project
 
-    apres = _descripteurs_sur(platform.database)
+    apres = _descriptors_on(platform.database)
     assert apres - avant == 0, (
         f"{apres - avant} descripteur(s) restent ouverts après 500 lectures"
     )
 
 
-def test_identity_et_constructeur_cohabitent_sur_la_meme_base(tmp_path):
+def test_identity_and_builder_share_the_same_database(tmp_path):
     identities = IdentityStore(tmp_path)
     platform = PlatformStore(tmp_path)
 

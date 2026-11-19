@@ -1,4 +1,4 @@
-"""Parcours de référence sur la vraie spec CodexShop, jusqu'à sa mise à jour."""
+"""Reference journey on the real CodexShop spec, up to its update."""
 
 import os
 import shutil
@@ -13,14 +13,14 @@ from tests.support.server import uvicorn_server
 DEMO = Path(__file__).resolve().parents[1] / "demo"
 
 
-def test_codexshop_conserve_la_commande_et_le_stock_apres_update(tmp_path):
+def test_codexshop_keeps_the_order_and_stock_after_update(tmp_path):
     project = tmp_path / "codexshop"
     shutil.copytree(DEMO, project)
     spec = project / "spec.ml"
     compile_project(str(spec), str(project))
     frontend = (project / "frontend" / "index.html").read_bytes()
     secret = (project / ".jwt_secret").read_bytes()
-    # Le scénario est local : aucune base externe ni clé de paiement héritée.
+    # The scenario is local: no external database nor inherited payment key.
     env = {key: value for key, value in os.environ.items()
            if not key.startswith(("MONL_", "STRIPE_", "FEDAPAY_"))}
 
@@ -68,7 +68,7 @@ def test_codexshop_conserve_la_commande_et_le_stock_apres_update(tmp_path):
         assert call(base, "GET", "/order", token=other)["data"] == []
         call(base, "GET", order_path, token=other, status=404)
 
-        # Un panier impossible ne doit changer ni stock, ni lignes, ni total.
+        # An impossible cart must change neither stock, nor lines, nor total.
         call(base, "POST", "/ligneorder", token=token,
              body={**line, "quantite": product["stock"] + 1}, status=409)
         assert call(base, "GET", product_path)["data"]["stock"] == product["stock"] - 2
@@ -77,7 +77,8 @@ def test_codexshop_conserve_la_commande_et_le_stock_apres_update(tmp_path):
         payment = call(base, "POST", order_path + "/paiement", token=token, status=503)
         assert "STRIPE_SECRET_KEY" in payment["detail"]
 
-    # L'exercice utilise la même commande update que l'exploitant, serveur arrêté.
+    # The exercise uses the same update command as the operator, with the
+    # server stopped.
     spec.write_text(spec.read_text(encoding="utf-8").replace(
         "entity Order\n", "entity Order\n    note: Text\n", 1), encoding="utf-8")
     ok, errors, _ = check_coherence(str(project))
@@ -89,7 +90,7 @@ def test_codexshop_conserve_la_commande_et_le_stock_apres_update(tmp_path):
     assert (project / ".jwt_secret").read_bytes() == secret
 
     with uvicorn_server(project, env=env) as base:
-        # Le compte et le jeton existants restent utilisables après recompilation.
+        # The existing account and token stay usable after recompiling.
         login(base, "lea@example.test")
         migrated = call(base, "GET", order_path, token=token)["data"]
         assert migrated == {**order, "note": None}
@@ -99,7 +100,7 @@ def test_codexshop_conserve_la_commande_et_le_stock_apres_update(tmp_path):
              body={"status": "À confirmer", "note": "Livrer le matin"})
         assert call(base, "GET", order_path, token=token)["data"]["note"] == "Livrer le matin"
 
-        # Annuler restitue le stock une fois, même si le client réessaie.
+        # Cancelling gives the stock back once, even if the client retries.
         cancelled = {"status": "Annulée", "note": "Livrer le matin"}
         call(base, "PUT", order_path, token=token, body=cancelled)
         call(base, "PUT", order_path, token=token, body=cancelled)

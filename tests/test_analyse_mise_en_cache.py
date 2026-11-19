@@ -1,11 +1,10 @@
-"""Les analyses partagées sont calculées une fois, pas à chaque interrogation.
+"""Shared analyses are computed once, not at every query.
 
-Ce témoin compte des APPELS et jamais des secondes : un seuil temporel ne veut
-pas dire la même chose sur deux machines (point 160), alors qu'un nombre
-d'appels est déterministe. Sans les caches, une spec de cette taille demandait
-270 305 reconstructions du même index de clés étrangères — le coût de
-compilation devenait cubique en nombre d'entités, et une spec de 1 668 lignes
-prenait près de sept minutes.
+This witness counts CALLS and never seconds: a time threshold does not mean
+the same thing on two machines (point 160), while a number of calls is
+deterministic. Without the caches, a spec of this size required 270,305
+rebuilds of the same foreign key index — compilation cost became cubic in
+the number of entities, and a 1,668-line spec took nearly seven minutes.
 """
 
 from monl import planning
@@ -15,9 +14,9 @@ from monl.parser import parse_monl_string
 
 
 def _spec_a_effets(n_familles):
-    """Une spec dont chaque famille porte compteur, unicité composite et
-    masquage : c'est la combinaison qui fait interroger les mêmes analyses
-    depuis plusieurs boucles imbriquées."""
+    """A spec where each family carries a counter, a composite uniqueness and
+    masking: that combination makes the same analyses queried from several
+    nested loops."""
     lignes = ["app BancCache", "", "entity Membre", "    pseudo: String",
               "    reputation: Integer", ""]
     for i in range(n_familles):
@@ -48,7 +47,7 @@ def _spec_a_effets(n_familles):
 
 
 def _compiler(monkeypatch, n_familles):
-    """Compile en comptant les reconstructions de l'index de clés étrangères."""
+    """Compiles while counting the foreign key index rebuilds."""
     appels = []
     vrai = planning.plan_foreign_keys
 
@@ -56,8 +55,8 @@ def _compiler(monkeypatch, n_familles):
         appels.append(1)
         return vrai(relations)
 
-    # Le remplacement vise le module où le nom est CHERCHÉ (point 153) :
-    # `modele.py` importe la fonction, donc c'est là qu'elle est résolue.
+    # The replacement targets the module where the name is LOOKED UP (point
+    # 153): `modele.py` imports the function, so that is where it is resolved.
     from monl.generator import modele
     monkeypatch.setattr(modele, "plan_foreign_keys", compte)
 
@@ -67,8 +66,8 @@ def _compiler(monkeypatch, n_familles):
     return len(appels)
 
 
-def test_lindex_des_cles_etrangeres_nest_construit_quune_fois(monkeypatch, capsys):
-    """Une seule construction, quelle que soit la taille de la spec."""
+def test_the_foreign_key_index_is_built_only_once(monkeypatch, capsys):
+    """A single build, whatever the spec's size."""
     petit = _compiler(monkeypatch, 3)
     capsys.readouterr()
     assert petit == 1, (
@@ -76,12 +75,12 @@ def test_lindex_des_cles_etrangeres_nest_construit_quune_fois(monkeypatch, capsy
         "`_compute_fk_placements` ne porte plus.")
 
 
-def test_le_cout_danalyse_ne_suit_pas_la_taille_de_la_spec(monkeypatch, capsys):
-    """Le nombre d'appels ne doit pas croître avec le nombre d'entités.
+def test_analysis_cost_does_not_follow_spec_size(monkeypatch, capsys):
+    """The number of calls must not grow with the number of entities.
 
-    C'est la propriété qui compte, et elle se mesure sans chronomètre : si le
-    coût redevenait proportionnel (ou pire) au nombre d'entités, ce témoin le
-    dirait sur n'importe quelle machine.
+    That is the property that counts, and it is measured without a stopwatch:
+    if the cost became proportional (or worse) to the number of entities again,
+    this witness would say so on any machine.
     """
     petit = _compiler(monkeypatch, 3)
     capsys.readouterr()
@@ -92,11 +91,11 @@ def test_le_cout_danalyse_ne_suit_pas_la_taille_de_la_spec(monkeypatch, capsys):
         "pour 24 : l'analyse redevient proportionnelle à la taille de la spec.")
 
 
-def test_les_colonnes_didentite_sont_deduites_une_seule_fois(capsys):
-    """`_identity_fk_columns` est interrogé par sept émetteurs : il mémorise.
+def test_identity_columns_are_deduced_only_once(capsys):
+    """`_identity_fk_columns` is queried by seven emitters: it memoizes.
 
-    Le contenu doit rester identique entre deux interrogations — un cache qui
-    rendrait autre chose au second appel serait pire que pas de cache.
+    The content must stay identical between two queries — a cache returning
+    something else on the second call would be worse than no cache.
     """
     ir = MonlAST(parse_monl_string(_spec_a_effets(4))).validate_and_audit()
     generateur = MonlSecureGenerator(ir)
@@ -106,9 +105,9 @@ def test_les_colonnes_didentite_sont_deduites_une_seule_fois(capsys):
     second = generateur._identity_fk_columns()
 
     assert premier is second, "chaque interrogation refait la déduction"
-    # Toute entité créée par le membre porte SA colonne de compte, y compris
-    # l'appréciation — dont la seconde relation entrante vise la publication
-    # comptée, écartée parce que c'est le client qui la désigne (point 99).
+    # Every entity created by the member carries ITS account column, the
+    # appreciation included — whose second incoming relation targets the
+    # counted post, excluded because the client designates it (point 99).
     attendu = {f"{prefixe}{i}": {"membre_id"}
                for prefixe in ("Publication", "Appreciation") for i in range(4)}
     assert premier == attendu, premier

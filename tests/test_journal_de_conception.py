@@ -1,17 +1,16 @@
-"""Le sommaire de `docs/design_decisions.md` doit pointer sur des titres réels.
+"""The contents list of `docs/design_decisions.md` must point to real headings.
 
-Le fichier fait 140 points et son sommaire est la seule façon d'y naviguer.
-**Dix liens pointaient dans le vide** quand ce test a été écrit : les ancres
-avaient été tapées sans accents (`#132-…-mourait-au-demarrage-a-plusieurs-…`)
-là où les titres les gardent, un titre avait été reformulé après coup
-(« sort » devenu « sorti »), et un autre avait perdu la ponctuation qui
-doublait un tiret dans son ancre.
+The file has 140 points and its contents list is the only way to navigate
+it. **Ten links pointed into the void** when this test was written: the
+anchors had been typed without accents (`#132-…-mourait-au-demarrage-a-plusieurs-…`)
+where the headings keep them, a heading had been reworded afterwards
+("sort" became "sorti"), and another had lost the punctuation that doubled
+a dash in its anchor.
 
-Aucun de ces dix n'a jamais fait échouer quoi que ce soit : un lien mort dans
-du Markdown ne lève rien, il ne fait qu'envoyer en haut de page. C'est
-exactement la forme d'erreur que CLAUDE.md interdit de laisser vivre — celle
-qui rend du vert en ne vérifiant rien. Un document se garde comme du code
-(point 141).
+None of these ten ever made anything fail: a dead link in Markdown raises
+nothing, it just sends you to the top of the page. It is exactly the kind of
+error CLAUDE.md forbids to let live — the one that returns green while
+checking nothing. A document is kept like code (point 141).
 """
 
 import re
@@ -22,13 +21,12 @@ JOURNAL = Path(__file__).resolve().parent.parent / "docs" / "design_decisions.md
 
 
 def ancre_github(titre):
-    """L'ancre que GitHub fabrique pour un titre de section.
+    """The anchor GitHub makes for a section heading.
 
-    Minuscules, ponctuation retirée, espaces en tirets — les lettres
-    accentuées sont CONSERVÉES, et c'est là que les dix liens se trompaient.
-    Une ponctuation entourée d'espaces (« Brique 29 : le site ») laisse deux
-    espaces, donc DEUX tirets : le détail n'est pas cosmétique, il départage
-    un lien juste d'un lien mort.
+    Lowercase, punctuation removed, spaces turned into dashes — accented letters
+    are KEPT, and that is where the ten links went wrong. Punctuation surrounded
+    by spaces ("Brique 29 : le site") leaves two spaces, hence TWO dashes: the
+    detail is not cosmetic, it separates a right link from a dead one.
     """
     texte = titre.strip().lower()
     texte = "".join(c for c in texte
@@ -45,7 +43,7 @@ def _titres_et_liens():
     return titres, liens
 
 
-def test_chaque_lien_du_sommaire_atteint_un_titre():
+def test_each_contents_link_reaches_a_heading():
     titres, liens = _titres_et_liens()
     ancres = {ancre_github(titre) for _, titre in titres}
     pendants = [f"[{num}](#{lien})" for num, lien in liens if lien not in ancres]
@@ -53,28 +51,27 @@ def test_chaque_lien_du_sommaire_atteint_un_titre():
         f"{len(pendants)} lien(s) du sommaire ne mènent nulle part : {pendants}")
 
 
-# Le point 6 est un doublon RÉSERVÉ du point 1, vide, gardé pour ne pas
-# décaler la numérotation des points 7 à 30 — référencée dans le README,
-# dans CLAUDE.md et dans les commentaires du code. Son absence du sommaire
-# est délibérée : il n'a pas de contenu à atteindre. L'exception est ÉCRITE
-# ici plutôt que devinée, sinon le test se contenterait de la constater.
+# Point 6 is a RESERVED duplicate of point 1, empty, kept so as not to shift
+# the numbering of points 7 to 30 — referenced in the README, in CLAUDE.md and
+# in code comments. Its absence from the contents list is deliberate: it has no
+# content to reach. The exception is WRITTEN here rather than guessed,
+# otherwise the test would merely observe it.
 SANS_CONTENU = {"6"}
 
 
-def test_chaque_point_du_journal_figure_au_sommaire():
-    """Le pendant : un point écrit et jamais listé est un point qu'on ne
-    retrouve pas. Les deux directions sont gardées, parce que les deux
-    fautes existent — le sommaire qui cite un titre disparu, et le titre que
-    le sommaire oublie."""
+def test_each_journal_point_is_in_the_contents():
+    """The counterpart: a point written and never listed is a point nobody
+    finds. Both directions are guarded, because both mistakes exist — the
+    contents list citing a vanished heading, and the heading the list forgets."""
     titres, liens = _titres_et_liens()
     listes = {num for num, _ in liens}
     absents = sorted({num for num, _ in titres} - listes - SANS_CONTENU, key=int)
     assert not absents, f"points absents du sommaire : {absents}"
 
 
-def test_la_regle_dancre_est_bien_celle_de_github():
-    """Le témoin. Sans lui, un algorithme d'ancre FAUX rendrait les deux
-    tests ci-dessus verts en comparant deux erreurs entre elles."""
+def test_the_anchor_rule_is_githubs():
+    """The witness. Without it, a WRONG anchor algorithm would make both tests
+    above green by comparing two errors with each other."""
     assert (ancre_github("137. Brique 29 : le site réclamait six fichiers")
             == "137-brique-29--le-site-réclamait-six-fichiers")
     assert (ancre_github("110. Rust évalué par un spike mesuré, et écarté")
@@ -85,22 +82,22 @@ def test_la_regle_dancre_est_bien_celle_de_github():
 RESUME = JOURNAL.parent / "DESIGN_DECISIONS_SUMMARY.md"
 
 
-def _liens_du_resume():
+def _summary_links():
     return re.findall(r"\[(\d+)\]\(design_decisions\.md#([^)]+)\)",
                       RESUME.read_text(encoding="utf-8"))
 
 
-def test_le_resume_anglais_suit_le_sommaire_du_journal():
-    """Le journal reste en français ; son résumé anglais en est la carte.
+def test_the_english_summary_follows_the_journal_contents():
+    """The journal stays in French; its English summary is its map.
 
-    Une carte qui oublie un point ne se voit pas : elle rend simplement une
-    page plus courte. Les liens du résumé doivent donc être EXACTEMENT ceux
-    du sommaire — un point ajouté au journal sans sa ligne anglaise fait
-    échouer, un lien du résumé qui ne vise plus rien aussi (les liens du
-    sommaire étant eux-mêmes gardés par le test ci-dessus).
+    A map that forgets a point does not show: it simply gives a shorter page.
+    The summary's links must therefore be EXACTLY those of the contents list —
+    a point added to the journal without its English line fails, and so does a
+    summary link that no longer targets anything (the contents list's links
+    being themselves guarded by the test above).
     """
     _, liens = _titres_et_liens()
-    resume = _liens_du_resume()
+    resume = _summary_links()
     assert liens, "aucun lien lu dans le sommaire : l'extracteur ne regarde plus rien"
     manquants = sorted(set(liens) - set(resume), key=lambda lien: int(lien[0]))
     orphelins = sorted(set(resume) - set(liens), key=lambda lien: int(lien[0]))

@@ -1,8 +1,8 @@
-"""Régression du rattachement d'une cible de compteur (point 92).
+"""Regression of a counter target's attachment (point 92).
 
-Avec deux relations entrantes, la relation vers la cible du compteur peut être
-déclarée avant ou après celle qui rattache la ligne à son acteur. Les deux
-ordres doivent produire le même INSERT et la même ligne liée en base.
+With two incoming relations, the relation to the counter's target can be
+declared before or after the one attaching the row to its actor. Both orders
+must produce the same INSERT and the same linked row in the database.
 """
 
 import sqlite3
@@ -48,9 +48,9 @@ workflow Agir for Member
     ],
     ids=["cible_du_compteur_en_premier", "acteur_en_premier"],
 )
-def test_la_cle_de_la_cible_du_compteur_est_ecrite_dans_les_deux_ordres(
+def test_the_counter_target_key_is_written_in_both_orders(
         tmp_path, relations):
-    """Un like réel ne doit jamais être créé avec ``post_id`` à NULL."""
+    """A real like must never be created with ``post_id`` NULL."""
     spec = tmp_path / "spec.ml"
     spec.write_text(_spec(relations), encoding="utf-8")
     compile_project(str(spec), str(tmp_path))

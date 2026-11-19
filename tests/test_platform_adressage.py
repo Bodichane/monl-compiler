@@ -1,8 +1,8 @@
-"""L'adresse d'un site : le slug est un nom d'HÔTE, pas une étiquette libre.
+"""A site's address: the slug is a HOST name, not a free label.
 
-Un navigateur met toujours le nom d'hôte en minuscules avant de l'envoyer.
-Un projet nommé « myOwn » était donc construit, payé, conservé en snapshot —
-et introuvable, parce que la recherche comparait « myown » à « myOwn ».
+A browser always lowercases the host name before sending it. A project
+named "myOwn" was therefore built, paid for, kept as a snapshot — and
+unreachable, because the lookup compared "myown" with "myOwn".
 """
 
 import sqlite3
@@ -29,16 +29,16 @@ def _compte_et_projet(store, email, slug):
     return user["id"], project_id
 
 
-def test_un_slug_neuf_est_range_en_forme_canonique(store):
+def test_a_new_slug_is_stored_in_canonical_form(store):
     _user_id, project_id = _compte_et_projet(store, "a@monl.test", "  myOwn  ")
 
     assert store.get_project(project_id)["slug"] == "myown"
 
 
-def test_un_projet_deja_en_base_avec_une_majuscule_reste_joignable(store, tmp_path):
-    """Le cas réel : la ligne existe déjà, le site est déjà construit."""
+def test_a_stored_project_with_a_capital_stays_reachable(store, tmp_path):
+    """The real case: the row already exists, the site is already built."""
     _user_id, project_id = _compte_et_projet(store, "a@monl.test", "provisoire")
-    # On remet la majuscule comme la faisait la version d'avant.
+    # We put the capital back the way the previous version did.
     raw = sqlite3.connect(store.database)
     raw.execute("UPDATE builder_projects SET slug = 'myOwn' WHERE project_id = ?", (project_id,))
     raw.commit()
@@ -49,7 +49,7 @@ def test_un_projet_deja_en_base_avec_une_majuscule_reste_joignable(store, tmp_pa
     assert [row["project_id"] for row in trouves] == [project_id]
 
 
-def test_l_hote_envoye_par_un_navigateur_designe_le_projet(store, tmp_path):
+def test_the_host_a_browser_sends_designates_the_project(store, tmp_path):
     _user_id, project_id = _compte_et_projet(store, "a@monl.test", "myOwn")
     sites = SiteManager(store, tmp_path / "projets", "localhost")
 
@@ -57,18 +57,18 @@ def test_l_hote_envoye_par_un_navigateur_designe_le_projet(store, tmp_path):
 
     assert project is not None
     assert project["project_id"] == project_id
-    # L'adresse affichée par la console doit être celle qui répond.
+    # The address the console shows must be the one that answers.
     assert sites.host_for(project) == "myown.localhost"
 
 
-def test_deux_casses_du_meme_nom_ne_font_pas_deux_adresses(store):
-    """« myOwn » et « MYOWN » visent le même hôte : le second doit s'écarter.
+def test_two_cases_of_one_name_do_not_make_two_addresses(store):
+    """"myOwn" and "MYOWN" target the same host: the second must step aside.
 
-    Ce témoin exigeait autrefois une `IntegrityError` ici. C'était le défaut :
-    le second projet ne pouvait jamais être créé et l'erreur sortait en 500.
-    Il reçoit désormais une adresse LIBRE. L'invariant que ce fichier garde est
-    INCHANGÉ — une différence de casse ne fabrique pas deux fois la même
-    adresse — seule l'issue change : on écarte au lieu de refuser.
+    This witness used to require an `IntegrityError` here. That was the defect:
+    the second project could never be created and the error came out as a 500.
+    It now gets a FREE address. The invariant this file guards is UNCHANGED —
+    a difference in case does not make the same address twice — only the
+    outcome changes: step aside instead of refusing.
     """
     user_id, _first = _compte_et_projet(store, "a@monl.test", "myOwn")
     second = uuid.uuid4().hex
@@ -82,15 +82,15 @@ def test_deux_casses_du_meme_nom_ne_font_pas_deux_adresses(store):
         "l'hôte myown désigne deux projets : il ne serait plus servi du tout")
 
 
-def test_une_adresse_deja_en_majuscules_est_vue_comme_prise(store):
-    """La recherche d'adresse libre ignore la casse EN BASE, pas seulement
-    celle qu'on lui passe.
+def test_an_address_already_in_capitals_is_seen_as_taken(store):
+    """The free-address lookup ignores case IN THE DATABASE, not only in what it
+    is given.
 
-    `create_project` range son argument en minuscules avant tout : la
-    comparaison sans casse ne serait donc jamais mise à l'épreuve par l'appel.
-    C'est une ligne ANTÉRIEURE, écrite du temps où le slug gardait sa
-    majuscule, qui l'éprouve — le cas réel du témoin
-    `test_un_projet_deja_en_base_avec_une_majuscule_reste_joignable`.
+    `create_project` lowercases its argument before anything else: the
+    case-insensitive comparison would therefore never be tested by the call. An
+    EARLIER row, written when the slug kept its capital, tests it — the real
+    case of the witness
+    `test_a_stored_project_with_a_capital_stays_reachable`.
     """
     user_id, premier = _compte_et_projet(store, "a@monl.test", "provisoire")
     raw = sqlite3.connect(store.database)
@@ -107,5 +107,5 @@ def test_une_adresse_deja_en_majuscules_est_vue_comme_prise(store):
         f"la ligne 'myOwn' n'a pas été vue comme prise : {retenu!r}")
 
 
-def test_la_forme_canonique_est_nommee_et_partagee():
+def test_the_canonical_form_is_named_and_shared():
     assert normalize_slug("  MyOwn  ") == "myown"

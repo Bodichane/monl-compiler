@@ -1,4 +1,4 @@
-"""En-têtes du backend compilé, mesurés par de vraies requêtes HTTP."""
+"""Headers of the compiled backend, measured by real HTTP requests."""
 import os
 import re
 import shutil
@@ -26,7 +26,7 @@ def project(tmp_path):
     spec.write_text(SPEC, encoding='utf-8')
     compile_project(str(spec), str(tmp_path))
     shutil.copytree(ROOT / 'demo/frontend', tmp_path / 'frontend')
-    # Une erreur non interceptée exerce l'enveloppe EXTERNE à Starlette.
+    # An uncaught error exercises the envelope OUTSIDE Starlette.
     with (tmp_path / 'serve.py').open('a') as module:
         module.write("\n@app.get('/temoin-500')\ndef crash():\n    raise RuntimeError('temoin')\n")
     return tmp_path
@@ -83,7 +83,7 @@ def test_documentation_et_ressources_cdn(project, path):
             assert "style-src 'self' 'unsafe-inline'" in csp
 
 
-def test_desactivation_de_tous_les_headers(project):
+def test_disabling_all_headers(project):
     env = dict(os.environ, MONL_SECURITY_HEADERS='off')
     with uvicorn_server(project, module='serve:app', env=env) as base:
         for path in ('/health', '/site/', '/docs', '/temoin-500'):
@@ -94,7 +94,7 @@ def test_desactivation_de_tous_les_headers(project):
                 assert name not in response.headers, name
 
 
-def test_site_avec_fichiers_locaux(project):
+def test_site_with_local_files(project):
     frontend = project / 'frontend'
     (frontend / 'index.html').write_text(
         '<link rel="stylesheet" href="styles.css"><script src="app.js"></script>',

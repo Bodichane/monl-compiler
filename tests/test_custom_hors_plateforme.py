@@ -1,4 +1,4 @@
-"""Point 208 : la plateforme compile des specs, jamais du Python utilisateur."""
+"""Point 208: the platform compiles specs, never user Python."""
 
 import ast
 from pathlib import Path
@@ -10,7 +10,7 @@ from monl_platform.service import CompilationService
 RACINE = Path(__file__).resolve().parents[1]
 
 
-def test_description_custom_reste_exactement_une_coquille(tmp_path):
+def test_custom_description_stays_exactly_a_shell(tmp_path):
     descriptions = ["x'); import os #", r'avant \"\"\" après', '${name}']
     blocs = '\n'.join(
         f'custom Bloc{i}\n    description: "{description}"\n'
@@ -47,13 +47,13 @@ def test_description_custom_reste_exactement_une_coquille(tmp_path):
         }
 
 
-def _assert_ecritures_sans_custom(fichiers):
+def _assert_writes_without_custom(fichiers):
     assert fichiers, 'aucun fichier de plateforme inspecté'
     for fichier in fichiers:
         arbre = ast.parse(fichier.read_text(encoding='utf-8'))
-        # Résolution conservatrice des variables de chemins : toute affectation
-        # est suivie, même dans une autre branche. Ce garde ne prouve pas une
-        # analyse de flux générale ni les chemins construits dynamiquement.
+        # Conservative resolution of path variables: every assignment is
+        # followed, even in another branch. This guard does not prove a general
+        # flow analysis nor dynamically built paths.
         valeurs = {}
         for noeud in ast.walk(arbre):
             if isinstance(noeud, ast.Assign):
@@ -85,10 +85,10 @@ def _assert_ecritures_sans_custom(fichiers):
                 )
 
 
-def test_plateforme_necrit_pas_sandbox_ai():
-    _assert_ecritures_sans_custom(sorted((RACINE / 'src/monl_platform').rglob('*.py')))
+def test_platform_does_not_write_sandbox_ai():
+    _assert_writes_without_custom(sorted((RACINE / 'src/monl_platform').rglob('*.py')))
 
 
 def test_garde_refuse_un_perimetre_vide():
     with pytest.raises(AssertionError, match='aucun fichier'):
-        _assert_ecritures_sans_custom([])
+        _assert_writes_without_custom([])

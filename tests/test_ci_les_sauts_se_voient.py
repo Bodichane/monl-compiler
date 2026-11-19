@@ -1,38 +1,39 @@
-"""La CI doit NOMMER ses tests sautés, pas les noyer dans un mur de points.
+"""CI must NAME its skipped tests, not drown them in a wall of dots.
 
-`pyproject.toml` pose déjà `-q` dans `addopts`. Chaque commande de
-`.github/workflows/ci.yml` en posait un SECOND, et deux `-q` valent `-qq` :
-pytest supprime alors la ligne de décompte ET la section de résumé. Un saut
-ne se voyait plus que comme un `s` unique au milieu de mille points.
+`pyproject.toml` already sets `-q` in `addopts`. Every command of
+`.github/workflows/ci.yml` set a SECOND one, and two `-q` make `-qq`: pytest
+then removes the count line AND the summary section. A skip only showed as a
+single `s` among a thousand dots.
 
-Ce n'est pas une hypothèse. Le test de réencodage JPEG a sauté dans cette CI
-pendant toute la vie du dépôt — Pillow ne vivait que dans l'extra `ai`, que
-la CI n'installe pas — et rien ne l'a jamais dit. Un saut ne dit pas « rien
-à vérifier ici », il dit « je n'ai pas vérifié » (point 140).
+This is not a hypothesis. The JPEG re-encoding test skipped in this CI for
+the repository's whole life — Pillow only lived in the `ai` extra, which CI
+does not install — and nothing ever said so. A skip does not say "nothing to
+check here", it says "I did not check" (point 140).
 
-Ce fichier garde donc DEUX propriétés, parce que l'une sans l'autre ne suffit
-pas : aucune commande ne repose `-q` (sinon le résumé disparaît de nouveau),
-et chacune porte `-rs` (sinon le résumé existe mais ne nomme personne).
+This file therefore guards TWO properties, because one without the other is
+not enough: no command sets `-q` again (otherwise the summary disappears
+again), and each carries `-rs` (otherwise the summary exists but names
+nobody).
 """
 
 from support.ci_workflow import CI, addopts_du_projet, commandes_pytest
 
-# `commandes_pytest` vit dans `tests/support/ci_workflow.py` et non ici : deux
-# fichiers de tests lisent maintenant ce workflow, et deux lectures d'un même
-# repliage YAML divergeraient (point 146). Son témoin d'extracteur, lui, reste
-# en bas de CE fichier — c'est ici qu'il est né.
+# `commandes_pytest` lives in `tests/support/ci_workflow.py` and not here: two
+# test files now read this workflow, and two readings of the same YAML folding
+# would diverge (point 146). Its extractor witness stays at the bottom of THIS
+# file — this is where it was born.
 
 
-def test_le_projet_pose_bien_un_q_dans_addopts():
-    """Le témoin de la prémisse. Si `addopts` cessait de porter `-q`, le test
-    ci-dessous garderait une règle devenue sans objet — il refuserait un `-q`
-    qui, seul, serait légitime. Mieux vaut l'apprendre ici."""
+def test_the_project_does_set_q_in_addopts():
+    """The premise witness. If `addopts` stopped carrying `-q`, the test below
+    would keep a rule that no longer has a purpose — it would refuse a `-q`
+    that, alone, would be legitimate. Better to learn it here."""
     assert "-q" in addopts_du_projet(), (
         "addopts ne porte plus `-q` : relire la règle de ce fichier avant de "
         "continuer à interdire `-q` dans les commandes de la CI.")
 
 
-def test_aucune_commande_de_ci_ne_repose_un_q():
+def test_no_ci_command_sets_q_again():
     commandes = commandes_pytest(CI.read_text(encoding="utf-8"))
     assert commandes, "aucune invocation pytest trouvée dans ci.yml"
     fautives = [c for c in commandes if "-q" in c.split()]
@@ -41,7 +42,7 @@ def test_aucune_commande_de_ci_ne_repose_un_q():
         f"ligne de décompte et la section de résumé. Commande(s) : {fautives}")
 
 
-def test_chaque_commande_de_ci_nomme_les_tests_sautes():
+def test_every_ci_command_names_skipped_tests():
     commandes = commandes_pytest(CI.read_text(encoding="utf-8"))
     assert commandes, "aucune invocation pytest trouvée dans ci.yml"
     muettes = [c for c in commandes
@@ -51,15 +52,15 @@ def test_chaque_commande_de_ci_nomme_les_tests_sautes():
         f"et personne ne le lit. Commande(s) : {muettes}")
 
 
-# Les deux tests ci-dessus ne valent que ce que vaut `commandes_pytest`. Un
-# extracteur qui ne trouve RIEN les rendrait verts en ne regardant rien — la
-# forme d'erreur exacte que ce fichier existe pour interdire ailleurs.
+# The two tests above are only worth what `commandes_pytest` is worth. An
+# extractor that finds NOTHING would make them green while looking at nothing —
+# the exact error this file exists to forbid elsewhere.
 CI_TEMOIN = """
       - name: Une étape sur une ligne
         run: python -m pytest tests/ -q --cov=src/monl
 
       - name: Une étape repliée
-        # Un commentaire, qui n'appartient pas à la commande.
+        # A comment, which does not belong to the command.
         run: >-
           python -m pytest tests/test_platform_*.py
           tests/test_oauth.py -q
@@ -70,21 +71,21 @@ CI_TEMOIN = """
 """
 
 
-def test_lextracteur_trouve_les_deux_formes_et_ne_les_melange_pas():
+def test_the_extractor_finds_both_forms_without_mixing_them():
     commandes = commandes_pytest(CI_TEMOIN)
     assert len(commandes) == 2, commandes
     assert commandes[0].endswith("--cov=src/monl")
-    # La commande repliée est recollée EN ENTIER : sans ça le `-q` de sa
-    # deuxième ligne échapperait au contrôle.
+    # The folded command is joined back IN FULL: otherwise the `-q` on its
+    # second line would escape the check.
     assert "tests/test_oauth.py -q" in commandes[1]
     assert "--cov-fail-under=90" in commandes[1]
     assert "ruff" not in commandes[1]
 
 
-def test_les_deux_regles_mordent_sur_un_workflow_fautif():
-    """La contre-épreuve : sur le témoin ci-dessus, qui pose `-q` et n'a pas
-    de `-rs`, les deux règles doivent DÉNONCER. Un test qui passe ne prouve
-    pas qu'il mord (point 145)."""
+def test_both_rules_bite_on_a_faulty_workflow():
+    """The counter-proof: on the witness above, which sets `-q` and has no
+    `-rs`, both rules must REPORT. A test that passes does not prove it bites
+    (point 145)."""
     commandes = commandes_pytest(CI_TEMOIN)
     assert [c for c in commandes if "-q" in c.split()] == commandes
     assert [c for c in commandes

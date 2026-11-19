@@ -1,4 +1,4 @@
-"""Un corps repris mot pour mot du contrat doit agir sur sa cible réelle."""
+"""A body copied word for word from the contract must act on its real target."""
 
 import shutil
 from pathlib import Path
@@ -36,7 +36,7 @@ def _jeton(base, acteur, identifiant):
     return {"Authorization": "Bearer " + r.json().get("access_token", r.json().get("token"))}
 
 
-def test_post_orderline_du_contrat_decremente_la_variante(tmp_path):
+def test_contract_orderline_post_decrements_the_variant(tmp_path):
     projet, contrat = _compiler_exemple(tmp_path, "02_boutique.ml")
     route = next(r for r in contrat["routes"]
                  if r["method"] == "POST" and r["path"] == "/orderline")
@@ -61,7 +61,7 @@ def test_post_orderline_du_contrat_decremente_la_variante(tmp_path):
     assert after == before - 1
 
 
-def test_post_like_du_contrat_incremente_le_post(tmp_path):
+def test_contract_like_post_increments_the_post(tmp_path):
     projet, contrat = _compiler_exemple(tmp_path, "03_reseau_social.ml")
     route = next(r for r in contrat["routes"]
                  if r["method"] == "POST" and r["path"] == "/like")
