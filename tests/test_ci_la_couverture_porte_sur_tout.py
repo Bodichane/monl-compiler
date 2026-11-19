@@ -1,26 +1,25 @@
-"""Une barrière de couverture porte sur TOUTE la suite, ou elle ment.
+"""A coverage gate covers the WHOLE suite, or it lies.
 
-La CI mesurait la plateforme sur une liste de fichiers écrite à la main :
+CI measured the platform on a hand-written list of files:
 
     python -m pytest tests/test_platform_*.py tests/test_oauth.py
       tests/test_administration.py tests/test_codes_de_secours.py
       --cov=src/monl_platform --cov-fail-under=90
 
-Mesuré avant de corriger : **cinq fichiers exerçaient la plateforme hors de
-cette liste** — dont `tests/test_console_javascript.py`, qui garde les pages
-mortes du point 163. Leurs lignes ne comptaient pas dans les 90 %, et un test
-rangé sous un autre nom serait sorti de la mesure sans un mot. C'est le
-point 169 pour la quatrième fois : une liste tenue à la main cesse de garder,
-et son silence est complet.
+Measured before fixing: **five files exercised the platform outside this
+list** — including `tests/test_console_javascript.py`, which guards point
+163's dead pages. Their lines did not count in the 90%, and a test filed
+under another name would have left the measurement without a word. It is
+point 169 for the fourth time: a hand-kept list stops guarding, and its
+silence is complete.
 
-La correction ne rallonge pas la liste, elle la SUPPRIME : la suite tourne une
-fois en mesurant les deux paquets, puis `coverage report --include=…` tire deux
-barrières de la même exécution.
+The fix does not lengthen the list, it REMOVES it: the suite runs once
+measuring both packages, then `coverage report --include=…` draws two gates
+from the same run.
 
-Trois règles vivent ici, chacune dans une FONCTION que sa contre-épreuve
-exerce sur un workflow fautif — et non dans le corps d'un test, ce qui
-obligerait la contre-épreuve à réécrire la règle pour la vérifier (le témoin
-retiré du point 170).
+Three rules live here, each in a FUNCTION its counter-proof exercises on a
+faulty workflow — and not in a test body, which would force the
+counter-proof to rewrite the rule to check it (point 170's removed witness).
 """
 
 import pytest
@@ -43,9 +42,9 @@ def _commandes(texte):
 
 
 def fichiers_hors_mesure(texte):
-    """Pour chaque commande qui MESURE une couverture, les fichiers de tests
-    qu'elle n'exécute pas. Ces fichiers exercent le paquet sans compter dans
-    la mesure : le pourcentage annoncé n'est pas celui du paquet."""
+    """For each command that MEASURES coverage, the test files it does not run.
+    These files exercise the package without counting in the measurement: the
+    announced percentage is not the package's."""
     tous = fichiers_de_tests()
     hors = {}
     for commande in _commandes(texte):
@@ -57,8 +56,8 @@ def fichiers_hors_mesure(texte):
     return hors
 
 
-def fichiers_jamais_executes(texte):
-    """Les fichiers de tests qu'AUCUNE commande du workflow ne sélectionne."""
+def files_never_run(texte):
+    """The test files NO workflow command selects."""
     executes = set()
     for commande in _commandes(texte):
         executes |= selection_dune_commande(commande)
@@ -66,10 +65,10 @@ def fichiers_jamais_executes(texte):
 
 
 def barrieres_par_paquet(texte):
-    """Le seuil que le workflow oppose à chaque paquet de `src/`.
+    """The threshold the workflow sets against each package of `src/`.
 
-    Les paquets sont lus sur le DISQUE : les recopier ici referait, dans le
-    témoin, la liste écrite à la main qu'il existe pour interdire.
+    The packages are read from DISK: copying them here would recreate, in the
+    witness, the hand-written list it exists to forbid.
     """
     paquets = {d.name for d in (RACINE / "src").iterdir()
                if d.is_dir() and (d / "__init__.py").exists()}
@@ -86,13 +85,13 @@ def barrieres_par_paquet(texte):
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# Les trois règles, sur le VRAI workflow.
+# The three rules, on the REAL workflow.
 # ─────────────────────────────────────────────────────────────────────────
-def test_une_barriere_de_couverture_porte_sur_toute_la_suite():
-    """Le cœur du fichier. Une couverture mesurée sur une SÉLECTION annonce un
-    pourcentage du paquet en n'ayant exercé qu'une partie de ce qui l'exerce :
-    le nombre est trop bas parce qu'il ignore des tests réels, et fragile
-    parce que le prochain test rangé ailleurs en sortira en silence."""
+def test_a_coverage_gate_covers_the_whole_suite():
+    """The heart of the file. Coverage measured on a SELECTION announces a
+    percentage of the package having exercised only part of what exercises it:
+    the number is too low because it ignores real tests, and fragile because the
+    next test filed elsewhere will silently leave it."""
     hors = fichiers_hors_mesure(CI.read_text(encoding="utf-8"))
     assert not hors, (
         "une barrière de couverture ne doit pas être mesurée sur une "
@@ -101,20 +100,19 @@ def test_une_barriere_de_couverture_porte_sur_toute_la_suite():
         f"nom en sortira sans un mot (point 169). {hors}")
 
 
-def test_la_ci_execute_chaque_fichier_de_tests():
-    """L'autre bout du même défaut : un fichier que AUCUNE commande ne
-    sélectionne est un fichier que personne n'exécute. Le dépôt n'en a aucun
-    aujourd'hui — c'est justement pendant qu'il n'en a aucun qu'on pose la
-    garde, sans quoi elle arriverait après (point 167bis)."""
-    oublies = fichiers_jamais_executes(CI.read_text(encoding="utf-8"))
+def test_ci_runs_every_test_file():
+    """The other end of the same defect: a file NO command selects is a file
+    nobody runs. The repository has none today — it is precisely while it has
+    none that the guard is set, otherwise it would arrive afterwards (point
+    167bis)."""
+    oublies = files_never_run(CI.read_text(encoding="utf-8"))
     assert not oublies, (
         f"aucune commande de ci.yml n'exécute ces fichiers : {oublies}")
 
 
-def test_chaque_paquet_du_depot_porte_sa_barriere():
-    """Une barrière retirée ne fait aucun bruit. Le seuil vient de
-    `pyproject.toml` : l'inscrire une seconde fois ici le ferait diverger le
-    jour où on le déplace."""
+def test_each_repository_package_carries_its_gate():
+    """A removed gate makes no noise. The threshold comes from `pyproject.toml`:
+    writing it a second time here would make it diverge the day it moves."""
     paquets, barrieres = barrieres_par_paquet(CI.read_text(encoding="utf-8"))
     manquants = sorted(paquets - set(barrieres))
     assert not manquants, (
@@ -128,10 +126,10 @@ def test_chaque_paquet_du_depot_porte_sa_barriere():
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# Les contre-épreuves. Un test qui passe ne prouve pas qu'il mord (point 145),
-# et les trois règles ci-dessus ne valent que ce que valent les extracteurs :
-# un extracteur qui rendrait toujours l'ensemble complet les rendrait vertes
-# en ne regardant rien (point 161).
+# The counter-proofs. A passing test does not prove it bites (point 145), and
+# the three rules above are only worth what the extractors are worth: an
+# extractor always returning the complete set would make them green while
+# looking at nothing (point 161).
 # ─────────────────────────────────────────────────────────────────────────
 CI_FAUTIF = """
       - name: Suite complète
@@ -154,19 +152,19 @@ CI_AMPUTE = """
 """
 
 
-def test_la_regle_mord_sur_la_forme_que_la_ci_portait():
-    """Sur le texte EXACT que `ci.yml` portait avant ce correctif."""
+def test_the_rule_bites_on_the_form_ci_carried():
+    """On the EXACT text `ci.yml` carried before this fix."""
     hors = fichiers_hors_mesure(CI_FAUTIF)
     assert len(hors) == 1, hors
     manquants = next(iter(hors.values()))
-    # Le fichier NOMMÉ par la mesure de cette séance doit en faire partie.
+    # The file NAMED by this session's measurement must be among them.
     assert "tests/test_console_javascript.py" in manquants
-    # Et la commande qui, elle, prend toute la suite ne doit PAS être dénoncée.
+    # And the command that does take the whole suite must NOT be denounced.
     assert all("--cov=src/monl_platform" in c for c in hors)
 
 
-def test_les_deux_autres_regles_mordent_sur_un_workflow_amputé():
-    oublies = fichiers_jamais_executes(CI_AMPUTE)
+def test_the_two_other_rules_bite_on_a_truncated_workflow():
+    oublies = files_never_run(CI_AMPUTE)
     assert oublies, "un workflow qui n'exécute qu'un motif doit être dénoncé"
     assert "tests/test_golden_artifacts.py" in oublies
 
@@ -176,30 +174,30 @@ def test_les_deux_autres_regles_mordent_sur_un_workflow_amputé():
 
 
 def test_lextracteur_developpe_motifs_dossiers_et_absence_de_cible():
-    """Les trois formes que le workflow peut prendre, sur de VRAIS chemins."""
+    """The three forms the workflow can take, on REAL paths."""
     tous = fichiers_de_tests()
-    # Un dossier se parcourt comme pytest le parcourt.
+    # A folder is walked the way pytest walks it.
     assert selection_dune_commande("run: python -m pytest tests/ -rs") == tous
-    # Sans cible, pytest retombe sur `testpaths` — donc le même ensemble.
+    # Without a target, pytest falls back to `testpaths` — hence the same set.
     assert selection_dune_commande("run: python -m pytest -rs") == tous
-    # Un motif ne développe QUE ce qu'il désigne.
+    # A pattern expands ONLY what it designates.
     motif = selection_dune_commande(
         "run: python -m pytest tests/test_platform_*.py")
     assert motif and motif < tous
     assert all(f.name.startswith("test_platform_") for f in motif)
 
 
-def test_lextracteur_leve_sur_une_cible_quil_ne_sait_pas_lire():
-    """Une cible qu'on ne résout pas ne doit jamais s'évaporer : ignorée, elle
-    ferait passer une commande étroite pour une commande large."""
+def test_the_extractor_raises_on_a_target_it_cannot_read():
+    """A target that cannot be resolved must never evaporate: ignored, it would
+    make a narrow command pass for a wide one."""
     with pytest.raises(AssertionError, match="aucun fichier existant"):
         selection_dune_commande("run: python -m pytest tests/test_inexistant.py")
 
 
-def test_lextracteur_separe_les_commandes_dun_bloc_litteral():
-    """Un bloc « run: | » porte plusieurs commandes, une par ligne. Recollées
-    en une seule, les deux barrières n'en feraient qu'une — et la règle
-    ci-dessus déclarerait un paquet gardé alors qu'il ne l'est plus."""
+def test_the_extractor_splits_the_commands_of_a_literal_block():
+    """A "run: |" block carries several commands, one per line. Joined into one,
+    the two gates would make only one — and the rule above would declare a
+    package guarded while it no longer is."""
     bloc = """
       - name: Deux barrières
         run: |
@@ -211,8 +209,8 @@ def test_lextracteur_separe_les_commandes_dun_bloc_litteral():
     assert "src/monl/*" in commandes[0] and "src/monl_platform" not in commandes[0]
     assert "src/monl_platform/*" in commandes[1]
 
-    # Et la commande PLIÉE, elle, reste recollée en entier : la distinction
-    # porte sur le marqueur reporté, pas sur la présence d'une continuation.
+    # And the FOLDED command stays joined back in full: the distinction is
+    # about the repeated marker, not about a continuation being present.
     plie = """
       - name: Suite
         run: >-

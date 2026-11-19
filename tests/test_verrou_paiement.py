@@ -1,28 +1,26 @@
-"""Brique 18 (verrou de l'enregistrement payé) éprouvée contre un vrai serveur —
-point 91.
+"""Brick 18 (lock on a paid record) tested against a real server — point 91.
 
-Pourquoi ce fichier existe. `payable` (brique 9) garantissait que le montant
-encaissé venait de la BASE, jamais du client. Elle ne disait rien de ce qui se
-passe APRÈS l'encaissement — et la réponse, mesurée sur une boutique réelle
-avant d'écrire une ligne de code, était : tout. Une commande réglée 89 € gagnait
-une paire à 149 €, affichait 238 € toujours marqués 'payee', puis 594 € en
-portant la quantité à cinq. Vidée de ses lignes, elle se supprimait ; le 409 que
-renvoyait alors la clé étrangère ne protégeait rien, il retardait.
+Why this file exists. `payable` (brick 9) guaranteed that the charged amount
+came from the DATABASE, never from the client. It said nothing about what
+happens AFTER the charge — and the answer, measured on a real shop before
+writing a line of code, was: everything. An order settled for €89 gained a
+pair at €149, showed €238 still marked 'payee', then €594 by raising the
+quantity to five. Emptied of its lines, it could be deleted; the 409 the
+foreign key returned then protected nothing, it delayed.
 
-Ce que ces tests exigent, et qu'une relecture ne prouve pas :
+What these tests require, and what a review does not prove:
 
-* les cinq portes sont fermées, pas une : l'entité payable en modification et en
-  suppression, et sa LIGNE en création, modification et suppression — c'est par
-  la ligne que le total remontait, le verrou posé sur la seule commande aurait
-  laissé le trou entier ;
-* le total ne bouge pas d'un centime après un refus (un 409 rendu APRÈS le
-  recalcul serait un verrou qui prévient au lieu d'empêcher) ;
-* la CONTRE-ÉPREUVE : avant règlement, les cinq écritures passent toujours. Un
-  verrou qui figerait tout ferait passer les cinq premiers tests sans rien
-  garantir, et rendrait la boutique inutilisable ;
-* un webhook signé mais VIEUX est refusé : l'horodatage était lu pour vérifier
-  la signature et jamais daté, donc un appel capté restait rejouable ;
-* le type `Email` refuse enfin une adresse qui n'en est pas une.
+* all five doors are closed, not one: the payable entity on update and
+  delete, and its LINE on create, update and delete — the total went up
+  through the line, a lock on the order alone would have left the whole hole;
+* the total does not move by a cent after a refusal (a 409 returned AFTER the
+  recalculation would be a lock that warns instead of prevents);
+* the COUNTER-PROOF: before payment, the five writes still pass. A lock that
+  froze everything would make the first five tests pass while guaranteeing
+  nothing, and would make the shop unusable;
+* a signed but OLD webhook is refused: the timestamp was read to check the
+  signature and never dated, so a captured call stayed replayable;
+* the `Email` type finally refuses an address that is not one.
 """
 import contextlib
 import hashlib
@@ -101,7 +99,7 @@ PRIX_CHER = 149.00
 
 
 class _PrestataireFactice(BaseHTTPRequestHandler):
-    def do_POST(self):  # nom imposé par BaseHTTPRequestHandler
+    def do_POST(self):  # name imposed by BaseHTTPRequestHandler
         brut = self.rfile.read(int(self.headers.get("Content-Length", 0)))
         self.server.recu.append(
             {c: v[0] for c, v in urllib.parse.parse_qs(brut.decode()).items()})
@@ -195,7 +193,7 @@ def _commande(base, entetes, libelle="panier"):
     return reponse.json()["id"]
 
 
-def _ligne(base, entetes, commande_id, article_id, quantite=1):
+def _line(base, entetes, commande_id, article_id, quantite=1):
     return requests.post(f"{base}/ligne", headers=entetes,
                          json={"commande_id": commande_id,
                                "article_id": article_id,
@@ -216,9 +214,9 @@ def _etat(dossier, commande_id):
 
 
 def _webhook(base, commande_id, decalage=0, session="cs_test_1"):
-    """Signe et poste un événement de règlement. `decalage` en secondes sert au
-    test de rejeu : c'est le seul paramètre qui change entre un appel légitime
-    et un appel capté puis rejoué plus tard."""
+    """Signs and posts a payment event. `decalage` in seconds serves the replay
+    test: it is the only parameter that changes between a legitimate call and a
+    call captured then replayed later."""
     corps = json.dumps({
         "type": "checkout.session.completed",
         "data": {"object": {"id": session,
@@ -236,11 +234,11 @@ def _webhook(base, commande_id, decalage=0, session="cs_test_1"):
 
 
 def _commande_reglee(application, entetes):
-    """Une commande d'une ligne à 89 €, réellement passée par la route de
-    règlement puis par le webhook signé du prestataire."""
+    """A one-line order at €89, really sent through the payment route then the
+    provider's signed webhook."""
     base, dossier = application
     identifiant = _commande(base, entetes)
-    assert _ligne(base, entetes, identifiant,
+    assert _line(base, entetes, identifiant,
                   _article(dossier, PRIX)).status_code in (200, 201)
     reponse = requests.post(f"{base}/commande/{identifiant}/paiement",
                             headers=entetes)
@@ -250,9 +248,9 @@ def _commande_reglee(application, entetes):
     return identifiant
 
 
-# ---------------------------------------------------------------- le verrou
+# -------------------------------------------------------------------- the lock
 
-def test_une_commande_reglee_refuse_la_modification(application, alice):
+def test_a_settled_order_refuses_updates(application, alice):
     base, dossier = application
     identifiant = _commande_reglee(application, alice)
 
@@ -267,10 +265,10 @@ def test_une_commande_reglee_refuse_la_modification(application, alice):
                            (identifiant,)).fetchone()[0] == "panier"
 
 
-def test_une_commande_reglee_refuse_la_suppression(application, alice):
-    """Supprimer effaçait la trace d'un encaissement. Le 409 que rendait la clé
-    étrangère ne tenait que tant qu'il restait une ligne : ce test vide d'abord
-    la commande, ce qui est exactement le chemin par lequel elle disparaissait."""
+def test_a_settled_order_refuses_deletion(application, alice):
+    """Deleting erased the trace of a charge. The 409 the foreign key returned
+    only held as long as a line remained: this test empties the order first,
+    which is exactly the path through which it disappeared."""
     base, dossier = application
     identifiant = _commande_reglee(application, alice)
     lignes = requests.get(f"{base}/ligne?limit=100", headers=alice).json()["data"]
@@ -286,21 +284,21 @@ def test_une_commande_reglee_refuse_la_suppression(application, alice):
                            (identifiant,)).fetchone()[0] == 1
 
 
-def test_une_ligne_ne_s_ajoute_plus_a_une_commande_reglee(application, alice):
-    """Le trou d'origine, dans le sens où il a été exploité : 89 € encaissés,
-    puis une paire à 149 € ajoutée, et 238 € affichés toujours 'payee'."""
+def test_a_line_can_no_longer_be_added_to_a_settled_order(application, alice):
+    """The original hole, in the direction it was exploited: €89 charged, then a
+    pair at €149 added, and €238 shown still 'payee'."""
     base, dossier = application
     identifiant = _commande_reglee(application, alice)
 
-    ajout = _ligne(base, alice, identifiant, _article(dossier, PRIX_CHER))
+    ajout = _line(base, alice, identifiant, _article(dossier, PRIX_CHER))
 
     assert ajout.status_code == 409, ajout.text
-    # Le total ne doit pas avoir bougé d'un centime : un refus rendu APRÈS le
-    # recalcul préviendrait au lieu d'empêcher.
+    # The total must not have moved by a cent: a refusal returned AFTER the
+    # recalculation would warn instead of prevent.
     assert float(_total(base, alice, identifiant)) == PRIX
 
 
-def test_la_quantite_d_une_ligne_reglee_ne_change_plus(application, alice):
+def test_the_quantity_of_a_settled_line_no_longer_changes(application, alice):
     base, dossier = application
     identifiant = _commande_reglee(application, alice)
     lignes = requests.get(f"{base}/ligne?limit=100", headers=alice).json()["data"]
@@ -314,15 +312,15 @@ def test_la_quantite_d_une_ligne_reglee_ne_change_plus(application, alice):
     assert float(_total(base, alice, identifiant)) == PRIX
 
 
-# ---------------------------------------------------------- la contre-épreuve
+# ----------------------------------------------------------- the counter-proof
 
-def test_avant_reglement_les_cinq_ecritures_passent_toujours(application, alice):
-    """SANS ce test, un verrou qui figerait tout ferait passer les précédents en
-    ne garantissant rien — et rendrait la boutique inutilisable."""
+def test_before_payment_the_five_writes_still_pass(application, alice):
+    """WITHOUT this test, a lock freezing everything would make the previous
+    ones pass while guaranteeing nothing — and would make the shop unusable."""
     base, dossier = application
     identifiant = _commande(base, alice, "en cours")
 
-    ajout = _ligne(base, alice, identifiant, _article(dossier, PRIX))
+    ajout = _line(base, alice, identifiant, _article(dossier, PRIX))
     ligne_id = ajout.json()["id"]
     modif_ligne = requests.put(f"{base}/ligne/{ligne_id}", headers=alice,
                                json={"quantite": 3, "commande_id": identifiant,
@@ -342,28 +340,28 @@ def test_avant_reglement_les_cinq_ecritures_passent_toujours(application, alice)
     assert suppression.status_code == 200, suppression.text
 
 
-def test_le_verrou_ne_deborde_pas_sur_la_commande_d_a_cote(application, alice):
-    """Une commande réglée ne fige qu'elle-même : le verrou lit le parent de la
-    ligne, pas « une commande payée existe quelque part »."""
+def test_the_lock_does_not_spill_onto_the_next_order(application, alice):
+    """A settled order only freezes itself: the lock reads the line's parent,
+    not "a paid order exists somewhere"."""
     base, dossier = application
     _commande_reglee(application, alice)
     voisine = _commande(base, alice, "voisine")
 
-    ajout = _ligne(base, alice, voisine, _article(dossier, PRIX))
+    ajout = _line(base, alice, voisine, _article(dossier, PRIX))
 
     assert ajout.status_code in (200, 201), ajout.text
     assert float(_total(base, alice, voisine)) == PRIX
 
 
-# ------------------------------------------------------------ rejeu du webhook
+# -------------------------------------------------------------- webhook replay
 
-def test_un_webhook_signe_mais_vieux_est_refuse(application, alice):
-    """Fraîcheur de la signature : l'horodatage servait à VÉRIFIER la signature
-    sans jamais être daté, donc un appel légitime capté restait rejouable
-    indéfiniment. Dix minutes suffisent à le montrer."""
+def test_a_signed_but_old_webhook_is_refused(application, alice):
+    """Signature freshness: the timestamp served to CHECK the signature without
+    ever being dated, so a legitimate captured call stayed replayable
+    indefinitely. Ten minutes are enough to show it."""
     base, dossier = application
     identifiant = _commande(base, alice, "rejeu")
-    _ligne(base, alice, identifiant, _article(dossier, PRIX))
+    _line(base, alice, identifiant, _article(dossier, PRIX))
 
     reponse = _webhook(base, identifiant, decalage=-600)
 
@@ -372,7 +370,7 @@ def test_un_webhook_signe_mais_vieux_est_refuse(application, alice):
     assert _etat(dossier, identifiant) == "en_attente"
 
 
-def test_un_horodatage_illisible_ne_passe_pas_pour_frais(application, alice):
+def test_an_unreadable_timestamp_does_not_pass_as_fresh(application, alice):
     base, dossier = application
     identifiant = _commande(base, alice, "horodatage")
     corps = json.dumps({"type": "checkout.session.completed",
@@ -393,9 +391,9 @@ def test_un_horodatage_illisible_ne_passe_pas_pour_frais(application, alice):
 
 # ------------------------------------------------------------------- courriel
 
-def test_le_type_email_refuse_une_adresse_qui_n_en_est_pas_une(application, alice):
-    """POINT 91 : le type ne fixait qu'une longueur. 'pas-un-courriel' entrait
-    en base avec un 200 — une adresse à laquelle aucun colis ne part."""
+def test_the_email_type_refuses_an_address_that_is_not_one(application, alice):
+    """POINT 91: the type only set a length. 'pas-un-courriel' entered the
+    database with a 200 — an address no parcel goes to."""
     table = [
         "pas-un-courriel", "sans@point", "espace @exemple.fr", "@exemple.fr",
         "deux@@exemple.fr",
@@ -412,9 +410,9 @@ def test_le_type_email_refuse_une_adresse_qui_n_en_est_pas_une(application, alic
     verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
 
-def test_une_adresse_valide_reste_acceptee(application, alice):
-    """La contre-épreuve du refus : un motif trop strict ferait passer le test
-    précédent en rejetant aussi les vraies adresses."""
+def test_a_valid_address_stays_accepted(application, alice):
+    """The refusal's counter-proof: a too strict pattern would make the previous
+    test pass while also rejecting real addresses."""
     table = [
         "acheteuse@exemple.fr", "prenom.nom+etiquette@sous.domaine.co.uk",
     ]

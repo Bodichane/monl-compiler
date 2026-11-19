@@ -270,7 +270,7 @@ def test_le_total_est_la_somme_de_plusieurs_articles(application, alice):
     assert _total(base, alice, commande) == pytest.approx(attendu)
 
 
-def test_le_total_suit_la_quantite_modifiee(application, alice):
+def test_the_total_follows_the_updated_quantity(application, alice):
     """Sans recalcul au PUT, la faille se déplacerait de la ligne vers la
     quantité : ajouter un article à 1 puis passer à 10."""
     base, dossier = application

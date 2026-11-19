@@ -1,25 +1,26 @@
-"""Brique 10 (`derivedFrom`) éprouvée contre un vrai serveur — point 77.
+"""Brick 10 (`derivedFrom`) tested against a real server — point 77.
 
-Pourquoi ce fichier existe. `payable` (point 74) promet que le montant encaissé
-vient de la BASE et jamais du corps de requête. C'est vrai, et ça ne protégeait
-rien : personne n'avait demandé **qui écrit le montant en base**. La réponse
-était le client, par deux chemins — la création, et la modification (le
-propriétaire a le droit de faire un `PUT`). Deux exploits de trois requêtes,
-qu'aucun des 24 tests de `test_paiement.py` ne couvrait : ils vérifiaient que la
-ROUTE ignore le corps qu'on lui donne, sans jamais remonter à la source de la
-valeur qu'elle relit.
+Why this file exists. `payable` (point 74) promises that the charged amount
+comes from the DATABASE and never from the request body. True, and it
+protected nothing: nobody had asked **who writes the amount into the
+database**. The answer was the client, through two paths — creation, and
+update (the owner may `PUT`). Two three-request exploits, which none of the
+24 tests of `test_paiement.py` covered: they checked that the ROUTE ignores
+the body it is given, without ever going back to the source of the value it
+rereads.
 
-Ce que ces tests exigent, et qu'une relecture ne prouve pas :
+What these tests require, and what a review does not prove:
 
-* le montant envoyé par le client est **ignoré**, à la création comme à la
-  modification (le champ n'existe pas dans le schéma Pydantic) ;
-* le montant **suit** la quantité : sans recalcul au `PUT`, la faille se
-  déplacerait simplement du montant vers la quantité (créer à 1, modifier à 5) ;
-* le montant est calculé sur la ligne liée **stockée**, jamais sur celle que le
-  corps déclare. Les deux sens ont été essayés : calculer depuis `data.<fk>`
-  laissait un client facturer 89 € un article à 189 € en déclarant un article
-  bon marché qu'il ne pointait pas. C'est le seul défaut de la brique que
-  l'exécution a trouvé et que la relecture avait laissé passer.
+* the amount sent by the client is **ignored**, on creation as on update (the
+  field does not exist in the Pydantic schema);
+* the amount **follows** the quantity: without recalculation on `PUT`, the
+  flaw would simply move from the amount to the quantity (create at 1, update
+  to 5);
+* the amount is calculated on the **stored** linked row, never on the one the
+  body declares. Both directions were tried: calculating from `data.<fk>` let
+  a client be charged €89 for an item priced €189 by declaring a cheap item it
+  did not point to. It is the only defect of the brick that execution found
+  and review had let through.
 """
 import contextlib
 import os
@@ -85,8 +86,8 @@ PRIX_CHER, PRIX_BON_MARCHE = 189.0, 89.0
 
 @contextlib.contextmanager
 def _base(dossier):
-    # Comme dans test_briques_comportement.py : `with connect(...)` valide la
-    # transaction mais ne FERME pas — d'où les ResourceWarning du banc d'essai.
+    # As in test_briques_comportement.py: `with connect(...)` commits the
+    # transaction but does not CLOSE — hence the test bench's ResourceWarnings.
     cnx = sqlite3.connect(os.path.join(dossier, "app.db"))
     try:
         with cnx:
@@ -101,9 +102,9 @@ def application():
         ast = MonlAST(parse_monl_string(SPEC)).validate_and_audit()
         MonlSecureGenerator(ast, output_dir=dossier).generate_all()
         with uvicorn_server(dossier) as base:
-            # Deux articles de prix différents : le témoin voisin est ce qui
-            # permet d'affirmer que le bon a été lu (leçon du point 70, où un
-            # compteur décrémentait le mauvais enregistrement).
+            # Two items with different prices: the neighboring witness is what
+            # lets us state the right one was read (point 70's lesson, where a
+            # counter decremented the wrong record).
             with _base(dossier) as cnx:
                 cnx.execute('INSERT INTO article (nom, prix) VALUES (?, ?)',
                             ("Article cher", PRIX_CHER))
@@ -154,27 +155,27 @@ def _lire(base, entetes, identifiant):
     return detail.get("data", detail)
 
 
-# ---------------------------------------------------- le champ n'est pas là --
+# --------------------------------------------------- the field is not there --
 
-def test_le_champ_calcule_est_absent_du_schema_d_entree(application):
-    """Le contrat de la brique commence là : le client ne peut pas même TENTER
-    de fournir le montant. C'est la même mécanique que `generated` (brique 7),
-    et le schéma Pydantic est partagé entre création et modification — c'est ce
-    qui ferme les deux chemins d'un coup."""
+def test_the_calculated_field_is_absent_from_the_input_schema(application):
+    """The brick's contract starts here: the client cannot even TRY to provide
+    the amount. It is the same mechanism as `generated` (brick 7), and the
+    Pydantic schema is shared between creation and update — that is what closes
+    both paths at once."""
     base, _dossier = application
     schema = requests.get(f"{base}/openapi.json").json()
     champs = schema["components"]["schemas"]["CommandeSchema"]["properties"]
     assert "total" not in champs, champs
-    # Le multiplicateur et la référence de l'article, eux, viennent du client.
+    # The multiplier and the item reference do come from the client.
     assert "quantite" in champs and "article_id" in champs
 
 
-# ------------------------------------------------------------- la création --
+# ----------------------------------------------------------------- creation --
 
-def test_le_total_envoye_a_la_creation_est_ignore(application):
-    """L'exploit d'origine, rejoué : 5 articles à 189 € commandés en déclarant
-    un total de 1 centime. Avant la brique, la base retenait 0.01 et `payable`
-    encaissait un centime pour 945 € de marchandise."""
+def test_the_total_sent_on_creation_is_ignored(application):
+    """The original exploit, replayed: 5 items at €189 ordered while declaring a
+    total of 1 cent. Before the brick, the database kept 0.01 and `payable`
+    charged one cent for €945 of goods."""
     base, dossier = application
     entetes = _entetes(application, "cree_ignore")
     identifiant = _commande(base, entetes, {
@@ -183,11 +184,11 @@ def test_le_total_envoye_a_la_creation_est_ignore(application):
     assert _lire(base, entetes, identifiant)["total"] == PRIX_CHER * 5
 
 
-def test_le_total_est_calcule_sur_le_bon_article(application):
-    """Le témoin voisin : deux articles de prix différents existent, et c'est
-    celui que le client a désigné qui doit être lu. Un défaut de clé étrangère
-    donnerait un montant plausible mais faux — exactement le bug que CLAUDE.md
-    cite comme invisible à la relecture."""
+def test_the_total_is_calculated_on_the_right_item(application):
+    """The neighboring witness: two items with different prices exist, and the
+    one the client designated must be read. A foreign key defect would give a
+    plausible but wrong amount — exactly the bug CLAUDE.md cites as invisible on
+    reading."""
     base, dossier = application
     entetes = _entetes(application, "cree_bon_article")
     identifiant = _commande(base, entetes, {
@@ -196,10 +197,10 @@ def test_le_total_est_calcule_sur_le_bon_article(application):
     assert _lire(base, entetes, identifiant)["total"] == PRIX_BON_MARCHE * 2
 
 
-def test_une_quantite_nulle_ou_negative_est_refusee(application):
-    """Un montant nul n'est pas encaissable (`payable` le refuse déjà en 400) ;
-    le refuser ici évite d'écrire en base une commande qui ne pourra jamais
-    être réglée. La quantité négative, elle, produirait un montant négatif."""
+def test_a_zero_or_negative_quantity_is_refused(application):
+    """A zero amount is not chargeable (`payable` already refuses it with 400);
+    refusing it here avoids writing to the database an order that can never be
+    settled. A negative quantity would produce a negative amount."""
     base, dossier = application
     entetes = _entetes(application, "quantite_nulle")
     article = _id_article_cher(dossier)
@@ -209,9 +210,9 @@ def test_une_quantite_nulle_ou_negative_est_refusee(application):
         assert reponse.status_code == 400, (quantite, reponse.text)
 
 
-def test_un_article_inexistant_donne_409_et_ne_cree_rien(application):
-    """Le 409 vaut mieux qu'un montant faux : une référence bidon doit arrêter
-    la commande, pas la créer à zéro euro — donc gratuite."""
+def test_a_nonexistent_item_gives_409_and_creates_nothing(application):
+    """The 409 is better than a wrong amount: a bogus reference must stop the
+    order, not create it at zero euros — hence free."""
     base, dossier = application
     entetes = _entetes(application, "article_absent")
     with _base(dossier) as cnx:
@@ -223,13 +224,13 @@ def test_un_article_inexistant_donne_409_et_ne_cree_rien(application):
         assert cnx.execute("SELECT COUNT(*) FROM commande").fetchone()[0] == avant
 
 
-# --------------------------------------------------------- la modification --
+# ------------------------------------------------------------------- update --
 
-def test_le_total_envoye_a_la_modification_est_ignore(application):
-    """Le SECOND exploit, celui que corriger la création seule aurait laissé
-    entier : une commande honnête, puis un `PUT` qui réécrit le montant.
-    `ownedBy` donne bien ce droit au propriétaire — c'est son rôle — donc la
-    protection ne peut pas venir du contrôle d'accès."""
+def test_the_total_sent_on_update_is_ignored(application):
+    """The SECOND exploit, the one fixing creation alone would have left whole:
+    an honest order, then a `PUT` rewriting the amount. `ownedBy` does give the
+    owner that right — that is its role — so the protection cannot come from
+    access control."""
     base, dossier = application
     entetes = _entetes(application, "put_ignore")
     article = _id_article_cher(dossier)
@@ -244,10 +245,10 @@ def test_le_total_envoye_a_la_modification_est_ignore(application):
     assert _lire(base, entetes, identifiant)["total"] == PRIX_CHER
 
 
-def test_le_total_suit_la_quantite_modifiee(application):
-    """Sans recalcul au `PUT`, la faille se déplacerait du montant vers la
-    quantité : créer à 1 puis modifier à 5 donnerait cinq articles au prix d'un.
-    Le montant doit donc SUIVRE, dans les deux sens."""
+def test_the_total_follows_the_updated_quantity(application):
+    """Without recalculation on `PUT`, the flaw would move from the amount to the
+    quantity: creating at 1 then updating to 5 would give five items for the
+    price of one. The amount must therefore FOLLOW, in both directions."""
     base, dossier = application
     entetes = _entetes(application, "put_quantite")
     article = _id_article_cher(dossier)
@@ -262,13 +263,13 @@ def test_le_total_suit_la_quantite_modifiee(application):
         assert _lire(base, entetes, identifiant)["total"] == PRIX_CHER * quantite
 
 
-def test_declarer_un_autre_article_au_put_ne_baisse_pas_le_total(application):
-    """Le défaut trouvé en éprouvant la brique, et le seul que la relecture
-    avait laissé passer. La route `Update` de monl n'écrit PAS les colonnes de
-    clé étrangère : la FK en base reste donc la seule vérité sur « quel
-    article ». Une version intermédiaire calculait depuis `data.article_id` —
-    un client facturait alors 89 € un article à 189 € en déclarant un article
-    bon marché qu'il ne pointait pas."""
+def test_declaring_another_item_on_put_does_not_lower_the_total(application):
+    """The defect found by testing the brick, and the only one review had let
+    through. monl's `Update` route does NOT write foreign key columns: the FK in
+    the database therefore stays the only truth about "which item". An
+    intermediate version calculated from `data.article_id` — a client was then
+    charged €89 for an item priced €189 by declaring a cheap item it did not
+    point to."""
     base, dossier = application
     entetes = _entetes(application, "put_autre_article")
     cher, bon_marche = _id_article_cher(dossier), _id_article_bon_marche(dossier)
@@ -285,12 +286,13 @@ def test_declarer_un_autre_article_au_put_ne_baisse_pas_le_total(application):
     assert ligne["article_id"] == cher
 
 
-# ------------------------------------------- ce que la brique rend à payable --
+# ------------------------------------- what the brick gives back to payable --
 
-def test_le_montant_encaisse_est_desormais_celui_du_catalogue(application):
-    """La boucle est fermée : `payable` relit en base un montant que le client
-    n'a jamais pu écrire. Sans clé Stripe la route répond 503 (point 74), donc
-    c'est la valeur EN BASE qu'on vérifie — c'est elle que la route relirait."""
+def test_the_charged_amount_is_now_the_catalogs(application):
+    """The loop is closed: `payable` rereads from the database an amount the
+    client could never write. Without a Stripe key the route answers 503 (point
+    74), so it is the value IN THE DATABASE that is checked — the one the route
+    would reread."""
     base, dossier = application
     entetes = _entetes(application, "encaisse")
     identifiant = _commande(base, entetes, {
@@ -301,7 +303,7 @@ def test_le_montant_encaisse_est_desormais_celui_du_catalogue(application):
                               'WHERE id = ?', (identifiant,)).fetchone()
     assert en_base[0] == PRIX_CHER * 3
     assert en_base[1] == "en_attente"
-    # Et la route de règlement existe bien, sans clé configurée : 503.
+    # And the payment route does exist, without a configured key: 503.
     reponse = requests.post(f"{base}/commande/{identifiant}/paiement",
                             headers=entetes)
     assert reponse.status_code == 503, reponse.text
