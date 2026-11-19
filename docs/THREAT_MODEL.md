@@ -135,7 +135,7 @@ These resource limits do not revoke filesystem/network access or inherited secre
 | --- | --- | --- |
 | Oversized spec or path traversal through project ID (T, I, D) | Spec input bound and opaque validated IDs. | tests/test_platform_service.py::test_entrees_bornees_et_identifiants_opaques |
 | Stuck worker publishes incomplete output (T, D) | Timeout failure cleans unpublished project. Witness simulates timeout; it does not measure OS resource limits. | tests/test_platform_service.py::test_interrupted_worker_publishes_no_project |
-| Recompilation bypasses admission quotas (D) | Compile/recompile share quota and semaphore. | tests/test_admission_compilation.py::test_compilation_et_recompilation_partagent_le_quota; tests/test_admission_compilation.py::test_compilation_et_recompilation_partagent_le_semaphore |
+| Recompilation bypasses admission quotas (D) | Compile/recompile share quota and semaphore. | tests/test_admission_compilation.py::test_compilation_and_recompilation_share_the_quota; tests/test_admission_compilation.py::test_compilation_and_recompilation_share_the_semaphore |
 | Export leaks runtime JWT secret (I) | Compiled archives exclude the secret. | tests/test_platform_service.py::test_validation_compile_inspection_and_archive_share_the_pipeline |
 | Compiler compromise escalates to host authority (E, I, T); author disputes submissions (R) | Parser/validator and worker separation reduce exposure; no lower-privilege sandbox or tamper-resistant submission ledger is established. | No containment/nonrepudiation test: see Known gaps. |
 

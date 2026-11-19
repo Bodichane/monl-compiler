@@ -1,4 +1,4 @@
-"""Corpus intégral déterministe ; régénération explicite depuis la racine."""
+"""Complete deterministic corpus; explicit regeneration from the root."""
 
 import contextlib
 import hashlib

@@ -1,4 +1,4 @@
-"""Témoins du pool PostgreSQL et de la séparation stricte avec SQLite."""
+"""Witnesses of the PostgreSQL pool and of the strict separation from SQLite."""
 
 import os
 import subprocess
@@ -48,8 +48,8 @@ def _probe(tmp_path, source, database_url=None, **variables):
     )
 
 
-def test_sqlite_n_emprunte_jamais_le_pool(tmp_path):
-    """Même des tailles invalides ne doivent rien changer à SQLite."""
+def test_sqlite_never_borrows_the_pool(tmp_path):
+    """Even invalid sizes must change nothing for SQLite."""
     _application(tmp_path)
     result = _probe(
         tmp_path,
@@ -75,7 +75,7 @@ finally:
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_creation_du_pool_est_unique_verrouillee_et_configuree(tmp_path):
+def test_pool_creation_is_unique_locked_and_configured(tmp_path):
     _application(tmp_path)
     result = _probe(
         tmp_path,
@@ -143,7 +143,7 @@ assert app._DB_POOL is None
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_repli_sans_psycopg_pool_et_diagnostic_une_seule_fois(tmp_path):
+def test_fallback_without_psycopg_pool_and_diagnostic_only_once(tmp_path):
     _application(tmp_path)
     result = _probe(
         tmp_path,
@@ -157,9 +157,9 @@ class MissingPool:
         return None
 
 sys.meta_path.insert(0, MissingPool())
-# Faux pilote AVANT `import app` : le vrai `psycopg` exige libpq, absente
-# de certaines machines, alors que ce témoin mesure le repli SANS pool, pas
-# le pilote. L'import ne lit de psycopg que `IntegrityError`.
+# Fake driver BEFORE `import app`: the real `psycopg` requires libpq, missing
+# on some machines, while this witness measures the fallback WITHOUT a pool,
+# not the driver. The import only reads `IntegrityError` from psycopg.
 import types
 _pilote = types.ModuleType("psycopg")
 _pilote.IntegrityError = type("IntegrityError", (Exception,), {})

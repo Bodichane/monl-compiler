@@ -1,4 +1,4 @@
-"""Preuves du routage des modèles par étape de génération frontend."""
+"""Proofs of model routing per frontend generation stage."""
 
 import json
 
@@ -36,7 +36,7 @@ class FakeChunkProvider:
         return json.dumps({"files": {target: f"/* {self.model} */"}})
 
 
-def test_sans_correspondance_le_provider_global_reste_seul(tmp_path):
+def test_without_match_the_global_provider_stays_alone(tmp_path):
     project = tmp_path / "projet"
     project.mkdir()
     provider = FakeChunkProvider("modele-global")
@@ -56,7 +56,7 @@ def test_sans_correspondance_le_provider_global_reste_seul(tmp_path):
     assert provider.calls == ["index.html", "styles.css", "app.js"]
 
 
-def test_styles_css_peut_etre_route_et_usage_regroupe_deux_modeles(
+def test_styles_css_can_be_routed_and_usage_groups_two_models(
         monkeypatch, tmp_path, capsys):
     project = tmp_path / "projet"
     project.mkdir()
@@ -102,7 +102,7 @@ def test_styles_css_peut_etre_route_et_usage_regroupe_deux_modeles(
     assert "yandex / modele-css" in output
 
 
-def test_cible_inconnue_refusee_en_la_nommant(tmp_path):
+def test_unknown_target_refused_by_name(tmp_path):
     project = tmp_path / "projet"
     project.mkdir()
     provider = FakeChunkProvider("modele-global")
@@ -115,7 +115,7 @@ def test_cible_inconnue_refusee_en_la_nommant(tmp_path):
         )
 
 
-def test_option_cli_transmet_le_routage_a_la_generation(monkeypatch, tmp_path):
+def test_cli_option_passes_routing_to_generation(monkeypatch, tmp_path):
     project = tmp_path / "projet"
     project.mkdir()
     captured = {}

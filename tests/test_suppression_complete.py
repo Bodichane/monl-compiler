@@ -1,4 +1,4 @@
-"""La suppression retire les données et les processus sur un vrai serveur."""
+"""Deletion removes data and processes on a real server."""
 
 import os
 import signal
@@ -41,7 +41,7 @@ def _verifier_workers(pids):
         assert Path(f"/proc/{pid}/stat").read_text().split()[2] != "Z"
 
 
-def test_suppression_cli_avec_deux_workers_uvicorn(tmp_path):
+def test_cli_deletion_with_two_uvicorn_workers(tmp_path):
     app = create_app(workspace=tmp_path)
     user = app.state.identity_store.register("workers@monl.test", "MotDePasse-123")
     projet, dossier = _projet(app, user, "multiworker")
@@ -150,7 +150,7 @@ def test_suppression_complete_et_sites_voisins_preserves(tmp_path, monkeypatch, 
         assert _get(vivant.port, "/openapi.json")[0] == 200
         _supprimer(mode, app, base, session, alice, cible)
         for _ in range(200):
-            # La purge peut encore retirer les lignes en base après le dossier.
+            # The purge can still remove the database rows after the folder.
             if (vivant.process.poll() is not None and not dossier.exists()
                     and app.state.store.get_project(cible["project_id"]) is None
                     and not any(projet["project_id"] == cible["project_id"]
@@ -176,7 +176,7 @@ def test_suppression_complete_et_sites_voisins_preserves(tmp_path, monkeypatch, 
         remplacement, _ = _projet(app, alice, "remplacement")
         nouveau = sites.start_project(remplacement)
         assert _get(nouveau.port, "/openapi.json")[0] == 200, "Le créneau du site supprimé n'est pas libéré"
-        # Le nettoyage du serveur arrête tous les sites encore légitimes.
+        # Server cleanup stops every site still legitimately running.
 
 
 def test_compte_local_exige_toujours_son_mot_de_passe(tmp_path):

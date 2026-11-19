@@ -1,4 +1,4 @@
-"""Témoins HTTP de la borne commune des corps JSON de la plateforme."""
+"""HTTP witnesses of the platform's shared JSON body bound."""
 
 import ast
 import http.client
@@ -65,7 +65,7 @@ def _post_chunked(plateforme, morceaux):
     return reponse.status, json.loads(contenu)
 
 
-def test_un_corps_chunked_trop_grand_est_refuse(plateforme):
+def test_a_too_large_chunked_body_is_refused(plateforme):
     morceaux = [b'{"email":"x","password":"y","remplissage":"']
     morceaux += [b"a" * 50_000] * 7
     morceaux.append(b'"}')
@@ -86,7 +86,7 @@ def test_un_corps_chunked_borne_et_valide_reste_accepte(plateforme):
     assert contenu["detail"] == "Incorrect email or password."
 
 
-def test_content_length_trop_grand_est_refuse_avant_lecture(plateforme):
+def test_too_large_content_length_is_refused_before_reading(plateforme):
     hote, port = plateforme
     connexion = http.client.HTTPConnection(hote, port, timeout=10)
     connexion.request(
@@ -113,14 +113,14 @@ def test_un_json_chunked_non_objet_garde_son_erreur(plateforme):
     assert contenu["detail"] == "A JSON object is expected."
 
 
-def test_les_routes_ne_lisent_pas_le_corps_hors_des_lecteurs_bornes():
+def test_routes_do_not_read_the_body_outside_bounded_readers():
     racine = Path(__file__).parents[1] / "src" / "monl_platform"
-    # DEUX lecteurs, pas un de plus, et chacun est BORNÉ. La liste a déjà
-    # servi : le relais lisait `route_by_host` → `request.body()`, sans borne,
-    # et le point 188 l'a déplacé dans `_bounded_body` → `request.stream()`.
-    # Ce témoin a rougi sur ce déplacement alors que tout le reste était vert,
-    # ce qui est exactement ce qu'on lui demande : un lecteur qui bouge se
-    # redéclare, il ne se glisse pas.
+    # TWO readers, not one more, and each is BOUNDED. The list has served
+    # already: the relay read `route_by_host` → `request.body()`, unbounded,
+    # and point 188 moved it into `_bounded_body` → `request.stream()`. This
+    # witness went red on that move while everything else was green, which is
+    # exactly what it is asked to do: a reader that moves declares itself
+    # again, it does not slip through.
     autorises = {
         ("app_http.py", "_json_body", "stream"),
         ("builder_host.py", "_bounded_body", "stream"),

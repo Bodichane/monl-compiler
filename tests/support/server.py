@@ -1,4 +1,4 @@
-"""Cycle de vie commun des applications uvicorn générées pendant les tests."""
+"""Shared lifecycle of the uvicorn applications generated during tests."""
 
 import contextlib
 import os
@@ -13,19 +13,19 @@ import requests
 
 
 def free_port():
-    """Réserve brièvement un port local libre et renvoie son numéro.
+    """Briefly reserves a free local port and returns its number.
 
-    **Ce port est RELÂCHÉ avant d'être utilisé**, et rien ne le retient entre
-    les deux : l'OS peut le redonner à n'importe qui, y compris à une connexion
-    sortante de la suite elle-même — `bind(0)` et les sockets clientes puisent
-    dans la MÊME plage éphémère (`/proc/sys/net/ipv4/ip_local_port_range`, ici
-    32768-60999). D'où un `uvicorn` qui meurt sur « address already in use »
-    seulement sous charge, jamais quand on lance le fichier seul.
+    **This port is RELEASED before being used**, and nothing holds it in
+    between: the OS can hand it to anyone, including an outgoing connection of
+    the suite itself — `bind(0)` and client sockets draw from the SAME ephemeral
+    range (`/proc/sys/net/ipv4/ip_local_port_range`, here 32768-60999). Hence a
+    `uvicorn` dying on "address already in use" only under load, never when the
+    file runs alone.
 
-    `uvicorn_server` ne s'en sert plus : il lie sa socket et la passe à
-    l'enfant, ce qui supprime la fenêtre au lieu de la retenter. Les tests qui
-    montent leur serveur eux-mêmes l'appellent encore ; ils échouent
-    franchement si le port leur échappe, ce qui est bruyant mais honnête.
+    `uvicorn_server` no longer uses it: it binds its socket and passes it to the
+    child, which removes the window instead of retrying. Tests that mount their
+    server themselves still call it; they fail plainly if the port escapes them,
+    which is noisy but honest.
     """
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
@@ -33,16 +33,16 @@ def free_port():
 
 
 def _diagnostic(entete, journal, module, directory):
-    """Ce qu'uvicorn a écrit avant de mourir.
+    """What uvicorn wrote before dying.
 
-    Cette sortie partait dans `DEVNULL` : c'est la raison pour laquelle
-    personne n'a jamais su POURQUOI le serveur s'arrêtait. Un message qui ne
-    dit pas la cause envoie chercher au mauvais endroit.
+    This output went to `DEVNULL`: that is why nobody ever knew WHY the server
+    stopped. A message that does not say the cause sends you looking in the
+    wrong place.
     """
     try:
         journal.seek(0)
         sortie = journal.read().strip()
-    except (OSError, ValueError):  # pragma: no cover - journal déjà fermé
+    except (OSError, ValueError):  # pragma: no cover - log already closed
         sortie = ""
     return (f"{entete}\n"
             f"module={module!r} dossier={directory!r}\n"
@@ -53,24 +53,24 @@ def _diagnostic(entete, journal, module, directory):
 @contextlib.contextmanager
 def uvicorn_server(directory, *, env=None, module="app:app",
                    ready_path="/openapi.json", attempts=80):
-    """Lance une application générée, attend qu'elle réponde, puis l'arrête.
+    """Starts a generated application, waits for it to answer, then stops it.
 
-    Les scénarios métier restent responsables de compiler leur spec et de
-    préparer leur base. Cet utilitaire ne porte que la mécanique de processus
-    répétée dans les tests d'intégration.
+    Business scenarios stay responsible for compiling their spec and preparing
+    their database. This utility only carries the process mechanics repeated in
+    the integration tests.
 
-    Deux décisions à ne pas défaire.
+    Two decisions not to undo.
 
-    **La socket est liée ICI et passée à l'enfant** (`uvicorn --fd`), au lieu
-    de lui transmettre un numéro de port qu'on vient de relâcher. Le port ne
-    redevient jamais disponible entre le choix et l'écoute : la collision est
-    rendue IMPOSSIBLE, elle n'est pas retentée. Retenter aurait aussi masqué
-    une panne déterministe derrière deux essais de plus.
+    **The socket is bound HERE and passed to the child** (`uvicorn --fd`),
+    instead of handing it a port number just released. The port never becomes
+    available between choosing and listening: the collision is made IMPOSSIBLE,
+    not retried. Retrying would also have hidden a deterministic failure behind
+    two more attempts.
 
-    **Un serveur qui ne démarre pas fait ÉCHOUER le test, jamais sauter.** La
-    version précédente appelait `pytest.skip`, donc les vingt et un fichiers
-    d'intégration qui passent par ici pouvaient ne rien vérifier en rendant du
-    vert. C'est exactement le faux vert que CLAUDE.md interdit.
+    **A server that does not start makes the test FAIL, never skip.** The
+    previous version called `pytest.skip`, so the twenty-one integration files
+    going through here could check nothing while returning green. It is exactly
+    the false green CLAUDE.md forbids.
     """
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
@@ -91,10 +91,10 @@ def uvicorn_server(directory, *, env=None, module="app:app",
                 stderr=subprocess.STDOUT,
             )
         finally:
-            # L'enfant a sa propre copie du descripteur. Garder la nôtre
-            # ouverte ferait accepter par le noyau des connexions que plus
-            # personne ne sert si le serveur meurt : une panne deviendrait une
-            # attente jusqu'au délai, au lieu d'un refus immédiat.
+            # The child has its own copy of the descriptor. Keeping ours open
+            # would make the kernel accept connections nobody serves any more
+            # if the server dies: a failure would become a wait until the
+            # timeout, instead of an immediate refusal.
             sock.close()
 
         base_url = f"http://127.0.0.1:{port}"

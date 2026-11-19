@@ -1,18 +1,19 @@
-"""Audit offensif rejoué sur CHAQUE exemple, contre un vrai serveur (point 197).
+"""Offensive audit replayed on EVERY example, against a real server (point 197).
 
-Remplace `tests/test_exploit_all.py`, qui ne définissait aucune fonction
-`test_` : pytest ne le collectait pas, il avalait les échecs de compilation
-(« ignoré ») et écrivait dans la racine du dépôt. Trois documents promettaient
-pourtant que la CI le rejouait — la promesse est désormais tenue.
+Replaces `tests/test_exploit_all.py`, which defined no `test_` function:
+pytest did not collect it, it swallowed compilation failures ("ignored") and
+wrote into the repository root. Yet three documents promised CI replayed it —
+the promise is now kept.
 
-Trois attaques, avec le code EXACT attendu (et non « >= 400 », qu'un corps
-invalide suffirait à satisfaire) :
-  1. usurpation par en-tête brut `x_actor`          → 401 ;
-  2. jeton signé avec une autre clé, rôle autorisé  → 401 ;
-  3. jeton légitime d'un rôle non autorisé sur une
-     écriture réservée à d'autres                   → 403.
-La contre-épreuve vient AVANT : le même appel avec un jeton légitime du rôle
-autorisé ne reçoit PAS 401 — sans elle, un serveur fermé à tout passerait.
+Three attacks, with the EXACT expected code (not ">= 400", which an invalid
+body would be enough to satisfy):
+  1. impersonation through a raw `x_actor` header   → 401;
+  2. token signed with another key, allowed role     → 401;
+  3. legitimate token of a role not allowed on a
+     write reserved to others                        → 403.
+The counter-proof comes FIRST: the same call with a legitimate token of the
+allowed role does NOT get 401 — without it, a server closed to everything
+would pass.
 """
 import datetime
 import glob
@@ -32,8 +33,9 @@ MOT_DE_PASSE = "audit-offensif-197-solide"
 VALEURS = {"Integer": 1, "Float": 1.0, "Money": 1.0, "Boolean": False}
 
 
-def test_les_exemples_sont_trouves():
-    # Une liste vide rendrait le test paramétré vert sans rien attaquer.
+def test_the_examples_are_found():
+    # An empty list would make the parametrized test green without attacking
+    # anything.
     assert len(EXEMPLES) >= 5, EXEMPLES
 
 
@@ -67,8 +69,8 @@ def _cibles(ast):
             base = action["target"].split(".")[0]
             if action["type"] in ("Update", "Delete") and base in entites:
                 autorises.setdefault((base, action["type"]), set()).add(wf["actor"])
-    # Une suppression d'abord : sans corps, rien ne peut répondre 422 avant le
-    # contrôle du rôle (une modification valide son corps AVANT, mesuré).
+    # A deletion first: without a body, nothing can answer 422 before the role
+    # check (an update validates its body FIRST, measured).
     elevation = None
     for (entite, verbe), acteurs in sorted(autorises.items(),
                                            key=lambda c: (c[0][1] != "Delete", c[0])):
@@ -80,8 +82,8 @@ def _cibles(ast):
 
 
 def _corps_valide(projet, entite):
-    """Un corps que le SCHÉMA accepte, lu sur le contrat compilé : sans lui, un
-    422 répondrait avant le contrôle du rôle et l'attaque ne mesurerait rien."""
+    """A body the SCHEMA accepts, read from the compiled contract: without it, a
+    422 would answer before the role check and the attack would measure nothing."""
     contrat = json.loads((projet / "frontend_contract.json").read_text(encoding="utf-8"))
     return {
         champ["name"]: (champ["allowed_values"][0] if champ.get("allowed_values")
@@ -102,7 +104,7 @@ def _jeton(base, identifiant, acteur):
 
 
 @pytest.mark.parametrize("spec", EXEMPLES, ids=[os.path.basename(p) for p in EXEMPLES])
-def test_l_audit_offensif_echoue_sur_chaque_exemple(spec, tmp_path):
+def test_the_offensive_audit_fails_on_every_example(spec, tmp_path):
     ast = _compiler(spec, tmp_path / "projet")
     creation, elevation = _cibles(ast)
     assert creation, "aucune création protégée : rien à attaquer sur cet exemple"

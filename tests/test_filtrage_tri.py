@@ -1,8 +1,8 @@
-"""Brique B3 : filtres exacts et tri déclaré, contre de vrais serveurs.
+"""Brick B3: exact filters and declared sorting, against real servers.
 
-La recherche textuelle n'est volontairement pas testée : elle n'existe pas.
-Chaque scénario de comportement est exécuté séquentiellement sur SQLite puis
-sur PostgreSQL quand MONL_TEST_DATABASE_URL est fourni.
+Text search is deliberately not tested: it does not exist. Each behavior
+scenario runs sequentially on SQLite then on PostgreSQL when
+MONL_TEST_DATABASE_URL is provided.
 """
 
 from __future__ import annotations
@@ -150,8 +150,8 @@ def test_filtre_exact_tri_acl_pagination_et_valeurs_hostiles(database_url):
         assert [row["id"] for row in shipped_bob.json()["data"]] == [bob_item]
         assert bob_item not in {row["id"] for row in shipped_alice.json()["data"]}
 
-        # Une colonne non filtrable est inconnue de FastAPI et reste ignorée ;
-        # la liste n'est pas rétrécie silencieusement par un champ libre.
+        # A non-filterable column is unknown to FastAPI and stays ignored; the
+        # list is not silently narrowed by a free field.
         ignored = requests.get(
             f"{base}/item", headers=alice, params={"active": "false"}, timeout=10)
         assert ignored.status_code == 200
@@ -173,8 +173,8 @@ def test_filtre_exact_tri_acl_pagination_et_valeurs_hostiles(database_url):
         assert [row["rank"] for row in ascending.json()["data"]] == [1, 2]
         assert [row["rank"] for row in descending.json()["data"]] == [2, 1]
 
-        # rank est la seule colonne triable ; le champ déclaré seulement
-        # filtrable, et le sens arbitraire, sont refusés.
+        # rank is the only sortable column; the field declared only filterable,
+        # and an arbitrary direction, are refused.
         refused_column = requests.get(
             f"{base}/item", headers=alice,
             params={"sort": "status", "direction": "asc"}, timeout=10)
@@ -193,7 +193,7 @@ def test_filtre_exact_tri_acl_pagination_et_valeurs_hostiles(database_url):
         assert len(page.json()["data"]) == 1
 
 
-def test_contrat_et_signature_decrivent_les_capacites(tmp_path):
+def test_contract_and_signature_describe_the_capabilities(tmp_path):
     spec = tmp_path / "spec.ml"
     spec.write_text(SPEC, encoding="utf-8")
     compile_project(str(spec), str(tmp_path / "avec"))
@@ -218,7 +218,7 @@ def test_contrat_et_signature_decrivent_les_capacites(tmp_path):
     assert _contract_signature(contract)[6] != _contract_signature(contract_sans)[6]
 
 
-def test_oracles_refuses_a_la_compilation():
+def test_oracles_refused_at_compile_time():
     table = [
         ("rule Doc.value hidden\nrule Doc.Read filter value", "hidden"),
         (

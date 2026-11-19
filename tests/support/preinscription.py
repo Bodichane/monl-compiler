@@ -1,4 +1,4 @@
-"""Témoins HTTP de remplacement, partagés avec les contre-épreuves."""
+"""Stand-in HTTP witnesses, shared with the counter-proofs."""
 
 from tests.test_verification_email import (
     ACCOUNTS,

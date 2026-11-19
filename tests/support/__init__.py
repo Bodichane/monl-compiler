@@ -1,1 +1,1 @@
-"""Infrastructure partagée des tests d'intégration."""
+"""Shared infrastructure of the integration tests."""

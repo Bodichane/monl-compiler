@@ -31,9 +31,9 @@ import uvicorn
 
 from monl_platform.app import create_app
 
-#: Les pages qui embarquent du script. Une page ajoutée sans entrer ici ne
-#: serait pas vérifiée — le témoin ci-dessous exige donc qu'elles portent
-#: toutes du JavaScript, faute de quoi le nom est périmé.
+#: The pages that carry a script. A page added without entering here would not
+#: be checked — the witness below therefore requires them all to carry
+#: JavaScript, otherwise the name is stale.
 PAGES_AVEC_SCRIPT = ("/console", "/", "/guide", "/mcp", "/login", "/account")
 
 BLOC_SCRIPT = re.compile(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", re.S | re.I)
@@ -42,22 +42,21 @@ BLOC_SCRIPT = re.compile(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", re.S | r
 def _node():
     chemin = shutil.which("node")
     if chemin is None:
-        # Pas de `skip` : un saut dirait « rien à vérifier ici », alors qu'il
-        # dirait « je n'ai pas vérifié » (point 140). Node est déclaré dans
-        # .github/workflows/ci.yml pour cette raison.
+        # No `skip`: a skip would say "nothing to check here", while it would
+        # mean "I did not check" (point 140). Node is declared in
+        # .github/workflows/ci.yml for that reason.
         pytest.fail("node est requis pour analyser le JavaScript servi")
     return chemin
 
 
 @pytest.fixture(scope="module")
 def client(tmp_path_factory):
-    """Un VRAI serveur, comme le reste de la suite.
+    """A REAL server, like the rest of the suite.
 
-    ``fastapi.testclient`` est la voie écartée : il exige ``httpx2`` sur les
-    versions récentes de Starlette — vert en local avec un simple
-    avertissement de dépréciation, ROUGE en CI. Et il vaut mieux ici : ce
-    qu'on veut analyser est ce qui sort par HTTP, pas ce qu'un client
-    en-mémoire reconstitue.
+    ``fastapi.testclient`` is the rejected path: it requires ``httpx2`` on recent
+    Starlette versions — green locally with a mere deprecation warning, RED in
+    CI. And it is better here: what we want to analyze is what comes out over
+    HTTP, not what an in-memory client reconstructs.
     """
     application = create_app(workspace=tmp_path_factory.mktemp("js"))
     with socket.socket() as sock:
@@ -99,7 +98,7 @@ def _scripts_de(client, chemin):
 
 
 @pytest.mark.parametrize("chemin", PAGES_AVEC_SCRIPT)
-def test_le_javascript_servi_s_analyse_sans_erreur(client, chemin, tmp_path):
+def test_the_served_javascript_parses_without_error(client, chemin, tmp_path):
     node = _node()
     blocs = _scripts_de(client, chemin)
     assert blocs, f"{chemin} ne sert aucun script : cette entrée est périmée"
@@ -116,13 +115,13 @@ def test_le_javascript_servi_s_analyse_sans_erreur(client, chemin, tmp_path):
         )
 
 
-def test_la_console_sert_le_bouton_de_demarrage_avec_son_apostrophe(client):
-    """La contre-épreuve nommée : c'est CETTE chaîne qui avait cassé la page."""
+def test_the_console_serves_the_start_button_with_its_apostrophe(client):
+    """The named counter-proof: THIS string had broken the page."""
     node = _node()
     blocs = _scripts_de(client, "/console")
     entier = "\n".join(blocs)
     assert "Start the project" in entier, "le bouton a disparu du script servi"
-    # L'apostrophe doit être ÉCHAPPÉE dans le littéral, pas nue.
+    # The apostrophe must be ESCAPED in the literal, not bare.
     assert "Start the project\\'s API" in entier, (
         "l'apostrophe est nue dans le littéral JavaScript servi : "
         "une couche de templating Python a mangé l'antislash"

@@ -1,4 +1,4 @@
-"""Identité des octets, exécution et garde structurelle du premier gabarit."""
+"""Byte identity, execution and structural guard of the first template."""
 
 import ast
 import importlib.util
@@ -42,7 +42,7 @@ def test_liste_modules_montage_non_vide():
     assert DATABASE_MONTAGE_MODULES
 
 
-def test_montage_sans_decoupage_legacy():
+def test_mounting_without_legacy_splitting():
     table = DATABASE_MONTAGE_MODULES
 
     def cas(module):
@@ -69,7 +69,7 @@ def test_liste_modules_migres_non_vide():
     assert MIGRATED_MODULES
 
 
-def test_sandbox_emission_sans_f_string_ni_addition():
+def test_sandbox_emission_without_f_string_or_concatenation():
     table = MIGRATED_MODULES
 
     def cas(module):
@@ -94,7 +94,7 @@ def test_sandbox_custom_octets_et_execution(tmp_path):
     }
 
 
-def test_schema_champs_serveur_ne_masquent_pas_les_sous_chaines(tmp_path):
+def test_schema_server_fields_do_not_mask_substrings(tmp_path):
     source = AVEC_CUSTOM.replace(
         "    titre: String", "    titre: String\n    a: String\n    created_at: DateTime"
     ) + "\nrule Note.created_at timestamp\n"
@@ -126,5 +126,5 @@ def test_sandbox_description_antislash_litteral(tmp_path, description):
     assert module.Publier({}) == {
         "message": "Deterministic empty shell for Publier",
     }
-    # Python 3.13+ désindente __doc__ : on compare la ligne, pas l'indentation.
+    # Python 3.13+ dedents __doc__: compare the line, not the indentation.
     assert module.Publier.__doc__.strip() == f"Purpose: {description}"

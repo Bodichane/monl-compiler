@@ -1,4 +1,4 @@
-"""Témoins HTTP de l'admission commune aux deux routes de compilation."""
+"""HTTP witnesses of the admission shared by both compilation routes."""
 
 import socket
 import threading
@@ -77,7 +77,7 @@ def _creer_projet(base, session):
     return reponse.json()["id"]
 
 
-def test_compilation_et_recompilation_partagent_le_quota(plateforme):
+def test_compilation_and_recompilation_share_the_quota(plateforme):
     session = _inscrire(plateforme, "quota@exemple.test")
     projet = _creer_projet(plateforme, session)
 
@@ -92,7 +92,7 @@ def test_compilation_et_recompilation_partagent_le_quota(plateforme):
     assert "Retry-After" in refusee.headers
 
 
-def test_une_recompilation_occupe_le_semaphore_puis_le_libere(
+def test_a_recompilation_holds_the_semaphore_then_frees_it(
     plateforme, monkeypatch
 ):
     session = _inscrire(plateforme, "semaphore@exemple.test")
@@ -128,7 +128,7 @@ def test_une_recompilation_occupe_le_semaphore_puis_le_libere(
     assert suivante.status_code == 201, suivante.text
 
 
-def test_compilation_et_recompilation_partagent_le_semaphore(
+def test_compilation_and_recompilation_share_the_semaphore(
     plateforme, monkeypatch
 ):
     session = _inscrire(plateforme, "semaphore-partage@exemple.test")
@@ -164,7 +164,7 @@ def test_compilation_et_recompilation_partagent_le_semaphore(
     assert suivante.status_code == 201, suivante.text
 
 
-def test_un_appel_legitime_passe_et_les_erreurs_liberent_la_place(plateforme):
+def test_a_legitimate_call_passes_and_errors_free_the_slot(plateforme):
     session = _inscrire(plateforme, "erreurs@exemple.test")
 
     invalide = session.post(f"{plateforme}/api/compile", json={"spec": ""}, timeout=10)

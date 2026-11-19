@@ -1,10 +1,9 @@
-"""La console affiche-t-elle VRAIMENT des choix cliquables ? (point 171)
+"""Does the console REALLY show clickable choices? (point 171)
 
-Chercher une chaîne dans du HTML ne distingue pas une page qui marche d'une
-page morte — c'est le point 163, appris en trouvant deux pages qui n'avaient
-jamais exécuté une ligne de JavaScript. Ce banc pilote donc la vraie page
-avec jsdom, contre le vrai serveur, et compte les boutons réellement posés
-dans le document.
+Looking for a string in HTML cannot tell a working page from a dead one —
+that is point 163, learned by finding two pages that had never run a line of
+JavaScript. This bench therefore drives the real page with jsdom, against
+the real server, and counts the buttons really put in the document.
 """
 
 import json
@@ -89,9 +88,9 @@ def rapport_jsdom(tmp_path_factory):
     if shutil.which("node") is None:
         pytest.fail("node est requis : un saut ne dirait pas « rien à vérifier »")
     racine = tmp_path_factory.mktemp("console-choix")
-    # jsdom vit dans le cache utilisateur (~/.monl/jsdom), comme pour le smoke
-    # test. Son absence fait ÉCHOUER : un saut ne dit pas « rien à vérifier
-    # ici », il dit « je n'ai pas vérifié » (point 140).
+    # jsdom lives in the user cache (~/.monl/jsdom), as for the smoke test. Its
+    # absence makes the test FAIL: a skip does not say "nothing to check here",
+    # it says "I did not check" (point 140).
     assert _ensure_jsdom(str(racine), lambda *_: None), (
         "jsdom introuvable et non installable dans ~/.monl/jsdom")
     (racine / "runner.js").write_text(RUNNER, encoding="utf-8")
@@ -113,11 +112,11 @@ def rapport_jsdom(tmp_path_factory):
     return rapport
 
 
-def test_les_onze_modeles_sont_onze_boutons_et_pas_un_bloc_de_texte(rapport_jsdom):
+def test_the_eleven_templates_are_eleven_buttons_not_a_text_block(rapport_jsdom):
     assert rapport_jsdom["nb_choix"] == 11, rapport_jsdom
 
 
-def test_l_intitule_ne_repete_pas_le_menu_de_terminal(rapport_jsdom):
+def test_the_title_does_not_repeat_the_terminal_menu(rapport_jsdom):
     intitule = rapport_jsdom["intitule"]
     assert intitule == "What type of application are you building?", intitule
     assert "[1]" not in intitule
@@ -127,11 +126,11 @@ def test_chaque_bouton_porte_son_rang_son_nom_et_son_aide(rapport_jsdom):
     premier = rapport_jsdom["premier"]
     assert premier["rang"] == "1"
     assert premier["libelle"] == "Portfolio / showcase site"
-    # L'aide dit AUSSI si les visiteurs auront un compte — la question que la
-    # console ne posait nulle part.
+    # The help ALSO says whether visitors will have an account — the question
+    # the console asked nowhere.
     assert "accounts created by the" in premier["aide"], premier["aide"]
 
 
-def test_un_clic_repond_et_fait_avancer_le_dialogue(rapport_jsdom):
-    """Sans ça, on aurait onze beaux boutons qui ne font rien."""
+def test_a_click_answers_and_advances_the_dialogue(rapport_jsdom):
+    """Without this, we would have eleven fine buttons that do nothing."""
     assert rapport_jsdom["apres_clic"] != rapport_jsdom["intitule"], rapport_jsdom

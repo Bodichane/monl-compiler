@@ -1,13 +1,12 @@
-"""Exécuter une table de cas dans UN test, sans qu'un cas cache les autres.
+"""Run a table of cases in ONE test, without one case hiding the others.
 
-`@pytest.mark.parametrize` compte chaque ligne comme un test : 89 fonctions
-de la suite en produisaient 370. Pour une vérification pure (aucun serveur,
-aucun fichier ni réglage partagé entre les cas), c'est le même travail,
-réparti sur autant d'items.
+`@pytest.mark.parametrize` counts each row as a test: 89 functions of the
+suite produced 370. For a pure check (no server, no file nor setting shared
+between cases), it is the same work, spread over as many items.
 
-`verifier_chaque_cas` garde ce qui rend un paramétrage utile : TOUS les cas
-s'exécutent, même après un échec, et le message nomme chaque cas fautif avec
-sa cause. Il ne garde pas le compteur : un cas n'est pas un test.
+`verifier_chaque_cas` keeps what makes a parametrization useful: ALL cases
+run, even after a failure, and the message names each faulty case with its
+cause. It does not keep the count: a case is not a test.
 """
 
 from __future__ import annotations
@@ -19,12 +18,12 @@ import pytest
 
 def verifier_chaque_cas(table: Iterable[tuple], verifier: Callable, *,
                         ids: Sequence[str] | None = None) -> None:
-    """Appelle `verifier(*cas)` pour chaque tuple de `table`.
+    """Calls `verifier(*cas)` for each tuple of `table`.
 
-    Échoue UNE fois, à la fin, en listant chaque cas fautif. Une table vide
-    échoue aussi : un test qui ne vérifie rien ne doit pas passer (point 161).
-    Un `pytest.skip` dans un cas n'est PAS rattrapé : il sauterait tout le
-    test, d'où le refus de convertir un corps qui en contient.
+    Fails ONCE, at the end, listing each faulty case. An empty table fails too:
+    a test that checks nothing must not pass (point 161). A `pytest.skip` inside
+    a case is NOT caught: it would skip the whole test, hence the refusal to
+    convert a body that contains one.
     """
     table = [tuple(cas) for cas in table]
     assert table, "table de cas vide : ce test ne vérifierait rien"
@@ -34,7 +33,7 @@ def verifier_chaque_cas(table: Iterable[tuple], verifier: Callable, *,
     for rang, cas in enumerate(table):
         try:
             verifier(*cas)
-        except (Exception, pytest.fail.Exception) as exc:  # on agrège, on ne masque pas
+        except (Exception, pytest.fail.Exception) as exc:  # aggregate, do not hide
             nom = ids[rang] if ids is not None else repr(cas)[:160]
             echecs.append(f"- {nom} : {type(exc).__name__}: {exc}")
     if echecs:
