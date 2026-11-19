@@ -66,7 +66,7 @@ def test_compile_with_output_writes_to_the_requested_folder(spec, tmp_path, caps
 
 
 # -------------------------------------------------- run : options transmises --
-def test_run_transmet_ses_options_telles_quelles(monkeypatch):
+def test_run_passes_its_options_as_is(monkeypatch):
     recu = {}
     monkeypatch.setattr(cli.lancement, "cmd_run", lambda d, **kw: recu.update(dir=d, **kw))
 
@@ -225,7 +225,7 @@ def test_import_passes_the_source_and_folder(monkeypatch):
     assert recu == {"dir": "/projet", "source": "/tel/chargement.zip"}
 
 
-def test_un_import_refuse_sort_en_code_1(monkeypatch):
+def test_a_refused_import_exits_with_code_1(monkeypatch):
     from monl import frontend_ai
     monkeypatch.setattr(frontend_ai, "import_and_verify",
                         lambda *a, **kw: (False, ["frontend incohérent"]))
