@@ -1,23 +1,24 @@
-"""Brique 20 : atteindre une valeur DÉFAIT un effet — point 98.
+"""Brick 20: reaching a value UNDOES an effect — point 98.
 
-Le dernier bug vivant qu'avait laissé la comparaison à une boutique classique
-(point 96) : annuler une commande la passait en « annulée » et gardait ses
-lignes, donc le stock restait consommé. Supprimer les lignes le rendait
-(point 92) mais effaçait l'historique — un marchand veut les deux.
+The last live bug left by the comparison with a classic shop (point 96):
+cancelling an order switched it to "cancelled" and kept its lines, so the
+stock stayed consumed. Deleting the lines gave it back (point 92) but erased
+the history — a merchant wants both.
 
-`oneOf` (point 96) était le préalable : il fallait pouvoir désigner un état.
+`oneOf` (point 96) was the prerequisite: one had to be able to designate a
+state.
 
-Ce que la brique décide :
+What the brick decides:
 
-* **ne rendre QU'UNE FOIS.** L'état est lu avant l'écriture et la libération
-  n'a lieu qu'à la TRANSITION. Deux PUT successifs à « annulée » rendraient
-  sinon le stock deux fois, et la boutique s'inventerait des paires ;
-* **l'état libéré est TERMINAL.** Réactiver après avoir rendu laisserait une
-  commande vivante sans rien avoir consommé — du stock gratuit, même famille
-  que les exploits du point 77. Le reprendre au retour supposerait qu'il soit
-  encore disponible, ce que rien ne garantit ;
-* **aucun plancher sur la restitution**, comme au point 92 : on rend un état
-  qui a existé et qui était valide.
+* **give back ONLY ONCE.** The state is read before the write and release
+  only happens on the TRANSITION. Two successive PUTs to "cancelled" would
+  otherwise give the stock back twice, and the shop would invent pairs;
+* **the released state is TERMINAL.** Reactivating after giving back would
+  leave a live order having consumed nothing — free stock, same family as
+  point 77's exploits. Taking it again on return would assume it is still
+  available, which nothing guarantees;
+* **no floor on restitution**, as at point 92: we give back a state that
+  existed and was valid.
 """
 import json
 import subprocess
@@ -82,7 +83,7 @@ def _valide(spec):
 
 
 # --------------------------------------------------------------------------
-# Ce que la compilation refuse
+# What compilation refuses
 # --------------------------------------------------------------------------
 
 def test_the_bench_spec_compiles(capsys):
@@ -93,10 +94,10 @@ def test_the_bench_spec_compiles(capsys):
     capsys.readouterr()
 
 
-def test_sans_oneOf_la_regle_est_refusee(capsys):
-    """LE refus qui porte la brique : sans liste de valeurs, une faute de frappe
-    donnerait une règle qui ne se déclenche JAMAIS — et rien ne le dirait. C'est
-    exactement ce que le point 85 refuse."""
+def test_without_oneOf_the_rule_is_refused(capsys):
+    """THE refusal that carries the brick: without a list of values, a typo would
+    give a rule that NEVER fires — and nothing would say so. It is exactly what
+    point 85 refuses."""
     spec = SPEC.replace(
         'rule Commande.statut oneOf "panier", "en préparation", "annulée"\n', "")
     with pytest.raises(ASTValidationError) as refus:
@@ -105,15 +106,15 @@ def test_sans_oneOf_la_regle_est_refusee(capsys):
     capsys.readouterr()
 
 
-def test_une_valeur_hors_de_la_liste_est_refusee(capsys):
+def test_a_value_outside_the_list_is_refused(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace('"annulée" releases', '"remboursée" releases'))
     assert "it would never occur" in str(refus.value)
     capsys.readouterr()
 
 
-def test_liberer_une_entite_sans_decompte_est_refuse(capsys):
-    """« Rendre » suppose que quelque chose ait été pris."""
+def test_releasing_an_entity_without_counting_is_refused(capsys):
+    """"Giving back" assumes something was taken."""
     spec = SPEC.replace("rule Ligne.Create decrements Produit.stock by quantite\n", "")
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec)
@@ -121,8 +122,8 @@ def test_liberer_une_entite_sans_decompte_est_refuse(capsys):
     capsys.readouterr()
 
 
-def test_liberer_sans_relation_est_refuse(capsys):
-    """Sans relation, rien ne dit QUELLES lignes dépendent de cette commande."""
+def test_releasing_without_relation_is_refused(capsys):
+    """Without a relation, nothing says WHICH lines depend on this order."""
     spec = SPEC.replace("relation Commande hasMany Ligne\n",
                         "relation Client hasMany Ligne\n")
     with pytest.raises(ASTValidationError) as refus:
@@ -131,7 +132,7 @@ def test_liberer_sans_relation_est_refuse(capsys):
     capsys.readouterr()
 
 
-def test_une_entite_inconnue_est_refusee(capsys):
+def test_an_unknown_entity_is_refused(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace("releases Ligne", "releases Fantome"))
     assert "Fantome" in str(refus.value)
@@ -146,7 +147,7 @@ def test_two_rules_on_the_same_field_are_refused(capsys):
 
 
 def test_the_rule_really_changes_the_output(tmp_path, capsys):
-    """Le test qui interdit une règle décorative (point 85)."""
+    """The test forbidding a decorative rule (point 85)."""
     (tmp_path / "a.ml").write_text(SPEC, encoding="utf-8")
     (tmp_path / "b.ml").write_text(SANS_REGLE, encoding="utf-8")
     compile_project(str(tmp_path / "a.ml"), str(tmp_path / "a"))
@@ -158,9 +159,9 @@ def test_the_rule_really_changes_the_output(tmp_path, capsys):
     assert "_bascule" in avec and "_bascule" not in sans
 
 
-def test_le_contrat_annonce_la_liberation_et_laller_sans_retour(tmp_path, capsys):
-    """Sans cette note, une interface propose « repasser en préparation » sur
-    une commande annulée et découvre un 409 au clic."""
+def test_the_contract_announces_the_release_and_the_one_way_trip(tmp_path, capsys):
+    """Without this note, an interface offers "back to preparation" on a
+    cancelled order and discovers a 409 on click."""
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     contrat = compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     capsys.readouterr()
@@ -172,9 +173,9 @@ def test_le_contrat_annonce_la_liberation_et_laller_sans_retour(tmp_path, capsys
     assert "ONE-WAY" in route["note"]
 
 
-def test_le_delta_signale_une_liberation_ajoutee(tmp_path, capsys):
-    """POINT 98 : septième fois. Poser `releases` ne crée aucune route et ne
-    change aucun champ — mais un bouton « réactiver » devient un 409."""
+def test_the_delta_reports_an_added_release(tmp_path, capsys):
+    """POINT 98: the seventh time. Setting `releases` creates no route and
+    changes no field — but a "reactivate" button becomes a 409."""
     from monl.cli import cmd_update
 
     proj = tmp_path / "p"
@@ -257,9 +258,9 @@ def _commande_de(base, jeton, quantite):
     return cmd["id"]
 
 
-def test_annuler_rend_le_stock(boutique):
-    """LE défaut, mesuré en comparant la boutique à une vraie : annuler gardait
-    les lignes, donc le stock restait consommé."""
+def test_cancelling_gives_the_stock_back(boutique):
+    """THE defect, measured by comparing the shop with a real one: cancelling
+    kept the lines, so the stock stayed consumed."""
     base, jeton = boutique
     depart = _stock(base)
     cmd = _commande_de(base, jeton, 3)
@@ -272,9 +273,9 @@ def test_annuler_rend_le_stock(boutique):
     assert _stock(base) == depart
 
 
-def test_annuler_GARDE_les_lignes(boutique):
-    """Toute la raison d'être de la brique : supprimer les lignes rendait déjà
-    le stock (point 92), mais effaçait l'historique. Un marchand veut les deux."""
+def test_cancelling_KEEPS_the_lines(boutique):
+    """The brick's whole reason for being: deleting the lines already gave the
+    stock back (point 92), but erased the history. A merchant wants both."""
     base, jeton = boutique
     cmd = _commande_de(base, jeton, 2)
     _appel(f"{base}/commande/{cmd}", {"statut": "annulée"}, jeton, methode="PUT")
@@ -283,10 +284,10 @@ def test_annuler_GARDE_les_lignes(boutique):
     assert lignes["total"] == 1
 
 
-def test_re_annuler_ne_rend_PAS_une_seconde_fois(boutique):
-    """LE point de la brique, et ce que seul un vrai serveur montre : sans la
-    garde de transition, deux PUT rendraient le stock deux fois et la boutique
-    s'inventerait des paires."""
+def test_cancelling_again_does_NOT_give_back_a_second_time(boutique):
+    """THE point of the brick, and what only a real server shows: without the
+    transition guard, two PUTs would give the stock back twice and the shop would
+    invent pairs."""
     base, jeton = boutique
     depart = _stock(base)
     cmd = _commande_de(base, jeton, 3)
@@ -298,10 +299,10 @@ def test_re_annuler_ne_rend_PAS_une_seconde_fois(boutique):
     assert _stock(base) == depart, "le stock a été rendu plusieurs fois"
 
 
-def test_reactiver_apres_annulation_est_refuse(boutique):
-    """Sans ce refus : annuler rend le stock, réactiver laisse la commande
-    vivante sans rien avoir consommé — du stock gratuit, même famille que les
-    exploits du point 77."""
+def test_reactivating_after_cancellation_is_refused(boutique):
+    """Without this refusal: cancelling gives the stock back, reactivating leaves
+    the order live having consumed nothing — free stock, same family as point
+    77's exploits."""
     base, jeton = boutique
     depart = _stock(base)
     cmd = _commande_de(base, jeton, 3)
@@ -316,10 +317,9 @@ def test_reactiver_apres_annulation_est_refuse(boutique):
     assert relue["data"]["statut"] == "annulée", "l'état a changé malgré le refus"
 
 
-def test_un_autre_statut_ne_libere_rien(boutique):
-    """Le témoin : c'est la VALEUR déclarée qui libère, pas n'importe quelle
-    modification. Sans lui, une brique qui rendrait à chaque PUT passerait les
-    tests précédents."""
+def test_another_status_releases_nothing(boutique):
+    """The witness: it is the declared VALUE that releases, not any update.
+    Without it, a brick giving back on every PUT would pass the previous tests."""
     base, jeton = boutique
     depart = _stock(base)
     cmd = _commande_de(base, jeton, 2)
@@ -331,9 +331,9 @@ def test_un_autre_statut_ne_libere_rien(boutique):
     assert _stock(base) == depart - 2, "un statut ordinaire a rendu du stock"
 
 
-def test_annuler_ne_rend_que_SES_lignes(boutique):
-    """Deux commandes ouvertes : annuler l'une ne doit pas rendre ce que
-    l'autre a consommé. Le piège de la clé étrangère, une fois de plus."""
+def test_cancelling_gives_back_only_ITS_lines(boutique):
+    """Two open orders: cancelling one must not give back what the other
+    consumed. The foreign key trap, once more."""
     base, jeton = boutique
     depart = _stock(base)
     premiere = _commande_de(base, jeton, 3)
@@ -346,23 +346,23 @@ def test_annuler_ne_rend_que_SES_lignes(boutique):
 
 
 # --------------------------------------------------------------------------
-# Quand `writableAfterPayment` prend le champ : la libération le suit
+# When `writableAfterPayment` takes the field: the release follows it
 # --------------------------------------------------------------------------
 #
-# Cumulées sur le MÊME champ, les deux briques se contredisaient :
-# `writableAfterPayment` retire le champ du schéma Pydantic de l'Update
-# générique, dont la bascule continuait pourtant de lire `data.<champ>`. Tout
-# PUT répondait 500 — sur `exemples/02_boutique.ml`, pour le seul rôle qui a le
-# droit de l'appeler. Trouvé en compilant une spec de banc, pas en relisant.
+# Combined on the SAME field, the two bricks contradicted each other:
+# `writableAfterPayment` removes the field from the generic Update's Pydantic
+# schema, whose transition still read `data.<champ>`. Every PUT answered 500 —
+# on `exemples/02_boutique.ml`, for the only role allowed to call it. Found by
+# compiling a bench spec, not by rereading.
 #
-# La bascule vit désormais dans la route qui écrit RÉELLEMENT le champ. La
-# déplacer sans l'y porter aurait remplacé un 500 bruyant par une perte
-# silencieuse : annuler une commande payée n'aurait plus rendu son stock.
+# The transition now lives in the route that REALLY writes the field. Moving it
+# without carrying it there would have replaced a noisy 500 with a silent loss:
+# cancelling a paid order would no longer have given its stock back.
 
-# `writableAfterPayment` exige un montant encaissable, donc CALCULÉ par le
-# serveur (point 82) : le sous-total de la ligne vient du prix catalogue, et
-# le montant de la commande en est la somme. Sommer un champ que le client
-# écrit serait refusé, et à raison.
+# `writableAfterPayment` requires a chargeable amount, hence CALCULATED by the
+# server (point 82): the line subtotal comes from the catalog price, and the
+# order amount is their sum. Summing a field the client writes would be
+# refused, and rightly so.
 SPEC_APRES_PAIEMENT = SPEC.replace(
     "actor Client selfRegister",
     "actor Client selfRegister\nactor Gerant",
@@ -388,11 +388,11 @@ SPEC_APRES_PAIEMENT = SPEC.replace(
 )
 
 
-def test_le_champ_pris_par_le_paiement_ne_casse_plus_lupdate(tmp_path, capsys):
-    """L'Update générique ne lit plus un champ absent de son schéma.
+def test_the_field_taken_by_payment_no_longer_breaks_the_update(tmp_path, capsys):
+    """The generic Update no longer reads a field absent from its schema.
 
-    Le témoin porte sur la SOURCE générée : c'est là que vivait le 500, et une
-    lecture de `data.statut` hors de la route après-paiement le ramènerait.
+    The witness is about the generated SOURCE: that is where the 500 lived, and a
+    read of `data.statut` outside the after-payment route would bring it back.
     """
     (tmp_path / "spec.ml").write_text(SPEC_APRES_PAIEMENT, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
@@ -408,11 +408,12 @@ def test_le_champ_pris_par_le_paiement_ne_casse_plus_lupdate(tmp_path, capsys):
     assert "statut" not in schema, "prémisse fausse : le champ est resté au schéma"
 
 
-def test_la_liberation_suit_le_champ_dans_la_route_apres_paiement(tmp_path, capsys):
-    """La bascule est émise là où le champ s'écrit — sinon elle disparaît.
+def test_the_release_follows_the_field_into_the_after_payment_route(tmp_path, capsys):
+    """The transition is emitted where the field is written — otherwise it
+    disappears.
 
-    Sans ce témoin, retirer la bascule de l'Update générique suffirait à rendre
-    la suite verte, en supprimant la restitution de stock au passage.
+    Without this witness, removing the transition from the generic Update would
+    be enough to make the suite green, dropping stock restitution on the way.
     """
     (tmp_path / "spec.ml").write_text(SPEC_APRES_PAIEMENT, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
@@ -423,8 +424,8 @@ def test_la_liberation_suit_le_champ_dans_la_route_apres_paiement(tmp_path, caps
     assert "_bascule" in route, "la libération ne suit pas le champ qui l'arme"
     assert 'UPDATE "produit" SET "stock"' in route, (
         "la bascule est émise mais ne rend rien")
-    # Les champs de cette route sont FACULTATIFS : sans cette garde, un appel
-    # qui ne touche pas au statut refuserait la commande qu'il ne modifie pas.
+    # This route's fields are OPTIONAL: without this guard, a call not touching
+    # the status would refuse the order it does not modify.
     assert "data.statut is not None" in route, (
         "le refus de réactivation se déclencherait sur un appel qui ne "
         "modifie pas le statut")
