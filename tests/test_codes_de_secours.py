@@ -1,21 +1,19 @@
-"""Reprendre la main sur un compte dont le mot de passe est perdu.
+"""Taking back control of an account whose password is lost.
 
-Sans courriel, un mot de passe perdu rendait le compte ET ses projets
-définitivement inaccessibles. C'était écrit dans les conditions
-d'utilisation, ce qui rend la chose honnête mais ne la rend pas acceptable :
-la première personne à qui ça arrive perd tout son travail.
+Without email, a lost password made the account AND its projects permanently
+inaccessible. It was written in the terms of use, which makes it honest but
+not acceptable: the first person it happens to loses all their work.
 
-La voie écartée mérite d'être connue. « On vous envoie un lien » suppose un
-serveur de courriel, un domaine à réputation et une dépendance réseau dans un
-service qui n'en a aucune — et la politique de confidentialité promet
-qu'aucun courriel n'est envoyé. Le code de secours déplace la garde chez la
-personne : elle reçoit huit codes une fois, elle les range où elle veut.
-C'est le contrat déjà passé pour les clés d'API, donc ni une nouvelle
-promesse ni un nouveau mode de stockage.
+The rejected path deserves to be known. "We send you a link" assumes a mail
+server, a domain with a reputation and a network dependency in a service that
+has none — and the privacy policy promises no email is sent. The recovery
+code moves the safekeeping to the person: they get eight codes once, they
+store them where they like. It is the contract already made for API keys, so
+neither a new promise nor a new storage mode.
 
-Tout est éprouvé contre un vrai serveur : c'est le seul moyen de vérifier
-qu'un code réellement présenté sur le fil réinitialise réellement un mot de
-passe, et que les sessions ouvertes tombent bien avec.
+Everything is tested against a real server: it is the only way to check that
+a code really presented on the wire really resets a password, and that open
+sessions do fall with it.
 """
 
 import os
@@ -52,10 +50,10 @@ def _espace(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Ce que l'inscription remet
+# What registration hands over
 # ---------------------------------------------------------------------------
 
-def test_linscription_remet_huit_codes_une_seule_fois(tmp_path):
+def test_registration_hands_over_eight_codes_only_once(tmp_path):
     with _serveur(tmp_path) as base:
         session, corps = _inscrire(base, "codes@exemple.test")
         codes = corps["recovery_codes"]
@@ -63,7 +61,7 @@ def test_linscription_remet_huit_codes_une_seule_fois(tmp_path):
         assert len(set(codes)) == 8, "deux codes identiques divisent les chances par deux"
         assert all(len(c) >= 16 for c in codes), "un code court se devine"
 
-        # Ils ne ressortent NULLE PART ailleurs — comme une clé d'API.
+        # They come out NOWHERE else — like an API key.
         etat = session.get(f"{base}/api/auth/recovery-codes", timeout=30).json()
         assert etat == {"remaining": 8}
         me = session.get(f"{base}/api/auth/me", timeout=30).text
@@ -71,11 +69,11 @@ def test_linscription_remet_huit_codes_une_seule_fois(tmp_path):
             assert code not in me, "un code ressort d'une route de lecture"
 
 
-def test_les_codes_ne_sont_jamais_stockes_en_clair(tmp_path):
-    """La promesse de la politique de confidentialité, vérifiée EN BASE.
+def test_codes_are_never_stored_in_clear(tmp_path):
+    """The privacy policy's promise, checked IN THE DATABASE.
 
-    Un code lisible en base annulerait tout l'intérêt : qui lit le fichier
-    entre dans n'importe quel compte sans connaître aucun mot de passe.
+    A code readable in the database would cancel the whole point: whoever reads
+    the file gets into any account without knowing any password.
     """
     with _serveur(tmp_path) as base:
         _, corps = _inscrire(base, "clair@exemple.test")
@@ -91,10 +89,10 @@ def test_les_codes_ne_sont_jamais_stockes_en_clair(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Reprendre la main
+# Taking back control
 # ---------------------------------------------------------------------------
 
-def test_un_code_rend_le_compte_et_fait_tomber_les_sessions(tmp_path):
+def test_a_code_restores_the_account_and_drops_the_sessions(tmp_path):
     with _serveur(tmp_path) as base:
         session, corps = _inscrire(base, "reprise@exemple.test")
         code = corps["recovery_codes"][0]
@@ -104,18 +102,18 @@ def test_un_code_rend_le_compte_et_fait_tomber_les_sessions(tmp_path):
             "email": "reprise@exemple.test", "code": code, "password": NOUVEAU})
         assert reprise.status_code == 204, reprise.text
 
-        # L'ancien mot de passe ne vaut plus rien…
+        # The old password is worth nothing any more…
         assert requests.post(f"{base}/api/auth/login", timeout=30, json={
             "email": "reprise@exemple.test", "password": ANCIEN}).status_code == 401
-        # …le nouveau ouvre…
+        # …the new one opens…
         assert requests.post(f"{base}/api/auth/login", timeout=30, json={
             "email": "reprise@exemple.test", "password": NOUVEAU}).status_code == 200
-        # …et la session d'AVANT est morte. Sans ça, la réinitialisation ne
-        # servirait à rien dans le seul cas qui compte : quelqu'un est déjà entré.
+        # …and the session from BEFORE is dead. Without this, resetting would
+        # be useless in the only case that counts: someone already got in.
         assert session.get(f"{base}/api/auth/me", timeout=30).status_code == 401
 
 
-def test_un_code_ne_sert_quune_fois(tmp_path):
+def test_a_code_works_only_once(tmp_path):
     with _serveur(tmp_path) as base:
         _, corps = _inscrire(base, "unefois@exemple.test")
         code = corps["recovery_codes"][0]
@@ -127,15 +125,14 @@ def test_un_code_ne_sert_quune_fois(tmp_path):
             "email": "unefois@exemple.test", "code": code,
             "password": "Encore-Un-Autre-2026"})
         assert rejoue.status_code == 401
-        # Le mot de passe posé par le PREMIER usage tient toujours.
+        # The password set by the FIRST use still holds.
         assert requests.post(f"{base}/api/auth/login", timeout=30, json={
             "email": "unefois@exemple.test", "password": NOUVEAU}).status_code == 200
 
 
-def test_le_code_dun_autre_compte_ne_marche_pas(tmp_path):
-    """Le piège du test à un seul compte : sans le second, « ce code
-    fonctionne-t-il ? » passerait même si le code de n'importe qui ouvrait
-    n'importe quel compte."""
+def test_another_accounts_code_does_not_work(tmp_path):
+    """The single-account test trap: without the second, "does this code work?"
+    would pass even if anyone's code opened any account."""
     with _serveur(tmp_path) as base:
         _, premier = _inscrire(base, "alice@exemple.test")
         _inscrire(base, "bob@exemple.test")
@@ -147,7 +144,7 @@ def test_le_code_dun_autre_compte_ne_marche_pas(tmp_path):
             "email": "bob@exemple.test", "password": ANCIEN}).status_code == 200
 
 
-def test_un_code_invente_est_refuse(tmp_path):
+def test_an_invented_code_is_refused(tmp_path):
     with _serveur(tmp_path) as base:
         _inscrire(base, "invente@exemple.test")
         assert requests.post(f"{base}/api/auth/recover", timeout=30, json={
@@ -155,9 +152,9 @@ def test_un_code_invente_est_refuse(tmp_path):
             "password": NOUVEAU}).status_code == 401
 
 
-def test_le_refus_ne_distingue_pas_les_causes(tmp_path):
-    """Distinguer « adresse inconnue » de « code faux » apprendrait à un
-    attaquant laquelle des deux il tient déjà."""
+def test_the_refusal_does_not_distinguish_causes(tmp_path):
+    """Telling "unknown address" from "wrong code" would teach an attacker which
+    of the two they already hold."""
     with _serveur(tmp_path) as base:
         _, corps = _inscrire(base, "muet@exemple.test")
         reponses = [
@@ -171,10 +168,9 @@ def test_le_refus_ne_distingue_pas_les_causes(tmp_path):
         assert len({r.json()["detail"] for r in reponses}) == 1
 
 
-def test_la_recuperation_est_bornee_en_frequence(tmp_path):
-    """Huit codes vivants par compte font huit chances par essai : sans
-    plafond, la seule chose qui protégerait serait la patience de
-    l'attaquant."""
+def test_recovery_is_rate_limited(tmp_path):
+    """Eight live codes per account make eight chances per try: without a cap,
+    the only protection would be the attacker's patience."""
     with _serveur(tmp_path) as base:
         _inscrire(base, "borne@exemple.test")
         codes_recus = [
@@ -187,12 +183,12 @@ def test_la_recuperation_est_bornee_en_frequence(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Régénérer
+# Regenerating
 # ---------------------------------------------------------------------------
 
-def test_une_nouvelle_serie_invalide_lancienne(tmp_path):
-    """Régénérer se fait souvent parce qu'on craint une fuite. Cumuler les
-    séries laisserait vivre exactement ce dont on veut se débarrasser."""
+def test_a_new_series_invalidates_the_old_one(tmp_path):
+    """One often regenerates because one fears a leak. Accumulating series would
+    keep alive exactly what one wants to get rid of."""
     with _serveur(tmp_path) as base:
         session, corps = _inscrire(base, "renouvelle@exemple.test")
         anciens = corps["recovery_codes"]
@@ -214,7 +210,7 @@ def test_une_nouvelle_serie_invalide_lancienne(tmp_path):
             "password": NOUVEAU}).status_code == 204
 
 
-def test_regenerer_exige_une_session(tmp_path):
+def test_regenerating_requires_a_session(tmp_path):
     with _serveur(tmp_path) as base:
         _inscrire(base, "anonyme@exemple.test")
         assert requests.post(f"{base}/api/auth/recovery-codes",
@@ -223,8 +219,8 @@ def test_regenerer_exige_une_session(tmp_path):
                             timeout=30).status_code == 401
 
 
-def test_supprimer_le_compte_emporte_ses_codes(tmp_path):
-    """Des codes orphelins seraient des clés d'un compte qui n'existe plus."""
+def test_deleting_the_account_takes_its_codes(tmp_path):
+    """Orphan codes would be keys to an account that no longer exists."""
     with _serveur(tmp_path) as base:
         session, _ = _inscrire(base, "efface@exemple.test")
         assert session.request("DELETE", f"{base}/api/auth/account", timeout=30,
@@ -235,11 +231,11 @@ def test_supprimer_le_compte_emporte_ses_codes(tmp_path):
         assert db.execute("SELECT COUNT(*) FROM recovery_codes").fetchone()[0] == 0
 
 
-def test_les_comptes_anterieurs_sont_comptes_et_non_convertis(tmp_path):
-    """La migration additive rattrape une table, jamais son contenu (point 89).
+def test_earlier_accounts_are_counted_not_converted(tmp_path):
+    """The additive migration catches up a table, never its content (point 89).
 
-    Fabriquer des codes au démarrage pour les comptes existants serait pire :
-    il faudrait les leur montrer, et personne ne les lirait. Ils sont NOMMÉS.
+    Making codes at startup for existing accounts would be worse: they would have
+    to be shown to them, and nobody would read them. They are NAMED.
     """
     magasin = IdentityStore(tmp_path)
     magasin.register("ancien@exemple.test", ANCIEN)

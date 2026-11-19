@@ -1,10 +1,10 @@
-"""Un site livré n'est jamais une coquille vide.
+"""A delivered site is never an empty shell.
 
-Le contrôle de complétude vérifiait qu'un marqueur était PRÉSENT. Un marqueur
-nomme une section, il ne prouve pas qu'il y a quelque chose dedans : une page
-faite de huit `<section>` vides passait, et le test du dépôt l'affirmait. Ces
-épreuves portent sur les deux moitiés du défaut — la MATIÈRE de chaque
-section, et le NOMBRE de sections exigées.
+The completeness check verified that a marker was PRESENT. A marker names a
+section, it does not prove there is anything in it: a page made of eight
+empty `<section>` passed, and the repository's test asserted it. These tests
+cover both halves of the defect — each section's SUBSTANCE, and the NUMBER of
+required sections.
 """
 
 import contextlib
@@ -43,8 +43,8 @@ def _rendre(slug, corps):
     return f'<section data-monl-section="{slug}">{corps}</section>'
 
 
-# ------------------------------------------------------- la matière d'une section --
-def test_une_section_vide_est_refusee_en_nommant_ce_qui_manque():
+# ----------------------------------------------- the substance of a section --
+def test_an_empty_section_is_refused_naming_what_is_missing():
     regles = {'data-monl-section="hero"': rule_for("hero")}
 
     fautes = substance_errors(_rendre("hero", ""), regles)
@@ -56,8 +56,8 @@ def test_une_section_vide_est_refusee_en_nommant_ce_qui_manque():
     assert "readable text" in fautes[0]
 
 
-def test_un_titre_seul_ne_fait_pas_une_section():
-    """C'est la coquille la plus fréquente : le squelette sans le contenu."""
+def test_a_title_alone_does_not_make_a_section():
+    """It is the most frequent shell: the skeleton without the content."""
     regles = {'data-monl-section="trust"': rule_for("trust")}
 
     fautes = substance_errors(_rendre("trust", "<h2>Confiance</h2>"), regles)
@@ -65,7 +65,7 @@ def test_un_titre_seul_ne_fait_pas_une_section():
     assert fautes and "readable text" in fautes[0]
 
 
-def test_une_section_pourvue_est_acceptee():
+def test_a_filled_section_is_accepted():
     regles = {'data-monl-section="trust"': rule_for("trust")}
     corps = ("<h2>Comment nous travaillons</h2><p>"
              + "Chaque pièce part sous cinq jours et le montant est calculé "
@@ -75,9 +75,9 @@ def test_une_section_pourvue_est_acceptee():
     assert substance_errors(_rendre("trust", corps), regles) == []
 
 
-def test_le_texte_d_un_script_ne_compte_pas():
-    """Un `<script>` n'est pas lu par un humain : le compter permettrait de
-    passer la barrière avec une variable JavaScript bien remplie."""
+def test_a_scripts_text_does_not_count():
+    """A `<script>` is not read by a human: counting it would let one pass the
+    barrier with a well-filled JavaScript variable."""
     regles = {'data-monl-section="trust"': rule_for("trust")}
     corps = "<h2>T</h2><script>var t = \"" + "x" * 400 + "\";</script>"
 
@@ -86,9 +86,9 @@ def test_le_texte_d_un_script_ne_compte_pas():
     assert fautes and "readable text" in fautes[0]
 
 
-def test_une_section_n_emprunte_pas_le_texte_de_sa_voisine():
-    """Un `<p>` jamais refermé est du HTML5 légal. Si la profondeur fuit, la
-    section avale tout ce qui la suit et la barrière ne refuse plus rien."""
+def test_a_section_does_not_borrow_its_neighbors_text():
+    """A never-closed `<p>` is legal HTML5. If depth leaks, the section swallows
+    everything after it and the barrier refuses nothing any more."""
     regles = {'data-monl-section="hero"': rule_for("hero")}
     html = ('<section data-monl-section="hero"><h1>Bonjour</h1>'
             '<a href="#a">Voir</a><p></section>'
@@ -99,7 +99,7 @@ def test_une_section_n_emprunte_pas_le_texte_de_sa_voisine():
     assert fautes and "readable text" in fautes[0]
 
 
-def test_un_formulaire_est_exige_la_ou_il_faut_ecrire():
+def test_a_form_is_required_where_writing_is_needed():
     regles = {'data-monl-section="contact"': rule_for("contact")}
     sans = _rendre("contact", "<h2>Nous écrire</h2><p>Par courriel.</p>")
     avec = _rendre("contact", "<h2>Nous écrire</h2>"
@@ -109,9 +109,9 @@ def test_un_formulaire_est_exige_la_ou_il_faut_ecrire():
     assert substance_errors(avec, regles) == []
 
 
-def test_une_section_declaree_n_exige_jamais_plus_que_son_propre_texte():
-    """Réclamer cent caractères à une rubrique dont l'auteur en a écrit trente
-    ferait échouer une spec honnête : le seuil est plafonné par le déclaré."""
+def test_a_declared_section_never_requires_more_than_its_own_text():
+    """Requiring a hundred characters from a section whose author wrote thirty
+    would fail an honest spec: the threshold is capped by what is declared."""
     court = rule_for("a-propos", declared_body_length=30)
     long = rule_for("a-propos", declared_body_length=5000)
 
@@ -119,21 +119,21 @@ def test_une_section_declaree_n_exige_jamais_plus_que_son_propre_texte():
     assert long["text"] == 100
 
 
-def test_une_section_absente_n_est_pas_signalee_deux_fois():
-    """L'absence est déjà le rôle du contrôle de présence."""
+def test_a_missing_section_is_not_reported_twice():
+    """Absence is already the presence check's job."""
     regles = {'data-monl-section="faq"': rule_for("faq")}
 
     assert substance_errors("<main></main>", regles) == []
 
 
-# ------------------------------------------------------------------ le plancher --
+# ---------------------------------------------------------------- the floor --
 def _profil(contract, kind):
     return [p["name"] for p in select_ui_patterns(contract, kind)]
 
 
-def test_toute_application_porte_une_section_pour_sa_propre_matiere():
-    """`exemples/05_classement.ml` n'exigeait que `hero` et `closing-cta` : le
-    classement lui-même n'était requis sur aucun écran."""
+def test_every_application_carries_a_section_for_its_own_substance():
+    """`exemples/05_classement.ml` only required `hero` and `closing-cta`: the
+    ranking itself was required on no screen."""
     contract = {"brief": "Un classement", "entities": {"Entry": {"archetype": "post"}},
                 "routes": [{"action": "Read", "entity": "Entry", "path": "/entry"}]}
 
@@ -142,7 +142,7 @@ def test_toute_application_porte_une_section_pour_sa_propre_matiere():
     assert "catalogue" in noms
 
 
-def test_le_plancher_vaut_quatre_sections_au_minimum():
+def test_the_floor_is_at_least_four_sections():
     contract = {"brief": "x", "entities": {"Entry": {}}, "routes": []}
 
     noms = _profil(contract, "generic")
@@ -151,8 +151,8 @@ def test_le_plancher_vaut_quatre_sections_au_minimum():
     assert len(noms) >= 4
 
 
-def test_une_reservation_garde_son_parcours_et_ne_gagne_pas_un_catalogue():
-    """Le parcours réellement offert tranche, jamais le nombre de sections."""
+def test_a_booking_keeps_its_journey_and_gains_no_catalog():
+    """The journey really offered decides, never the number of sections."""
     contract = {"brief": "x", "entities": {"Booking": {"archetype": "shop"}},
                 "routes": [{"action": "Create", "entity": "Booking",
                             "path": "/booking"}]}
@@ -163,7 +163,7 @@ def test_une_reservation_garde_son_parcours_et_ne_gagne_pas_un_catalogue():
     assert "catalogue" not in noms
 
 
-# ------------------------------------------------- de bout en bout, sur un projet --
+# ------------------------------------------------- end to end, on a project --
 def _compiler(tmp_path):
     spec = tmp_path / "spec.ml"
     spec.write_text(SPEC, encoding="utf-8")
@@ -200,7 +200,7 @@ def projet(tmp_path):
     return livrer, manifest
 
 
-def test_un_projet_livre_en_coquille_vide_est_refuse(projet):
+def test_a_project_delivered_as_an_empty_shell_is_refused(projet):
     livrer, manifest = projet
 
     fautes = livrer(remplie=False)
@@ -210,23 +210,22 @@ def test_un_projet_livre_en_coquille_vide_est_refuse(projet):
     assert len(vides) == len(manifest["section_substance"]["index.html"])
 
 
-def test_le_meme_projet_reellement_rempli_est_accepte(projet):
-    """Contre-épreuve : sans elle, une barrière qui refuse tout passerait."""
+def test_the_same_project_really_filled_is_accepted(projet):
+    """Counter-proof: without it, a barrier refusing everything would pass."""
     livrer, _ = projet
 
     assert livrer(remplie=True) == []
 
 
-def test_le_manifeste_porte_la_regle_de_chaque_section(projet):
+def test_the_manifest_carries_each_sections_rule(projet):
     _livrer, manifest = projet
     regles = manifest["section_substance"]["index.html"]
 
     assert set(regles) <= set(manifest["required_markers"]["index.html"])
-    # L'invariant n'est PAS « un titre partout » : le pied de page n'en a pas,
-    # et lui en imposer un ferait écrire « Pied de page » en gros, ce
-    # qu'aucun site réel ne fait. Ce qui compte, c'est qu'aucune règle ne soit
-    # vide — une règle qui n'exige rien est une règle qui ne produit rien,
-    # exactement ce que le point 85 interdit.
+    # The invariant is NOT "a title everywhere": the footer has none, and
+    # imposing one would make "Footer" written in large type, which no real
+    # site does. What counts is that no rule is empty — a rule requiring
+    # nothing is a rule producing nothing, exactly what point 85 forbids.
     assert all(any(r.values()) for r in regles.values())
     assert 'data-monl-section="trust"' in regles
     assert 'data-monl-section="footer"' in regles

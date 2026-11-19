@@ -1,29 +1,28 @@
-"""Deux messages qui envoyaient corriger ce qui n'était pas cassé — point 105.
+"""Two messages that sent people fixing what was not broken — point 105.
 
-Constat du mainteneur, en lançant une retouche sur un vrai projet :
+The maintainer's finding, running a touch-up on a real project:
 
     monl retouche /projets/SneakerLab "utilise plutôt des icônes …"
     ❌ monl.json introuvable — ce dossier n'est pas un projet monl.
 
-Deux fautes dans une seule réponse.
+Two mistakes in a single answer.
 
-**Le dossier n'existait pas du tout.** `_load_state` répond `None` aussi bien
-pour « dossier absent » que pour « dossier sans monl.json », et tous les appels
-concluaient à la seconde. `monl frontend` allait jusqu'à conseiller « lancer
-'monl compile' » : le message envoyait recompiler un projet que monl n'avait
-jamais trouvé. C'est le reproche du point 97, sur un autre message — une
-hypothèse affichée comme un diagnostic est pire qu'un message vague.
+**The folder did not exist at all.** `_load_state` answers `None` both for
+"missing folder" and for "folder without monl.json", and every caller
+concluded the latter. `monl frontend` went as far as advising "run 'monl
+compile'": the message sent people recompiling a project monl had never
+found. It is point 97's complaint, on another message — an assumption shown
+as a diagnosis is worse than a vague message.
 
-**Et les deux arguments étaient inversés.** `retouche` est le SEUL geste dont le
-premier argument n'est pas le dossier : `run`, `update`, `diff`, `compile` et
-`frontend` le prennent tous en tête. Écrire le dossier d'abord est donc le
-réflexe, et monl répondait « ce dossier n'est pas un projet monl » en parlant de
-la PHRASE.
+**And the two arguments were swapped.** `retouche` is the ONLY gesture whose
+first argument is not the folder: `run`, `update`, `diff`, `compile` and
+`frontend` all take it first. Writing the folder first is therefore the
+reflex, and monl answered "this folder is not a monl project" talking about
+the SENTENCE.
 
-Ce que les deux corrections ont en commun : elles NOMMENT ce qui bloque et ne
-corrigent rien toutes seules. Remettre les arguments en place à la place de
-l'auteur, ce serait deviner — et se tromper le jour où une demande ressemble à
-un chemin.
+What both fixes have in common: they NAME what blocks and fix nothing on
+their own. Putting the arguments back in place for the author would be
+guessing — and getting it wrong the day a request looks like a path.
 """
 from pathlib import Path
 
@@ -67,34 +66,33 @@ def projet(tmp_path, capsys):
 
 
 # --------------------------------------------------------------------------
-# Le dossier qui n'existe pas
+# The folder that does not exist
 # --------------------------------------------------------------------------
 
-def test_un_dossier_absent_est_nomme_comme_tel(tmp_path):
-    """Le cœur du point : ne pas parler du CONTENU d'un dossier qu'on n'a pas
-    trouvé."""
+def test_a_missing_folder_is_named_as_such(tmp_path):
+    """The heart of the point: do not talk about the CONTENT of a folder that was
+    not found."""
     message = _erreur_de_chemin(str(tmp_path / "nulle-part"))
     assert "Directory not found" in message
     assert "monl.json" not in message
     assert "compile" not in message.lower().replace("compilation", "")
 
 
-def test_un_dossier_absent_dit_que_le_contenu_na_pas_ete_regarde(tmp_path):
-    """Sans cette phrase, l'auteur cherche encore ce qui manque DANS le
-    dossier."""
+def test_a_missing_folder_says_its_content_was_not_looked_at(tmp_path):
+    """Without this sentence, the author still looks for what is missing IN the
+    folder."""
     message = _erreur_de_chemin(str(tmp_path / "nulle-part"))
     assert "have not been inspected yet" in message
 
 
-def test_un_dossier_existant_ne_declenche_rien(tmp_path):
-    """Le témoin : la question du projet doit rester posée là où elle a un
-    sens."""
+def test_an_existing_folder_triggers_nothing(tmp_path):
+    """The witness: the project question must stay asked where it makes sense."""
     assert _erreur_de_chemin(str(tmp_path)) is None
 
 
-def test_la_barre_oblique_de_tete_est_expliquee(tmp_path, monkeypatch):
-    """LA faute qui a motivé le point. '/projets/X' n'est pas « projets/X
-    ici » : c'est X à la racine du SYSTÈME."""
+def test_the_leading_slash_is_explained(tmp_path, monkeypatch):
+    """THE mistake that motivated the point. '/projets/X' is not "projets/X
+    here": it is X at the SYSTEM root."""
     (tmp_path / "projets" / "SneakerLab").mkdir(parents=True)
     monkeypatch.chdir(tmp_path)
     message = _erreur_de_chemin("/projets/SneakerLab")
@@ -102,18 +100,18 @@ def test_la_barre_oblique_de_tete_est_expliquee(tmp_path, monkeypatch):
     assert "projets/SneakerLab" in message.split("Did you mean:")[1]
 
 
-def test_sans_voisin_plausible_aucune_suggestion_nest_inventee(tmp_path, monkeypatch):
-    """Le garde-fou de la suggestion : proposer un chemin qui n'existe pas
-    non plus renverrait chercher une deuxième fois pour rien."""
+def test_without_a_plausible_neighbor_no_suggestion_is_invented(tmp_path, monkeypatch):
+    """The suggestion's safeguard: proposing a path that does not exist either
+    would send people searching a second time for nothing."""
     monkeypatch.chdir(tmp_path)
     message = _erreur_de_chemin("/vraiment/nulle/part")
     assert "Did you mean" not in message
 
 
 @pytest.mark.parametrize("geste", [cmd_update, cmd_diff])
-def test_les_gestes_sarretent_sur_le_chemin_pas_sur_letat(geste, tmp_path, capsys):
-    """Les deux gestes qui lisent l'état doivent poser les questions dans
-    l'ordre : le dossier existe-t-il, PUIS porte-t-il un projet."""
+def test_the_gestures_stop_on_the_path_not_the_state(geste, tmp_path, capsys):
+    """The two gestures reading the state must ask the questions in order: does
+    the folder exist, THEN does it carry a project."""
     with pytest.raises(SystemExit):
         geste(str(tmp_path / "nulle-part"))
     sortie = capsys.readouterr().out
@@ -121,9 +119,9 @@ def test_les_gestes_sarretent_sur_le_chemin_pas_sur_letat(geste, tmp_path, capsy
     assert "monl.json introuvable" not in sortie
 
 
-def test_la_verification_de_coherence_distingue_aussi(tmp_path):
-    """`monl frontend` passe par là, et c'est lui qui conseillait de
-    recompiler un projet jamais trouvé."""
+def test_the_consistency_check_also_distinguishes(tmp_path):
+    """`monl frontend` goes through here, and it is the one advising to
+    recompile a project never found."""
     ok, erreurs, _avertissements = check_coherence(str(tmp_path / "nulle-part"))
     assert not ok
     assert any("Directory not found" in e for e in erreurs)
@@ -131,10 +129,10 @@ def test_la_verification_de_coherence_distingue_aussi(tmp_path):
 
 
 # --------------------------------------------------------------------------
-# Les arguments inversés
+# The swapped arguments
 # --------------------------------------------------------------------------
 
-def test_linversion_est_detectee(tmp_path, monkeypatch):
+def test_the_swap_is_detected(tmp_path, monkeypatch):
     (tmp_path / "projets" / "SneakerLab").mkdir(parents=True)
     monkeypatch.chdir(tmp_path)
     assert _arguments_inverses("/projets/SneakerLab",
@@ -142,24 +140,23 @@ def test_linversion_est_detectee(tmp_path, monkeypatch):
     assert _arguments_inverses("projets/SneakerLab", "la FAQ est collée")
 
 
-def test_lordre_correct_ne_declenche_rien():
-    """Le témoin, et il compte : un faux positif ici REFUSERAIT une retouche
-    parfaitement écrite."""
+def test_the_correct_order_triggers_nothing():
+    """The witness, and it counts: a false positive here would REFUSE a
+    perfectly written touch-up."""
     assert not _arguments_inverses("la FAQ est collée", ".")
     assert not _arguments_inverses("les images sont mal cadrées", "projets/X")
 
 
-def test_une_demande_sans_espace_ne_suffit_pas_a_conclure():
-    """Une demande d'un seul mot est bizarre mais légitime ; ce qui fait
-    l'inversion, c'est qu'elle ressemble à un chemin ET que le dossier
-    ressemble à une phrase."""
+def test_a_request_without_spaces_is_not_enough_to_conclude():
+    """A one-word request is odd but legitimate; what makes the swap is that it
+    looks like a path AND the folder looks like a sentence."""
     assert not _arguments_inverses("illisible", ".")
 
 
-def test_le_message_dinversion_propose_une_commande_utilisable(tmp_path, monkeypatch,
+def test_the_swap_message_proposes_a_usable_command(tmp_path, monkeypatch,
                                                                capsys):
-    """La commande proposée doit MARCHER telle quelle : recopier un chemin dont
-    on sait déjà qu'il est faux ferait buter une deuxième fois."""
+    """The proposed command must WORK as is: copying a path already known to be
+    wrong would make people stumble a second time."""
     (tmp_path / "projets" / "SneakerLab").mkdir(parents=True)
     monkeypatch.chdir(tmp_path)
     lignes = []
@@ -175,9 +172,9 @@ def test_le_message_dinversion_propose_une_commande_utilisable(tmp_path, monkeyp
     assert propose.strip().endswith("projets/SneakerLab")
 
 
-def test_une_retouche_bien_ecrite_passe_le_controle(projet, capsys):
-    """Le témoin de bout en bout : la détection ne doit pas s'interposer sur
-    l'usage normal. On s'arrête faute de frontend, pas sur les arguments."""
+def test_a_well_written_touch_up_passes_the_check(projet, capsys):
+    """The end-to-end witness: detection must not get in the way of normal use.
+    We stop for lack of a frontend, not on the arguments."""
     with pytest.raises(SystemExit):
         cmd_retouche(str(projet), "les images sont mal cadrées")
     sortie = capsys.readouterr().out
@@ -185,8 +182,8 @@ def test_une_retouche_bien_ecrite_passe_le_controle(projet, capsys):
     assert "No frontend to touch up (frontend/index.html is missing)" in sortie
 
 
-def test_compile_avec_output_cherche_les_assets_a_cote_de_la_spec(tmp_path, capsys):
-    """`--output` ne doit pas déplacer la racine de résolution des assets."""
+def test_compile_with_output_looks_for_assets_next_to_the_spec(tmp_path, capsys):
+    """`--output` must not move the asset resolution root."""
     compile_project(str(EXAMPLES_DIR / "01_portfolio.ml"), str(tmp_path))
 
     assert (tmp_path / "app.py").exists()
