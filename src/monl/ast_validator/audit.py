@@ -32,7 +32,7 @@ class AuditMixin:
                         custom_callers[target] = set()
                     custom_callers[target].add(actor)
 
-        reports.extend(self._audit_blocs_custom(restricted_fields, custom_callers))
+        reports.extend(self._audit_blocks_custom(restricted_fields, custom_callers))
 
         if not reports:
             print("🛡️  Audit: No vulnerabilities or excessive privileges detected in the specification.")
@@ -43,14 +43,14 @@ class AuditMixin:
 
         return reports
 
-    def _audit_blocs_custom(self, restricted_fields, custom_callers):
+    def _audit_blocks_custom(self, restricted_fields, custom_callers):
         """A `custom` block run by an actor with no right to a `restrictedTo` field
         it reads. Extracted from `_audit_security_rules` (complexity ceiling);
         reports and order unchanged."""
         reports = []
-        for c_name, c_bloc in self.custom_logic.items():
+        for c_name, c_block in self.custom_logic.items():
             calling_actors = custom_callers.get(c_name, set())
-            for inp in c_bloc.get("input", []):
+            for inp in c_block.get("input", []):
                 ref = inp.get("reference")
                 if ref is None or ref not in restricted_fields:
                     continue

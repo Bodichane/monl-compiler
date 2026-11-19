@@ -6,34 +6,34 @@ symbols are re-exported here for existing consumers and synchronization tests.
 
 from __future__ import annotations
 
-from .guide_data import LIMITES, OUTILS_MCP, ROUTES_API
-from .guide_template import EXTRA_CSS, SCRIPT, SPEC_EXEMPLE
+from .guide_data import LIMITES, ROUTES_API, TOOLS_MCP
+from .guide_template import EXTRA_CSS, SCRIPT, SPEC_EXAMPLE
 from .theme import page
 
 
-def _tableau(entetes: tuple[str, str], lignes: list[tuple[str, str]]) -> str:
-    corps = "".join(
-        f"<tr><td><code>{regle}</code></td><td>{effet}</td></tr>"
-        for regle, effet in lignes
+def _tableau(headers: tuple[str, str], lines: list[tuple[str, str]]) -> str:
+    body_text = "".join(
+        f"<tr><td><code>{rule}</code></td><td>{effect}</td></tr>"
+        for rule, effect in lines
     )
     return (f'<div class="tablewrap"><table class="grid"><thead><tr>'
-            f"<th>{entetes[0]}</th><th>{entetes[1]}</th></tr></thead>"
-            f"<tbody>{corps}</tbody></table></div>")
+            f"<th>{headers[0]}</th><th>{headers[1]}</th></tr></thead>"
+            f"<tbody>{body_text}</tbody></table></div>")
 
 
 
 def _sections() -> list[tuple[str, str, str, str]]:
     """(anchor, short title, displayed counter, HTML content)."""
     routes = "".join(
-        f'<tr><td><span class="method">{verbe}</span> <code>{chemin}</code></td>'
-        f"<td>{quoi}</td></tr>"
-        for verbe, chemin, quoi in ROUTES_API
+        f'<tr><td><span class="method">{verb}</span> <code>{path}</code></td>'
+        f"<td>{what}</td></tr>"
+        for verb, path, what in ROUTES_API
     )
-    outils = "".join(
-        f"<tr><td><code>{nom}</code></td><td>{quoi}</td></tr>" for nom, quoi in OUTILS_MCP
+    tools = "".join(
+        f"<tr><td><code>{name}</code></td><td>{what}</td></tr>" for name, what in TOOLS_MCP
     )
     limites = "".join(
-        f"<tr><td><b>{titre}</b></td><td>{texte}</td></tr>" for titre, texte in LIMITES
+        f"<tr><td><b>{title}</b></td><td>{text}</td></tr>" for title, text in LIMITES
     )
     return [
         ("frontiere", "What Monl produces", "", """
@@ -85,7 +85,7 @@ constraints and visual brief used by an optional UI generation.</li>
 download an archive that starts locally. Each step produces a result you can
 check.</p>
 <h3>1. Describe the business</h3>
-<pre class="codeblock"><code>{SPEC_EXEMPLE}</code></pre>
+<pre class="codeblock"><code>{SPEC_EXAMPLE}</code></pre>
 <p><a class="primary" href="/console">Open the console and compile a spec</a></p>
 <h3>2. Check, then compile</h3>
 <p>The parser and the audit report impossible or incomplete rules. If the spec
@@ -143,12 +143,12 @@ and a failed compilation leaves no visible partial project.</p></div>
 the interactive explorer at <a href="/api-docs">/api-docs</a>
 and <a href="/openapi.json">/openapi.json</a>.</p>"""),
 
-        ("mcp", "MCP server", f"{len(OUTILS_MCP)} tools", f"""
+        ("mcp", "MCP server", f"{len(TOOLS_MCP)} tools", f"""
 <h2>For agents</h2>
 <p class="lede">The same pipeline, exposed over MCP. An agent validates and
 compiles without installing the repository — and without a second generator
 existing anywhere.</p>
-<div class="tablewrap"><table class="grid"><thead><tr><th>Tool</th><th>Effect</th></tr></thead><tbody>{outils}</tbody></table></div>
+<div class="tablewrap"><table class="grid"><thead><tr><th>Tool</th><th>Effect</th></tr></thead><tbody>{tools}</tbody></table></div>
 <h3>Locally, over stdio</h3>
 <pre class="codeblock"><code>{{
   "mcpServers": {{
@@ -180,7 +180,7 @@ monl run MyProject        <span class="cm"># consistency, smoke test, then launc
     ]
 
 
-def _compteur(valeur: str) -> str:
+def _counter(valeur: str) -> str:
     """The table of contents counter, outside an f-string: an f-string cannot
     contain a backslash before Python 3.12, and CI still compiles on 3.10."""
     return f'<span class="count">{valeur}</span>' if valeur else ""
@@ -189,11 +189,11 @@ def _compteur(valeur: str) -> str:
 def guide_html() -> str:
     sections = _sections()
     toc = "".join(
-        f'<li><a href="#{ancre}">{titre}{_compteur(compte)}</a></li>'
-        for ancre, titre, compte, _ in sections
+        f'<li><a href="#{anchor}">{title}{_counter(account)}</a></li>'
+        for anchor, title, account, _ in sections
     )
-    corps = "".join(
-        f'<section id="{ancre}">{contenu}</section>' for ancre, _, _, contenu in sections
+    body_text = "".join(
+        f'<section id="{anchor}">{content}</section>' for anchor, _, _, content in sections
     )
     body = f"""
 <div class="shell doc">
@@ -201,7 +201,7 @@ def guide_html() -> str:
 <h2>Guide</h2>
 <ol>{toc}</ol>
 </nav>
-<article>{corps}</article>
+<article>{body_text}</article>
 </div>"""
     return page(
         title="Guide — MONL",

@@ -11,11 +11,11 @@ from monl.app_templates import TEMPLATES
 from monl.cli import compile_project
 from tests.test_app_templates import _run_template
 from tests.test_authentification_b4 import SPEC_B4
-from tests.test_bloc_custom_absent import AVEC_CUSTOM
+from tests.test_bloc_custom_absent import WITH_CUSTOM
 from tests.test_fiche_obligatoire import SPEC as SPEC_FICHE
 from tests.test_generated_specs import generated_spec
 from tests.test_golden_artifacts import SPEC, SPEC_LOOKUP_SOURCES
-from tests.test_identifiant_de_compte import SPEC as SPEC_IDENTIFIANT
+from tests.test_identifiant_de_compte import SPEC as SPEC_IDENTIFIER
 from tests.test_liberation import SPEC as SPEC_LIBERATION
 from tests.test_messages import SPEC as SPEC_MESSAGES
 from tests.test_stock import SPEC as SPEC_STOCK
@@ -51,11 +51,11 @@ def corpus_specs():
         "    identifier: email\n",
         "    identifier: email\n    password_reset: 60\n    verify_email: 86400\n"
         "    verify_resend: 3 in 3600\n")
-    cases["auth_phone"] = SPEC_IDENTIFIANT.replace("identifier: email, phone", "identifier: phone")
+    cases["auth_phone"] = SPEC_IDENTIFIER.replace("identifier: email, phone", "identifier: phone")
     cases["auth_phone_prefix_multirole"] = cases["auth_phone"].replace(
         "    identifier: phone\n", '    identifier: phone\n    phone_prefix: "+229"\n'
     ).replace("actor Patron", "actor Patron selfRegister\nactor Operateur")
-    cases["custom"] = AVEC_CUSTOM
+    cases["custom"] = WITH_CUSTOM
     cases["profile_required"] = SPEC_FICHE
     cases["profile_required_without_dependent_owner"] = SPEC_FICHE.replace(
         "rule Commande.Read ownedBy Client\n", ""
@@ -74,11 +74,11 @@ def corpus_specs():
         "actor User selfRegister", "actor User selfRegister\nactor Moderator"
     ).replace("workflow UserFlow", "rule Profile.Read sharedBy Moderator\n"
               "rule Profile.Update sharedBy Moderator\n\nworkflow UserFlow")
-    cases["custom_empty"] = AVEC_CUSTOM + '\ncustom Empty\n    output: resultat: String\n'
-    cases["bounded_numeric_schema"] = AVEC_CUSTOM.replace(
+    cases["custom_empty"] = WITH_CUSTOM + '\ncustom Empty\n    output: resultat: String\n'
+    cases["bounded_numeric_schema"] = WITH_CUSTOM.replace(
         "    titre: String", "    titre: String\n    score: Integer"
     ) + '\nrule Note.score min 1\n'
-    cases["uuid_and_custom_references"] = AVEC_CUSTOM.replace(
+    cases["uuid_and_custom_references"] = WITH_CUSTOM.replace(
         "    titre: String", "    titre: String\n    code: UUID\n    entier: Integer\n"
         "    montant: Money\n    actif: Boolean"
     ).replace("input: titre: String", "input: Note.titre, Note.entier, Note.montant, Note.actif")

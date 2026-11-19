@@ -116,12 +116,12 @@ workflow Gerer for Admin
     ir = MonlAST(parse_monl_string(spec)).validate_and_audit()
     generator = MonlSecureGenerator(ir, output_dir=str(tmp_path))
 
-    beaucoup, unique, inverse = generator.relation_models
+    many, unique, inverse = generator.relation_models
 
-    assert isinstance(beaucoup, RelationModel)
-    assert (beaucoup.owner_entity, beaucoup.held_entity) == ("Parent", "Enfant")
-    assert beaucoup.fk_column == "parent_id"
-    assert not beaucoup.unique
+    assert isinstance(many, RelationModel)
+    assert (many.owner_entity, many.held_entity) == ("Parent", "Enfant")
+    assert many.fk_column == "parent_id"
+    assert not many.unique
     assert (unique.owner_entity, unique.held_entity) == ("Parent", "Profil")
     assert unique.unique
     assert (inverse.owner_entity, inverse.held_entity) == ("Parent", "Adresse")
@@ -159,14 +159,14 @@ workflow Consulter for Auteur
     ir = MonlAST(parse_monl_string(spec)).validate_and_audit()
     generator = MonlSecureGenerator(ir, output_dir=str(tmp_path))
 
-    prive = generator.access_policies[("Note", "Read")]
+    private = generator.access_policies[("Note", "Read")]
     public = generator.access_policies[("Page", "Read")]
 
-    assert isinstance(prive, AccessPolicy)
-    assert prive.actors == frozenset({"Auteur"})
-    assert prive.owner_entity == "Auteur"
-    assert not prive.public
-    assert not prive.party_fields
+    assert isinstance(private, AccessPolicy)
+    assert private.actors == frozenset({"Auteur"})
+    assert private.owner_entity == "Auteur"
+    assert not private.public
+    assert not private.party_fields
     assert public.public
     assert public.owner_entity is None
 

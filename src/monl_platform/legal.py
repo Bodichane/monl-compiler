@@ -17,9 +17,9 @@ from __future__ import annotations
 
 from .theme import page
 
-MARQUEUR = "TO BE COMPLETED"
+MARKER = "TO BE COMPLETED"
 
-EDITEUR = "Itchane Bodi"
+PUBLISHER = "Itchane Bodi"
 CONTACT = "contact@monl.dev"
 # Unlike the two constants above, this one is a PUBLIC fact: OVH publishes its
 # own legal identity so that its customers cite it. It is therefore filled in —
@@ -33,32 +33,32 @@ CONTACT = "contact@monl.dev"
 # French LCEN that imposes it, and it applies according to the publisher's
 # establishment and the targeted public — not according to the server's
 # country. The notice is kept because it costs nothing and covers that case.
-HEBERGEUR = ("OVH SAS, SAS with a share capital of €50,000,000 — "
+HOST = ("OVH SAS, SAS with a share capital of €50,000,000 — "
              "2 rue Kellermann, 59100 Roubaix, France — RCS 424 761 419")
 
 
 def est_complete() -> bool:
     """True when the three slots carry a real identity."""
-    return all(MARQUEUR not in valeur for valeur in (EDITEUR, CONTACT, HEBERGEUR))
+    return all(MARKER not in valeur for valeur in (PUBLISHER, CONTACT, HOST))
 
 
-def _lignes_manquantes() -> str:
+def _lines_missing() -> str:
     """Names what remains to be filled in, and nothing else.
 
     A fixed count ("these three slots") would send people to fix what is
     already correct as soon as a single value is missing — the same reproach
     as point 97 of the compiler: an assumption displayed as a diagnosis is
     worse than a vague message."""
-    manquants = [nom for nom, valeur in (("the publisher", EDITEUR),
+    missing = [name for name, valeur in (("the publisher", PUBLISHER),
                                          ("the contact address", CONTACT),
-                                         ("the host", HEBERGEUR))
-                 if MARQUEUR in valeur]
-    if not manquants:
+                                         ("the host", HOST))
+                 if MARKER in valeur]
+    if not missing:
         return ""
-    quoi = manquants[0] if len(manquants) == 1 else (
-        ", ".join(manquants[:-1]) + " and " + manquants[-1])
+    what = missing[0] if len(missing) == 1 else (
+        ", ".join(missing[:-1]) + " and " + missing[-1])
     return (f'<span class="trou">Still to be filled in before opening to the '
-            f'public: {quoi}. These values cannot be inferred from the code, and '
+            f'public: {what}. These values cannot be inferred from the code, and '
             'inventing them would produce a forgery.</span>')
 
 
@@ -67,14 +67,14 @@ MENTIONS = f"""
 <span class="maj">Legal notice</span>
 <h1>Who publishes this service, who hosts it, and how to reach us.</h1>
 
-{_lignes_manquantes()}
+{_lines_missing()}
 
 <h2>Publisher</h2>
-<p>This service is published by <strong>{EDITEUR}</strong>, a natural person,
+<p>This service is published by <strong>{PUBLISHER}</strong>, a natural person,
 who is also the publication director.</p>
 
 <h2>Host</h2>
-<p>This service is hosted by <strong>{HEBERGEUR}</strong>.</p>
+<p>This service is hosted by <strong>{HOST}</strong>.</p>
 
 <h2>Contact</h2>
 <p>For any question about the service, and to exercise your rights over your
@@ -147,12 +147,12 @@ DONNEES = [
      "For one rate-limit window, at most one hour."),
 ]
 
-_LIGNES = "".join(
-    f"<tr><td>{table}</td><td>{quoi}</td><td>{duree}</td></tr>"
-    for table, quoi, duree in DONNEES
+_LINES = "".join(
+    f"<tr><td>{table}</td><td>{what}</td><td>{duration}</td></tr>"
+    for table, what, duration in DONNEES
 )
 
-CONFIDENTIALITE = f"""
+PRIVACY = f"""
 <section class="shell legal">
 <span class="maj">Privacy policy</span>
 <h1>What the service keeps, and for how long.</h1>
@@ -164,7 +164,7 @@ described here makes the build fail.</p>
 <h2>The data kept</h2>
 <div class="table-large"><table>
 <thead><tr><th>Where</th><th>What</th><th>How long</th></tr></thead>
-<tbody>{_LIGNES}</tbody>
+<tbody>{_LINES}</tbody>
 </table></div>
 
 <h3>What the service does not do</h3>
@@ -288,9 +288,9 @@ CONDITIONS_HTML = page(
     body=CONDITIONS, extra_css=CSS,
 )
 
-CONFIDENTIALITE_HTML = page(
+PRIVACY_HTML = page(
     title="Privacy — MONL",
     description="The data kept by the platform, how long it lives, and how to "
                 "erase everything.",
-    body=CONFIDENTIALITE, extra_css=CSS,
+    body=PRIVACY, extra_css=CSS,
 )

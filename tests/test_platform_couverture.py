@@ -22,7 +22,7 @@ from fastapi import HTTPException, Request
 from monl_platform.app import create_app
 from tests.test_platform_service import SPEC
 
-MOT_DE_PASSE = "MotDePasse-Couverture-2026"
+PASSWORD = "MotDePasse-Couverture-2026"
 
 
 class _Response:
@@ -164,7 +164,7 @@ async def _dialogue(app):
         invalid = await client.post("/api/auth/register", json={})
         assert invalid.status_code == 422
         registered = await client.post("/api/auth/register", json={
-            "email": "couverture@exemple.test", "password": MOT_DE_PASSE})
+            "email": "couverture@exemple.test", "password": PASSWORD})
         assert registered.status_code == 201
         recovery_codes = registered.json()["recovery_codes"]
         assert len(recovery_codes) == 8
@@ -175,13 +175,13 @@ async def _dialogue(app):
         assert (await client.get("/api/keys")).json()["keys"] == []
 
         duplicate = await client.post("/api/auth/register", json={
-            "email": "COUVERTURE@EXEMPLE.TEST", "password": MOT_DE_PASSE})
+            "email": "COUVERTURE@EXEMPLE.TEST", "password": PASSWORD})
         assert duplicate.status_code == 422
         bad_login = await client.post("/api/auth/login", json={
             "email": "couverture@exemple.test", "password": "mauvaise-cle"})
         assert bad_login.status_code == 401
         logged = await client.post("/api/auth/login", json={
-            "email": "couverture@exemple.test", "password": MOT_DE_PASSE})
+            "email": "couverture@exemple.test", "password": PASSWORD})
         assert logged.status_code == 200
 
         bad_compile = await client.post("/api/compile", json={"spec": ""})
@@ -222,7 +222,7 @@ async def _dialogue(app):
 
         assert (await client.post("/api/auth/recover", json={
             "email": "couverture@exemple.test", "code": "faux",
-            "password": MOT_DE_PASSE})).status_code == 401
+            "password": PASSWORD})).status_code == 401
         recovered = await client.post("/api/auth/recover", json={
             "email": "couverture@exemple.test", "code": recovery_codes[0],
             "password": "MotDePasse-Repris-2026"})
@@ -271,7 +271,7 @@ def test_http_safeguards_normalize_and_refuse_invalid_inputs(
 ):
     from monl_platform import app_http
 
-    assert app_http._liens_de_pied([
+    assert app_http._links_of_footer([
         {"label": " Documentation ", "url": "https://example.test/docs"},
         {"label": "documentation", "url": "/autre"},
         {"label": 'dangereux"', "url": "/x"},
@@ -289,7 +289,7 @@ def test_http_safeguards_normalize_and_refuse_invalid_inputs(
     from monl_platform.identity import IdentityStore
 
     identities = IdentityStore(tmp_path)
-    user = identities.register("helper@exemple.test", MOT_DE_PASSE)
+    user = identities.register("helper@exemple.test", PASSWORD)
     token = identities.create_session(user["id"])
     authenticated = _request(headers=(("cookie", f"monl_session={token}"),))
     assert app_http._require_user(authenticated, identities)["id"] == user["id"]
@@ -307,12 +307,12 @@ def test_http_safeguards_normalize_and_refuse_invalid_inputs(
     assert app_http._client_ip(_request(client=None)) == "unknown"
 
     app_http._rate_limit(_request(), identities, "test", "sujet", 1, 60)
-    with pytest.raises(HTTPException) as limite:
+    with pytest.raises(HTTPException) as limit:
         app_http._rate_limit(_request(), identities, "test", "sujet", 1, 60)
-    assert limite.value.status_code == 429
-    assert app_http._veut_du_json(_request("/api/test", headers=(("accept", "text/html"),)))
-    assert not app_http._veut_du_json(_request("/page", headers=(("accept", "text/html"),)))
-    assert app_http._veut_du_json(_request("/page", headers=(("accept", "application/json"),)))
+    assert limit.value.status_code == 429
+    assert app_http._wants_of_json(_request("/api/test", headers=(("accept", "text/html"),)))
+    assert not app_http._wants_of_json(_request("/page", headers=(("accept", "text/html"),)))
+    assert app_http._wants_of_json(_request("/page", headers=(("accept", "application/json"),)))
     assert "This page does not exist" in app_http._page_404("absente")
 
     response = app_http._session_response(identities, user, extra={"ok": True})
@@ -342,17 +342,17 @@ def test_setting_the_cookie_is_unique_and_follows_configuration(tmp_path, monkey
     """Each cookie family has a single setter and shares the Secure rule."""
     racine = Path(__file__).resolve().parent.parent / "src" / "monl_platform"
     poses = []
-    for chemin in racine.glob("*.py"):
-        arbre = ast.parse(chemin.read_text(encoding="utf-8"))
+    for path in racine.glob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
         poses.extend(
-            (chemin.name, noeud.lineno)
-            for noeud in ast.walk(arbre)
-            if isinstance(noeud, ast.Call)
-            and isinstance(noeud.func, ast.Attribute)
-            and noeud.func.attr == "set_cookie"
+            (path.name, node.lineno)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "set_cookie"
         )
-    assert [nom for nom, _ligne in poses].count("session.py") == 1
-    assert [nom for nom, _ligne in poses].count("builder_auth_routes.py") == 1
+    assert [name for name, _line in poses].count("session.py") == 1
+    assert [name for name, _line in poses].count("builder_auth_routes.py") == 1
     assert len(poses) == 2
 
     from fastapi.responses import Response
@@ -362,7 +362,7 @@ def test_setting_the_cookie_is_unique_and_follows_configuration(tmp_path, monkey
     from monl_platform.identity import IdentityStore
 
     identities = IdentityStore(tmp_path)
-    user = identities.register("cookie@exemple.test", MOT_DE_PASSE)
+    user = identities.register("cookie@exemple.test", PASSWORD)
     monkeypatch.setenv("MONL_COOKIE_SECURE", "yes")
     secure = app_http._session_response(identities, user)
     oauth_secure = Response()
@@ -419,9 +419,9 @@ def test_the_lifecycle_starts_stops_and_keeps_the_purge(monkeypatch):
         pass
 
     purges = []
-    monkeypatch.setattr(app_lifecycle, "_purger", lambda service, identities, runtime=None:
+    monkeypatch.setattr(app_lifecycle, "_purge", lambda service, identities, runtime=None:
                         purges.append(identities.expired_projects()) or 1)
-    assert app_lifecycle._purger(Service(), Identities()) == 1
+    assert app_lifecycle._purge(Service(), Identities()) == 1
 
     import threading
 
@@ -454,7 +454,7 @@ def test_the_mcp_dispatcher_answers_protocols_and_tools(tmp_path, monkeypatch, c
 
     service = CompilationService(tmp_path)
     identities = IdentityStore(tmp_path)
-    user = identities.register("mcp-direct@exemple.test", MOT_DE_PASSE)
+    user = identities.register("mcp-direct@exemple.test", PASSWORD)
     dispatcher = MCPDispatcher(service, identities)
     assert dispatcher.dispatch({"method": "ping"}) is None
     assert dispatcher.dispatch({"id": 1, "method": "initialize"})["result"]["serverInfo"]
@@ -495,8 +495,8 @@ def test_the_mcp_dispatcher_answers_protocols_and_tools(tmp_path, monkeypatch, c
     })["error"]["code"] == -32603
     monkeypatch.setattr("sys.stdin", io.StringIO('\nnot-json\n{"id":12,"method":"ping"}\n'))
     run_stdio(service)
-    sortie = capsys.readouterr().out
-    assert "-32700" in sortie and '"id":12' in sortie
+    output = capsys.readouterr().out
+    assert "-32700" in output and '"id":12' in output
 
 
 def test_the_store_validates_its_metadata_and_transitions(tmp_path):
@@ -504,7 +504,7 @@ def test_the_store_validates_its_metadata_and_transitions(tmp_path):
     from monl_platform.store import PlatformStore, normalize_slug
 
     identities = IdentityStore(tmp_path)
-    user = identities.register("store-direct@exemple.test", MOT_DE_PASSE)
+    user = identities.register("store-direct@exemple.test", PASSWORD)
     store = PlatformStore(tmp_path)
     assert normalize_slug("  Boutique-Maj  ") == "boutique-maj"
     assert PlatformStore._normalize_model_routes(None) == {}
@@ -542,18 +542,18 @@ def test_the_store_validates_its_metadata_and_transitions(tmp_path):
 def test_the_oauth_adapter_covers_configuration_and_provider_responses(monkeypatch):
     from monl_platform import oauth
 
-    environnement = {
+    environment = {
         "MONL_OAUTH_GITHUB_CLIENT_ID": "client",
         "MONL_OAUTH_GITHUB_SECRET": "secret",
         "MONL_OAUTH_GITHUB_BASE_URL": "https://faux.example/api/",
         "MONL_PLATFORM_PUBLIC_URL": "https://monl.example/",
     }
-    assert oauth._base_url("github", "api", environnement) == "https://faux.example/api"
-    assert oauth.redirect_uri("github", environnement) == (
+    assert oauth._base_url("github", "api", environment) == "https://faux.example/api"
+    assert oauth.redirect_uri("github", environment) == (
         "https://monl.example/auth/github/retour"
     )
     assert oauth.authorize_url(
-        "github", "etat", environnement
+        "github", "etat", environment
     ).startswith("https://faux.example/api/login/oauth/authorize?")
     with pytest.raises(oauth.OAuthError, match="inconnu"):
         oauth._spec("inconnu")
@@ -562,10 +562,10 @@ def test_the_oauth_adapter_covers_configuration_and_provider_responses(monkeypat
     assert missing.value.variable == "MONL_OAUTH_GITHUB_SECRET"
 
     state = oauth.make_state(
-        "github", "secret", "secret-navigateur", maintenant=1_700_000_000
+        "github", "secret", "secret-navigateur", now=1_700_000_000
     )
     assert oauth.check_state(
-        state, "github", "secret", "secret-navigateur", maintenant=1_700_000_000
+        state, "github", "secret", "secret-navigateur", now=1_700_000_000
     )
     bad_timestamp_charge = "github.pas-un-entier.alea.empreinte"
     bad_timestamp = f"{bad_timestamp_charge}.{oauth._signer('secret', bad_timestamp_charge)}"
@@ -579,7 +579,7 @@ def test_the_oauth_adapter_covers_configuration_and_provider_responses(monkeypat
     ):
         with pytest.raises(oauth.OAuthError, match=message):
             oauth.check_state(
-                malformed, provider, "secret", "secret-navigateur", maintenant=now
+                malformed, provider, "secret", "secret-navigateur", now=now
             )
 
     class Reply:
@@ -621,10 +621,10 @@ def test_the_oauth_adapter_covers_configuration_and_provider_responses(monkeypat
         oauth._get_json("https://faux.test", "jeton")
 
     monkeypatch.setattr(oauth, "_post_json", lambda *_args, **_kwargs: {"access_token": "ok"})
-    assert oauth.exchange_code("github", "code", environnement) == "ok"
+    assert oauth.exchange_code("github", "code", environment) == "ok"
     monkeypatch.setattr(oauth, "_post_json", lambda *_args, **_kwargs: {})
     with pytest.raises(oauth.OAuthError, match="access token"):
-        oauth.exchange_code("github", "code", environnement)
+        oauth.exchange_code("github", "code", environment)
 
     def github_identity(url, _token):
         if url.endswith("/user"):
@@ -632,25 +632,25 @@ def test_the_oauth_adapter_covers_configuration_and_provider_responses(monkeypat
         return [{"email": "alice@example.test", "primary": True, "verified": True}]
 
     monkeypatch.setattr(oauth, "_get_json", github_identity)
-    assert oauth.fetch_identity("github", "jeton", environnement) == (
+    assert oauth.fetch_identity("github", "jeton", environment) == (
         "github:42", "alice@example.test"
     )
     monkeypatch.setattr(oauth, "_get_json", lambda *_args: {"id": 0})
     with pytest.raises(oauth.OAuthError, match="did not identify"):
-        oauth.fetch_identity("github", "jeton", environnement)
+        oauth.fetch_identity("github", "jeton", environment)
     monkeypatch.setattr(oauth, "_get_json", lambda url, _token: (
         {"id": 42} if url.endswith("/user") else []
     ))
     with pytest.raises(oauth.OAuthError, match="verified primary"):
-        oauth.fetch_identity("github", "jeton", environnement)
+        oauth.fetch_identity("github", "jeton", environment)
 
     def google_identity(_url, _token):
         return {"sub": "1078", "email": "google@example.test", "email_verified": True}
 
     monkeypatch.setattr(oauth, "_get_json", google_identity)
-    assert oauth.fetch_identity("google", "jeton", environnement) == (
+    assert oauth.fetch_identity("google", "jeton", environment) == (
         "google:1078", "google@example.test"
     )
     monkeypatch.setattr(oauth, "_get_json", lambda *_args: {"sub": "1078"})
     with pytest.raises(oauth.OAuthError, match="verified"):
-        oauth.fetch_identity("google", "jeton", environnement)
+        oauth.fetch_identity("google", "jeton", environment)

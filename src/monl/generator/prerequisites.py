@@ -8,7 +8,7 @@ route and the runtime."""
 from string import Template
 
 
-class PrealablesMixin:
+class PrerequisitesMixin:
     """What you must ALREADY have, and who escapes a condition."""
 
     def _condition_exemptions(self, entity):
@@ -22,9 +22,9 @@ class PrealablesMixin:
         diverge, and that is the kind of gap that reopens an access check."""
         if (entity, "Read") not in self.public_conditions:
             return [], []
-        superviseurs = sorted(self.access_supervisors.get(Template(r"""${entity}.Read""").substitute(entity=entity), []))
-        proprietaire = sorted(self._identity_fk_columns().get(entity, set()))
-        return superviseurs, proprietaire
+        supervisors = sorted(self.access_supervisors.get(Template(r"""${entity}.Read""").substitute(entity=entity), []))
+        owner = sorted(self._identity_fk_columns().get(entity, set()))
+        return supervisors, owner
 
     def _condition_identity_needed(self):
         """True if at least one conditional read carries an exemption."""
@@ -41,13 +41,13 @@ class PrealablesMixin:
         `_identity_fk_columns`, the single source of that distinction since point
         88: finding it another way means rewriting half of the bug that point
         fixed."""
-        requise = self.required_profiles.get(entity)
-        if not requise:
+        required = self.required_profiles.get(entity)
+        if not required:
             return None
-        colonnes = self._identity_fk_columns().get(requise, set())
-        if not colonnes:
+        columns = self._identity_fk_columns().get(required, set())
+        if not columns:
             return None
-        return requise.lower(), sorted(colonnes)[0]
+        return required.lower(), sorted(columns)[0]
 
     def _profile_dependents(self, entity):
         """POINT 96: entities that REQUIRE a profile of 'entity' to exist.
@@ -60,21 +60,21 @@ class PrealablesMixin:
 
         Returns [(table, account column)]: where to look for the records that
         would become orphans."""
-        dependantes = []
-        for dependante, requise in sorted(self.required_profiles.items()):
-            if requise != entity:
+        dependents = []
+        for dependent, required in sorted(self.required_profiles.items()):
+            if required != entity:
                 continue
-            colonnes = self._identity_fk_columns().get(dependante, set())
-            if not colonnes:
+            columns = self._identity_fk_columns().get(dependent, set())
+            if not columns:
                 # Without an identity column, nothing links the dependent to an
                 # account: we do not guess rather than refuse wrongly.
                 continue
-            dependantes.append((dependante, dependante.lower(), sorted(colonnes)[0]))
-        return dependantes
+            dependents.append((dependent, dependent.lower(), sorted(columns)[0]))
+        return dependents
 
     def _profile_account_column(self, entity):
         """Account column of the REQUIRED entity itself — to count the remaining
         profiles. `requiresOwn` asks for "at least one": deleting the second to
         last is therefore legitimate, only the LAST one is refused."""
-        colonnes = self._identity_fk_columns().get(entity, set())
-        return sorted(colonnes)[0] if colonnes else None
+        columns = self._identity_fk_columns().get(entity, set())
+        return sorted(columns)[0] if columns else None

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .coloration import coloriser
+from .coloration import colorize
 from .theme import icon
 
 EXTRA_CSS = """
@@ -208,7 +208,7 @@ kbd { font: 11px var(--mono); border: 1px solid var(--line); border-bottom-width
 
 # The SPEC goes through the highlighter; the result lines keep their arrows,
 # which are not language.
-TERMINAL = coloriser("""app WorkshopNotebook
+TERMINAL = colorize("""app WorkshopNotebook
 
 entity Note
     title: String

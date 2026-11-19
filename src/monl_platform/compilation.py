@@ -26,7 +26,7 @@ from .service import (
     CompilationService,
     PlatformExecutionError,
     PlatformInputError,
-    compiler_dans,
+    compiler_in,
 )
 
 
@@ -35,7 +35,7 @@ class ProjectIsolationError(RuntimeError):
     safe."""
 
 
-def compiler_le_projet(project_id, *, account_id, store, workspace_root, service=None):
+def compiler_the_project(project_id, *, account_id, store, workspace_root, service=None):
     """Compiles the ``spec.ml`` of a project's private folder and returns its
     contract.
 
@@ -63,18 +63,18 @@ def compiler_le_projet(project_id, *, account_id, store, workspace_root, service
     if not validation.valid:
         raise PlatformInputError(validation.errors[0])
 
-    sortie = compiler_dans(spec_path, project_dir)
-    contrat_path = project_dir / "frontend_contract.json"
-    if not contrat_path.is_file():
+    output = compiler_in(spec_path, project_dir)
+    contract_path = project_dir / "frontend_contract.json"
+    if not contract_path.is_file():
         raise PlatformExecutionError(
             "The compilation produced no frontend contract."
         )
-    contrat = json.loads(contrat_path.read_text(encoding="utf-8"))
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
     return {
         "project_id": project["project_id"],
         "directory": str(project_dir),
-        "contract": contrat,
-        "compiler_output": sortie,
+        "contract": contract,
+        "compiler_output": output,
         "files": sorted(
             str(path.relative_to(project_dir))
             for path in project_dir.rglob("*")

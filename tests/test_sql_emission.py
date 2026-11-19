@@ -32,7 +32,7 @@ def test_bind_refuses_an_empty_expression():
         sql.bind("   ")
 
 
-def test_ident_met_entre_guillemets():
+def test_ident_met_entre_quotes():
     assert sql.ident("commande_id").text == '"commande_id"'
     assert sql.ident("commande_id").params == ()
 
@@ -82,7 +82,7 @@ def test_an_unbalanced_query_is_refused_at_emission():
 # The point 107 regression safeguard: on REALLY generated code
 # -----------------------------------------------------------------------------
 
-SPEC_PROFONDEUR = """app G
+SPEC_DEPTH = """app G
 
 entity Commande
     libelle: String
@@ -121,10 +121,10 @@ workflow W for Client
 
 @pytest.fixture(scope="module")
 def app_source(tmp_path_factory):
-    dossier = tmp_path_factory.mktemp("g")
-    ast = MonlAST(parse_monl_string(SPEC_PROFONDEUR)).validate_and_audit()
-    MonlSecureGenerator(ast, output_dir=str(dossier)).generate_all()
-    return (dossier / "app.py").read_text(encoding="utf-8")
+    folder = tmp_path_factory.mktemp("g")
+    ast = MonlAST(parse_monl_string(SPEC_DEPTH)).validate_and_audit()
+    MonlSecureGenerator(ast, output_dir=str(folder)).generate_all()
+    return (folder / "app.py").read_text(encoding="utf-8")
 
 
 def test_no_client_value_is_pasted_into_sql_text(app_source):

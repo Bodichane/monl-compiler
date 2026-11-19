@@ -55,7 +55,7 @@ def bounded_answers(value) -> list[str]:
     return value
 
 
-def soumettre(answers: list[str], candidate: str | None) -> dict:
+def submit(answers: list[str], candidate: str | None) -> dict:
     """Replays, and says whether the proposed answer was ACCEPTED.
 
     THE DEFECT THIS FUNCTION CLOSES, measured and not assumed. The engine
@@ -69,13 +69,13 @@ def soumettre(answers: list[str], candidate: str | None) -> dict:
     question text again (checked by execution). An answer that does not move
     the question forward is therefore never kept, and the attempt budget is
     never touched."""
-    avant = replay(answers)
-    if candidate is None or avant["complete"]:
-        return {**avant, "accepted": candidate is None, "answers": list(answers)}
+    before = replay(answers)
+    if candidate is None or before["complete"]:
+        return {**before, "accepted": candidate is None, "answers": list(answers)}
 
     apres = replay([*answers, candidate])
-    refusee = not apres["complete"] and apres["question"] == avant["question"]
-    if refusee:
+    refused = not apres["complete"] and apres["question"] == before["question"]
+    if refused:
         # The engine's messages SAY why ("✗ Choose a menu number."):
         # returning them is the whole point: without them the user sees their
         # question come back with no explanation.
@@ -101,17 +101,17 @@ def replay(answers: list[str]) -> dict:
             # LATE binding: `dialogue` does not exist yet when this closure is
             # defined, but it does when it is CALLED — the engine can only ask
             # a question once built.
-            raise DialogueIncomplete(prompt, dialogue.derniere_question)
+            raise DialogueIncomplete(prompt, dialogue.last_question)
         return remaining.pop(0)
 
     dialogue = GuidedDialogue(ask=ask, say=said.append, ui=PlainDialogueUI())
-    sortie = io.StringIO()
+    output = io.StringIO()
     try:
         # The real validator's historical audit still writes its lines to
         # stdout. Capturing it returns them to the console with the rest of the
         # log; the lock prevents a concurrent replay from mixing two dialogues
         # in the same global buffer.
-        with _STDOUT_LOCK, contextlib.redirect_stdout(sortie):
+        with _STDOUT_LOCK, contextlib.redirect_stdout(output):
             spec = dialogue.run()
     except DialogueIncomplete as incomplete:
         meta = incomplete.meta or {}
@@ -127,7 +127,7 @@ def replay(answers: list[str]) -> dict:
     except DialogueError as exc:
         raise DialogueInputError(str(exc)) from exc
 
-    said.extend(ligne for ligne in sortie.getvalue().splitlines() if ligne)
+    said.extend(line for line in output.getvalue().splitlines() if line)
     if remaining:
         raise DialogueInputError(
             "The dialogue is complete, but extra answers were provided."

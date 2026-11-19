@@ -1,13 +1,13 @@
 """Named pieces of the deterministic emission of a spec."""
 
-from ..ast_validator.fields import ChampsMixin
+from ..ast_validator.fields import FieldsMixin
 from .foundations import SEEDABLE_TYPES
 
 #: The types on which `min` counts CHARACTERS and not a value. Read from the
 #: validator, never copied: a second list would eventually diverge, and the
 #: dialogue would then emit a rule the compiler refuses — the worst outcome for
 #: someone being guided (point 173).
-TYPES_TEXTE = ChampsMixin.BORNES_TEXTE
+TYPES_TEXT = FieldsMixin.BOUNDS_TEXT
 
 
 def derived_list_rules(entities, extra_rules):
@@ -73,8 +73,8 @@ def emit_capability(lines, account_identifier):
     lines.append(f"    identifier: {', '.join(account_identifier['formes'])}")
     if account_identifier.get("verify_email"):
         lines.append(f"    verify_email: {account_identifier['verify_email']}")
-        maximum, fenetre = account_identifier["verify_resend"]
-        lines.append(f"    verify_resend: {maximum} in {fenetre}")
+        maximum, window = account_identifier["verify_resend"]
+        lines.append(f"    verify_resend: {maximum} in {window}")
     if account_identifier.get("prefixe"):
         lines.append(f'    phone_prefix: "{account_identifier["prefixe"]}"')
     lines.append("")
@@ -86,7 +86,7 @@ def calculated_server_fields(emitter, payable):
     if payable:
         line_entity = payable.get("line_entity") or payable["entity"]
         calculated.add((payable["entity"], payable["field"]))
-        field = (emitter.CHAMP_SOUS_TOTAL if payable.get("line_entity")
+        field = (emitter.FIELD_SOUS_TOTAL if payable.get("line_entity")
                  else payable["field"])
         calculated.add((line_entity, field))
     return calculated
@@ -134,7 +134,7 @@ def emit_base_rules(lines, entities, extra_rules, public_read,
             # On a NUMBER, `min` applies to the value: writing 1 there would
             # forbid a stock or a price of zero, which are legitimate values.
             # The rule therefore applies only to text types.
-            if first_type in TYPES_TEXTE:
+            if first_type in TYPES_TEXT:
                 lines.append(f"rule {ent}.{first_field} min 1")
     public_when = public_when_entities(extra_rules)
     for ent in public_read:
@@ -146,18 +146,18 @@ def emit_base_rules(lines, entities, extra_rules, public_read,
     emit_shared_rules(lines, entities, managers)
 
 
-def emit_payment_header(lines, entite):
+def emit_payment_header(lines, entity):
     lines.extend([
         "",
         "# POINT 89: the arrival date, written by the server on",
         "# creation and never afterwards. It disappears from request",
         "# bodies: a date you give yourself proves nothing, and a",
-        f"# {entite} book where everyone picks their own dates no",
+        f"# {entity} book where everyone picks their own dates no",
         "# longer says in which order to fulfil them.",
     ])
 
 
-def emit_stock_rule(lines, payable, source, porteur, facteur):
+def emit_stock_rule(lines, payable, source, carrier, factor):
     stock = payable.get("stock_field")
     if not stock:
         return
@@ -170,7 +170,7 @@ def emit_stock_rule(lines, payable, source, porteur, facteur):
         "# POINT 86: the stock follows the orders, and removes WHAT THE",
         "# CUSTOMER ASKED FOR — not a constant. Ordering more than the",
         "# available stock answers 409, without deducting anything.",
-        f"rule {porteur}.Create decrements {source}.{stock} by {facteur}",
+        f"rule {carrier}.Create decrements {source}.{stock} by {factor}",
         "",
     ])
 
@@ -179,45 +179,45 @@ def emit_payable(emitter, lines, payable):
     """Emits the calculation, stock and payment rules."""
     if not payable:
         return
-    entite, montant = payable["entity"], payable["field"]
-    source, prix = payable["source_entity"], payable["source_field"]
-    facteur = payable["factor"]
-    ligne = payable.get("line_entity")
-    porteur = ligne or entite
-    calcule = (payable.get("line_subtotal", emitter.CHAMP_SOUS_TOTAL)
-               if ligne else montant)
-    emit_payment_header(lines, entite)
-    lines.append(f"rule {entite}.{emitter.CHAMP_DATE} timestamp")
+    entity, amount = payable["entity"], payable["field"]
+    source, price = payable["source_entity"], payable["source_field"]
+    factor = payable["factor"]
+    line = payable.get("line_entity")
+    carrier = line or entity
+    computed = (payable.get("line_subtotal", emitter.FIELD_SOUS_TOTAL)
+               if line else amount)
+    emit_payment_header(lines, entity)
+    lines.append(f"rule {entity}.{emitter.FIELD_DATE} timestamp")
     lines.append("")
-    if not ligne:
+    if not line:
         lines.extend([
             "# The quantity is the only figure the buyer supplies, and",
             "# it is required: without it the calculation below would",
             "# rest on nothing.",
-            f"rule {entite}.{facteur} required",
+            f"rule {entity}.{factor} required",
             "",
         ])
     lines.extend([
         "# POINT 79: the amount is CALCULATED BY THE SERVER — catalog",
-        f"# price ({source}.{prix}) multiplied by the quantity. The",
-        f"# field {porteur}.{calcule} therefore disappears from request",
+        f"# price ({source}.{price}) multiplied by the quantity. The",
+        f"# field {carrier}.{computed} therefore disappears from request",
         "# bodies, on creation as on update. Without this calculation,",
         "# the buyer would set what they pay themselves: they become",
         "# the owner of what they create, hence the payer.",
-        f"rule {porteur}.{calcule} derivedFrom {source}.{prix} by {facteur}",
+        f"rule {carrier}.{computed} derivedFrom {source}.{price} by {factor}",
         "",
     ])
-    if ligne:
+    if line:
         lines.extend([
             "# POINT 82: the cart total is the SUM of its lines,",
             "# recalculated by the server whenever a line is added,",
             "# modified or deleted. Summing a subtotal the browser",
             "# writes would be the point 77 flaw with one more",
             "# addition: the compiler refuses it.",
-            f"rule {entite}.{montant} sumOf {ligne}.{calcule}",
+            f"rule {entity}.{amount} sumOf {line}.{computed}",
             "",
         ])
-    emit_stock_rule(lines, payable, source, porteur, facteur)
+    emit_stock_rule(lines, payable, source, carrier, factor)
     lines.extend([
         "# Payment: the named field carries the AMOUNT, hence the",
         "# entity to charge. Two routes follow from it —",
@@ -225,7 +225,7 @@ def emit_payable(emitter, lines, payable):
         "# reread from the database) and POST /paiement/webhook,",
         "# whose signature is checked. Without STRIPE_SECRET_KEY,",
         "# they answer 503; the rest of the application works.",
-        f"rule {entite}.{montant} payable",
+        f"rule {entity}.{amount} payable",
         "",
     ])
 

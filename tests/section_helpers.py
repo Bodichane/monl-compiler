@@ -15,7 +15,7 @@ import re
 #: rien — la page reste entière hors ligne, seul le clic échoue, ce qui est
 #: le comportement attendu d'un lien sortant. Ce qui reste interdit, c'est ce
 #: que le NAVIGATEUR va chercher tout seul.
-RESSOURCE_DISTANTE = re.compile(
+RESOURCE_REMOTE = re.compile(
     r"<link\b"                        # feuille de style, favicon, préchargement
     r"|<script[^>]+\bsrc="            # script tiers
     r"|@import"                       # CSS importée
@@ -25,7 +25,7 @@ RESSOURCE_DISTANTE = re.compile(
 )
 
 
-def section_with_substance(marker, regle=None):
+def section_with_substance(marker, rule=None):
     """Une section de test qui porte sa MATIÈRE, pas seulement son nom.
 
     Depuis le point 143, une section marquée mais vide fait échouer la
@@ -36,22 +36,22 @@ def section_with_substance(marker, regle=None):
     fichier de tests : trois copies finiraient par diverger, et une fixture
     trop généreuse rendrait la barrière intestable.
     """
-    corps = [
+    body = [
         "<h2>Titre de la section</h2>",
         "<p>" + "Un texte réellement lisible, tel qu'un visiteur en lirait "
                 "sur cette page du site. " * 4 + "</p>",
         '<a href="#suite">Continuer</a>',
     ]
-    if (regle or {}).get("form"):
-        corps.append("<form><label>Message<input></label>"
+    if (rule or {}).get("form"):
+        body.append("<form><label>Message<input></label>"
                      "<button>Envoyer</button></form>")
-    return f"<section {marker}>" + "".join(corps) + "</section>"
+    return f"<section {marker}>" + "".join(body) + "</section>"
 
 
-def manifest_sections(manifest, fichier="index.html"):
+def manifest_sections(manifest, file="index.html"):
     """Rend toutes les sections obligatoires d'un manifeste, avec leur matière."""
-    regles = (manifest.get("section_substance") or {}).get(fichier, {})
+    rules = (manifest.get("section_substance") or {}).get(file, {})
     return "\n".join(
-        section_with_substance(marker, regles.get(marker))
-        for marker in manifest["required_markers"][fichier]
+        section_with_substance(marker, rules.get(marker))
+        for marker in manifest["required_markers"][file]
     )

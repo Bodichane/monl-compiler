@@ -195,7 +195,7 @@ LOOKUP_GOLDENS = {
 }
 
 
-def _empreintes(project_dir: Path):
+def _fingerprints(project_dir: Path):
     return {
         name: hashlib.sha256((project_dir / name).read_bytes()).hexdigest()
         for name in GOLDENS
@@ -208,12 +208,12 @@ def test_a_recompilation_keeps_the_artifacts_deterministic(tmp_path, capsys):
 
     compile_project(str(spec), str(tmp_path))
     capsys.readouterr()
-    assert _empreintes(tmp_path) == GOLDENS
+    assert _fingerprints(tmp_path) == GOLDENS
     _no_useless_custom_module(tmp_path)
 
     compile_project(str(spec), str(tmp_path))
     capsys.readouterr()
-    assert _empreintes(tmp_path) == GOLDENS
+    assert _fingerprints(tmp_path) == GOLDENS
     _no_useless_custom_module(tmp_path)
 
 
@@ -221,17 +221,17 @@ def test_two_folders_produce_the_same_sources(tmp_path, capsys):
     """The output path and the local secret must not contaminate the sources."""
     spec = tmp_path / "spec.ml"
     spec.write_text(SPEC, encoding="utf-8")
-    premier, second = tmp_path / "premier", tmp_path / "second"
-    premier.mkdir()
+    first, second = tmp_path / "premier", tmp_path / "second"
+    first.mkdir()
     second.mkdir()
 
-    compile_project(str(spec), str(premier))
+    compile_project(str(spec), str(first))
     capsys.readouterr()
     compile_project(str(spec), str(second))
     capsys.readouterr()
 
     for name in GOLDENS:
-        assert (premier / name).read_bytes() == (second / name).read_bytes(), name
+        assert (first / name).read_bytes() == (second / name).read_bytes(), name
 
 
 def test_the_point_181_filter_sources_are_in_the_golden(
@@ -242,8 +242,8 @@ def test_the_point_181_filter_sources_are_in_the_golden(
 
     compile_project(str(spec), str(tmp_path))
     capsys.readouterr()
-    empreintes = _empreintes(tmp_path)
-    assert {name: empreintes[name] for name in ("app.py", "monl.json")} == {
+    fingerprints = _fingerprints(tmp_path)
+    assert {name: fingerprints[name] for name in ("app.py", "monl.json")} == {
         name: LOOKUP_GOLDENS[name] for name in ("app.py", "monl.json")
     }
 

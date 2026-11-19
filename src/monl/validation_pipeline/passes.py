@@ -13,7 +13,7 @@ class FieldConstraintValidationPass:
     name: str = "field_constraints"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_contraintes_de_champ()
+        context._validate_constraints_of_field()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -23,7 +23,7 @@ class AccessControlValidationPass:
     name: str = "access_control"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_controle_dacces()
+        context._validate_control_access()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -33,7 +33,7 @@ class PublicVisibilityValidationPass:
     name: str = "public_visibility"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_regle_public()
+        context._validate_rule_public()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -44,7 +44,7 @@ class OncePerValidationPass:
     name: str = "once_per"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_regles_once_per()
+        context._validate_rules_once_per()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -54,7 +54,7 @@ class RestrictedFieldValidationPass:
     name: str = "restricted_fields"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_regle_restrictedTo()
+        context._validate_rule_restrictedto()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -64,7 +64,7 @@ class HiddenFieldValidationPass:
     name: str = "hidden_fields"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_champs_masques()
+        context._validate_fields_masques()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -74,7 +74,7 @@ class CategorizedFieldValidationPass:
     name: str = "categorized_fields"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_champs_categorises()
+        context._validate_fields_categorized()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -84,7 +84,7 @@ class GeneratedFieldValidationPass:
     name: str = "generated_fields"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_champs_generes()
+        context._validate_fields_generated()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -94,7 +94,7 @@ class TimestampFieldValidationPass:
     name: str = "timestamp_fields"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_champs_horodates()
+        context._validate_fields_timestamped()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -104,7 +104,7 @@ class NumberedFieldValidationPass:
     name: str = "numbered_fields"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_champs_numerotes()
+        context._validate_fields_numbered()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -114,7 +114,7 @@ class EnumeratedFieldValidationPass:
     name: str = "enumerated_fields"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_champs_enumeres()
+        context._validate_fields_enumerated()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -127,7 +127,7 @@ class ListQueryCapabilityValidationPass:
         # The pipeline is also exercised by fake test contexts and by
         # historical integrations. A new optional pass must not make these
         # contexts unable to check the order of the passes they already knew.
-        validation = getattr(context, "_valider_capacites_de_liste", None)
+        validation = getattr(context, "_validate_capabilities_of_list", None)
         if validation is not None:
             validation()
         return []
@@ -139,7 +139,7 @@ class CreationPaymentPrerequisitePass:
     name: str = "creation_payment_prerequisites"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_requires_own_et_payable()
+        context._validate_requires_own_and_payable()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -149,7 +149,7 @@ class DerivedFieldValidationPass:
     name: str = "derived_fields"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_champs_derives()
+        context._validate_fields_derives()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -159,7 +159,7 @@ class AggregatedFieldValidationPass:
     name: str = "aggregated_fields"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_champs_agreges()
+        context._validate_fields_aggregated()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -170,7 +170,7 @@ class CalculationPaymentSafetyPass:
     name: str = "calculation_payment_safety"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_securite_calculs_paiement()
+        context._validate_security_calculations_payment()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -180,7 +180,7 @@ class CounterEffectValidationPass:
     name: str = "counter_effects"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_effets_compteurs()
+        context._validate_effects_counters()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -190,7 +190,7 @@ class PayableOwnerValidationPass:
     name: str = "payable_owner"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_proprietaire_paiement()
+        context._validate_owner_payment()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -200,7 +200,7 @@ class ReleaseRuleValidationPass:
     name: str = "release_rules"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_regles_liberation()
+        context._validate_rules_release()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -210,11 +210,11 @@ class WorkflowCollisionValidationPass:
     name: str = "workflow_collisions"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_workflows_et_collisions()
+        context._validate_workflows_and_collisions()
         # B1 shares the "workflows then dependent validations" boundary. The
         # getattr keeps compatibility with the test contexts and historical
         # integrations that still implement the old protocol.
-        upload_validation = getattr(context, "_valider_champs_uploades", None)
+        upload_validation = getattr(context, "_validate_fields_uploaded", None)
         if upload_validation is not None:
             upload_validation()
         return []
@@ -226,7 +226,7 @@ class UIOverrideValidationPass:
     name: str = "ui_overrides"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_ui_overrides()
+        context._validate_ui_overrides()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -236,7 +236,7 @@ class LandingValidationPass:
     name: str = "landing"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_landing()
+        context._validate_landing()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -246,7 +246,7 @@ class CapabilityValidationPass:
     name: str = "capabilities"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_capacites()
+        context._validate_capabilities()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -256,7 +256,7 @@ class MessageRuleValidationPass:
     name: str = "message_rules"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_regles_message()
+        context._validate_rules_message()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -266,7 +266,7 @@ class AssetsSeedValidationPass:
     name: str = "assets_seeds"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_assets_et_seeds()
+        context._validate_assets_and_seeds()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -276,7 +276,7 @@ class MigrationValidationPass:
     name: str = "migrations"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_migrations()
+        context._validate_migrations()
         return []
 
 @dataclass(frozen=True, slots=True)
@@ -286,7 +286,7 @@ class PostPaymentValidationPass:
     name: str = "post_payment_writes"
 
     def run(self, context: ValidationContext) -> list[str]:
-        context._valider_regle_apres_paiement()
+        context._validate_rule_after_payment()
         return []
 
 @dataclass(frozen=True, slots=True)

@@ -32,7 +32,7 @@ class StoreProjectsMixin:
         # calls both read "free". The global index of `store_core` refuses the
         # collision even if this path is bypassed.
         with self._lock, self._connect() as db:
-            slug = self._slug_libre(db, slug)
+            slug = self._slug_free(db, slug)
             db.execute(
                 "INSERT INTO builder_projects(project_id, user_id, slug, created_at, "
                 "model_routes, generate_images) VALUES (?, ?, ?, ?, ?, ?)",
@@ -43,10 +43,10 @@ class StoreProjectsMixin:
 
     #: Beyond that, refuse rather than loop: a name that already has a hundred
     #: namesakes is the sign of something other than normal use.
-    HOMONYMES_MAX = 100
+    NAMESAKES_MAX = 100
 
     @staticmethod
-    def _slug_libre(db, base):
+    def _slug_free(db, base):
         """The first free address: `name`, then `name-2`, `name-3`…
 
         The FIRST project keeps the address its name announces — it is the one
@@ -65,18 +65,18 @@ class StoreProjectsMixin:
         # `project_for_host` refusing to serve both. It is defect (b) surviving
         # on databases already in service, found by a witness and not by
         # rereading. Folding only one side of a comparison folds nothing.
-        prise = {ligne["slug"].lower() for ligne in db.execute(
+        prise = {line["slug"].lower() for line in db.execute(
             "SELECT slug FROM builder_projects WHERE slug = ? COLLATE NOCASE "
             "OR slug LIKE ? COLLATE NOCASE", (base, f"{base}-%"))}
         if base not in prise:
             return base
-        for rang in range(2, StoreProjectsMixin.HOMONYMES_MAX + 1):
-            candidat = f"{base}-{rang}"
-            if candidat not in prise:
-                return candidat
+        for rang in range(2, StoreProjectsMixin.NAMESAKES_MAX + 1):
+            candidate = f"{base}-{rang}"
+            if candidate not in prise:
+                return candidate
         raise ValueError(
             f"too many projects use the address '{base}' "
-            f"({StoreProjectsMixin.HOMONYMES_MAX} at most)")
+            f"({StoreProjectsMixin.NAMESAKES_MAX} at most)")
 
     def discard_project(self, user_id, project_id):
         """Deletes a just-created project if its initialization fails.

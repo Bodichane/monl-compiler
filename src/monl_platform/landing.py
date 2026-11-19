@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from . import landing_cases, landing_why
-from .coloration import coloriser, en_lignes
+from .coloration import colorize, in_lines
 from .landing_showcase import (
-    ARBRE,
-    ENTITES,
-    FICHIERS,
+    ENTITIES,
+    FILES,
     ROUTES,
-    extrait_affiche,
+    TREE,
+    excerpt_displayed,
 )
 from .theme import icon, page
 
@@ -218,16 +218,16 @@ entity Product
 
 rule Product.stock min 0
 rule Product.Read public"""
-DEMO_HERO = en_lignes(DEMO_HERO_SOURCE)
+DEMO_HERO = in_lines(DEMO_HERO_SOURCE)
 
-MINI_SPEC = coloriser(extrait_affiche())
+MINI_SPEC = colorize(excerpt_displayed())
 
 #: Each name comes from `ARBRE`, which the witness requires to appear in the
 #: really compiled archive. Writing a name here is no longer enough to make it
 #: exist — that is the whole point of `landing_vitrine`.
-ARBRE_HTML = "<br>".join(
-    f'{"└──" if i == len(ARBRE) - 1 else "├──"} {nom} <span>{role}</span>'
-    for i, (nom, role) in enumerate(ARBRE))
+TREE_HTML = "<br>".join(
+    f'{"└──" if i == len(TREE) - 1 else "├──"} {name} <span>{role}</span>'
+    for i, (name, role) in enumerate(TREE))
 
 
 LANDING_MOTION = """<script>
@@ -271,7 +271,7 @@ BODY = f"""
 <div class="demo-window"><div class="demo-bar"><i></i><i></i><i></i><span>verified specification</span></div>
 <div class="demo-code">{DEMO_HERO}</div>
 <div class="scan-line"></div><div class="demo-result"><div class="verified"><b>{icon('check')} valid</b><span>business audit</span></div>
-<div><b>{ENTITES}</b><span>entities</span></div><div><b>{ROUTES}</b><span>routes</span></div><div><b>{FICHIERS}</b><span>files</span></div></div></div></aside>
+<div><b>{ENTITIES}</b><span>entities</span></div><div><b>{ROUTES}</b><span>routes</span></div><div><b>{FILES}</b><span>files</span></div></div></div></aside>
 <span class="float-card float-a" aria-hidden="true">{icon('shield')} Verified permissions</span><span class="float-card float-b" aria-hidden="true">{icon('package')} Self-contained archive</span></div>
 </section>
 
@@ -285,8 +285,8 @@ BODY = f"""
 <p>Here is what Monl produces from a shop spec: the results are rechecked every time the compiler changes.</p></div>
 <div class="output-flow" data-reveal><pre class="codeblock mini-spec"><code>{MINI_SPEC}</code></pre>
 <span class="flow-arrow">{icon('arrow')}</span><div class="artifact"><div class="artifact-head"><b>LittleShop</b><span class="muted">self-contained archive</span></div>
-<div class="artifact-body"><div class="artifact-stats"><div><b>{ENTITES}</b><span>entities</span></div><div><b>{ROUTES}</b><span>API routes</span></div><div><b>{FICHIERS}</b><span>files</span></div></div>
-<div class="tree"><b>backend/</b><br>{ARBRE_HTML}</div></div></div></div>
+<div class="artifact-body"><div class="artifact-stats"><div><b>{ENTITIES}</b><span>entities</span></div><div><b>{ROUTES}</b><span>API routes</span></div><div><b>{FILES}</b><span>files</span></div></div>
+<div class="tree"><b>backend/</b><br>{TREE_HTML}</div></div></div></div>
 </div></section>
 
 <section class="shell section" aria-labelledby="position-title">
@@ -312,7 +312,7 @@ BODY = f"""
 
 <section class="shell section"><div class="section-head" data-reveal><h2>Four applications, four families of rules actually tested.</h2>
 <p>Each example is a complete specification served by the platform. Open it in the console, adapt it, then compile its backend.</p></div>
-{landing_cases.EXPLORATEUR}</section>
+{landing_cases.EXPLORER}</section>
 
 <section class="shell final" data-reveal>
 <h2>Compile a real business rule.</h2>

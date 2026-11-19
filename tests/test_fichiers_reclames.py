@@ -35,7 +35,7 @@ seed Item
     label: "Alpha", price: 9.5
 """
 
-APPEL = ("<script>fetch('/item?limit=5').then(r => r.json())"
+CALL = ("<script>fetch('/item?limit=5').then(r => r.json())"
          ".then(d => { document.body.dataset.n = d.total; });</script>")
 
 
@@ -52,18 +52,18 @@ def project(tmp_path):
     return proj
 
 
-def _frontend(project, **fichiers):
+def _frontend(project, **files):
     front = project / "frontend"
     front.mkdir(exist_ok=True)
-    for nom, contenu in fichiers.items():
-        cible = front / nom
-        cible.parent.mkdir(parents=True, exist_ok=True)
-        cible.write_text(contenu, encoding="utf-8")
+    for name, content in files.items():
+        target = front / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
     return front
 
 
-def _page(corps):
-    return f"<!doctype html><html><body>{corps}{APPEL}</body></html>"
+def _page(body):
+    return f"<!doctype html><html><body>{body}{CALL}</body></html>"
 
 
 # --------------------------------------------------------------- the defect --
@@ -91,8 +91,8 @@ def test_each_missing_file_is_named_with_its_page(project):
         '<img src="a.svg"><img src="b.png"><link rel="stylesheet" href="c.css">')})
     ok, errors, _w = run_smoke_test(str(project), say=_quiet)
     assert not ok
-    for attendu in ("a.svg", "b.png", "c.css"):
-        assert any(attendu in e for e in errors), (attendu, errors)
+    for expected in ("a.svg", "b.png", "c.css"):
+        assert any(expected in e for e in errors), (expected, errors)
     assert all("index.html" in e for e in errors if ".svg" in e), errors
 
 

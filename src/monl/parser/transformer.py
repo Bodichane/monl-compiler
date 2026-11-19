@@ -6,13 +6,13 @@ top-level block — never here."""
 from lark import Transformer, v_args
 from lark.indenter import DedentError, PythonIndenter
 
-from .transformer_blocks import BlocsMixin
-from .transformer_rules import ReglesMixin
+from .transformer_blocks import BlocksMixin
+from .transformer_rules import RulesMixin
 from .transformer_structure import StructureMixin
 
 
 @v_args(inline=True)
-class MonlTransformer(StructureMixin, ReglesMixin, BlocsMixin,
+class MonlTransformer(StructureMixin, RulesMixin, BlocksMixin,
                       Transformer):
     """The Lark tree transformed into Python dictionaries.
 
@@ -21,12 +21,12 @@ class MonlTransformer(StructureMixin, ReglesMixin, BlocsMixin,
     wrap, each mixin having its own."""
 
 
-class MonlIndenter(PythonIndenter):
+class MonlIndent(PythonIndenter):
     NL_type = '_NL'
     OPEN_PAREN_types = []
     CLOSE_PAREN_types = []
     INDENT_type = '_INDENT'
-    DEDENT_type = '_DEDENT'
+    dedent_type = '_DEDENT'
     tab_len = 4
 
     def handle_NL(self, token):

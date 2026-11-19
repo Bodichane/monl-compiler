@@ -2,7 +2,7 @@
 
 import os
 
-from ..serving import rendre_wrapper
+from ..serving import render_wrapper
 from . import nomenclature
 
 
@@ -30,15 +30,15 @@ def _ensure_container_artifacts(staging_dir, uploads=False):
         # A template emitted during an earlier compilation is refreshed; a
         # really customized Docker file stays the author's responsibility.
         with open(path, encoding="utf-8") as fh:
-            actuel = fh.read()
+            current = fh.read()
         if name == "Dockerfile":
             # `content` is the current template, with or without Upload
             # applied: BOTH current forms must be recognized as "never
             # touched", otherwise a spec that loses its Upload would keep the
             # now useless dependency.
-            connus = (nomenclature.DEFAULT_DOCKERFILE, content, *nomenclature.DOCKERFILES_HERITES)
+            known = (nomenclature.DEFAULT_DOCKERFILE, content, *nomenclature.DOCKERFILES_INHERITED)
         elif name == ".dockerignore":
-            connus = (nomenclature.DEFAULT_DOCKERIGNORE,)
+            known = (nomenclature.DEFAULT_DOCKERIGNORE,)
         else:
             # BOTH forms (with and without Upload) count as "never touched": a
             # spec that loses its Upload must see the dependency disappear, as
@@ -46,13 +46,13 @@ def _ensure_container_artifacts(staging_dir, uploads=False):
             # emitted before the dependency became conditional: a single entry
             # is therefore enough, and adding an identical one would protect
             # against nothing.
-            connus = (nomenclature.DEFAULT_REQUIREMENTS,
+            known = (nomenclature.DEFAULT_REQUIREMENTS,
                       nomenclature.REQUIREMENTS_UPLOAD)
-        if actuel in connus and actuel != content:
+        if current in known and current != content:
             with open(path, "w", encoding="utf-8") as fh:
                 fh.write(content)
 
-def _emettre_wrapper(staging_dir, contract):
+def _emit_wrapper(staging_dir, contract):
     """Writes serve.py AT COMPILE TIME, no longer only at 'monl run'.
 
     POINT 133. The Dockerfile produced by 'monl compile' ran `app:app`: the
@@ -70,4 +70,4 @@ def _emettre_wrapper(staging_dir, contract):
     adapts. The Dockerfile stays editable — hence two treatments."""
     assets_dir = (contract.get("assets") or {}).get("dir") or None
     with open(os.path.join(staging_dir, "serve.py"), "w", encoding="utf-8") as fh:
-        fh.write(rendre_wrapper(assets_dir))
+        fh.write(render_wrapper(assets_dir))

@@ -50,10 +50,10 @@ def test_projects_belong_to_a_single_account(tmp_path):
         db.execute("UPDATE projects SET expires_at = 0 WHERE project_id = ?", ("a" * 32,))
     assert reopened.expired_projects() == ["a" * 32]
     assert reopened.projects(alice["id"]), "Selecting expired projects must not erase their owner"
-    from monl_platform.app_lifecycle import _purger
+    from monl_platform.app_lifecycle import _purge
     from monl_platform.service import CompilationService
 
-    assert _purger(CompilationService(tmp_path), reopened) == 1
+    assert _purge(CompilationService(tmp_path), reopened) == 1
     assert reopened.projects(alice["id"]) == []
 
 
@@ -214,7 +214,7 @@ def _wal_initializer(generated):
 
     from monl.generator.runtime_preparation import PreparationRuntimeMixin
 
-    lines = PreparationRuntimeMixin()._lignes_de_base([])
+    lines = PreparationRuntimeMixin()._lines_of_base([])
     source = "\n".join(lines[:lines.index("def _prepare_database(conn):")])
     namespace = {"sqlite3": sqlite3, "time": time}
     exec(source, namespace)

@@ -9,10 +9,10 @@ WIRE: it is the CONTRACT that says what it must contain."""
 from string import Template
 
 
-class JetonsRuntimeMixin:
+class TokensRuntimeMixin:
     """The token, and the form of the account identifier."""
 
-    def _socle_jetons(self):
+    def _base_tokens(self):
         """Expected schema, demo dataset, uniqueness, and token reading."""
         return [
             *Template(r"""# ADDED (long-term roadmap, lossless migrations): expected column

@@ -84,7 +84,7 @@ function equiper(w, jar) {
 
 
 @pytest.fixture(scope="module")
-def rapport_jsdom(tmp_path_factory):
+def report_jsdom(tmp_path_factory):
     if shutil.which("node") is None:
         pytest.fail("node is required: a skip would not say \"nothing to check\"")
     racine = tmp_path_factory.mktemp("console-choix")
@@ -100,37 +100,37 @@ def rapport_jsdom(tmp_path_factory):
     env["NODE_PATH"] = _jsdom_node_path()
     with uvicorn_server(str(racine), env=env, module="monl_platform.app:app",
                         ready_path="/health") as base:
-        sortie = subprocess.run(
+        output = subprocess.run(
             ["node", str(racine / "runner.js"), base],
             capture_output=True, text=True, timeout=180, env=env,
         )
-    assert sortie.returncode == 0, sortie.stderr[-3000:]
-    ligne = [ligne for ligne in sortie.stdout.splitlines() if ligne.startswith("{")]
-    assert ligne, sortie.stdout[-2000:] + sortie.stderr[-2000:]
-    rapport = json.loads(ligne[-1])
+    assert output.returncode == 0, output.stderr[-3000:]
+    line = [line for line in output.stdout.splitlines() if line.startswith("{")]
+    assert line, output.stdout[-2000:] + output.stderr[-2000:]
+    rapport = json.loads(line[-1])
     assert "echec" not in rapport, rapport["echec"]
     return rapport
 
 
-def test_the_eleven_templates_are_eleven_buttons_not_a_text_block(rapport_jsdom):
-    assert rapport_jsdom["nb_choix"] == 11, rapport_jsdom
+def test_the_eleven_templates_are_eleven_buttons_not_a_text_block(report_jsdom):
+    assert report_jsdom["nb_choix"] == 11, report_jsdom
 
 
-def test_the_title_does_not_repeat_the_terminal_menu(rapport_jsdom):
-    intitule = rapport_jsdom["intitule"]
-    assert intitule == "What type of application are you building?", intitule
-    assert "[1]" not in intitule
+def test_the_title_does_not_repeat_the_terminal_menu(report_jsdom):
+    label = report_jsdom["intitule"]
+    assert label == "What type of application are you building?", label
+    assert "[1]" not in label
 
 
-def test_each_button_carries_its_rank_name_and_help(rapport_jsdom):
-    premier = rapport_jsdom["premier"]
-    assert premier["rang"] == "1"
-    assert premier["libelle"] == "Portfolio / showcase site"
+def test_each_button_carries_its_rank_name_and_help(report_jsdom):
+    first = report_jsdom["premier"]
+    assert first["rang"] == "1"
+    assert first["libelle"] == "Portfolio / showcase site"
     # The help ALSO says whether visitors will have an account — the question
     # the console asked nowhere.
-    assert "accounts created by the" in premier["aide"], premier["aide"]
+    assert "accounts created by the" in first["aide"], first["aide"]
 
 
-def test_a_click_answers_and_advances_the_dialogue(rapport_jsdom):
+def test_a_click_answers_and_advances_the_dialogue(report_jsdom):
     """Without this, we would have eleven fine buttons that do nothing."""
-    assert rapport_jsdom["apres_clic"] != rapport_jsdom["intitule"], rapport_jsdom
+    assert report_jsdom["apres_clic"] != report_jsdom["intitule"], report_jsdom

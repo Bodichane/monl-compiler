@@ -38,8 +38,8 @@ import pytest
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import compile_project
 from monl.parser import parse_monl_string
-from tests.support.processus import arreter_processus, fermer_tubes
-from tests.support.server import free_port as _port_libre
+from tests.support.process import close_tubes, stop_process
+from tests.support.server import free_port as _port_free
 
 SPEC = """app BancNumero
 
@@ -62,7 +62,7 @@ workflow Acheter for Client
 """
 
 
-def _valide(spec):
+def _valid(spec):
     return MonlAST(parse_monl_string(spec)).validate_and_audit()
 
 
@@ -71,26 +71,26 @@ def _valide(spec):
 # --------------------------------------------------------------------------
 
 def test_the_bench_spec_compiles(capsys):
-    ast = _valide(SPEC)
-    regle = ast["security"]["numbered_fields"][0]
-    assert regle == {"entity": "Commande", "field": "reference",
+    ast = _valid(SPEC)
+    rule = ast["security"]["numbered_fields"][0]
+    assert rule == {"entity": "Commande", "field": "reference",
                      "format": "CMD-{YYYY}-{NNNN}", "periode": "YYYY"}
     capsys.readouterr()
 
 
 def test_a_nonexistent_field_is_refused(capsys):
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC.replace("Commande.reference numbered",
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC.replace("Commande.reference numbered",
                              "Commande.fantome numbered"))
-    assert "field does not exist" in str(refus.value)
+    assert "field does not exist" in str(refusal.value)
     capsys.readouterr()
 
 
 def test_a_non_text_field_is_refused(capsys):
     spec = SPEC.replace("    reference: String", "    reference: Integer")
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(spec)
-    assert "String" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(spec)
+    assert "String" in str(refusal.value)
     capsys.readouterr()
 
 
@@ -99,18 +99,18 @@ def test_a_uuid_field_is_refused_by_name(capsys):
     since that point it checks its form — a readable number would never fit. The
     message must SAY so, otherwise the author tries and does not understand."""
     spec = SPEC.replace("    reference: String", "    reference: UUID")
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(spec)
-    assert "point 101" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(spec)
+    assert "point 101" in str(refusal.value)
     capsys.readouterr()
 
 
 def test_a_hidden_field_is_refused(capsys):
     spec = SPEC.replace("rule Commande.reference numbered",
                         "rule Commande.reference hidden\nrule Commande.reference numbered")
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(spec)
-    assert "hidden" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(spec)
+    assert "hidden" in str(refusal.value)
     capsys.readouterr()
 
 
@@ -118,57 +118,57 @@ def test_two_rules_on_the_same_field_are_refused(capsys):
     spec = SPEC.replace('rule Commande.reference numbered "CMD-{YYYY}-{NNNN}"',
                         'rule Commande.reference numbered "CMD-{YYYY}-{NNNN}"\n'
                         'rule Commande.reference numbered "AUTRE-{NNNN}"')
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(spec)
-    assert "only one is allowed" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(spec)
+    assert "only one is allowed" in str(refusal.value)
     capsys.readouterr()
 
 
 def test_a_template_without_sequence_is_refused(capsys):
     """THE refusal that carries the brick: without a sequence, all records would
     carry the same number — which is not one (point 85)."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC.replace('"CMD-{YYYY}-{NNNN}"', '"CMD-{YYYY}"'))
-    assert "has no sequence" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC.replace('"CMD-{YYYY}-{NNNN}"', '"CMD-{YYYY}"'))
+    assert "has no sequence" in str(refusal.value)
     capsys.readouterr()
 
 
 def test_two_sequences_are_refused(capsys):
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC.replace('"CMD-{YYYY}-{NNNN}"', '"CMD-{NN}-{NNNN}"'))
-    assert "which one to increment" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC.replace('"CMD-{YYYY}-{NNNN}"', '"CMD-{NN}-{NNNN}"'))
+    assert "which one to increment" in str(refusal.value)
     capsys.readouterr()
 
 
 def test_an_unknown_milestone_is_refused(capsys):
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC.replace('"CMD-{YYYY}-{NNNN}"', '"CMD-{MOIS}-{NNNN}"'))
-    assert "which has no meaning" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC.replace('"CMD-{YYYY}-{NNNN}"', '"CMD-{MOIS}-{NNNN}"'))
+    assert "which has no meaning" in str(refusal.value)
     capsys.readouterr()
 
 
 def test_an_orphan_brace_is_refused(capsys):
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC.replace('"CMD-{YYYY}-{NNNN}"', '"CMD-{YYYY-{NNNN}"'))
-    assert "unmatched brace" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC.replace('"CMD-{YYYY}-{NNNN}"', '"CMD-{YYYY-{NNNN}"'))
+    assert "unmatched brace" in str(refusal.value)
     capsys.readouterr()
 
 
 def test_a_month_without_year_is_refused(capsys):
     """'CMD-{MM}-{NNNN}' gives 'CMD-03-0001' again every March. The unique index
     would catch it — a year later, and in production."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC.replace('"CMD-{YYYY}-{NNNN}"', '"CMD-{MM}-{NNNN}"'))
-    assert "without '{YYYY}'" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC.replace('"CMD-{YYYY}-{NNNN}"', '"CMD-{MM}-{NNNN}"'))
+    assert "without '{YYYY}'" in str(refusal.value)
     capsys.readouterr()
 
 
 def test_a_bound_on_a_numbered_field_is_refused(capsys):
     """Inherited from point 85's cross-check without one more line: the field is
     not in the input schema, a bound would have nowhere to live."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC + "rule Commande.reference max 10\n")
-    assert "reference" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC + "rule Commande.reference max 10\n")
+    assert "reference" in str(refusal.value)
     capsys.readouterr()
 
 
@@ -176,56 +176,56 @@ def test_a_bound_on_a_numbered_field_is_refused(capsys):
 # What generation must write
 # --------------------------------------------------------------------------
 
-def _compile(tmp_path, spec=SPEC, nom="p"):
-    (tmp_path / f"{nom}.ml").write_text(spec, encoding="utf-8")
-    contrat = compile_project(str(tmp_path / f"{nom}.ml"), str(tmp_path / nom))
-    return contrat, (tmp_path / nom / "app.py").read_text(encoding="utf-8")
+def _compile(tmp_path, spec=SPEC, name="p"):
+    (tmp_path / f"{name}.ml").write_text(spec, encoding="utf-8")
+    contract = compile_project(str(tmp_path / f"{name}.ml"), str(tmp_path / name))
+    return contract, (tmp_path / name / "app.py").read_text(encoding="utf-8")
 
 
 def test_the_field_leaves_the_input_schema(tmp_path, capsys):
-    _, genere = _compile(tmp_path)
+    _, generated = _compile(tmp_path)
     capsys.readouterr()
-    debut = genere.index("class CommandeSchema")
-    assert "reference" not in genere[debut:debut + 300]
+    debut = generated.index("class CommandeSchema")
+    assert "reference" not in generated[debut:debut + 300]
 
 
 def test_the_field_leaves_the_update_set(tmp_path, capsys):
     """An order number that changes is no longer a reference: the customer wrote
     it down, so did the seller."""
-    _, genere = _compile(tmp_path)
+    _, generated = _compile(tmp_path)
     capsys.readouterr()
-    ligne = next(li for li in genere.splitlines() if 'UPDATE "commande" SET' in li)
-    assert '"reference"' not in ligne
-    assert '"libelle"' in ligne
+    line = next(li for li in generated.splitlines() if 'UPDATE "commande" SET' in li)
+    assert '"reference"' not in line
+    assert '"libelle"' in line
 
 
 def test_a_unique_index_is_created_without_declaring_it(tmp_path, capsys):
     """A duplicate number is not a number. Requiring 'unique' in the spec would
     make the guarantee depend on a line one can forget to write."""
-    _, genere = _compile(tmp_path)
+    _, generated = _compile(tmp_path)
     capsys.readouterr()
-    assert "idx_unique_commande_reference" in genere
+    assert "idx_unique_commande_reference" in generated
 
 
 def test_the_output_differs_without_the_rule(tmp_path, capsys):
     """POINT 85: the test forbidding a rule that produces nothing."""
-    _, avec = _compile(tmp_path, SPEC, "avec")
+    _, with_ = _compile(tmp_path, SPEC, "avec")
     _, sans = _compile(
         tmp_path, SPEC.replace('rule Commande.reference numbered "CMD-{YYYY}-{NNNN}"\n', ""),
         "sans")
     capsys.readouterr()
-    assert avec != sans
+    assert with_ != sans
 
 
 def test_the_contract_announces_a_read_only_field(tmp_path, capsys):
-    contrat, _ = _compile(tmp_path)
+    contract, _ = _compile(tmp_path)
     capsys.readouterr()
-    champ = next(f for f in contrat["entities"]["Commande"]["fields"]
+    field = next(f for f in contract["entities"]["Commande"]["fields"]
                  if f["name"] == "reference")
-    assert champ["server_generated"] is True
-    assert champ["numbered_as"] == "CMD-{YYYY}-{NNNN}"
-    assert "Do not send it" in champ["note"]
-    route = next(r for r in contrat["routes"]
+    assert field["server_generated"] is True
+    assert field["numbered_as"] == "CMD-{YYYY}-{NNNN}"
+    assert "Do not send it" in field["note"]
+    route = next(r for r in contract["routes"]
                  if r["method"] == "POST" and r["path"] == "/commande")
     assert "reference" not in route["request_fields"]
 
@@ -234,115 +234,115 @@ def test_the_contract_announces_a_read_only_field(tmp_path, capsys):
 # Le comportement, contre un vrai serveur
 # --------------------------------------------------------------------------
 
-def _appel(url, corps=None, jeton=None, methode=None):
-    donnees = json.dumps(corps).encode() if corps is not None else None
-    requete = urllib.request.Request(url, data=donnees, method=methode)
-    requete.add_header("Content-Type", "application/json")
-    if jeton:
-        requete.add_header("Authorization", f"Bearer {jeton}")
+def _call(url, body=None, token=None, method=None):
+    donnees = json.dumps(body).encode() if body is not None else None
+    query = urllib.request.Request(url, data=donnees, method=method)
+    query.add_header("Content-Type", "application/json")
+    if token:
+        query.add_header("Authorization", f"Bearer {token}")
     try:
-        with urllib.request.urlopen(requete, timeout=20) as reponse:
-            return reponse.status, json.loads(reponse.read() or b"{}")
+        with urllib.request.urlopen(query, timeout=20) as response:
+            return response.status, json.loads(response.read() or b"{}")
     except urllib.error.HTTPError as err:
         with err:
             return err.code, {}
 
 
-def _demarrer(dossier, port):
-    processus = subprocess.Popen(
+def _start(folder, port):
+    process = subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "app:app", "--host", "127.0.0.1",
          "--port", str(port)],
-        cwd=str(dossier), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        cwd=str(folder), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     base = f"http://127.0.0.1:{port}"
     for _ in range(120):
-        if processus.poll() is not None:
-            sortie = processus.stdout.read().decode("utf-8", "replace")[-2000:]
-            fermer_tubes(processus)
-            pytest.fail(sortie)
+        if process.poll() is not None:
+            output = process.stdout.read().decode("utf-8", "replace")[-2000:]
+            close_tubes(process)
+            pytest.fail(output)
         try:
-            with urllib.request.urlopen(base + "/docs", timeout=5) as reponse:
-                reponse.read()
-            return processus, base
+            with urllib.request.urlopen(base + "/docs", timeout=5) as response:
+                response.read()
+            return process, base
         except OSError:
             time.sleep(0.25)
-    arreter_processus(processus)
+    stop_process(process)
     pytest.fail("the server never answered")
 
 
-def _arreter(processus):
-    processus.terminate()
+def _stop(process):
+    process.terminate()
     try:
         # communicate() reads to the end AND closes the pipes.
-        return processus.communicate(timeout=10)[0].decode("utf-8", "replace")
+        return process.communicate(timeout=10)[0].decode("utf-8", "replace")
     except subprocess.TimeoutExpired:
-        arreter_processus(processus)
+        stop_process(process)
         return ""
 
 
 @pytest.fixture
-def carnet(tmp_path):
+def book(tmp_path):
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
-    processus, base = _demarrer(tmp_path, _port_libre())
+    process, base = _start(tmp_path, _port_free())
     try:
-        _appel(base + "/register", {"username": "zoe", "password": "motdepasse1",
+        _call(base + "/register", {"username": "zoe", "password": "motdepasse1",
                                     "actor": "Client"})
-        _, jeton = _appel(base + "/login", {"username": "zoe",
+        _, token = _call(base + "/login", {"username": "zoe",
                                             "password": "motdepasse1"})
-        yield base, jeton["access_token"], tmp_path
+        yield base, token["access_token"], tmp_path
     finally:
-        _arreter(processus)
+        _stop(process)
 
 
-def _numero(base, identifiant, jeton):
-    _, reponse = _appel(f"{base}/commande/{identifiant}", jeton=jeton)
-    return reponse["data"]["reference"]
+def _number(base, identifier, token):
+    _, response = _call(f"{base}/commande/{identifier}", token=token)
+    return response["data"]["reference"]
 
 
-def test_the_numbers_follow_each_other(carnet):
-    base, jeton, _ = carnet
-    numeros = []
+def test_the_numbers_follow_each_other(book):
+    base, token, _ = book
+    numbers = []
     for i in range(3):
-        _, cree = _appel(base + "/commande", {"libelle": f"achat {i}"}, jeton)
-        numeros.append(_numero(base, cree["id"], jeton))
-    annee = time.gmtime().tm_year
-    assert numeros == [f"CMD-{annee}-0001", f"CMD-{annee}-0002", f"CMD-{annee}-0003"]
+        _, created = _call(base + "/commande", {"libelle": f"achat {i}"}, token)
+        numbers.append(_number(base, created["id"], token))
+    year = time.gmtime().tm_year
+    assert numbers == [f"CMD-{year}-0001", f"CMD-{year}-0002", f"CMD-{year}-0003"]
 
 
-def test_the_client_cannot_choose_its_number(carnet):
+def test_the_client_cannot_choose_its_number(book):
     """The field is not in the schema: sending it does nothing. It is the
     behavior of the whole family of server-filled fields."""
-    base, jeton, _ = carnet
-    _, cree = _appel(base + "/commande",
-                     {"libelle": "triche", "reference": "CMD-1999-0001"}, jeton)
-    assert _numero(base, cree["id"], jeton) != "CMD-1999-0001"
+    base, token, _ = book
+    _, created = _call(base + "/commande",
+                     {"libelle": "triche", "reference": "CMD-1999-0001"}, token)
+    assert _number(base, created["id"], token) != "CMD-1999-0001"
 
 
-def test_the_number_does_not_move_on_update(carnet):
-    base, jeton, _ = carnet
-    _, cree = _appel(base + "/commande", {"libelle": "achat"}, jeton)
-    avant = _numero(base, cree["id"], jeton)
-    code, _ = _appel(f"{base}/commande/{cree['id']}",
+def test_the_number_does_not_move_on_update(book):
+    base, token, _ = book
+    _, created = _call(base + "/commande", {"libelle": "achat"}, token)
+    before = _number(base, created["id"], token)
+    code, _ = _call(f"{base}/commande/{created['id']}",
                      {"libelle": "renommé", "reference": "CMD-1999-9999"},
-                     jeton, methode="PUT")
+                     token, method="PUT")
     assert code == 200
-    assert _numero(base, cree["id"], jeton) == avant
+    assert _number(base, created["id"], token) == before
 
 
-def test_the_number_does_not_go_back_after_a_deletion(carnet):
+def test_the_number_does_not_go_back_after_a_deletion(book):
     """THE system table's reason for being. With `MAX(...) + 1`, deleting the
     last order would REASSIGN its number — two invoices, one reference."""
-    base, jeton, _ = carnet
-    _, premiere = _appel(base + "/commande", {"libelle": "a"}, jeton)
-    _, seconde = _appel(base + "/commande", {"libelle": "b"}, jeton)
-    deuxieme_numero = _numero(base, seconde["id"], jeton)
-    _appel(f"{base}/commande/{seconde['id']}", jeton=jeton, methode="DELETE")
-    _, troisieme = _appel(base + "/commande", {"libelle": "c"}, jeton)
-    assert _numero(base, troisieme["id"], jeton) != deuxieme_numero
-    assert _numero(base, premiere["id"], jeton).endswith("0001")
+    base, token, _ = book
+    _, premiere = _call(base + "/commande", {"libelle": "a"}, token)
+    _, seconde = _call(base + "/commande", {"libelle": "b"}, token)
+    second_number = _number(base, seconde["id"], token)
+    _call(f"{base}/commande/{seconde['id']}", token=token, method="DELETE")
+    _, third = _call(base + "/commande", {"libelle": "c"}, token)
+    assert _number(base, third["id"], token) != second_number
+    assert _number(base, premiere["id"], token).endswith("0001")
 
 
-def test_two_simultaneous_creations_do_not_share_a_number(carnet):
+def test_two_simultaneous_creations_do_not_share_a_number(book):
     """Eight concurrent creations: eight distinct numbers, and no failure.
 
     What this test REALLY proves, and no more: that contention produces neither
@@ -351,13 +351,13 @@ def test_two_simultaneous_creations_do_not_share_a_number(carnet):
     and that serialization would hide the difference under such a modest load.
     `test_the_number_does_not_go_back_after_a_deletion` settles between the two
     designs."""
-    base, jeton, _ = carnet
-    obtenus, verrou = [], threading.Lock()
+    base, token, _ = book
+    obtained, lock = [], threading.Lock()
 
     def commander(rang):
-        code, cree = _appel(base + "/commande", {"libelle": f"lot {rang}"}, jeton)
-        with verrou:
-            obtenus.append((code, cree.get("id")))
+        code, created = _call(base + "/commande", {"libelle": f"lot {rang}"}, token)
+        with lock:
+            obtained.append((code, created.get("id")))
 
     fils = [threading.Thread(target=commander, args=(i,)) for i in range(8)]
     for f in fils:
@@ -365,23 +365,23 @@ def test_two_simultaneous_creations_do_not_share_a_number(carnet):
     for f in fils:
         f.join(timeout=30)
 
-    assert all(code == 200 for code, _ in obtenus), obtenus
-    numeros = [_numero(base, identifiant, jeton) for _, identifiant in obtenus]
-    assert len(set(numeros)) == 8, numeros
+    assert all(code == 200 for code, _ in obtained), obtained
+    numbers = [_number(base, identifier, token) for _, identifier in obtained]
+    assert len(set(numbers)) == 8, numbers
 
 
-def test_an_earlier_period_does_not_shift_the_sequence(carnet):
+def test_an_earlier_period_does_not_shift_the_sequence(book):
     """The sequence restarts at 1 every year: a counter left by last year must
     not be picked up."""
-    base, jeton, dossier = carnet
-    connexion = sqlite3.connect(str(dossier / "app.db"))
-    connexion.execute(
+    base, token, folder = book
+    login = sqlite3.connect(str(folder / "app.db"))
+    login.execute(
         "INSERT INTO _monl_sequences (entite, champ, periode, dernier) "
         "VALUES ('Commande', 'reference', '2019', 41)")
-    connexion.commit()
-    connexion.close()
-    _, cree = _appel(base + "/commande", {"libelle": "cette année"}, jeton)
-    assert _numero(base, cree["id"], jeton).endswith("0001")
+    login.commit()
+    login.close()
+    _, created = _call(base + "/commande", {"libelle": "cette année"}, token)
+    assert _number(base, created["id"], token).endswith("0001")
 
 
 def test_earlier_records_stay_without_number(tmp_path):
@@ -390,34 +390,34 @@ def test_earlier_records_stay_without_number(tmp_path):
     sans = SPEC.replace('rule Commande.reference numbered "CMD-{YYYY}-{NNNN}"\n', "")
     (tmp_path / "spec.ml").write_text(sans, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
-    processus, base = _demarrer(tmp_path, _port_libre())
-    _appel(base + "/register", {"username": "zoe", "password": "motdepasse1",
+    process, base = _start(tmp_path, _port_free())
+    _call(base + "/register", {"username": "zoe", "password": "motdepasse1",
                                 "actor": "Client"})
-    _, jeton = _appel(base + "/login", {"username": "zoe", "password": "motdepasse1"})
-    jeton = jeton["access_token"]
-    _appel(base + "/commande", {"libelle": "avant la règle", "reference": ""}, jeton)
-    _arreter(processus)
+    _, token = _call(base + "/login", {"username": "zoe", "password": "motdepasse1"})
+    token = token["access_token"]
+    _call(base + "/commande", {"libelle": "avant la règle", "reference": ""}, token)
+    _stop(process)
 
     # The rule arrives now, on the already populated database.
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
-    processus, base = _demarrer(tmp_path, _port_libre())
-    _, nouvelle = _appel(base + "/commande", {"libelle": "après"}, jeton)
-    journal = _arreter(processus)
+    process, base = _start(tmp_path, _port_free())
+    _, nouvelle = _call(base + "/commande", {"libelle": "après"}, token)
+    log = _stop(process)
 
-    connexion = sqlite3.connect(str(tmp_path / "app.db"))
+    login = sqlite3.connect(str(tmp_path / "app.db"))
     try:
-        refs = [r[0] for r in connexion.execute(
+        refs = [r[0] for r in login.execute(
             'SELECT "reference" FROM "commande" ORDER BY id').fetchall()]
     finally:
-        connexion.close()
+        login.close()
     # The old one keeps what it had, the new one starts again from 1.
     assert refs[-1].endswith("0001")
     assert refs[0] != refs[-1]
-    assert "remain unnumbered" in journal or refs[0] == ""
+    assert "remain unnumbered" in log or refs[0] == ""
 
 
-def test_a_duplicate_number_returns_409_never_a_success(carnet):
+def test_a_duplicate_number_returns_409_never_a_success(book):
     """WORKSTREAM A1, defect found in review. Classifying integrity errors by
     SQLSTATE had left the `except` ending WITHOUT `raise`: an integrity violation
     of an unnamed kind left the block raising nothing, and the route went on to
@@ -429,23 +429,23 @@ def test_a_duplicate_number_returns_409_never_a_success(carnet):
     The reset counter is not a textbook hypothesis: it is what restoring a
     partial backup produces. An `except` that does not end in a `raise` is an
     `except` that lies."""
-    base, jeton, dossier = carnet
-    code, _ = _appel(base + "/commande", {"libelle": "premiere"}, jeton)
+    base, token, folder = book
+    code, _ = _call(base + "/commande", {"libelle": "premiere"}, token)
     assert code == 200
 
-    conn = sqlite3.connect(str(dossier / "app.db"))
+    conn = sqlite3.connect(str(folder / "app.db"))
     conn.execute("UPDATE _monl_sequences SET dernier = 0")
     conn.commit()
     conn.close()
 
-    code, reponse = _appel(base + "/commande", {"libelle": "doublon"}, jeton)
-    assert code == 409, f"expected 409, got {code}: {reponse}"
-    assert "status" not in reponse or reponse.get("status") != "success"
+    code, response = _call(base + "/commande", {"libelle": "doublon"}, token)
+    assert code == 409, f"expected 409, got {code}: {response}"
+    assert "status" not in response or response.get("status") != "success"
 
-    conn = sqlite3.connect(str(dossier / "app.db"))
-    lignes = conn.execute("SELECT COUNT(*) FROM commande").fetchone()[0]
+    conn = sqlite3.connect(str(folder / "app.db"))
+    lines = conn.execute("SELECT COUNT(*) FROM commande").fetchone()[0]
     conn.close()
-    assert lignes == 1, "the refused write must have left nothing in the database"
+    assert lines == 1, "the refused write must have left nothing in the database"
 
 
 def test_no_integrity_except_ends_without_raise(tmp_path):
@@ -454,28 +454,28 @@ def test_no_integrity_except_ends_without_raise(tmp_path):
     a cancelled write pass for a success."""
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
-    lignes = (tmp_path / "app.py").read_text(encoding="utf-8").splitlines()
+    lines = (tmp_path / "app.py").read_text(encoding="utf-8").splitlines()
 
     # `init_db`'s integrity block is EXCLUDED, on purpose: on a database
     # already containing duplicates, it NAMES the field and lets the server run
     # (point 85). Forcing a `raise` on it would immobilize an existing project
     # at startup. The witness is therefore only about the routes, hence the cut
     # at the first decorator.
-    premiere_route = next(i for i, ligne in enumerate(lignes)
-                          if ligne.startswith("@app."))
-    blocs = [i for i, ligne in enumerate(lignes)
-             if "except _DATABASE_INTEGRITY_ERRORS" in ligne and i > premiere_route]
-    assert blocs, "no integrity block generated: the witness would prove nothing"
-    for depart in blocs:
-        indentation = len(lignes[depart]) - len(lignes[depart].lstrip())
-        derniere = None
-        for ligne in lignes[depart + 1:]:
-            if not ligne.strip():
+    premiere_route = next(i for i, line in enumerate(lines)
+                          if line.startswith("@app."))
+    blocks = [i for i, line in enumerate(lines)
+             if "except _DATABASE_INTEGRITY_ERRORS" in line and i > premiere_route]
+    assert blocks, "no integrity block generated: the witness would prove nothing"
+    for start in blocks:
+        indentation = len(lines[start]) - len(lines[start].lstrip())
+        last = None
+        for line in lines[start + 1:]:
+            if not line.strip():
                 continue
-            if len(ligne) - len(ligne.lstrip()) <= indentation:
+            if len(line) - len(line.lstrip()) <= indentation:
                 break
-            derniere = ligne.strip()
-        assert derniere is not None
-        assert derniere.startswith("raise") or derniere.endswith("))"), (
-            f"the integrity block at line {depart + 1} ends with {derniere!r}: "
+            last = line.strip()
+        assert last is not None
+        assert last.startswith("raise") or last.endswith("))"), (
+            f"the integrity block at line {start + 1} ends with {last!r}: "
             "it must end in a raise")

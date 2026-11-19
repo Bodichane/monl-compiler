@@ -6,7 +6,7 @@ the flows are added only if the spec declares them."""
 from . import contract_notes, fields
 
 
-def _fonctions_dauth(plans, routes):
+def _functions_auth(plans, routes):
     """The declared authentication flows (brick B4)."""
     # BRICK B4: these flows come from no business workflow. They are therefore
     # added here, exactly like the payment routes, and only if the spec
@@ -64,7 +64,7 @@ def _fonctions_dauth(plans, routes):
         ])
     return auth_features
 
-def _auth_du_contrat(auth_features, plans):
+def _auth_of_contract(auth_features, plans):
     """The authentication contract, assembled."""
     auth_contract = {
         # ADDED (beta 3): only the roles marked 'selfRegister' in the spec can
@@ -75,7 +75,7 @@ def _auth_du_contrat(auth_features, plans):
                      "response": {"status": "'success'",
                                   "user_id": "int — the identifier of the created account"},
                      "self_register_actors": list(plans.self_register_actors),
-                     "body": {"username": contract_notes._libelle_identifiant(plans.auth_identifier),
+                     "body": {"username": contract_notes._label_identifier(plans.auth_identifier),
                               "password": "str (8+ characters)",
                               "actor": f"a role among {list(plans.self_register_actors)}"},
                      # POINT 95: the field stays named 'username' ON THE WIRE
@@ -85,12 +85,12 @@ def _auth_du_contrat(auth_features, plans):
                      # accordingly.
                      "identifier_forms": list(plans.auth_identifier or ()),
                      "phone_prefix": plans.auth_phone_prefix,
-                     "note": contract_notes._joindre(
+                     "note": contract_notes._join(
                          ("403 if the requested role is not open to self-registration"
                           if plans.self_register_actors else
                           "no open role: registration is closed, "
                           "accounts are created with manage.py"),
-                         contract_notes._note_identifiant(plans.auth_identifier,
+                         contract_notes._note_identifier(plans.auth_identifier,
                                            plans.auth_phone_prefix))},
         # POINT 76 APPLIED TO AUTHENTICATION. The contract must say what the
         # backend REALLY returns, not only that it returns something. `returns`

@@ -17,7 +17,7 @@ from monl.frontend_contract import generate_frontend_contract
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
 
-COMMUNAUTE = """app CommunauteHub
+COMMUNITY = """app CommunauteHub
 
 entity Article
     titre: String
@@ -100,7 +100,7 @@ landing
     question "Qui peut masquer un contenu ?": "Les modérateurs, qui continuent de le voir après l'avoir masqué."
 """
 
-GESTION = """app GestionPro
+MANAGEMENT = """app GestionPro
 
 entity Product
     nom: String
@@ -191,70 +191,70 @@ landing
 """
 
 
-def _compiler(source, chemin):
+def _compiler(source, path):
     """The real pipeline: parser → validator → generator → contract."""
-    normalise = MonlAST(parse_monl_string(source), base_dir=str(chemin)).validate_and_audit()
-    generateur = MonlSecureGenerator(normalise, output_dir=str(chemin))
-    generateur.generate_all()
-    contrat = generate_frontend_contract(normalise, generateur, str(chemin))
-    return normalise, contrat
+    normalise = MonlAST(parse_monl_string(source), base_dir=str(path)).validate_and_audit()
+    generator = MonlSecureGenerator(normalise, output_dir=str(path))
+    generator.generate_all()
+    contract = generate_frontend_contract(normalise, generator, str(path))
+    return normalise, contract
 
 
 @pytest.fixture(scope="module")
-def communaute(tmp_path_factory):
-    chemin = tmp_path_factory.mktemp("communaute")
-    return _compiler(COMMUNAUTE, chemin) + (chemin,)
+def community(tmp_path_factory):
+    path = tmp_path_factory.mktemp("communaute")
+    return _compiler(COMMUNITY, path) + (path,)
 
 
 @pytest.fixture(scope="module")
-def gestion(tmp_path_factory):
-    chemin = tmp_path_factory.mktemp("gestion")
-    return _compiler(GESTION, chemin) + (chemin,)
+def management(tmp_path_factory):
+    path = tmp_path_factory.mktemp("gestion")
+    return _compiler(MANAGEMENT, path) + (path,)
 
 
-@pytest.mark.parametrize("source", [COMMUNAUTE, GESTION],
+@pytest.mark.parametrize("source", [COMMUNITY, MANAGEMENT],
                          ids=["CommunauteHub", "GestionPro"])
 def test_each_business_template_produces_a_valid_backend(source, tmp_path):
-    _normalise, contrat = _compiler(source, tmp_path)
-    assert contrat["business_rules"] is not None
+    _normalise, contract = _compiler(source, tmp_path)
+    assert contract["business_rules"] is not None
     compile((tmp_path / "app.py").read_text(encoding="utf-8"),
             str(tmp_path / "app.py"), "exec")
     assert (tmp_path / "frontend_contract.json").exists()
 
 
-def test_community_filters_content_and_moderates(communaute):
-    normalise, _contrat, _chemin = communaute
-    securite = normalise["security"]
-    assert securite["public_conditions"]["Article.Read"] == {
+def test_community_filters_content_and_moderates(community):
+    normalise, _contract, _path = community
+    security = normalise["security"]
+    assert security["public_conditions"]["Article.Read"] == {
         "field": "status", "value": "published"}
-    assert securite["public_conditions"]["Post.Read"] == {
+    assert security["public_conditions"]["Post.Read"] == {
         "field": "status", "value": "published"}
     assert {"ArticleReport", "PostReport"} <= set(normalise["schema"]["entities"])
 
 
-def test_the_moderator_pierces_the_publication_condition(communaute):
+def test_the_moderator_pierces_the_publication_condition(community):
     """POINT 116: without this exemption, hiding content also took it away from
     the moderator who had just hidden it."""
-    normalise, _contrat, chemin = communaute
+    normalise, _contract, path = community
     assert normalise["security"]["access_supervisors"]["Post.Read"] == ["Moderator"]
-    genere = (chemin / "app.py").read_text(encoding="utf-8")
-    assert "get_optional_identity" in genere
-    assert '_ident.get(\'actor\') in {"Moderator"}' in genere
+    generated = (path / "app.py").read_text(encoding="utf-8")
+    assert "get_optional_identity" in generated
+    assert '_ident.get(\'actor\') in {"Moderator"}' in generated
 
 
-def test_likes_are_unique_per_account_and_target(communaute):
-    normalise, _contrat, chemin = communaute
-    regles = {r["trigger_entity"]: r["parents"]
+def test_likes_are_unique_per_account_and_target(community):
+    normalise, _contract, path = community
+    rules = {r["trigger_entity"]: r["parents"]
               for r in normalise["security"]["once_per"]}
-    assert regles["Like"] == ["Member", "Post"]
-    assert "idx_once_per_like" in (chemin / "app.py").read_text(encoding="utf-8")
+    assert rules["Like"] == ["Member", "Post"]
+    assert "idx_once_per_like" in (path / "app.py").read_text(encoding="utf-8")
 
 
-def test_management_carries_business_calculations(gestion):
-    normalise, _contrat, _chemin = gestion
-    inventaire = normalise["security"]["reputation_rules"]
+def test_management_carries_business_calculations(management):
+    normalise, _contract, _path = management
+    inventory = normalise["security"]["reputation_rules"]
     assert {(r["trigger_entity"], r["direction"], r["amount_field"])
-            for r in inventaire} == {
+            for r in inventory} == {
         ("StockReceipt", "increments", "quantity"),
         ("StockIssue", "decrements", "quantity"),
     }
@@ -263,24 +263,24 @@ def test_management_carries_business_calculations(gestion):
         normalise["security"]["aggregated_fields"]
 
 
-def test_purchase_exposes_calculation_payment_and_post_payment_delivery(gestion):
-    normalise, contrat, chemin = gestion
-    securite = normalise["security"]
-    assert securite["payable_fields"] == [{"entity": "Purchase", "field": "total"}]
-    assert securite["writable_after_payment"]["Purchase"]["actor"] == "Seller"
-    route = next(r for r in contrat["routes"]
+def test_purchase_exposes_calculation_payment_and_post_payment_delivery(management):
+    normalise, contract, path = management
+    security = normalise["security"]
+    assert security["payable_fields"] == [{"entity": "Purchase", "field": "total"}]
+    assert security["writable_after_payment"]["Purchase"]["actor"] == "Seller"
+    route = next(r for r in contract["routes"]
                  if r["path"] == "/purchase/{id}/apres-paiement")
     assert route["method"] == "PUT"
     assert route["allowed_actors"] == ["Seller"]
     assert set(route["request_fields"]) == {"deliveryStatus", "trackingNumber"}
     assert "PUT /purchase/{id}/apres-paiement" in \
-        (chemin / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+        (path / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
 
 
-def test_the_community_contract_carries_both_business_rules(communaute):
-    _normalise, _contrat, chemin = communaute
-    contrat = json.loads(
-        (chemin / "frontend_contract.json").read_text(encoding="utf-8"))
-    assert contrat["business_rules"]["public_when"]["Post.Read"]["value"] == "published"
+def test_the_community_contract_carries_both_business_rules(community):
+    _normalise, _contract, path = community
+    contract = json.loads(
+        (path / "frontend_contract.json").read_text(encoding="utf-8"))
+    assert contract["business_rules"]["public_when"]["Post.Read"]["value"] == "published"
     assert {"trigger_entity": "Like", "parents": ["Member", "Post"]} in \
-        contrat["business_rules"]["once_per"]
+        contract["business_rules"]["once_per"]

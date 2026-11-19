@@ -22,7 +22,7 @@ from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import compile_project
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
-from tests.support.processus import arreter_processus, fermer_tubes
+from tests.support.process import close_tubes, stop_process
 from tests.support.server import free_port, uvicorn_server
 
 SPEC = """app BancStatutInitial
@@ -71,23 +71,23 @@ workflow Gerer for Gestionnaire
     Update Commande.suivi
 """
 
-MOT_DE_PASSE = "motdepasse123"
-CLE_WEBHOOK = "whsec_statut_initial"
+PASSWORD = "motdepasse123"
+KEY_WEBHOOK = "whsec_statut_initial"
 
 
-class _PrestataireFactice(BaseHTTPRequestHandler):
+class _ProviderFake(BaseHTTPRequestHandler):
     def do_POST(self):  # name imposed by BaseHTTPRequestHandler
         brut = self.rfile.read(int(self.headers.get("Content-Length", 0)))
-        self.server.recu.append(urllib.parse.parse_qs(brut.decode()))
-        corps = json.dumps({
-            "id": f"cs_statut_{len(self.server.recu)}",
+        self.server.received.append(urllib.parse.parse_qs(brut.decode()))
+        body = json.dumps({
+            "id": f"cs_statut_{len(self.server.received)}",
             "url": "https://paiement.example/session",
         }).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(corps)))
+        self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(corps)
+        self.wfile.write(body)
 
     def log_message(self, *_args):
         pass
@@ -95,129 +95,129 @@ class _PrestataireFactice(BaseHTTPRequestHandler):
 
 @pytest.fixture(scope="module")
 def faux_stripe():
-    serveur = ThreadingHTTPServer(("127.0.0.1", 0), _PrestataireFactice)
-    serveur.recu = []
-    fil = threading.Thread(target=serveur.serve_forever, daemon=True)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _ProviderFake)
+    server.received = []
+    fil = threading.Thread(target=server.serve_forever, daemon=True)
     fil.start()
     try:
-        yield serveur
+        yield server
     finally:
-        serveur.shutdown()
-        serveur.server_close()
+        server.shutdown()
+        server.server_close()
         fil.join(timeout=5)
 
 
 @contextlib.contextmanager
-def _base_spec(dossier):
-    connexion = sqlite3.connect(Path(dossier) / "app.db")
+def _base_spec(folder):
+    login = sqlite3.connect(Path(folder) / "app.db")
     try:
-        with connexion:
-            yield connexion
+        with login:
+            yield login
     finally:
-        connexion.close()
+        login.close()
 
 
-def _env_paiement(faux_stripe):
+def _env_payment(faux_stripe):
     hote, port = faux_stripe.server_address[:2]
     return {
         **os.environ,
         "STRIPE_SECRET_KEY": "sk_test_statut_initial",
-        "STRIPE_WEBHOOK_SECRET": CLE_WEBHOOK,
+        "STRIPE_WEBHOOK_SECRET": KEY_WEBHOOK,
         "MONL_STRIPE_BASE_URL": f"http://{hote}:{port}",
     }
 
 
-def _inscrire(base, nom, acteur):
-    reponse = requests.post(
+def _register(base, name, actor):
+    response = requests.post(
         f"{base}/register",
-        json={"username": nom, "password": MOT_DE_PASSE, "actor": acteur},
+        json={"username": name, "password": PASSWORD, "actor": actor},
         timeout=10,
     )
-    assert reponse.status_code == 200, reponse.text
-    connexion = requests.post(
+    assert response.status_code == 200, response.text
+    login = requests.post(
         f"{base}/login",
-        json={"username": nom, "password": MOT_DE_PASSE},
+        json={"username": name, "password": PASSWORD},
         timeout=10,
     )
-    assert connexion.status_code == 200, connexion.text
-    return {"Authorization": "Bearer " + connexion.json()["access_token"]}
+    assert login.status_code == 200, login.text
+    return {"Authorization": "Bearer " + login.json()["access_token"]}
 
 
-def _webhook(base, commande_id):
-    corps = json.dumps({
+def _webhook(base, order_id):
+    body = json.dumps({
         "type": "checkout.session.completed",
         "data": {"object": {
             "id": "cs_statut_1",
-            "client_reference_id": f"Commande:{commande_id}",
+            "client_reference_id": f"Commande:{order_id}",
         }},
     }).encode()
-    horodatage = str(int(time.time()))
+    timestamp = str(int(time.time()))
     signature = hmac.new(
-        CLE_WEBHOOK.encode(), (horodatage + ".").encode() + corps,
+        KEY_WEBHOOK.encode(), (timestamp + ".").encode() + body,
         hashlib.sha256,
     ).hexdigest()
     return requests.post(
         f"{base}/paiement/webhook",
-        data=corps,
+        data=body,
         headers={"Content-Type": "application/json",
-                 "stripe-signature": f"t={horodatage},v1={signature}"},
+                 "stripe-signature": f"t={timestamp},v1={signature}"},
         timeout=10,
     )
 
 
 @pytest.fixture(scope="module")
 def application(faux_stripe):
-    with tempfile.TemporaryDirectory() as dossier:
+    with tempfile.TemporaryDirectory() as folder:
         ast = MonlAST(parse_monl_string(SPEC)).validate_and_audit()
-        MonlSecureGenerator(ast, output_dir=dossier).generate_all()
-        with uvicorn_server(dossier, env=_env_paiement(faux_stripe)) as base:
-            with _base_spec(dossier) as connexion:
-                connexion.execute(
+        MonlSecureGenerator(ast, output_dir=folder).generate_all()
+        with uvicorn_server(folder, env=_env_payment(faux_stripe)) as base:
+            with _base_spec(folder) as login:
+                login.execute(
                     "INSERT INTO article (prix, stock) VALUES (12.5, 10)")
-            client = _inscrire(base, "cliente", "Client")
-            gestionnaire = _inscrire(base, "gestionnaire", "Gestionnaire")
-            yield base, dossier, client, gestionnaire
+            client = _register(base, "cliente", "Client")
+            manager = _register(base, "gestionnaire", "Gestionnaire")
+            yield base, folder, client, manager
 
 
 def test_creation_takes_the_first_oneof_and_leaves_text_empty(application):
-    base, dossier, client, _gestionnaire = application
+    base, folder, client, _manager = application
     creation = requests.post(f"{base}/commande", headers=client, json={}, timeout=10)
     assert creation.status_code == 200, creation.text
-    identifiant = creation.json()["id"]
+    identifier = creation.json()["id"]
 
     lecture = requests.get(
-        f"{base}/commande/{identifiant}", headers=client, timeout=10)
+        f"{base}/commande/{identifier}", headers=client, timeout=10)
     assert lecture.status_code == 200, lecture.text
     assert lecture.json()["data"]["statut"] == "panier"
     assert lecture.json()["data"]["suivi"] is None
-    with _base_spec(dossier) as connexion:
-        assert connexion.execute(
-            "SELECT statut, suivi FROM commande WHERE id = ?", (identifiant,),
+    with _base_spec(folder) as login:
+        assert login.execute(
+            "SELECT statut, suivi FROM commande WHERE id = ?", (identifier,),
         ).fetchone() == ("panier", None)
 
 
 def test_after_payment_changes_the_status(application):
-    base, dossier, client, gestionnaire = application
-    commande = requests.post(
+    base, folder, client, manager = application
+    order = requests.post(
         f"{base}/commande", headers=client, json={}, timeout=10).json()["id"]
-    ligne = requests.post(
+    line = requests.post(
         f"{base}/ligne", headers=client,
-        json={"commande_id": commande, "article_id": 1, "quantite": 1},
+        json={"commande_id": order, "article_id": 1, "quantite": 1},
         timeout=10,
     )
-    assert ligne.status_code == 200, ligne.text
-    paiement = requests.post(
-        f"{base}/commande/{commande}/paiement", headers=client, timeout=10)
-    assert paiement.status_code == 200, paiement.text
-    assert _webhook(base, commande).status_code == 200
+    assert line.status_code == 200, line.text
+    payment = requests.post(
+        f"{base}/commande/{order}/paiement", headers=client, timeout=10)
+    assert payment.status_code == 200, payment.text
+    assert _webhook(base, order).status_code == 200
 
     modification = requests.put(
-        f"{base}/commande/{commande}/apres-paiement",
-        headers=gestionnaire, json={"statut": "expédiée"}, timeout=10)
+        f"{base}/commande/{order}/apres-paiement",
+        headers=manager, json={"statut": "expédiée"}, timeout=10)
     assert modification.status_code == 200, modification.text
-    with _base_spec(dossier) as connexion:
-        assert connexion.execute(
-            "SELECT statut FROM commande WHERE id = ?", (commande,),
+    with _base_spec(folder) as login:
+        assert login.execute(
+            "SELECT statut FROM commande WHERE id = ?", (order,),
         ).fetchone()[0] == "expédiée"
 
 
@@ -231,34 +231,34 @@ def test_a_release_first_state_is_refused(capsys):
         "rule Ligne.Create decrements Article.stock by quantite\n"
         "rule Commande.statut writableAfterPayment Gestionnaire",
     )
-    with pytest.raises(ASTValidationError) as refus:
+    with pytest.raises(ASTValidationError) as refusal:
         MonlAST(parse_monl_string(spec)).validate_and_audit()
-    message = str(refus.value)
+    message = str(refusal.value)
     assert "Commande.statut" in message
     assert "annulée" in message
     assert "First declare the initial state" in message
     capsys.readouterr()
 
 
-def _start_with_log(dossier, env):
+def _start_with_log(folder, env):
     port = free_port()
-    processus = subprocess.Popen(
+    process = subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "app:app", "--host", "127.0.0.1",
          "--port", str(port)],
-        cwd=dossier, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        cwd=folder, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
     )
     base = f"http://127.0.0.1:{port}"
     for _ in range(80):
-        if processus.poll() is not None:
-            sortie = processus.stdout.read().decode("utf-8", "replace")
-            fermer_tubes(processus)
-            pytest.fail(sortie)
+        if process.poll() is not None:
+            output = process.stdout.read().decode("utf-8", "replace")
+            close_tubes(process)
+            pytest.fail(output)
         try:
             if requests.get(base + "/openapi.json", timeout=1).status_code == 200:
-                return processus
+                return process
         except requests.RequestException:
             time.sleep(0.25)
-    arreter_processus(processus)
+    stop_process(process)
     pytest.fail("the server never answered")
 
 
@@ -266,19 +266,19 @@ def test_an_old_null_row_is_counted_not_backfilled(
         tmp_path, faux_stripe):
     ast = MonlAST(parse_monl_string(SPEC)).validate_and_audit()
     MonlSecureGenerator(ast, output_dir=str(tmp_path)).generate_all()
-    env = _env_paiement(faux_stripe)
-    with uvicorn_server(str(tmp_path), env=env), _base_spec(tmp_path) as connexion:
-        connexion.execute(
+    env = _env_payment(faux_stripe)
+    with uvicorn_server(str(tmp_path), env=env), _base_spec(tmp_path) as login:
+        login.execute(
             "INSERT INTO commande (total, statut, suivi) VALUES (0, NULL, NULL)")
 
-    processus = _start_with_log(str(tmp_path), env)
-    processus.terminate()
-    sortie, _ = processus.communicate(timeout=10)
-    journal = sortie.decode("utf-8", "replace")
-    assert '"commande"."statut": 1 record(s)' in journal
-    assert "NULL value outside the oneOf" in journal
-    with _base_spec(tmp_path) as connexion:
-        assert connexion.execute(
+    process = _start_with_log(str(tmp_path), env)
+    process.terminate()
+    output, _ = process.communicate(timeout=10)
+    log = output.decode("utf-8", "replace")
+    assert '"commande"."statut": 1 record(s)' in log
+    assert "NULL value outside the oneOf" in log
+    with _base_spec(tmp_path) as login:
+        assert login.execute(
             "SELECT statut FROM commande WHERE id = 1").fetchone()[0] is None
 
 
@@ -286,7 +286,7 @@ def test_shop_example_creates_an_order_in_cart_status(tmp_path):
     racine = Path(__file__).parents[1]
     compile_project(str(racine / "exemples" / "02_boutique.ml"), str(tmp_path))
     with uvicorn_server(str(tmp_path)) as base:
-        client = _inscrire(base, "boutique@example.com", "Customer")
+        client = _register(base, "boutique@example.com", "Customer")
         creation = requests.post(
             f"{base}/order", headers=client, json={}, timeout=10)
         assert creation.status_code == 200, creation.text

@@ -15,7 +15,7 @@ from .sqlite_database import activate_wal
 BUILD_STATES = ("en_attente", "en_cours", "reussie", "echouee")
 
 
-def _types_de_colonnes(db, table):
+def _types_of_columns(db, table):
     """{column: uppercase TYPE} of a table, empty if it does not exist. `table`
     is an internal constant, never a received value."""
     return {
@@ -158,11 +158,11 @@ class StoreCoreMixin:
                         db.execute(
                             f"ALTER TABLE {table} ADD COLUMN {name} {definition}"
                         )
-            self._armer_unicite_du_slug(db)
+            self._arm_uniqueness_of_slug(db)
             db.execute("PRAGMA user_version = 2")
 
     @staticmethod
-    def _armer_unicite_du_slug(db):
+    def _arm_uniqueness_of_slug(db):
         """A site's address is UNIQUE across the whole platform.
 
         It is a subdomain: two projects sharing it make the host ambiguous, and
@@ -185,15 +185,15 @@ class StoreCoreMixin:
             return
         except sqlite3.IntegrityError:
             pass
-        doublons = [
-            (ligne["slug"], ligne["combien"])
-            for ligne in db.execute(
+        duplicates = [
+            (line["slug"], line["combien"])
+            for line in db.execute(
                 "SELECT slug, COUNT(*) AS combien FROM builder_projects "
                 "GROUP BY slug COLLATE NOCASE HAVING combien > 1 ORDER BY slug")
         ]
-        details = ", ".join(f"{slug} ({combien})" for slug, combien in doublons)
+        details = ", ".join(f"{slug} ({how_many})" for slug, how_many in duplicates)
         print(
-            f"⚠️  {len(doublons)} site address(es) carried by several projects: "
+            f"⚠️  {len(duplicates)} site address(es) carried by several projects: "
             f"{details}. These sites cannot be served while the duplicate "
             "lasts — delete the extra projects; uniqueness will be enforced at the "
             "next restart."
@@ -209,8 +209,8 @@ class StoreCoreMixin:
         keys rewritten. The repository's additive migration therefore refuses to
         start, naming the manual procedure, while leaving the inherited data
         intact."""
-        builder = _types_de_colonnes(db, "builder_projects")
-        builds = _types_de_colonnes(db, "builds")
+        builder = _types_of_columns(db, "builder_projects")
+        builds = _types_of_columns(db, "builds")
         if not builder and not builds:
             return
         if "id" in builder or "account_id" in builder:

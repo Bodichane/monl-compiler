@@ -14,7 +14,7 @@ ROLE_LABELS = {"title": "TITLE — identifies it at a glance",
                "meta": "meta — secondary information"}
 
 
-def lignes_de_routes(contract):
+def lines_of_routes(contract):
     """One line per route: method, path, access, body and note."""
     routes_lines = []
     for r in contract["routes"]:
@@ -32,11 +32,11 @@ def lignes_de_routes(contract):
         # it from the list of fields, without ever seeing the attachment
         # columns (a comment's article_id). It could not guess them, and the
         # server answered 422 (point 57).
-        corps = (f" — body: `{{{', '.join(r['request_fields'])}}}`"
+        body = (f" — body: `{{{', '.join(r['request_fields'])}}}`"
                  if r.get("request_fields") else "")
         if r.get("upload"):
             upload = r["upload"]
-            corps = (f" — multipart/form-data, file field `{upload['field_name']}`, "
+            body = (f" — multipart/form-data, file field `{upload['field_name']}`, "
                      f"{upload['max_bytes']} bytes maximum, types: "
                      f"{', '.join(upload['accepted_types'])}")
         # Point 74: the route notes existed in the JSON contract but did NOT
@@ -45,11 +45,11 @@ def lignes_de_routes(contract):
         # payment steps would have been missing just the same.
         note = f" — {r['note']}" if r.get("note") else ""
         routes_lines.append(f"- `{r['method']} {r['path']}` — {r['action']} "
-                            f"{r['entity']} — {auth}{corps}{note}")
+                            f"{r['entity']} — {auth}{body}{note}")
     return routes_lines
 
 
-def _marques_du_champ(f):
+def _marks_of_field(f):
     """What the AI must know about one field, in reading order."""
     marks = []
     if f.get("role"):
@@ -92,7 +92,7 @@ def _liaisons(spec):
     # — and an administration page does little else.
     liaisons = ""
     if spec["foreign_keys"]:
-        lignes_liens = [
+        lines_links = [
             f"  - `{li['column']}` → "
             + (f"ACCOUNT identifier. Find the {li['references']} record "
                f"whose `{li['column']}` holds the SAME value — not the one whose "
@@ -101,39 +101,39 @@ def _liaisons(spec):
             for li in spec["foreign_keys"]
         ]
         liaisons = ("\nLink columns present in responses:\n"
-                    + "\n".join(lignes_liens))
+                    + "\n".join(lines_links))
     return liaisons
 
 
-def lignes_d_entites(contract):
+def lines_d_entities(contract):
     """One block per entity: suggested form, anatomy, fields, links."""
     entities_lines = []
     for ent, spec in contract["entities"].items():
         flags = []
         for f in spec["fields"]:
-            marks = _marques_du_champ(f)
+            marks = _marks_of_field(f)
             suffix = f" ({'; '.join(marks)})" if marks else ""
             flags.append(f"  - `{f['name']}: {f['type']}`{suffix}")
         forme = field_roles.ARCHETYPE_GUIDANCE[spec["archetype"]]
-        anatomie = field_roles.ARCHETYPE_ANATOMY[spec["archetype"]]
-        attendus = "\n".join(f"  - {a}" for a in anatomie["attendus"])
+        anatomy = field_roles.ARCHETYPE_ANATOMY[spec["archetype"]]
+        expected_items = "\n".join(f"  - {a}" for a in anatomy["attendus"])
         liaisons = _liaisons(spec)
         entities_lines.append(
             f"### {ent}\n_Suggested form: {forme}._\n"
-            f"_Close to: {anatomie['voisins']}._\n"
-            f"What a visitor expects to find there:\n{attendus}\n"
+            f"_Close to: {anatomy['voisins']}._\n"
+            f"What a visitor expects to find there:\n{expected_items}\n"
             + "\n".join(flags) + liaisons)
     return entities_lines
 
 
-def bloc_sections(contract):
+def block_sections(contract):
     """The editorial sections, to publish as is."""
     # Editorial content (point 55). Written out in full that this text must be
     # RENDERED as is: it is content, not a style instruction, and nothing else
     # in the contract provides any.
     sections_block = ""
     if contract.get("sections"):
-        corps = "\n\n".join(f"### {s['title']}\n{s['body']}"
+        body = "\n\n".join(f"### {s['title']}\n{s['body']}"
                             for s in contract["sections"])
         sections_block = (
             "\n## Editorial content to publish as is\n"
@@ -154,11 +154,11 @@ def bloc_sections(contract):
             "be readable as one scrolls the home page. A long text may appear "
             "there in a short version and continue on its own page, but it "
             "must never be absent from it.\n\n"
-            + corps + "\n")
+            + body + "\n")
     return sections_block
 
 
-def bloc_faq(contract):
+def block_faq(contract):
     """The FAQ, stated as a list."""
     # POINT 94: the FAQ, stated as a LIST. Rendered in the same section as the
     # sections, it became a block of prose again — exactly the defect seen on
@@ -183,20 +183,20 @@ def bloc_faq(contract):
     return faq_block
 
 
-def bloc_paiement(contract):
+def block_payment(contract):
     """The non-negotiable payment line, when a Pay route exists."""
     # POINT 74: the route's note already says it, but it is here that the AI
     # reads what is not negotiable. Payment is the only frontend journey where
     # an interface mistake costs money — it deserves its own line, not just a
     # mention in the inventory of routes.
-    paiement = [r for r in contract["routes"] if r["action"] == "Pay"]
-    paiement_block = ""
-    if paiement:
-        chemins = ", ".join(f"`{r['path']}`" for r in paiement)
-        paiement_block = (
-            f"\n- Payment: {chemins} is called **with no body at all** — the "
+    payment = [r for r in contract["routes"] if r["action"] == "Pay"]
+    payment_block = ""
+    if payment:
+        paths = ", ".join(f"`{r['path']}`" for r in payment)
+        payment_block = (
+            f"\n- Payment: {paths} is called **with no body at all** — the "
             "amount comes from the database, not from you. Then redirect the "
             "browser to the returned `url`. NEVER call "
             "`POST /paiement/webhook`: it is the provider's route, it requires "
             "a signature and will refuse any request from the browser.")
-    return paiement_block
+    return payment_block

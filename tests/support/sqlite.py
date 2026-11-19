@@ -21,11 +21,11 @@ from os import PathLike
 
 
 @contextlib.contextmanager
-def sqlite_db(chemin: str | PathLike[str], **options) -> Iterator[sqlite3.Connection]:
+def sqlite_db(path: str | PathLike[str], **options) -> Iterator[sqlite3.Connection]:
     """Connection committed on leaving the block, then closed whatever happens."""
-    connexion = sqlite3.connect(chemin, **options)
+    login = sqlite3.connect(path, **options)
     try:
-        with connexion:
-            yield connexion
+        with login:
+            yield login
     finally:
-        connexion.close()
+        login.close()

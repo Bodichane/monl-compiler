@@ -207,7 +207,7 @@ MUTATIONS = {
 
 
 @pytest.mark.parametrize('guard', MUTATIONS)
-def test_contre_epreuves(guard, tmp_path, faux_smtp):
+def test_counter_tests(guard, tmp_path, faux_smtp):
     with _application(tmp_path, faux_smtp, MUTATIONS[guard]) as (base, tokens):
         with pytest.raises(AssertionError, match={
                 '403': '403 guard disarmed', 'consommation': 'consumption disarmed',
@@ -249,7 +249,7 @@ def test_earlier_accounts_and_manage_stay_confirmed(tmp_path, faux_smtp):
             assert _login(base, account).status_code == 200
     _compile(tmp_path)
     with _uvicorn_with_output(tmp_path, env) as server:
-        server.attendre('2 older account(s) remain confirmed')
+        server.wait('2 older account(s) remain confirmed')
         assert all(_login(server.base, a).status_code == 200 for a in ACCOUNTS)
         result = subprocess.run([sys.executable, 'manage.py', 'adduser', 'service', 'Admin'],
                                 cwd=tmp_path, env=env, input=PASSWORD + '\n' + PASSWORD + '\n', capture_output=True, text=True)
@@ -306,7 +306,7 @@ def test_dialogue_email_to_server(tmp_path, faux_smtp):
 
 
 def test_dialogue_refused_confirmation_writes_nothing(monkeypatch):
-    from monl.dialogue_engine.accounts import ComptesMixin
+    from monl.dialogue_engine.accounts import AccountsMixin
     from tests.test_app_templates import TEMPLATES, _run_template
     # The only dialogue delta is the confirmation offer: compare the real
     # journey that refuses it with the same journey without this question.
@@ -315,7 +315,7 @@ def test_dialogue_refused_confirmation_writes_nothing(monkeypatch):
         for answer in ('n', 'o'):
             refused[index, answer] = _run_template(
                 index, answer, answer == 'o', account_answers=['2', 'n'])
-    monkeypatch.setattr(ComptesMixin, '_ask_email_verification', lambda self: {})
+    monkeypatch.setattr(AccountsMixin, '_ask_email_verification', lambda self: {})
     baseline = {}
     for index in range(1, len(TEMPLATES) + 1):
         for answer in ('n', 'o'):
@@ -352,7 +352,7 @@ def test_transport_failure_breaks_neither_registration_nor_resend(tmp_path, faux
             assert response.status_code == 200
             assert _login(server.base, account).status_code == 403
         assert _post(server.base, '/verify-email/resend', username=ACCOUNTS[0]).status_code == 200
-        server.attendre('[MONL_PASSWORD_RESET] message not sent')
+        server.wait('[MONL_PASSWORD_RESET] message not sent')
         assert _sql(tmp_path, 'SELECT COUNT(*) FROM _monl_users WHERE email_verified = 0') == [(2,)]
         assert not faux_smtp.messages
 
@@ -383,7 +383,7 @@ def test_lockout_takes_precedence_over_unconfirmed_account(tmp_path, faux_smtp):
 
 @pytest.mark.parametrize('scenario,counterproof', [(s, c) for c in (False, True) for s in
     ('replacement', 'confirmed', 'quota', 'lockout', 'shared_quota') if not c or s in ('replacement', 'confirmed', 'quota')])
-def test_preinscription(scenario, counterproof, tmp_path, faux_smtp):
+def test_preregistration(scenario, counterproof, tmp_path, faux_smtp):
     from tests.support.preregistration import ERRORS, MUTATIONS, WITNESSES
     mutation = MUTATIONS[scenario] if counterproof else None
     spec = SPEC.replace(SETTINGS, SETTINGS + '    lockout: 3 in 3600\n    refresh_tokens: 3600\n').replace('actor Admin', 'actor Reader selfRegister\nactor Admin') if scenario == 'lockout' else SPEC

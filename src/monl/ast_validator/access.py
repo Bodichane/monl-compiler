@@ -8,10 +8,10 @@ side is `generator/sql.py` (point 108)."""
 from .base import ASTValidationError
 
 
-class AccesMixin:
+class AccessMixin:
     """Access control: WHO has the right, and on WHICH rows."""
 
-    def _valider_controle_dacces(self):
+    def _validate_control_access(self):
         """The core of access control — a security boundary (point 109).
 
         Gathers, in a dedicated pipeline pass, EVERYTHING that decides WHO may
@@ -31,7 +31,7 @@ class AccesMixin:
         self.ownership_rules = {}
         for rule in self.rules:
             if rule["type"] == "ownedBy":
-                entity, act_type, owner_entity = self._exiger_regle_owned_by(rule)
+                entity, act_type, owner_entity = self._require_rule_owned_by(rule)
 
                 # The named owner is either an ACTOR (direct ownership, the
                 # historical brick) or an ENTITY (TRANSITIVE ownership, brick
@@ -58,9 +58,9 @@ class AccesMixin:
         # account, never to the named order. The chain must therefore lead
         # somewhere, otherwise refusal.
         self.transitive_ownership = {}
-        proprietaires_par_entite = {}
+        owners_by_entity = {}
         for (ent, _act), owner in self.ownership_rules.items():
-            proprietaires_par_entite.setdefault(ent, set()).add(owner)
+            owners_by_entity.setdefault(ent, set()).add(owner)
 
         for (entity, act_type), owner_entity in sorted(self.ownership_rules.items()):
             if owner_entity in self.actors:
@@ -71,9 +71,9 @@ class AccesMixin:
             # full depth, link by link, up to an ACTOR. Each link must be owned
             # by ONE SINGLE owner (otherwise ambiguity: which path to check?)
             # and the walk must neither loop nor end in a void.
-            chaine, acteur = self._resoudre_chaine_de_propriete(
-                entity, act_type, owner_entity, proprietaires_par_entite)
-            self.transitive_ownership[entity] = {"chain": chaine, "actor": acteur}
+            chaine, actor = self._resolve_chain_of_ownership(
+                entity, act_type, owner_entity, owners_by_entity)
+            self.transitive_ownership[entity] = {"chain": chaine, "actor": actor}
 
         # ADDED (roadmap, capability ecosystem -- "two-party access" brick):
         # 'accessibleBy' rules restrict an action to the records where one of
@@ -86,7 +86,7 @@ class AccesMixin:
         for rule in self.rules:
             if rule["type"] != "accessibleBy":
                 continue
-            entity, act_type, columns = self._exiger_regle_accessible_by(rule)
+            entity, act_type, columns = self._require_rule_accessible_by(rule)
 
             self.access_party_rules[(entity, act_type)] = list(columns)
 
@@ -99,11 +99,11 @@ class AccesMixin:
             # counterpart of the supervisor already acquired for 'ownedBy' at
             # point 88 ('rule X.Update sharedBy Proprietaire, Patron'). The
             # named roles must be declared actors.
-            superviseurs = self._superviseurs_declares(entity, act_type)
-            if superviseurs:
-                self.access_supervisors[(entity, act_type)] = superviseurs
+            supervisors = self._supervisors_declares(entity, act_type)
+            if supervisors:
+                self.access_supervisors[(entity, act_type)] = supervisors
 
-    def _exiger_regle_owned_by(self, rule):
+    def _require_rule_owned_by(self, rule):
         """One 'ownedBy' rule, checked: returns (entity, action, owner)."""
         if "." not in rule["reference"]:
             raise ASTValidationError(
@@ -147,22 +147,22 @@ class AccesMixin:
             )
         return entity, act_type, owner_entity
 
-    def _resoudre_chaine_de_propriete(self, entity, act_type, owner_entity,
-                                      proprietaires_par_entite):
+    def _resolve_chain_of_ownership(self, entity, act_type, owner_entity,
+                                      owners_by_entity):
         """Climbs the ownership chain up to an ACTOR: returns (chain, actor)."""
-        maillon = owner_entity
-        vus = set()
+        link = owner_entity
+        seen = set()
         chaine = []
-        while maillon not in self.actors:
-            if maillon in vus:
+        while link not in self.actors:
+            if link in seen:
                 raise ASTValidationError(
-                    f"Structure: the ownership chain for '{entity}' loops at '{maillon}' "
+                    f"Structure: the ownership chain for '{entity}' loops at '{link}' "
                     f"('{entity}' -> {' -> '.join(chaine)} ...) -- the server cannot resolve it. "
                     f"Break the cycle."
                 )
-            vus.add(maillon)
-            chaine.append(maillon)
-            parents = proprietaires_par_entite.get(maillon, set())
+            seen.add(link)
+            chaine.append(link)
+            parents = owners_by_entity.get(link, set())
             if not parents:
                 raise ASTValidationError(
                     f"Structure: the 'ownedBy' rule on '{entity}.{act_type}' designates "
@@ -175,27 +175,27 @@ class AccesMixin:
             if len(parents) > 1:
                 raise ASTValidationError(
                     f"Structure: the ownership chain for '{entity}' is ambiguous at "
-                    f"'{maillon}': it is owned by multiple different entities "
+                    f"'{link}': it is owned by multiple different entities "
                     f"({', '.join(sorted(parents))}) -- the server cannot determine which one "
-                    f"to check. Designate only one on '{maillon}'."
+                    f"to check. Designate only one on '{link}'."
                 )
-            maillon = next(iter(parents))
-        acteur = maillon
+            link = next(iter(parents))
+        actor = link
         # Mixing direct and transitive ownership on the SAME entity would
         # make its foreign key both filled from the token (for one rule)
         # and supplied by the client (for the other): two contradictory
         # treatments on a single column.
-        autres = proprietaires_par_entite.get(entity, set()) - {owner_entity}
-        if autres:
+        others = owners_by_entity.get(entity, set()) - {owner_entity}
+        if others:
             raise ASTValidationError(
                 f"Structure: '{entity}' is owned through '{owner_entity}' (transitive "
-                f"ownership) but also designates '{', '.join(sorted(autres))}' as owner "
+                f"ownership) but also designates '{', '.join(sorted(others))}' as owner "
                 f"-- its ownership foreign key would be supplied by the client and "
                 f"derived from the token. Designate only one owner for '{entity}'."
             )
-        return chaine, acteur
+        return chaine, actor
 
-    def _exiger_regle_accessible_by(self, rule):
+    def _require_rule_accessible_by(self, rule):
         """One 'accessibleBy' rule, checked: returns (entity, action, columns)."""
         if "." not in rule["reference"]:
             raise ASTValidationError(
@@ -217,7 +217,7 @@ class AccesMixin:
                 f"distinct columns — with only one party, use 'ownedBy'."
             )
 
-        self._exiger_colonnes_de_parties(entity, act_type, columns)
+        self._require_columns_of_parties(entity, act_type, columns)
 
         if (entity, act_type) in self.ownership_rules:
             raise ASTValidationError(
@@ -226,7 +226,7 @@ class AccesMixin:
             )
         return entity, act_type, columns
 
-    def _exiger_colonnes_de_parties(self, entity, act_type, columns):
+    def _require_columns_of_parties(self, entity, act_type, columns):
         """Each party column is an incoming relation column or an Integer field."""
         # Foreign key columns an incoming relation provides to this entity
         # (same convention as _compute_fk_placements in generator.py:
@@ -254,7 +254,7 @@ class AccesMixin:
                     f"of type Integer (user identifier), got '{declared_type}'."
                 )
 
-    def _superviseurs_declares(self, entity, act_type):
+    def _supervisors_declares(self, entity, act_type):
         """The roles named by a 'sharedBy' carrying the exact reference.
 
         SINGLE source of the supervisor, shared by 'accessibleBy' (brick 23, point
@@ -263,7 +263,7 @@ class AccesMixin:
         validation that prevents a typo from silently disabling supervision (same
         lesson as point 112)."""
         ref = f"{entity}.{act_type}"
-        superviseurs = []
+        supervisors = []
         for r in self.rules:
             if r["type"] == "sharedBy" and r["reference"] == ref:
                 for role in r["value"]:
@@ -272,11 +272,11 @@ class AccesMixin:
                             f"Structure: supervisor role '{role}' in the 'sharedBy' rule "
                             f"on '{ref}' is not a declared actor."
                         )
-                    if role not in superviseurs:
-                        superviseurs.append(role)
-        return superviseurs
+                    if role not in supervisors:
+                        supervisors.append(role)
+        return supervisors
 
-    def _valider_regle_public(self):
+    def _validate_rule_public(self):
         """The 'public' rule — an action that no longer requires authentication
         (point 111). Uses only self.rules, self.entities, self.public_actions."""
         # ADDED (roadmap, portfolio use case): validation of 'public' rules —
@@ -339,6 +339,6 @@ class AccesMixin:
                 # the accessibleBy supervisor (brick 23). Without it, hiding
                 # content ALSO took it away from the moderator who had just
                 # hidden it: they could neither reread it nor undo the action.
-                superviseurs = self._superviseurs_declares(entity, act_type)
-                if superviseurs:
-                    self.access_supervisors[(entity, act_type)] = superviseurs
+                supervisors = self._supervisors_declares(entity, act_type)
+                if supervisors:
+                    self.access_supervisors[(entity, act_type)] = supervisors

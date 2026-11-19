@@ -8,36 +8,36 @@ which stays absolute)."""
 from .base import ASTValidationError
 
 
-def _refuser_champ_serveur(regles_serveur, entity, field):
+def _refuse_field_server(rules_server, entity, field):
     """A field the server fills cannot also be written after payment.
     Extracted from `_valider_regle_apres_paiement` (complexity ceiling)."""
-    for type_regle, champs in regles_serveur:
+    for type_rule, fields in rules_server:
         if any(c["entity"] == entity and c["field"] == field
-               for c in champs):
+               for c in fields):
             raise ASTValidationError(
                 f"Structure: '{entity}.{field}' is both "
-                f"'writableAfterPayment' and '{type_regle}' — incompatible: "
-                f"'{type_regle}' forbids all client writes.")
+                f"'writableAfterPayment' and '{type_rule}' — incompatible: "
+                f"'{type_rule}' forbids all client writes.")
 
 
-class CycleDeVieMixin:
+class CycleOfVieMixin:
     """What a record becomes AFTER its payment."""
 
-    def _refuser_premier_etat_libere(self, entity, field):
+    def _refuse_first_state_released(self, entity, field):
         """A new object cannot be born in its terminal state."""
-        choix = self.enumerated_fields.get(entity, {}).get(field)
-        liberation = next((item for item in self.release_rules
+        choice = self.enumerated_fields.get(entity, {}).get(field)
+        release = next((item for item in self.release_rules
                            if item["entity"] == entity
                            and item["field"] == field), None)
-        if choix and liberation and choix[0] == liberation["value"]:
+        if choice and release and choice[0] == release["value"]:
             raise ASTValidationError(
                 f"Structure: '{entity}.{field}' would be created with the value "
-                f"{choix[0]!r}, which also triggers 'releases' — a record "
+                f"{choice[0]!r}, which also triggers 'releases' — a record "
                 f"created already released would have consumed nothing. "
                 f"First declare the initial state in the 'oneOf' of "
                 f"'{entity}.{field}'.")
 
-    def _verifier_entite_liberee(self, entity, released_entity):
+    def _check_entity_released(self, entity, released_entity):
         """The released entity exists, carries a `decrements`, and depends on
         `entity`. Extracted from `_valider_regles_liberation` (complexity
         ceiling); refusals and messages unchanged."""
@@ -60,7 +60,7 @@ class CycleDeVieMixin:
                 f"without it, nothing specifies which {released_entity} rows depend on this {entity}."
             )
 
-    def _valider_regles_liberation(self):
+    def _validate_rules_release(self):
         """Validates the transitions that give back a decremented counter."""
         self.release_rules = []
         for rule in self.rules:
@@ -89,7 +89,7 @@ class CycleDeVieMixin:
                     f"({', '.join(repr(choice) for choice in choices)}) — it would never occur."
                 )
             released_entity = rule["entity"]
-            self._verifier_entite_liberee(entity, released_entity)
+            self._check_entity_released(entity, released_entity)
             if any(item["entity"] == entity and item["field"] == field for item in self.release_rules):
                 raise ASTValidationError(
                     f"Structure: two 'releases' rules on '{entity}.{field}' — the first release "
@@ -99,30 +99,30 @@ class CycleDeVieMixin:
                 "entity": entity, "field": field, "value": rule["value"], "releases": released_entity,
             })
 
-    def _refuser_proprietaire_apres_paiement(self, entity, field, actor):
+    def _refuse_owner_after_payment(self, entity, field, actor):
         """The named actor must not be the entity's owner, who could then
         bypass the payment lock. Extracted from `_valider_regle_apres_paiement`
         (complexity ceiling); same check, same message."""
-        proprietaire = self.transitive_ownership.get(entity, {}).get("actor")
-        if proprietaire is None:
-            proprietaires_directs = {
+        owner_entity = self.transitive_ownership.get(entity, {}).get("actor")
+        if owner_entity is None:
+            owners_directs = {
                 owner for (owned_entity, _action), owner
                 in self.ownership_rules.items()
                 if owned_entity == entity and owner in self.actors
             }
-            if len(proprietaires_directs) == 1:
-                proprietaire = next(iter(proprietaires_directs))
-        if proprietaire == actor:
+            if len(owners_directs) == 1:
+                owner_entity = next(iter(owners_directs))
+        if owner_entity == actor:
             raise ASTValidationError(
                 f"Structure: the 'writableAfterPayment' rule on "
                 f"'{entity}.{field}' names '{actor}', who already owns "
                 f"'{entity}' — its owner could bypass the payment lock.")
 
-    def _valider_regle_apres_paiement(self):
+    def _validate_rule_after_payment(self):
         """Validates the reserved write channel that bypasses the locked CRUD."""
         self.postpayment_writable = {}
-        champs_vus = set()
-        regles_serveur = (
+        fields_seen = set()
+        rules_server = (
             ("generated", self.generated_fields),
             ("derivedFrom", self.derived_fields),
             ("sumOf", self.aggregated_fields),
@@ -156,20 +156,20 @@ class CycleDeVieMixin:
                     f"Structure: the 'writableAfterPayment' rule on "
                     f"'{entity}.{field}' names actor '{actor}', which is not "
                     f"a declared actor.")
-            _refuser_champ_serveur(regles_serveur, entity, field)
-            self._refuser_proprietaire_apres_paiement(entity, field, actor)
+            _refuse_field_server(rules_server, entity, field)
+            self._refuse_owner_after_payment(entity, field, actor)
             config = self.postpayment_writable.get(entity)
             if config and config["actor"] != actor:
                 raise ASTValidationError(
                     f"Structure: two different actors are declared for "
                     f"'writableAfterPayment' on '{entity}': "
                     f"'{config['actor']}' and '{actor}' — only one actor is allowed.")
-            if (entity, field) in champs_vus:
+            if (entity, field) in fields_seen:
                 raise ASTValidationError(
                     f"Structure: multiple 'writableAfterPayment' rules are declared "
                     f"for '{entity}.{field}' — only one is allowed.")
-            self._refuser_premier_etat_libere(entity, field)
-            champs_vus.add((entity, field))
+            self._refuse_first_state_released(entity, field)
+            fields_seen.add((entity, field))
             if config is None:
                 config = {"actor": actor, "fields": []}
                 self.postpayment_writable[entity] = config

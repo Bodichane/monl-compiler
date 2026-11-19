@@ -25,7 +25,7 @@ ERRORS = (MonlSyntaxError, ASTValidationError, CompilationInputError,
 # `main.py` wraps EVERY generation exception: a deliberate refusal of the
 # generator (the point 99 `payable` safeguard, for instance) arrives there like
 # a code defect. The cause tells them apart — these types betray a bug.
-CAUSES_DE_BOGUE = (KeyError, TypeError, AttributeError, IndexError, NameError,
+CAUSES_OF_BUG = (KeyError, TypeError, AttributeError, IndexError, NameError,
                    AssertionError, RecursionError, ZeroDivisionError)
 
 
@@ -77,7 +77,7 @@ def test_fuzzing_pipeline(tmp_path):
         except ERRORS as exc:
             # A generic wrapper must not hide an internal exception.
             if isinstance(exc, CompilationGenerationError):
-                assert not isinstance(exc.__cause__, CAUSES_DE_BOGUE), (
+                assert not isinstance(exc.__cause__, CAUSES_OF_BUG), (
                     index, origin.name, repr(exc.__cause__), source)
         except Exception as exc:
             pytest.fail(f'cas {index}, {origin.name}: {type(exc).__name__}: {exc}\n{source}')
@@ -87,10 +87,10 @@ def test_a_wrongly_dedented_line_is_located():
     """Crash 1: Lark raised `DedentError`, raw and without a line."""
     from monl.parser import parse_monl_string
 
-    with pytest.raises(MonlSyntaxError) as erreur:
+    with pytest.raises(MonlSyntaxError) as error:
         parse_monl_string("app X\n\nentity A\n    nom: String\n  age: Integer\n")
-    assert erreur.value.line == 5
-    assert "indentation" in str(erreur.value)
+    assert error.value.line == 5
+    assert "indentation" in str(error.value)
 
 
 def test_an_integer_of_thousands_of_digits_is_refused_cleanly():
@@ -100,10 +100,10 @@ def test_an_integer_of_thousands_of_digits_is_refused_cleanly():
 
     spec = ("app X\n\nentity A\n    n: Integer\n\nseed A\n    n: "
             + "9" * 5000 + "\n")
-    with pytest.raises(MonlSyntaxError) as erreur:
+    with pytest.raises(MonlSyntaxError) as error:
         parse_monl_string(spec)
-    assert erreur.value.line == 7
-    assert "too long" in str(erreur.value)
+    assert error.value.line == 7
+    assert "too long" in str(error.value)
 
 
 def test_an_exponent_is_a_decimal_and_infinity_is_refused():
@@ -113,7 +113,7 @@ def test_an_exponent_is_a_decimal_and_infinity_is_refused():
 
     spec = "app X\n\nentity A\n    n: Float\n\nseed A\n    n: {}\n"
     assert parse_monl_string(spec.format("1e3"))["seeds"][0]["rows"] == [{"n": 1000.0}]
-    with pytest.raises(MonlSyntaxError) as erreur:
+    with pytest.raises(MonlSyntaxError) as error:
         parse_monl_string(spec.format("1e999900"))
-    assert erreur.value.line == 7
-    assert "out of range" in str(erreur.value)
+    assert error.value.line == 7
+    assert "out of range" in str(error.value)

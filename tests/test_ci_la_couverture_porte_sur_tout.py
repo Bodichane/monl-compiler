@@ -26,62 +26,62 @@ import pytest
 from support.ci_workflow import (
     CI,
     RACINE,
+    collect_test_files,
+    command_selection,
     coverage_commands,
     coverage_options,
-    order_selection,
     project_coverage_threshold,
     pytest_commands,
-    test_files_of,
 )
 
 
-def _orders(texte):
-    commandes = pytest_commands(texte)
-    assert commandes, "no pytest invocation found"
-    return commandes
+def _orders(text):
+    commands = pytest_commands(text)
+    assert commands, "no pytest invocation found"
+    return commands
 
 
-def unmeasured_files(texte):
+def unmeasured_files(text):
     """For each command that MEASURES coverage, the test files it does not run.
     These files exercise the package without counting in the measurement: the
     announced percentage is not the package's."""
-    tous = test_files_of()
-    hors = {}
-    for commande in _orders(texte):
-        if not any(o.startswith("--cov=") for o in coverage_options(commande)):
+    all_ = collect_test_files()
+    outside = {}
+    for command in _orders(text):
+        if not any(o.startswith("--cov=") for o in coverage_options(command)):
             continue
-        manquants = tous - order_selection(commande)
-        if manquants:
-            hors[commande] = sorted(str(f) for f in manquants)
-    return hors
+        missing = all_ - command_selection(command)
+        if missing:
+            outside[command] = sorted(str(f) for f in missing)
+    return outside
 
 
-def files_never_run(texte):
+def files_never_run(text):
     """The test files NO workflow command selects."""
     executes = set()
-    for commande in _orders(texte):
-        executes |= order_selection(commande)
-    return sorted(str(f) for f in test_files_of() - executes)
+    for command in _orders(text):
+        executes |= command_selection(command)
+    return sorted(str(f) for f in collect_test_files() - executes)
 
 
-def barrieres_par_paquet(texte):
+def gates_by_package(text):
     """The threshold the workflow sets against each package of `src/`.
 
     The packages are read from DISK: copying them here would recreate, in the
     witness, the hand-written list it exists to forbid.
     """
-    paquets = {d.name for d in (RACINE / "src").iterdir()
+    packages = {d.name for d in (RACINE / "src").iterdir()
                if d.is_dir() and (d / "__init__.py").exists()}
-    assert paquets, "no package found under src/"
-    barrieres = {}
-    for commande in coverage_commands(texte):
-        seuils = [j for j in commande.split() if j.startswith("--fail-under=")]
-        if not seuils:
+    assert packages, "no package found under src/"
+    gates = {}
+    for command in coverage_commands(text):
+        thresholds = [j for j in command.split() if j.startswith("--fail-under=")]
+        if not thresholds:
             continue
-        for paquet in paquets:
-            if f"src/{paquet}/*" in commande:
-                barrieres[paquet] = float(seuils[-1].split("=", 1)[1])
-    return paquets, barrieres
+        for package in packages:
+            if f"src/{package}/*" in command:
+                gates[package] = float(thresholds[-1].split("=", 1)[1])
+    return packages, gates
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -92,12 +92,12 @@ def test_a_coverage_gate_covers_the_whole_suite():
     percentage of the package having exercised only part of what exercises it:
     the number is too low because it ignores real tests, and fragile because the
     next test filed elsewhere will silently leave it."""
-    hors = unmeasured_files(CI.read_text(encoding="utf-8"))
-    assert not hors, (
+    outside = unmeasured_files(CI.read_text(encoding="utf-8"))
+    assert not outside, (
         "a coverage gate must not be measured on a "
         "selection of files: tests outside the selection exercise the package "
         "without counting in the measure, and the next test stored under another "
-        f"name will leave it without a word (point 169). {hors}")
+        f"name will leave it without a word (point 169). {outside}")
 
 
 def test_ci_runs_every_test_file():
@@ -105,24 +105,24 @@ def test_ci_runs_every_test_file():
     nobody runs. The repository has none today — it is precisely while it has
     none that the guard is set, otherwise it would arrive afterwards (point
     167bis)."""
-    oublies = files_never_run(CI.read_text(encoding="utf-8"))
-    assert not oublies, (
-        f"no ci.yml command runs these files: {oublies}")
+    forgotten = files_never_run(CI.read_text(encoding="utf-8"))
+    assert not forgotten, (
+        f"no ci.yml command runs these files: {forgotten}")
 
 
 def test_each_repository_package_carries_its_gate():
     """A removed gate makes no noise. The threshold comes from `pyproject.toml`:
     writing it a second time here would make it diverge the day it moves."""
-    paquets, barrieres = barrieres_par_paquet(CI.read_text(encoding="utf-8"))
-    manquants = sorted(paquets - set(barrieres))
-    assert not manquants, (
+    packages, gates = gates_by_package(CI.read_text(encoding="utf-8"))
+    missing = sorted(packages - set(gates))
+    assert not missing, (
         f"these src/ packages no longer have a coverage gate in "
-        f"ci.yml: {manquants}")
-    plancher = project_coverage_threshold()
-    faibles = {p: v for p, v in barrieres.items() if v < plancher}
-    assert not faibles, (
-        f"`pyproject.toml` declares a gate at {plancher} %; ci.yml measures "
-        f"less than that: {faibles}")
+        f"ci.yml: {missing}")
+    floor = project_coverage_threshold()
+    weak = {p: v for p, v in gates.items() if v < floor}
+    assert not weak, (
+        f"`pyproject.toml` declares a gate at {floor} %; ci.yml measures "
+        f"less than that: {weak}")
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -131,7 +131,7 @@ def test_each_repository_package_carries_its_gate():
 # extractor always returning the complete set would make them green while
 # looking at nothing (point 161).
 # ─────────────────────────────────────────────────────────────────────────
-CI_FAUTIF = """
+CI_OFFENDER = """
       - name: Suite complète
         run: python -m pytest tests/ -rs --cov=src/monl
 
@@ -142,7 +142,7 @@ CI_FAUTIF = """
           --cov=src/monl_platform --cov-report=term --cov-fail-under=90
 """
 
-CI_AMPUTE = """
+CI_TRUNCATED = """
       - name: On n'exécute qu'une partie de la suite
         run: python -m pytest tests/test_platform_*.py -rs
 
@@ -154,36 +154,36 @@ CI_AMPUTE = """
 
 def test_the_rule_bites_on_the_form_ci_carried():
     """On the EXACT text `ci.yml` carried before this fix."""
-    hors = unmeasured_files(CI_FAUTIF)
-    assert len(hors) == 1, hors
-    manquants = next(iter(hors.values()))
+    outside = unmeasured_files(CI_OFFENDER)
+    assert len(outside) == 1, outside
+    missing = next(iter(outside.values()))
     # The file NAMED by this session's measurement must be among them.
-    assert "tests/test_console_javascript.py" in manquants
+    assert "tests/test_console_javascript.py" in missing
     # And the command that does take the whole suite must NOT be denounced.
-    assert all("--cov=src/monl_platform" in c for c in hors)
+    assert all("--cov=src/monl_platform" in c for c in outside)
 
 
 def test_the_two_other_rules_bite_on_a_truncated_workflow():
-    oublies = files_never_run(CI_AMPUTE)
-    assert oublies, "a workflow running only a pattern must be denounced"
-    assert "tests/test_golden_artifacts.py" in oublies
+    forgotten = files_never_run(CI_TRUNCATED)
+    assert forgotten, "a workflow running only a pattern must be denounced"
+    assert "tests/test_golden_artifacts.py" in forgotten
 
-    paquets, barrieres = barrieres_par_paquet(CI_AMPUTE)
-    assert sorted(paquets - set(barrieres)) == ["monl_platform"]
-    assert barrieres["monl"] < project_coverage_threshold()
+    packages, gates = gates_by_package(CI_TRUNCATED)
+    assert sorted(packages - set(gates)) == ["monl_platform"]
+    assert gates["monl"] < project_coverage_threshold()
 
 
 def test_the_extractor_expands_patterns_folders_and_missing_target():
     """The three forms the workflow can take, on REAL paths."""
-    tous = test_files_of()
+    all_ = collect_test_files()
     # A folder is walked the way pytest walks it.
-    assert order_selection("run: python -m pytest tests/ -rs") == tous
+    assert command_selection("run: python -m pytest tests/ -rs") == all_
     # Without a target, pytest falls back to `testpaths` — hence the same set.
-    assert order_selection("run: python -m pytest -rs") == tous
+    assert command_selection("run: python -m pytest -rs") == all_
     # A pattern expands ONLY what it designates.
-    motif = order_selection(
+    motif = command_selection(
         "run: python -m pytest tests/test_platform_*.py")
-    assert motif and motif < tous
+    assert motif and motif < all_
     assert all(f.name.startswith("test_platform_") for f in motif)
 
 
@@ -191,23 +191,23 @@ def test_the_extractor_raises_on_a_target_it_cannot_read():
     """A target that cannot be resolved must never evaporate: ignored, it would
     make a narrow command pass for a wide one."""
     with pytest.raises(AssertionError, match="no existing file"):
-        order_selection("run: python -m pytest tests/test_inexistant.py")
+        command_selection("run: python -m pytest tests/test_inexistant.py")
 
 
 def test_the_extractor_splits_the_commands_of_a_literal_block():
     """A "run: |" block carries several commands, one per line. Joined into one,
     the two gates would make only one — and the rule above would declare a
     package guarded while it no longer is."""
-    bloc = """
+    block = """
       - name: Deux barrières
         run: |
           python -m coverage report --include='src/monl/*' --fail-under=90
           python -m coverage report --include='src/monl_platform/*' --fail-under=90
 """
-    commandes = coverage_commands(bloc)
-    assert len(commandes) == 2, commandes
-    assert "src/monl/*" in commandes[0] and "src/monl_platform" not in commandes[0]
-    assert "src/monl_platform/*" in commandes[1]
+    commands = coverage_commands(block)
+    assert len(commands) == 2, commands
+    assert "src/monl/*" in commands[0] and "src/monl_platform" not in commands[0]
+    assert "src/monl_platform/*" in commands[1]
 
     # And the FOLDED command stays joined back in full: the distinction is
     # about the repeated marker, not about a continuation being present.

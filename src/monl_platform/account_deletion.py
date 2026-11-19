@@ -4,10 +4,10 @@ import time
 
 from fastapi import HTTPException
 
-from .journal import anomalie, court
+from .log import anomaly, short
 
 
-def verifier_suppression(identities, user, token, payload):
+def check_deletion(identities, user, token, payload):
     session = identities.session_proof(token)
     if session and session.get("auth_provider"):
         age = time.time() - session["session_created_at"]
@@ -18,5 +18,5 @@ def verifier_suppression(identities, user, token, payload):
         return
     else:
         message = "Incorrect password: the account was not deleted."
-    anomalie("suppression_compte_refusee", compte=court(user["id"]))
+    anomaly("suppression_compte_refusee", compte=short(user["id"]))
     raise HTTPException(status_code=403, detail=message)

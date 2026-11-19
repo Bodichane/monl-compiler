@@ -35,7 +35,7 @@ class MonlSyntaxError(ParseError):
         super().__init__("\n".join(parts))
 
 
-class NombreHorsLimites(ValueError):
+class NumberOutsideLimites(ValueError):
     """Point 204: a number the grammar accepts but no database stores
     (`1e999900` is infinity). Raised during transformation, hence wrapped by
     Lark; `reading.py` translates it into `MonlSyntaxError`."""

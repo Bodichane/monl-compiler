@@ -7,7 +7,7 @@ absolute."""
 from . import sql
 
 
-class PrestatairesRoutesMixin:
+class ProvidersRoutesMixin:
     """What depends on the provider, and what comes AFTER payment."""
 
     # ─────────────────────────────────────────────────────────────────
@@ -96,7 +96,7 @@ class PrestatairesRoutesMixin:
             "",
         ]
 
-    def _lignes_bascule_apres_paiement(self, entite, config, table):
+    def _lines_toggle_after_payment(self, entity, config, table):
         """Releasing an effect from the post-payment route (brick 20).
 
         The field targeted by `releases` can belong to THIS route rather than to
@@ -108,25 +108,25 @@ class PrestatairesRoutesMixin:
         without it, a call that only touches the tracking number would refuse the
         cancelled order it does not change. And the transition only counts if the
         field is actually supplied."""
-        lignes = []
-        for regle in self.release_rules_by_entity.get(entite, []):
-            if regle["field"] not in config["fields"]:
+        lines = []
+        for rule in self.release_rules_by_entity.get(entity, []):
+            if rule["field"] not in config["fields"]:
                 continue  # the generic Update keeps this field, and its transition
-            enfant = regle["releases"]
-            fk_enfant = self._fk_enfant_libere(entite, enfant)
-            if not fk_enfant:
+            child = rule["releases"]
+            fk_child = self._fk_child_released(entity, child)
+            if not fk_child:
                 continue
-            champ, valeur = regle["field"], regle["value"]
-            lignes += [
-                f"    cursor.execute('SELECT \"{champ}\" FROM "
+            field, valeur = rule["field"], rule["value"]
+            lines += [
+                f"    cursor.execute('SELECT \"{field}\" FROM "
                 f'"{table}" WHERE id = ?\', (id,))',
                 "    _etat_avant = cursor.fetchone()",
                 # The released state is TERMINAL: what was returned is no
                 # longer guaranteed available, and reopening the order would
                 # give free stock — the point 77 family.
                 f"    if (_etat_avant and _etat_avant[0] == {valeur!r}",
-                f"            and data.{champ} is not None "
-                f"and data.{champ} != {valeur!r}):",
+                f"            and data.{field} is not None "
+                f"and data.{field} != {valeur!r}):",
                 "        conn.close()",
                 "        raise HTTPException(status_code=409, detail=(",
                 f"            \"This record is {valeur}: what it had "
@@ -134,64 +134,64 @@ class PrestatairesRoutesMixin:
                 "            'and nothing guarantees it is still available. "
                 "Create a new one.'))",
                 f"    _bascule = (_etat_avant and _etat_avant[0] != {valeur!r}",
-                f"                and data.{champ} == {valeur!r})",
+                f"                and data.{field} == {valeur!r})",
                 "    if _bascule:",
             ]
-            lignes += self._lignes_restitution(enfant, fk_enfant, indent="        ")
-        return lignes
+            lines += self._lines_restitution(child, fk_child, indent="        ")
+        return lines
 
-    def _ligne_schema_apres_paiement(self, entite, field):
+    def _line_schema_after_payment(self, entity, field):
         """The Pydantic line of a post-payment route field: type, choice list,
         declared bounds and length ceiling. Extracted from
         `_generate_postpayment_routes` (complexity ceiling); emitted text
         byte-identical."""
-        field_type = self.entities[entite][field]
+        field_type = self.entities[entity][field]
         py_type = {"Integer": "int", "Float": "float", "Money": "float",
                    "Boolean": "bool"}.get(field_type, "str")
-        choix = self.enumerated_fields.get(entite, {}).get(field)
-        if choix:
-            valeurs = ", ".join(repr(v) for v in choix)
-            py_type = f"Literal[{valeurs}]"
-        contraintes = self.field_constraints.get(entite, {}).get(field, {})
-        bornes = []
-        for nom, mot_texte, mot_nombre in (("min", "min_length", "ge"),
+        choice = self.enumerated_fields.get(entity, {}).get(field)
+        if choice:
+            values = ", ".join(repr(v) for v in choice)
+            py_type = f"Literal[{values}]"
+        constraints = self.field_constraints.get(entity, {}).get(field, {})
+        bounds = []
+        for name, word_text, word_number in (("min", "min_length", "ge"),
                                             ("max", "max_length", "le")):
-            borne = contraintes.get(nom)
-            if borne:
-                mot = mot_texte if borne["portee"] == "longueur" else mot_nombre
-                bornes.append(f"{mot}={borne['valeur']}")
+            bound = constraints.get(name)
+            if bound:
+                word = word_text if bound["portee"] == "longueur" else word_number
+                bounds.append(f"{word}={bound['valeur']}")
         if py_type == "str":
-            limite = {"Text": 20000, "Email": 320, "UUID": 36}.get(
+            limit = {"Text": 20000, "Email": 320, "UUID": 36}.get(
                 field_type, 255)
-            if not any(b.startswith("max_length=") for b in bornes):
-                bornes.append(f"max_length={limite}")
+            if not any(b.startswith("max_length=") for b in bounds):
+                bounds.append(f"max_length={limit}")
             if field_type == "Email":
-                bornes.append(r"pattern=r'^[^@\s]+@[^@\s]+\.[^@\s]{2,}$'")
+                bounds.append(r"pattern=r'^[^@\s]+@[^@\s]+\.[^@\s]{2,}$'")
             if field_type == "UUID":
-                bornes.append(
+                bounds.append(
                     r"pattern=r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-"
                     r"[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'")
-        if bornes and not choix:
-            return f"    {field}: Optional[{py_type}] = Field(None, {', '.join(bornes)})"
+        if bounds and not choice:
+            return f"    {field}: Optional[{py_type}] = Field(None, {', '.join(bounds)})"
         return f"    {field}: Optional[{py_type}] = None"
 
     def _generate_postpayment_routes(self):
-        lignes = []
-        for entite, config in sorted(self.postpayment_writable_by_entity.items()):
-            table = entite.lower()
-            schema = f"{entite}ApresPaiementSchema"
-            lignes += ["", f"class {schema}(BaseModel):"]
+        lines = []
+        for entity, config in sorted(self.postpayment_writable_by_entity.items()):
+            table = entity.lower()
+            schema = f"{entity}ApresPaiementSchema"
+            lines += ["", f"class {schema}(BaseModel):"]
             for field in config["fields"]:
-                lignes.append(self._ligne_schema_apres_paiement(entite, field))
+                lines.append(self._line_schema_after_payment(entity, field))
 
-            lignes.extend(self._required_text_validator(entite, config["fields"]))
+            lines.extend(self._required_text_validator(entity, config["fields"]))
 
             existence = sql.cat(
                 sql.kw("SELECT id, "), sql.ident("payment_status"),
                 sql.kw(" FROM "), sql.ident(table),
                 sql.kw(" WHERE id = "), sql.bind("id"))
             existence_sql, existence_params = sql.execute_args(existence)
-            lignes += [
+            lines += [
                 "",
                 f"@app.put('/{table}/{{id}}/apres-paiement', tags=['Paiement'])",
                 f"def modifier_{table}_apres_paiement(id: int, data: {schema}, "
@@ -217,20 +217,20 @@ class PrestatairesRoutesMixin:
             # therefore live HERE, otherwise cancelling a PAID order would
             # never return its stock — a silent loss, worse than the 500 being
             # fixed.
-            lignes += self._lignes_bascule_apres_paiement(entite, config, table)
+            lines += self._lines_toggle_after_payment(entity, config, table)
             for field in config["fields"]:
                 update = sql.cat(
                     sql.kw("UPDATE "), sql.ident(table), sql.kw(" SET "),
                     sql.ident(field), sql.kw(" = "), sql.bind(f"data.{field}"),
                     sql.kw(" WHERE id = "), sql.bind("id"))
                 update_sql, update_params = sql.execute_args(update)
-                lignes += [
+                lines += [
                     f"    if data.{field} is not None:",
                     f"        cursor.execute({update_sql}, {update_params})",
                 ]
-            lignes += [
+            lines += [
                 "    conn.commit(); conn.close()",
                 "    return {'status': 'success', 'id': id}",
                 "",
             ]
-        return lignes
+        return lines

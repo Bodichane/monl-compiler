@@ -37,7 +37,7 @@ fichier source MONL
   → parse_monl_file()
   → parse_monl_string()
   → nettoyage des commentaires seuls
-  → Lark LALR + MonlIndenter
+  → Lark LALR + MonlIndent
   → arbre Lark
   → MonlTransformer
   → dictionnaire AST brut
@@ -182,9 +182,9 @@ The frontend contract now consumes the `CompilationResult` from the first pass; 
 
 ### MEDIUM-05 — Extensive duplication of integration-test infrastructure — LARGELY RESOLVED
 
-- **File / symbol:** at least 22 definitions of `_port_libre`, 11 of `_appel`, 11 `application` fixtures, and 4 fake Stripe providers, spread across `tests/test_*.py`.
+- **File / symbol:** at least 22 definitions of `_port_free`, 11 of `_call`, 11 `application` fixtures, and 4 fake Stripe providers, spread across `tests/test_*.py`.
 - **Reason:** each domain reimplements compilation, free-port selection, uvicorn startup, waiting, registration, login, and requests.
-- **Evidence:** AST analysis: `_port_libre` appears in 22 files; the same `subprocess.Popen([..., "uvicorn"...])` patterns and wait loops are repeated.
+- **Evidence:** AST analysis: `_port_free` appears in 22 files; the same `subprocess.Popen([..., "uvicorn"...])` patterns and wait loops are repeated.
 - **Likely impact:** over 30,000 lines total, a 3 min 47 s suite, robustness fixes needing to be repeated everywhere, and many spurious failures when sockets are prohibited.
 - **Recommendation:** shared fixtures in `tests/support/`: `compiled_app`, `UvicornServer`, HTTP client, payment provider, account factory. Keep business scenarios in their files.
 - **Confidence:** 100%.
@@ -212,7 +212,7 @@ The frontend contract now consumes the `CompilationResult` from the first pass; 
 ### MEDIUM-08 — `content_tool` imports private helpers from `assets_tool`
 
 - **File / symbol:** `content_tool.py:7-16`.
-- **Reason:** `_blocs_seed`, `_charger`, `_litteral` and `_revalider` are private details reused as an intermodule API.
+- **Reason:** `_blocks_seed`, `_charger`, `_literal` and `_revalidate` are private details reused as an intermodule API.
 - **Evidence:** direct imports of four names prefixed with `_`.
 - **Likely impact:** local refactoring of assets could break CSV import/export; source-manipulation responsibilities are distributed arbitrarily.
 - **Recommendation:** extract a public `spec_editing.py` module with parse/revalidate/block ranges/literal emission.
@@ -231,7 +231,7 @@ The frontend contract now consumes the `CompilationResult` from the first pass; 
 
 - **File / symbol:** `main.py:59`, `cli.py:211`, `cli.py:874`, `assets_tool.py:122,138,572`, `tui.py:42`; generated code in `runtime.py` and `routes.py`.
 - **Reason:** several `except Exception` clauses, one `except BaseException`, and some `None` returns make different causes indistinguishable.
-- **Initial evidence:** `cmd_diff` caught `BaseException` at `cli.py:874`; `_empreintes_regenerees` turns every error into a missing fingerprint; `main` translated everything into a process exit. `cmd_diff` is now limited to `MonlError`.
+- **Initial evidence:** `cmd_diff` caught `BaseException` at `cli.py:874`; `_fingerprints_regenerated` turns every error into a missing fingerprint; `main` translated everything into a process exit. `cmd_diff` is now limited to `MonlError`.
 - **Likely impact:** keyboard interruption swallowed in dry-run, incomplete diagnostics, programming errors presented as user errors. In generated code, some broad catches are transactional and justified, but must remain tested.
 - **Recommendation:** define `MonlError` and subtypes (`Parse`, `Validation`, `Generation`, `ProjectState`, `Frontend`), catch only at CLI boundaries; keep transactional catches with an explicit re-raise.
 - **Confidence:** 94%.

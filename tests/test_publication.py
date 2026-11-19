@@ -16,26 +16,26 @@ def _racine():
 
 
 def _guide():
-    with open(os.path.join(_racine(), "docs", "PUBLICATION.md"), encoding="utf-8") as fichier:
-        return fichier.read()
+    with open(os.path.join(_racine(), "docs", "PUBLICATION.md"), encoding="utf-8") as file:
+        return file.read()
 
 
-def _workflow(nom="publication.yml"):
-    chemin = Path(_racine()) / ".github" / "workflows" / nom
-    with chemin.open(encoding="utf-8") as fichier:
-        return yaml.safe_load(fichier)
+def _workflow(name="publication.yml"):
+    path = Path(_racine()) / ".github" / "workflows" / name
+    with path.open(encoding="utf-8") as file:
+        return yaml.safe_load(file)
 
 
-def _extras_installes(job):
+def _extras_installed(job):
     """The extras the job passes to `pip install -e ".[…]"`.
 
     A job installing the package through no command of this form raises:
     returning an empty set would make equality pass between two silent jobs.
     """
-    commandes = "\n".join(etape.get("run", "") for etape in job["steps"])
-    trouves = re.findall(r'pip install -e "\.\[([^\]]*)\]"', commandes)
-    assert len(trouves) == 1, f"package installation not found or multiple: {trouves}"
-    return {extra.strip() for extra in trouves[0].split(",")}
+    commands = "\n".join(step.get("run", "") for step in job["steps"])
+    found = re.findall(r'pip install -e "\.\[([^\]]*)\]"', commands)
+    assert len(found) == 1, f"package installation not found or multiple: {found}"
+    return {extra.strip() for extra in found[0].split(",")}
 
 
 def _project():
@@ -44,8 +44,8 @@ def _project():
     except ModuleNotFoundError:  # Python 3.10
         import tomli as tomllib
 
-    with open(os.path.join(_racine(), "pyproject.toml"), "rb") as fichier:
-        return tomllib.load(fichier)["project"]
+    with open(os.path.join(_racine(), "pyproject.toml"), "rb") as file:
+        return tomllib.load(file)["project"]
 
 
 def test_the_guide_publishes_the_same_version_in_the_right_order():
@@ -54,13 +54,13 @@ def test_the_guide_publishes_the_same_version_in_the_right_order():
 
     assert project["name"] in guide
     assert project["version"] in guide
-    commandes = (
+    commands = (
         "python -m build",
         "python -m twine check dist/*",
         "python -m twine upload --repository testpypi dist/*",
         "python -m twine upload dist/*",
     )
-    positions = [guide.index(commande) for commande in commandes]
+    positions = [guide.index(command) for command in commands]
     assert positions == sorted(positions)
     assert "https://test.pypi.org/simple/" in guide
     assert "https://pypi.org/simple/" in guide
@@ -151,15 +151,15 @@ def test_the_workflow_parses_and_carries_the_secretless_chain():
     assert jobs["publish-testpypi"]["environment"] == "testpypi"
     assert jobs["publish-pypi"]["environment"] == "pypi"
 
-    contenu = (Path(_racine()) / ".github" / "workflows" / "publication.yml").read_text(
+    content = (Path(_racine()) / ".github" / "workflows" / "publication.yml").read_text(
         encoding="utf-8"
     )
-    assert "secrets." not in contenu
-    assert contenu.count("python -m build") == 1
-    assert "actions/upload-artifact@v4.6.2" in contenu
-    assert contenu.count("actions/download-artifact@v4.3.0") == 2
-    assert "pypa/gh-action-pypi-publish@v1.14.2" in contenu
-    actions = re.findall(r"uses:\s+([^\s]+)", contenu)
+    assert "secrets." not in content
+    assert content.count("python -m build") == 1
+    assert "actions/upload-artifact@v4.6.2" in content
+    assert content.count("actions/download-artifact@v4.3.0") == 2
+    assert "pypa/gh-action-pypi-publish@v1.14.2" in content
+    actions = re.findall(r"uses:\s+([^\s]+)", content)
     assert actions and all(re.search(r"@v\d+\.\d+\.\d+$", action) for action in actions)
 
 
@@ -167,17 +167,17 @@ def test_lint_and_tests_are_dependencies_of_the_build():
     workflow = _workflow()
     build = workflow["jobs"]["build"]
     tests_steps = workflow["jobs"]["tests"]["steps"]
-    commandes = [etape.get("run", "") for etape in tests_steps]
+    commands = [step.get("run", "") for step in tests_steps]
 
-    assert "ruff check src tests" in commandes
-    assert any("pytest tests/" in commande for commande in commandes)
+    assert "ruff check src tests" in commands
+    assert any("pytest tests/" in command for command in commands)
     assert set(build["needs"]) >= {"tests", "verify-tag"}
 
 
 def test_the_guide_names_the_real_workflow_and_environments():
     guide = _guide()
     workflow = _workflow()
-    environnements = {
+    environments = {
         job["environment"]
         for job in workflow["jobs"].values()
         if "environment" in job
@@ -188,9 +188,9 @@ def test_the_guide_names_the_real_workflow_and_environments():
     assert "| Workflow | `publication.yml` |" in guide
     assert "| Environment | `pypi` |" in guide
     assert "| Environment | `testpypi` |" in guide
-    assert {"testpypi", "pypi"} <= environnements
-    for environnement in environnements:
-        assert f"`{environnement}`" in guide
+    assert {"testpypi", "pypi"} <= environments
+    for environment in environments:
+        assert f"`{environment}`" in guide
 
 
 def test_the_trusted_publisher_table_names_the_real_repository():
@@ -211,10 +211,10 @@ def test_the_trusted_publisher_table_names_the_real_repository():
 
     project = _project()
     depot = project["urls"]["Repository"]
-    correspondance = re.fullmatch(
+    match = re.fullmatch(
         r"https://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?", depot)
-    assert correspondance, f"unreadable repository URL: {depot!r}"
-    proprietaire, nom_du_depot = correspondance.groups()
+    assert match, f"unreadable repository URL: {depot!r}"
+    owner, name_of_upload = match.groups()
 
     guide = _guide()
     # Two tables: PyPI and TestPyPI. BOTH must carry the value — checking only
@@ -222,13 +222,13 @@ def test_the_trusted_publisher_table_names_the_real_repository():
     # filled in first.
     for etiquette, valeur in (
         ("Project", project["name"]),
-        ("Repository owner", proprietaire),
-        ("Repository", nom_du_depot),
+        ("Repository owner", owner),
+        ("Repository", name_of_upload),
     ):
-        ligne = f"| {etiquette} | `{valeur}` |"
-        assert guide.count(ligne) == 2, (
-            f"the guide should carry {ligne!r} twice (PyPI and TestPyPI), "
-            f"it carries it {guide.count(ligne)} times — the trusted publisher "
+        line = f"| {etiquette} | `{valeur}` |"
+        assert guide.count(line) == 2, (
+            f"the guide should carry {line!r} twice (PyPI and TestPyPI), "
+            f"it carries it {guide.count(line)} times — the trusted publisher "
             f"would refuse the upload without saying which field is wrong")
 
 
@@ -246,8 +246,8 @@ def test_publishing_tests_the_tag_in_the_ci_environment():
     ci = _workflow("ci.yml")["jobs"]["verifier"]
     publication = _workflow()["jobs"]["tests"]
 
-    extras_ci = _extras_installes(ci)
+    extras_ci = _extras_installed(ci)
     assert "postgres" in extras_ci, "premise: CI tests PostgreSQL"
-    assert _extras_installes(publication) == extras_ci
+    assert _extras_installed(publication) == extras_ci
     assert publication.get("services") == ci.get("services")
     assert publication.get("env") == ci.get("env")

@@ -100,7 +100,7 @@ def test_missing_yandex_folder_is_named(monkeypatch):
         frontend_ai.PROVIDERS["yandex"](model="qwen3/latest")
 
 
-def test_reasoning_effort_is_absent_by_default(monkeypatch):
+def test_reasoning_effort_is_missing_by_default(monkeypatch):
     _configure_yandex(monkeypatch)
     sent = {}
 
@@ -168,9 +168,9 @@ def test_a_forbidden_effort_is_refused_before_any_http_call(monkeypatch):
         pytest.fail("no HTTP call must go out for a forbidden value")
 
     monkeypatch.setattr(requests, "post", fail_post)
-    with pytest.raises(frontend_ai.FrontendAIError) as erreur:
+    with pytest.raises(frontend_ai.FrontendAIError) as error:
         frontend_ai.PROVIDERS["yandex"](model="qwen3/latest")
 
-    message = str(erreur.value)
+    message = str(error.value)
     assert "MONL_YANDEX_REASONING_EFFORT" in message
     assert "low, medium, high" in message

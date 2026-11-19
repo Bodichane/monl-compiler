@@ -32,15 +32,15 @@ class FakeProvider:
 
 @pytest.fixture()
 def dist(tmp_path):
-    dossier = tmp_path / "dist"
-    dossier.mkdir()
-    (dossier / "monl_compiler-1.0.0-py3-none-any.whl").write_bytes(b"roue" * 64)
-    (dossier / "monl_compiler-1.0.0.tar.gz").write_bytes(b"sources" * 32)
+    folder = tmp_path / "dist"
+    folder.mkdir()
+    (folder / "monl_compiler-1.0.0-py3-none-any.whl").write_bytes(b"roue" * 64)
+    (folder / "monl_compiler-1.0.0.tar.gz").write_bytes(b"sources" * 32)
     # What is not a distribution must not be published.
-    (dossier / "journal.txt").write_text("bruit", encoding="utf-8")
-    (dossier / "anciens").mkdir()
-    (dossier / "anciens" / "vieux-0.1.0.whl").write_bytes(b"vieux")
-    return dossier
+    (folder / "journal.txt").write_text("bruit", encoding="utf-8")
+    (folder / "anciens").mkdir()
+    (folder / "anciens" / "vieux-0.1.0.whl").write_bytes(b"vieux")
+    return folder
 
 
 def _free_port():
@@ -79,9 +79,9 @@ def platform(tmp_path, dist):
 
 
 def test_only_distributions_are_published(dist):
-    noms = [a["name"] for a in list_artifacts(dist)]
+    names = [a["name"] for a in list_artifacts(dist)]
 
-    assert noms == [
+    assert names == [
         "monl_compiler-1.0.0-py3-none-any.whl",
         "monl_compiler-1.0.0.tar.gz",
     ]
@@ -93,13 +93,13 @@ def test_the_wheel_comes_before_the_sources(dist):
 
 
 def test_the_published_fingerprint_is_the_files(dist):
-    artefact = list_artifacts(dist)[0]
-    attendu = hashlib.sha256(
-        (dist / artefact["name"]).read_bytes()
+    artifact = list_artifacts(dist)[0]
+    expected = hashlib.sha256(
+        (dist / artifact["name"]).read_bytes()
     ).hexdigest()
 
-    assert artefact["sha256"] == attendu
-    assert artefact["bytes"] == (dist / artefact["name"]).stat().st_size
+    assert artifact["sha256"] == expected
+    assert artifact["bytes"] == (dist / artifact["name"]).stat().st_size
 
 
 def test_a_missing_folder_does_not_fail(tmp_path):
@@ -110,15 +110,15 @@ def test_a_missing_folder_does_not_fail(tmp_path):
 
 def test_the_download_returns_the_file_bytes(platform, dist):
     listing = requests.get(f"{platform}/api/telechargements", timeout=10).json()
-    nom = listing["artifacts"][0]["name"]
+    name = listing["artifacts"][0]["name"]
 
-    reponse = requests.get(f"{platform}/api/telechargements/{nom}", timeout=10)
+    response = requests.get(f"{platform}/api/telechargements/{name}", timeout=10)
 
-    assert reponse.status_code == 200
-    assert reponse.content == (dist / nom).read_bytes()
+    assert response.status_code == 200
+    assert response.content == (dist / name).read_bytes()
 
 
-@pytest.mark.parametrize("nom", [
+@pytest.mark.parametrize("name", [
     "../../etc/passwd",
     "..%2f..%2fetc%2fpasswd",
     "/etc/passwd",
@@ -126,10 +126,10 @@ def test_the_download_returns_the_file_bytes(platform, dist):
     "anciens/vieux-0.1.0.whl",
     "inconnu-9.9.9.whl",
 ])
-def test_a_hostile_or_unknown_name_is_refused(platform, nom):
-    reponse = requests.get(f"{platform}/api/telechargements/{nom}", timeout=10)
+def test_a_hostile_or_unknown_name_is_refused(platform, name):
+    response = requests.get(f"{platform}/api/telechargements/{name}", timeout=10)
 
-    assert reponse.status_code == 404, reponse.text
+    assert response.status_code == 404, response.text
 
 
 def test_resolution_never_concatenates_the_received_name(dist):

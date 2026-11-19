@@ -8,50 +8,50 @@ masking, `categorized` substitution, and the `oneOf` closed list (point
 from .base import ASTValidationError
 
 
-class ChampsMixin:
+class FieldsMixin:
     """What a field accepts, and what it shows."""
 
     # The grammar's four VALIDATION_TYPEs, and what they bound depending on the
     # field's type. Length for text, value for a number: it is the only natural
     # reading of "min 3" on a name and "min 0" on a price, and it must be
     # written down somewhere rather than guessed.
-    BORNES_TEXTE = ("String", "Text", "Email")
+    BOUNDS_TEXT = ("String", "Text", "Email")
 
-    BORNES_NOMBRE = ("Integer", "Float", "Money")
+    BOUNDS_NUMBER = ("Integer", "Float", "Money")
 
     # Maximum length of the matching SQL column (beta 3 fix): a 'max' beyond it
     # would promise data the column cannot hold.
-    LONGUEUR_COLONNE = {"String": 255, "Email": 320, "Text": 20000}
+    LONGUEUR_COLUMN = {"String": 255, "Email": 320, "Text": 20000}
 
-    def _champ_contraint(self, reference, ou):
+    def _field_constrained(self, reference, ou):
         """(entity, field, type) targeted by a constraint, or a refusal that says
         why. Extracted from `_valider_contraintes_de_champ` (complexity ceiling);
         refusals and messages unchanged."""
         if "." not in reference:
             raise ASTValidationError(
                 f"Structure: '{ou}' must reference 'Entity.field', got '{reference}'.")
-        entite, champ = reference.split(".", 1)
-        if entite not in self.entities:
+        entity, field = reference.split(".", 1)
+        if entity not in self.entities:
             raise ASTValidationError(
-                f"Structure: '{ou}' references entity '{entite}', which does not exist. "
+                f"Structure: '{ou}' references entity '{entity}', which does not exist. "
                 f"Declared entities: {', '.join(sorted(self.entities))}.")
-        type_champ = self.entities[entite].get(champ)
-        if type_champ is None:
-            proches = [c for c in self.entities[entite] if c.lower() == champ.lower()]
-            indice = f" Did you mean '{proches[0]}'?" if proches else ""
+        type_field = self.entities[entity].get(field)
+        if type_field is None:
+            close = [c for c in self.entities[entity] if c.lower() == field.lower()]
+            index = f" Did you mean '{close[0]}'?" if close else ""
             raise ASTValidationError(
-                f"Structure: '{ou}' references field '{champ}', which entity "
-                f"'{entite}' does not declare.{indice} Fields of {entite}: "
-                f"{', '.join(self.entities[entite])}. A constraint on a nonexistent field "
+                f"Structure: '{ou}' references field '{field}', which entity "
+                f"'{entity}' does not declare.{index} Fields of {entity}: "
+                f"{', '.join(self.entities[entity])}. A constraint on a nonexistent field "
                 f"does not apply to anything—and suggests otherwise.")
-        if type_champ == "Upload":
+        if type_field == "Upload":
             raise ASTValidationError(
                 f"Structure: '{ou}' does not apply to '{reference}' of type Upload. "
                 "Constrain an upload with 'upload max … types …', which produces "
                 "real multipart rejections in the backend.")
-        return entite, champ, type_champ
+        return entity, field, type_field
 
-    def _valider_contraintes_de_champ(self):
+    def _validate_constraints_of_field(self):
         """POINT 85: the four rules that did nothing.
 
         `required`, `unique`, `min` and `max` — the compiler's oldest — were
@@ -70,53 +70,53 @@ class ChampsMixin:
         `self.field_constraints`, whose second half the generator enforces."""
         self.field_constraints = {}
         for rule in self.rules:
-            type_regle = rule["type"]
-            if type_regle not in ("required", "unique", "min", "max"):
+            type_rule = rule["type"]
+            if type_rule not in ("required", "unique", "min", "max"):
                 continue
             reference = rule["reference"]
-            ou = f"rule {reference} {type_regle}"
-            entite, champ, type_champ = self._champ_contraint(reference, ou)
+            ou = f"rule {reference} {type_rule}"
+            entity, field, type_field = self._field_constrained(reference, ou)
 
-            contraintes = self.field_constraints.setdefault((entite, champ), {})
-            if type_regle in contraintes:
+            constraints = self.field_constraints.setdefault((entity, field), {})
+            if type_rule in constraints:
                 raise ASTValidationError(
                     f"Structure: '{ou}' is declared twice on the same field.")
-            if type_regle in ("required", "unique"):
-                contraintes[type_regle] = True
+            if type_rule in ("required", "unique"):
+                constraints[type_rule] = True
                 continue
 
             # 'min'/'max': the grammar only accepts a positive integer.
             try:
-                borne = int(rule.get("value"))
+                bound = int(rule.get("value"))
             except (TypeError, ValueError):
                 raise ASTValidationError(
                     f"Structure: '{ou}' expects an integer "
                     f"(got '{rule.get('value')}').") from None
-            if type_champ in self.BORNES_TEXTE:
-                limite = self.LONGUEUR_COLONNE[type_champ]
-                if borne > limite:
+            if type_field in self.BOUNDS_TEXT:
+                limit = self.LONGUEUR_COLUMN[type_field]
+                if bound > limit:
                     raise ASTValidationError(
-                        f"Structure: '{ou} {borne}' exceeds the column length "
-                        f"'{champ}' ({type_champ} = {limite} characters). The constraint "
+                        f"Structure: '{ou} {bound}' exceeds the column length "
+                        f"'{field}' ({type_field} = {limit} characters). The constraint "
                         f"would promise data the database cannot store.")
-                contraintes[type_regle] = {"portee": "longueur", "valeur": borne}
-            elif type_champ in self.BORNES_NOMBRE:
-                contraintes[type_regle] = {"portee": "valeur", "valeur": borne}
+                constraints[type_rule] = {"portee": "longueur", "valeur": bound}
+            elif type_field in self.BOUNDS_NUMBER:
+                constraints[type_rule] = {"portee": "valeur", "valeur": bound}
             else:
                 raise ASTValidationError(
-                    f"Structure: '{ou}' targets '{champ}' of type '{type_champ}', "
-                    f"which '{type_regle}' cannot bound. LENGTH bounds apply to "
-                    f"{', '.join(self.BORNES_TEXTE)}; VALUE bounds apply to "
-                    f"{', '.join(self.BORNES_NOMBRE)}.")
+                    f"Structure: '{ou}' targets '{field}' of type '{type_field}', "
+                    f"which '{type_rule}' cannot bound. LENGTH bounds apply to "
+                    f"{', '.join(self.BOUNDS_TEXT)}; VALUE bounds apply to "
+                    f"{', '.join(self.BOUNDS_NUMBER)}.")
 
-        for (entite, champ), contraintes in self.field_constraints.items():
-            bas, haut = contraintes.get("min"), contraintes.get("max")
+        for (entity, field), constraints in self.field_constraints.items():
+            bas, haut = constraints.get("min"), constraints.get("max")
             if bas and haut and bas["valeur"] > haut["valeur"]:
                 raise ASTValidationError(
-                    f"Structure: '{entite}.{champ}' has min {bas['valeur']} and "
+                    f"Structure: '{entity}.{field}' has min {bas['valeur']} and "
                     f"max {haut['valeur']}: no value satisfies both.")
 
-    def _valider_champs_masques(self):
+    def _validate_fields_masques(self):
         """Validates the ``hidden`` rules and prepares the fields to mask."""
         self.masked_fields = set()
         for rule in self.rules:
@@ -136,7 +136,7 @@ class ChampsMixin:
                 )
             self.masked_fields.add((entity, field))
 
-    def _valider_champs_categorises(self):
+    def _validate_fields_categorized(self):
         """Validates the ``categorized`` rules after the ``hidden`` fields."""
         self.categorized_fields = []
         seen_fields = set()
@@ -168,11 +168,11 @@ class ChampsMixin:
             seen_fields.add((entity, field))
 
             clauses = rule["value"]
-            self._valider_paliers_categorises(entity, field, clauses)
+            self._validate_steps_categorized(entity, field, clauses)
             self.categorized_fields.append({"entity": entity, "field": field, "clauses": clauses})
 
     @staticmethod
-    def _valider_paliers_categorises(entity, field, clauses):
+    def _validate_steps_categorized(entity, field, clauses):
         """The tiers of a `categorized`: at least one threshold, `otherwise` last and
         only there, strictly increasing thresholds, non-empty labels. Extracted
         from `_valider_champs_categorises` (complexity ceiling); refusals and
@@ -205,7 +205,7 @@ class ChampsMixin:
             )
 
     @staticmethod
-    def _valider_liste_de_choix(entity, field, values):
+    def _validate_list_of_choice(entity, field, values):
         """At least two values, none empty, none repeated. Extracted from
         `_valider_champs_enumeres` (complexity ceiling); refusals unchanged."""
         if len(values) < 2:
@@ -227,7 +227,7 @@ class ChampsMixin:
                 f"that offers the same option twice is a data entry error."
             )
 
-    def _valider_champs_enumeres(self):
+    def _validate_fields_enumerated(self):
         """Validates the text fields limited to a list of values."""
         self.enumerated_fields = {}
         for rule in self.rules:
@@ -248,7 +248,7 @@ class ChampsMixin:
                     f"'categorized' already provide this."
                 )
             values = rule["value"]
-            self._valider_liste_de_choix(entity, field, values)
+            self._validate_list_of_choice(entity, field, values)
             if entity in self.enumerated_fields and field in self.enumerated_fields[entity]:
                 raise ASTValidationError(
                     f"Structure: two 'oneOf' rules on '{entity}.{field}'—which list would apply?"

@@ -38,13 +38,13 @@ workflow Catalogue for Client
     Read Piece
 """
 
-AVEC_UI = BASE + """
+WITH_UI = BASE + """
 ui Piece
     theme: atelier
     primary: label
 """
 
-AVEC_BRIEF = BASE + """
+WITH_BRIEF = BASE + """
 landing
     brief: "Un atelier de réparation qui veut un registre sobre et technique."
 """
@@ -57,12 +57,12 @@ POLICES = ("Helvetica", "Arial", "Georgia", "Palatino", "Verdana", "Trebuchet",
 
 
 def _contract(spec_source, workdir):
-    chemin = os.path.join(workdir, "spec.ml")
-    with open(chemin, "w", encoding="utf-8") as fh:
+    path = os.path.join(workdir, "spec.ml")
+    with open(path, "w", encoding="utf-8") as fh:
         fh.write(spec_source)
-    ast = MonlAST(parse_monl_file(chemin)).validate_and_audit()
-    generateur = MonlSecureGenerator(ast, output_dir=workdir)
-    return build_contract(ast, generateur)
+    ast = MonlAST(parse_monl_file(path)).validate_and_audit()
+    generator = MonlSecureGenerator(ast, output_dir=workdir)
+    return build_contract(ast, generator)
 
 
 def _brief(spec_source, workdir):
@@ -80,16 +80,16 @@ def _brief(spec_source, workdir):
     AI reads. The file already said so at the top — "a silence nothing measures
     ends up filling again".
     """
-    chemin = os.path.join(workdir, "spec.ml")
-    with open(chemin, "w", encoding="utf-8") as fh:
+    path = os.path.join(workdir, "spec.ml")
+    with open(path, "w", encoding="utf-8") as fh:
         fh.write(spec_source)
     # REAL compilation: `build_generation_prompt` reads project files
     # (FRONTEND_PROMPT.md, and everything `_project_guidance` appends). A
     # contract built in memory would not have them, and the check would fall
     # back into the hole it just closed.
-    compile_project(chemin, workdir)
-    contrat = _contract(spec_source, workdir)
-    return contrat, build_generation_prompt(workdir, update_mode=False)
+    compile_project(path, workdir)
+    contract = _contract(spec_source, workdir)
+    return contract, build_generation_prompt(workdir, update_mode=False)
 
 
 # ----------------------------------------- what the contract no longer says --
@@ -98,15 +98,15 @@ def test_the_contract_no_longer_carries_a_design_block():
     no longer exists: the contract describes what monl knows, not what it
     guessed."""
     with tempfile.TemporaryDirectory() as workdir:
-        contrat = _contract(BASE, workdir)
-    assert "design" not in contrat, sorted(contrat)
+        contract = _contract(BASE, workdir)
+    assert "design" not in contract, sorted(contract)
 
 
 def test_the_contract_carries_finishing_skills_without_visual_theme():
     """Skills impose depth, not a computed palette."""
     with tempfile.TemporaryDirectory() as workdir:
-        contrat, brief = _brief(BASE, workdir)
-    assert contrat["design_skills"][0] == "monl-showcase"
+        contract, brief = _brief(BASE, workdir)
+    assert contract["design_skills"][0] == "monl-showcase"
     assert "$monl-showcase" in brief
     assert "level of depth and finish" in brief
 
@@ -115,22 +115,22 @@ def test_the_contract_contains_no_hard_coded_color():
     """Removing the key would not be enough if the colors came out elsewhere —
     in a note, an example, a neighboring field."""
     with tempfile.TemporaryDirectory() as workdir:
-        contrat = _contract(BASE, workdir)
-    trouvees = HEX.findall(str(contrat))
-    assert not trouvees, f"colors imposed by the compiler: {trouvees}"
+        contract = _contract(BASE, workdir)
+    found = HEX.findall(str(contract))
+    assert not found, f"colors imposed by the compiler: {found}"
 
 
 def test_the_brief_prescribes_neither_color_nor_font():
     """The brief is the document the interface AI really reads. That is where
     prescription would most naturally settle back in."""
     with tempfile.TemporaryDirectory() as workdir:
-        _contrat_, brief = _brief(BASE, workdir)
+        _contract_, brief = _brief(BASE, workdir)
 
-    couleurs = HEX.findall(brief)
-    assert not couleurs, f"the brief imposes colors: {couleurs}"
+    colors = HEX.findall(brief)
+    assert not colors, f"the brief imposes colors: {colors}"
 
-    citees = [p for p in POLICES if p.lower() in brief.lower()]
-    assert not citees, f"the brief imposes typeface families: {citees}"
+    cited = [p for p in POLICES if p.lower() in brief.lower()]
+    assert not cited, f"the brief imposes typeface families: {cited}"
 
 
 # ------------------------------------------ what the brief must keep saying --
@@ -139,8 +139,8 @@ def test_the_brief_passes_on_the_intent_from_the_dialogue():
     AUTHOR formulated must reach the interface AI intact. It is the only
     legitimate direction."""
     with tempfile.TemporaryDirectory() as workdir:
-        contrat, brief = _brief(AVEC_BRIEF, workdir)
-    assert "registre sobre et technique" in contrat["brief"]
+        contract, brief = _brief(WITH_BRIEF, workdir)
+    assert "registre sobre et technique" in contract["brief"]
     assert "registre sobre et technique" in brief
 
 
@@ -149,7 +149,7 @@ def test_the_brief_keeps_the_two_requirements_that_are_not_taste():
     readable, the other makes it checkable by the smoke test. Confusing them with
     aesthetic prescription would make them fall with it."""
     with tempfile.TemporaryDirectory() as workdir:
-        _contrat_, brief = _brief(BASE, workdir)
+        _contract_, brief = _brief(BASE, workdir)
     assert "4.5:1" in brief and "WCAG" in brief
     assert "no remote resource" in brief
 
@@ -162,7 +162,7 @@ def test_the_brief_says_by_what_means_an_icon_is_possible():
     Stating a MEANS is not prescribing a taste — same boundary as at point 72 for
     WCAG contrast and autonomy."""
     with tempfile.TemporaryDirectory() as workdir:
-        _contrat_, brief = _brief(BASE, workdir)
+        _contract_, brief = _brief(BASE, workdir)
     assert "SVG" in brief
     assert "allowlist" in brief or ".svg" in brief
 
@@ -173,13 +173,13 @@ def test_the_brief_recommends_no_icon_nor_icon_style():
     the line added at point 104 could drift into prescription at the first
     rewrite."""
     with tempfile.TemporaryDirectory() as workdir:
-        _contrat_, brief = _brief(BASE, workdir)
+        _contract_, brief = _brief(BASE, workdir)
     bas = brief.lower()
     # Libraries are only named to say they are OUT OF REACH.
-    for interdit in ("icon style", "rounded icons", "filled icons",
+    for forbidden in ("icon style", "rounded icons", "filled icons",
                      "recommended icon set", "use icons for",
                      "add an icon"):
-        assert interdit not in bas, interdit
+        assert forbidden not in bas, forbidden
     assert "is reachable" in bas or "reachable" in bas
 
 
@@ -187,7 +187,7 @@ def test_the_brief_says_explicitly_visuals_do_not_come_from_the_compiler():
     """A silent brief would suggest an oversight. It must state the rule,
     otherwise the interface AI will look for the direction it believes missing."""
     with tempfile.TemporaryDirectory() as workdir:
-        _contrat_, brief = _brief(BASE, workdir)
+        _contract_, brief = _brief(BASE, workdir)
     assert "does NOT come from monl" in brief
 
 
@@ -198,8 +198,8 @@ def test_a_ui_block_stays_accepted_but_without_effect():
     more. The contract must be STRICTLY identical with and without the block."""
     with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
         sans = _contract(BASE, a)
-        avec = _contract(AVEC_UI, b)
-    assert sans == avec, "the 'ui' block still influences the contract"
+        with_ = _contract(WITH_UI, b)
+    assert sans == with_, "the 'ui' block still influences the contract"
 
 
 def test_two_projects_of_opposite_domains_get_the_same_silence():
@@ -207,17 +207,17 @@ def test_two_projects_of_opposite_domains_get_the_same_silence():
     'market', blog -> 'editorial'). That deduction is gone: two opposite domains
     must now differ only by what they really declare."""
     boutique = BASE.replace("Piece", "Product").replace("Reparation", "Boutique")
-    journal = BASE.replace("Piece", "Article").replace("Reparation", "Journal")
+    log = BASE.replace("Piece", "Article").replace("Reparation", "Journal")
     with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
         c1, b1 = _brief(boutique, a)
-        c2, b2 = _brief(journal, b)
+        c2, b2 = _brief(log, b)
 
     assert "design" not in c1 and "design" not in c2
     # The design direction paragraph is the SAME word for word: it no longer
     # depends on any deduction about the domain.
-    extrait = "## Design direction — it does NOT come from monl"
-    bloc1 = b1[b1.index(extrait):b1.index("## Non-negotiable rules")]
-    bloc2 = b2[b2.index(extrait):b2.index("## Non-negotiable rules")]
+    excerpt = "## Design direction — it does NOT come from monl"
+    bloc1 = b1[b1.index(excerpt):b1.index("## Non-negotiable rules")]
+    bloc2 = b2[b2.index(excerpt):b2.index("## Non-negotiable rules")]
     assert bloc1 == bloc2, "the design direction still depends on the domain"
 
 
@@ -229,14 +229,14 @@ def test_the_touch_up_instruction_recalls_the_icon_means():
 
     It is point 93's lesson on another object: there is only one path to the AI,
     but TWO briefs — and what is written in one does not propagate to the other."""
-    from monl.cli import _write_retouche_brief
+    from monl.cli import _write_retouch_brief
     with tempfile.TemporaryDirectory() as workdir:
-        chemin = _write_retouche_brief(workdir, "la section retours est terne")
-        with open(chemin, encoding="utf-8") as fh:
-            texte = fh.read()
+        path = _write_retouch_brief(workdir, "la section retours est terne")
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
     # The brief is formatted at 79 columns: looking for a sentence as is would
     # fail at the first line break inserted in the middle.
-    continu = " ".join(texte.split())
-    assert "SVG" in continu
-    assert "not an instruction" in continu, \
+    continuous = " ".join(text.split())
+    assert "SVG" in continuous
+    assert "not an instruction" in continuous, \
         "the reminder must say it is a MEANS, never a prescription"

@@ -4,22 +4,22 @@ A new question is added in its family's mixin — input, direction,
 journey, commerce, accounts — never here. This file carries only the
 dialogue's state."""
 
-from .accounts import ComptesMixin
+from .accounts import AccountsMixin
 from .commerce import CommerceMixin
 from .direction import DirectionMixin
 from .emission import EmissionMixin
-from .free_form import LibreMixin
-from .journey import ParcoursMixin
+from .free_form import FreeMixin
+from .journey import WalkMixin
 from .questions import QuestionsMixin
 
 
 class GuidedDialogue(
     QuestionsMixin,
     DirectionMixin,
-    ParcoursMixin,
-    LibreMixin,
+    WalkMixin,
+    FreeMixin,
     CommerceMixin,
-    ComptesMixin,
+    AccountsMixin,
     EmissionMixin,
 ):
     """The guided dialogue, without AI and without network."""
@@ -51,4 +51,4 @@ class GuidedDialogue(
         # kind, its options, their help texts. Written by `_ask` before each
         # call, never read back by the engine — a presentation layer that does
         # not render terminal text needs it, the dialogue does not.
-        self.derniere_question = None
+        self.last_question = None

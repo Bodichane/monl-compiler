@@ -5,8 +5,8 @@ import json
 import os
 
 from ..artifacts import (
-    chemin_pret,
     copy_preserved_files,
+    path_pret,
     publish_files,
     staging_directory,
 )
@@ -27,7 +27,7 @@ def generate_frontend_contract(normalized_ast: CompilationIR, plans_or_generator
         contract_path = os.path.join(temporary, foundations.CONTRACT_FILENAME)
         with open(contract_path, "w", encoding="utf-8") as fh:
             json.dump(contract, fh, ensure_ascii=False, indent=2, sort_keys=True)
-        with open(chemin_pret(temporary, foundations.PROMPT_FILENAME),
+        with open(path_pret(temporary, foundations.PROMPT_FILENAME),
                   "w", encoding="utf-8") as fh:
             fh.write(brief._render_prompt(contract))
         project.write_project_claude_md(

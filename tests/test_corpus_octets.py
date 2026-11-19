@@ -5,7 +5,7 @@ import json
 from tests.support.corpus_bytes import BASELINE, corpus_hashes
 
 
-def test_corpus_octets():
+def test_corpus_bytes():
     expected = json.loads(BASELINE.read_text(encoding="utf-8"))
     assert expected and all(expected.values()), "Empty corpus or case without file"
     assert corpus_hashes() == expected, (

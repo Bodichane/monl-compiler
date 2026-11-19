@@ -9,8 +9,8 @@ from monl import __version__
 def test_package_version_matches_pyproject():
     """The imported package and the published metadata must state the same version."""
     pyproject = Path(__file__).parents[1] / "pyproject.toml"
-    contenu = pyproject.read_text(encoding="utf-8")
-    trouvee = re.search(r'^version\s*=\s*"([^"]+)"\s*$', contenu, re.MULTILINE)
+    content = pyproject.read_text(encoding="utf-8")
+    found = re.search(r'^version\s*=\s*"([^"]+)"\s*$', content, re.MULTILINE)
 
-    assert trouvee, "version absente de pyproject.toml"
-    assert __version__ == trouvee.group(1)
+    assert found, "version absente de pyproject.toml"
+    assert __version__ == found.group(1)

@@ -145,7 +145,7 @@ def test_cli_option_passes_routing_to_generation(monkeypatch, tmp_path):
     assert captured["providers"][-1] == "modele-css"
 
 
-def test_help_documente_l_option_repetable():
+def test_help_documented_option_repeatable():
     with pytest.raises(SystemExit) as exit_info:
         cli.main(["frontend", "--help"])
     assert exit_info.value.code == 0

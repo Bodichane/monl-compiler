@@ -19,7 +19,7 @@ import requests
 from monl.ast_validator import MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
-from tests.support.processus import arreter_processus
+from tests.support.process import stop_process
 from tests.support.server import free_port as _find_free_port
 
 SPEC = """app RL
@@ -34,7 +34,7 @@ workflow W for User
 """
 
 
-MARQUEUR_PRET = "Application startup complete"
+MARKER_PRET = "Application startup complete"
 
 
 def _wait(port, timeout=20):
@@ -48,7 +48,7 @@ def _wait(port, timeout=20):
     return False
 
 
-def _wait_for_both_workers(proc, journal, attendus=2, timeout=40):
+def _wait_for_both_workers(proc, log, expected_items=2, timeout=40):
     """Wait until EACH worker has started, not only the first.
 
     An HTTP probe proves nothing here: with `--workers N`, the uvicorn
@@ -64,7 +64,7 @@ def _wait_for_both_workers(proc, journal, attendus=2, timeout=40):
     """
     debut = time.time()
     while time.time() - debut < timeout:
-        if sum(MARQUEUR_PRET in ligne for ligne in list(journal)) >= attendus:
+        if sum(MARKER_PRET in line for line in list(log)) >= expected_items:
             return True
         if proc.poll() is not None:
             return False
@@ -72,15 +72,15 @@ def _wait_for_both_workers(proc, journal, attendus=2, timeout=40):
     return False
 
 
-def _journaliser(proc):
-    journal = []
+def _log(proc):
+    log = []
 
-    def _vider():
-        for ligne in proc.stderr:
-            journal.append(ligne)
+    def _empty():
+        for line in proc.stderr:
+            log.append(line)
 
-    threading.Thread(target=_vider, daemon=True).start()
-    return journal
+    threading.Thread(target=_empty, daemon=True).start()
+    return log
 
 
 def test_rate_limit_is_shared_across_workers():
@@ -94,11 +94,11 @@ def test_rate_limit_is_shared_across_workers():
             cwd=workdir, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
             text=True,
         )
-        journal = _journaliser(proc)
+        log = _log(proc)
         try:
-            assert _wait_for_both_workers(proc, journal), (
+            assert _wait_for_both_workers(proc, log), (
                 "the two workers did not report their startup:\n"
-                + "".join(journal[-20:]))
+                + "".join(log[-20:]))
             assert _wait(port), "the multi-worker server did not start"
             base = f"http://127.0.0.1:{port}"
             codes = []
@@ -114,7 +114,7 @@ def test_rate_limit_is_shared_across_workers():
             assert codes[5] == 429, codes
             assert codes[6] == 429, codes
         finally:
-            arreter_processus(proc, delai=5)
+            stop_process(proc, delay=5)
 
 
 def test_startup_survives_an_already_locked_database():
@@ -137,8 +137,8 @@ def test_startup_survives_an_already_locked_database():
 
         # A database that already exists and that ANOTHER process is writing —
         # exactly the state the second worker finds.
-        chemin = os.path.join(workdir, "app.db")
-        rival = sqlite3.connect(chemin, timeout=10.0)
+        path = os.path.join(workdir, "app.db")
+        rival = sqlite3.connect(path, timeout=10.0)
         rival.execute("CREATE TABLE IF NOT EXISTS _verrou_essai (x INTEGER)")
         rival.commit()
         rival.execute("BEGIN IMMEDIATE")
@@ -150,7 +150,7 @@ def test_startup_survives_an_already_locked_database():
             cwd=workdir, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
             text=True,
         )
-        journal = _journaliser(proc)
+        log = _log(proc)
         try:
             # Released AFTER the pragma and the first schema attempt have
             # happened: that is the window a real second worker lives. From the
@@ -160,17 +160,17 @@ def test_startup_survives_an_already_locked_database():
             time.sleep(3.0)
             rival.rollback()
             rival.close()
-            assert _wait_for_both_workers(proc, journal, attendus=1), (
+            assert _wait_for_both_workers(proc, log, expected_items=1), (
                 "the server died on a locked database:\n"
-                + "".join(journal[-20:]))
+                + "".join(log[-20:]))
             assert _wait(port), "the server did not start"
             # Surviving is not enough: the old fallback started too, but giving
             # up WAL. The pragma now retries within the busy_timeout budget —
             # so the database must have switched to WAL.
-            mode = sqlite3.connect(chemin)
+            mode = sqlite3.connect(path)
             try:
                 assert mode.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
             finally:
                 mode.close()
         finally:
-            arreter_processus(proc, delai=5)
+            stop_process(proc, delay=5)

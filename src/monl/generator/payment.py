@@ -9,7 +9,7 @@ from string import Template
 from ..ir import PAYMENT_STATUS_COLUMN
 
 
-class PaiementMixin:
+class PaymentMixin:
     """The lock on a paid record (point 91)."""
 
     def _payment_lock_field(self, entity):
@@ -31,17 +31,17 @@ class PaiementMixin:
         Returns the foreign key column that designates the parent, its entity and
         its table. A non-payable parent locks nothing: a cart of spare parts stays
         editable, it is the charge that freezes."""
-        verrous = []
-        vus = set()
+        locks = []
+        seen = set()
         for plan in self.aggregations_by_source.get(source_entity, ()):
             parent = plan.entity
-            if parent not in self.payable_by_entity or parent in vus:
+            if parent not in self.payable_by_entity or parent in seen:
                 continue
             fk = plan.parent_fk
-            vus.add(parent)
-            verrous.append({"fk_column": fk, "entity": parent,
+            seen.add(parent)
+            locks.append({"fk_column": fk, "entity": parent,
                             "table": parent.lower()})
-        return verrous
+        return locks
 
     def _payment_lock_lines(self, table, id_expr, entity, indent="    ",
                             var="_regle"):

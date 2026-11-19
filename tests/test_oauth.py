@@ -60,62 +60,62 @@ class FakeProvider:
 class _FauxGitHub(BaseHTTPRequestHandler):
     #: What the account will return. Changed by the tests to test refusing an
     #: UNverified address.
-    verifiee = True
-    codes_vus = []
+    checked = True
+    codes_seen = []
 
     def log_message(self, *_args):
         pass
 
     def _json(self, charge, code=200):
-        corps = json.dumps(charge).encode("utf-8")
+        body = json.dumps(charge).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(corps)))
+        self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(corps)
+        self.wfile.write(body)
 
     def do_POST(self):
-        chemin = urlparse(self.path).path
-        taille = int(self.headers.get("Content-Length") or 0)
-        champs = parse_qs(self.rfile.read(taille).decode("utf-8"))
-        if chemin == "/login/oauth/access_token":
-            type(self).codes_vus.append(champs.get("code", [""])[0])
-            if champs.get("code", [""])[0] == "mauvais":
+        path = urlparse(self.path).path
+        size = int(self.headers.get("Content-Length") or 0)
+        fields = parse_qs(self.rfile.read(size).decode("utf-8"))
+        if path == "/login/oauth/access_token":
+            type(self).codes_seen.append(fields.get("code", [""])[0])
+            if fields.get("code", [""])[0] == "mauvais":
                 return self._json({"error": "bad_verification_code"})
             return self._json({"access_token": "jeton-fournisseur"})
         return self._json({"error": "not_found"}, 404)
 
     def do_GET(self):
-        chemin = urlparse(self.path).path
+        path = urlparse(self.path).path
         if self.headers.get("Authorization") != "Bearer jeton-fournisseur":
             return self._json({"message": "Bad credentials"}, 401)
-        if chemin == "/user":
+        if path == "/user":
             return self._json({"id": 4242, "login": "alice"})
-        if chemin == "/user/emails":
+        if path == "/user/emails":
             return self._json([
                 {"email": "autre@exemple.test", "primary": False, "verified": True},
                 {"email": "alice@exemple.test", "primary": True,
-                 "verified": type(self).verifiee},
+                 "verified": type(self).checked},
             ])
         return self._json({"message": "not_found"}, 404)
 
 
 @pytest.fixture()
 def faux_github():
-    _FauxGitHub.verifiee = True
-    _FauxGitHub.codes_vus = []
-    serveur = ThreadingHTTPServer(("127.0.0.1", _free_port()), _FauxGitHub)
-    fil = threading.Thread(target=serveur.serve_forever, daemon=True)
+    _FauxGitHub.checked = True
+    _FauxGitHub.codes_seen = []
+    server = ThreadingHTTPServer(("127.0.0.1", _free_port()), _FauxGitHub)
+    fil = threading.Thread(target=server.serve_forever, daemon=True)
     fil.start()
     try:
-        yield f"http://127.0.0.1:{serveur.server_address[1]}"
+        yield f"http://127.0.0.1:{server.server_address[1]}"
     finally:
-        serveur.shutdown()
-        serveur.server_close()
+        server.shutdown()
+        server.server_close()
 
 
 @pytest.fixture()
-def plateforme(tmp_path, faux_github, monkeypatch):
+def platform(tmp_path, faux_github, monkeypatch):
     monkeypatch.setenv("MONL_OAUTH_GITHUB_CLIENT_ID", "identifiant-client")
     monkeypatch.setenv("MONL_OAUTH_GITHUB_SECRET", "secret-client")
     monkeypatch.setenv("MONL_OAUTH_GITHUB_BASE_URL", faux_github)
@@ -126,9 +126,9 @@ def plateforme(tmp_path, faux_github, monkeypatch):
         workspace=tmp_path / "projects",
         domain="localhost",
     )
-    serveur = uvicorn.Server(
+    server = uvicorn.Server(
         uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error"))
-    fil = threading.Thread(target=serveur.run, daemon=True)
+    fil = threading.Thread(target=server.run, daemon=True)
     fil.start()
     base = f"http://127.0.0.1:{port}"
     try:
@@ -142,18 +142,18 @@ def plateforme(tmp_path, faux_github, monkeypatch):
             pytest.fail("the platform did not start")
         yield base
     finally:
-        serveur.should_exit = True
+        server.should_exit = True
         fil.join(timeout=10)
 
 
-def _aller(base, session):
+def _go(base, session):
     """Follows the start and returns the `state` the platform issued."""
-    depart = session.get(f"{base}/auth/github", allow_redirects=False, timeout=10)
-    assert depart.status_code == 307, depart.text
-    return parse_qs(urlparse(depart.headers["location"]).query)["state"][0]
+    start = session.get(f"{base}/auth/github", allow_redirects=False, timeout=10)
+    assert start.status_code == 307, start.text
+    return parse_qs(urlparse(start.headers["location"]).query)["state"][0]
 
 
-def _nombre(base_path, table):
+def _number(base_path, table):
     with sqlite_db(base_path / "projects" / "platform.sqlite3") as db:
         return db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
 
@@ -163,17 +163,17 @@ def test_a_provider_without_secret_is_not_offered():
     """A button leading to a 503 is worse than no button."""
     assert configured_providers({}) == []
     assert configured_providers({"MONL_OAUTH_GITHUB_CLIENT_ID": "x"}) == []
-    prets = configured_providers({
+    ready = configured_providers({
         "MONL_OAUTH_GITHUB_CLIENT_ID": "x", "MONL_OAUTH_GITHUB_SECRET": "y"})
-    assert [p["name"] for p in prets] == ["github"]
+    assert [p["name"] for p in ready] == ["github"]
 
 
-def test_a_missing_variable_is_NAMED(monkeypatch):
+def test_a_missing_variable_is_named(monkeypatch):
     monkeypatch.delenv("MONL_OAUTH_GOOGLE_CLIENT_ID", raising=False)
-    with pytest.raises(OAuthNotConfigured) as faute:
+    with pytest.raises(OAuthNotConfigured) as fault:
         authorize_url("google", "peu-importe", {})
-    assert faute.value.variable == "MONL_OAUTH_GOOGLE_CLIENT_ID"
-    assert faute.value.status_code == 503
+    assert fault.value.variable == "MONL_OAUTH_GOOGLE_CLIENT_ID"
+    assert fault.value.status_code == 503
 
 
 def test_the_return_address_comes_from_configuration():
@@ -193,189 +193,189 @@ def test_a_forged_state_is_refused():
 
 
 def test_another_providers_state_is_refused():
-    etat = make_state("google", SECRET, "secret-navigateur")
+    state = make_state("google", SECRET, "secret-navigateur")
     with pytest.raises(OAuthError, match="another provider"):
-        check_state(etat, "github", SECRET, "secret-navigateur")
+        check_state(state, "github", SECRET, "secret-navigateur")
 
 
 def test_an_expired_state_is_refused():
     """Without a date, a start captured once would stay replayable forever —
     same reasoning as the payment webhook's dated signature."""
-    etat = make_state("github", SECRET, "secret-navigateur", maintenant=1_700_000_000)
+    state = make_state("github", SECRET, "secret-navigateur", now=1_700_000_000)
 
     assert check_state(
-        etat, "github", SECRET, "secret-navigateur", maintenant=1_700_000_300
+        state, "github", SECRET, "secret-navigateur", now=1_700_000_300
     )
     with pytest.raises(OAuthError, match="expired"):
         check_state(
-            etat, "github", SECRET, "secret-navigateur", maintenant=1_700_001_000
+            state, "github", SECRET, "secret-navigateur", now=1_700_001_000
         )
 
 
 def test_a_state_signed_by_another_server_is_refused():
-    etat = make_state(
+    state = make_state(
         "github", "un-autre-secret-de-plateforme-tout-autre", "secret-navigateur"
     )
     with pytest.raises(OAuthError, match="not signed"):
-        check_state(etat, "github", SECRET, "secret-navigateur")
+        check_state(state, "github", SECRET, "secret-navigateur")
 
 
 # ─────────────────────────────────────── l'aller-retour, en vrai HTTP ──
-def test_the_start_leads_to_the_provider_with_a_signed_state(plateforme):
+def test_the_start_leads_to_the_provider_with_a_signed_state(platform):
     session = requests.Session()
-    depart = session.get(f"{plateforme}/auth/github", allow_redirects=False, timeout=10)
+    start = session.get(f"{platform}/auth/github", allow_redirects=False, timeout=10)
 
-    assert depart.status_code == 307
-    params = parse_qs(urlparse(depart.headers["location"]).query)
+    assert start.status_code == 307
+    params = parse_qs(urlparse(start.headers["location"]).query)
     assert params["client_id"] == ["identifiant-client"]
-    assert params["redirect_uri"] == [f"{plateforme}/auth/github/retour"]
+    assert params["redirect_uri"] == [f"{platform}/auth/github/retour"]
     assert check_state(
         params["state"][0], "github", SECRET, session.cookies[OAUTH_FLOW_COOKIE]
     )
 
 
-def test_a_full_round_trip_opens_a_session(plateforme):
+def test_a_full_round_trip_opens_a_session(platform):
     session = requests.Session()
-    depart = session.get(f"{plateforme}/auth/github", allow_redirects=False, timeout=10)
-    etat = parse_qs(urlparse(depart.headers["location"]).query)["state"][0]
+    start = session.get(f"{platform}/auth/github", allow_redirects=False, timeout=10)
+    state = parse_qs(urlparse(start.headers["location"]).query)["state"][0]
 
-    retour = session.get(
-        f"{plateforme}/auth/github/retour",
-        params={"code": "bon-code", "state": etat},
+    return_ = session.get(
+        f"{platform}/auth/github/retour",
+        params={"code": "bon-code", "state": state},
         allow_redirects=False,
         timeout=10,
     )
 
-    assert retour.status_code == 303, retour.text
-    assert retour.headers["location"] == "/console"
+    assert return_.status_code == 303, return_.text
+    assert return_.headers["location"] == "/console"
     assert "monl_session" in session.cookies
     assert OAUTH_FLOW_COOKIE not in session.cookies
-    compte = session.get(f"{plateforme}/api/auth/me", timeout=10)
-    assert compte.status_code == 200, compte.text
-    assert compte.json()["email"] == "github:4242"
-    assert session.get(f"{plateforme}/console", timeout=10).status_code == 200
+    account = session.get(f"{platform}/api/auth/me", timeout=10)
+    assert account.status_code == 200, account.text
+    assert account.json()["email"] == "github:4242"
+    assert session.get(f"{platform}/console", timeout=10).status_code == 200
 
 
-def test_two_logins_create_only_one_account(plateforme):
+def test_two_logins_create_only_one_account(platform):
     session = requests.Session()
     for _ in range(2):
-        depart = session.get(f"{plateforme}/auth/github", allow_redirects=False, timeout=10)
-        etat = parse_qs(urlparse(depart.headers["location"]).query)["state"][0]
-        retour = session.get(
-            f"{plateforme}/auth/github/retour",
-            params={"code": "bon", "state": etat},
+        start = session.get(f"{platform}/auth/github", allow_redirects=False, timeout=10)
+        state = parse_qs(urlparse(start.headers["location"]).query)["state"][0]
+        return_ = session.get(
+            f"{platform}/auth/github/retour",
+            params={"code": "bon", "state": state},
             allow_redirects=False,
             timeout=10,
         )
-        assert retour.status_code == 303
-    compte = session.get(f"{plateforme}/api/auth/me", timeout=10).json()
-    assert compte["email"] == "github:4242"
+        assert return_.status_code == 303
+    account = session.get(f"{platform}/api/auth/me", timeout=10).json()
+    assert account["email"] == "github:4242"
     assert len(session.cookies.get_dict()) == 1, "the OAuth session is not unique"
 
 
-def test_an_unverified_address_is_refused(plateforme):
+def test_an_unverified_address_is_refused(platform):
     """Without this check, the brick would verify nothing: it would move the
     arbitrary string from one form to another."""
-    _FauxGitHub.verifiee = False
+    _FauxGitHub.checked = False
     session = requests.Session()
-    etat = _aller(plateforme, session)
+    state = _go(platform, session)
 
-    retour = session.get(
-        f"{plateforme}/auth/github/retour",
-        params={"code": "bon", "state": etat},
+    return_ = session.get(
+        f"{platform}/auth/github/retour",
+        params={"code": "bon", "state": state},
         allow_redirects=False,
         timeout=10,
     )
 
-    assert retour.status_code == 403, retour.text
-    assert "verified" in retour.json()["detail"]
+    assert return_.status_code == 403, return_.text
+    assert "verified" in return_.json()["detail"]
 
 
-def test_a_return_without_valid_state_opens_nothing(plateforme):
+def test_a_return_without_valid_state_opens_nothing(platform):
     """The CSRF counter-proof: a third party triggering the return from their own
     site has no state signed by us."""
-    retour = requests.get(f"{plateforme}/auth/github/retour",
+    return_ = requests.get(f"{platform}/auth/github/retour",
                           params={"code": "bon", "state": "github.1.2.3"},
                           allow_redirects=False, timeout=10)
 
-    assert retour.status_code == 400
-    assert "location" not in {k.lower() for k in retour.headers}
+    assert return_.status_code == 400
+    assert "location" not in {k.lower() for k in return_.headers}
 
 
 def test_the_login_attack_with_valid_state_without_cookie_is_refused(
-    plateforme, tmp_path
+    platform, tmp_path
 ):
     """The attacker starts the flow, but the victim does not own their secret."""
-    attaquant = requests.Session()
-    victime = requests.Session()
-    etat = _aller(plateforme, attaquant)
+    attacker = requests.Session()
+    victim = requests.Session()
+    state = _go(platform, attacker)
 
-    retour = victime.get(
-        f"{plateforme}/auth/github/retour",
-        params={"code": "code-attaquant", "state": etat},
+    return_ = victim.get(
+        f"{platform}/auth/github/retour",
+        params={"code": "code-attaquant", "state": state},
         allow_redirects=False,
         timeout=10,
     )
 
-    assert retour.status_code == 400
-    assert "browser" in retour.json()["detail"]
-    assert _FauxGitHub.codes_vus == []
-    assert "monl_session" not in victime.cookies
-    assert _nombre(tmp_path, "sessions") == 0
-    assert _nombre(tmp_path, "users") == 0
+    assert return_.status_code == 400
+    assert "browser" in return_.json()["detail"]
+    assert _FauxGitHub.codes_seen == []
+    assert "monl_session" not in victim.cookies
+    assert _number(tmp_path, "sessions") == 0
+    assert _number(tmp_path, "users") == 0
 
 
-def test_another_flows_cookie_does_not_validate_the_state(plateforme):
-    premier = requests.Session()
-    autre = requests.Session()
-    etat_premier = _aller(plateforme, premier)
-    _aller(plateforme, autre)
+def test_another_flows_cookie_does_not_validate_the_state(platform):
+    first = requests.Session()
+    other = requests.Session()
+    state_first = _go(platform, first)
+    _go(platform, other)
 
-    retour = autre.get(
-        f"{plateforme}/auth/github/retour",
-        params={"code": "bon", "state": etat_premier},
+    return_ = other.get(
+        f"{platform}/auth/github/retour",
+        params={"code": "bon", "state": state_first},
         allow_redirects=False,
         timeout=10,
     )
 
-    assert retour.status_code == 400
-    assert _FauxGitHub.codes_vus == []
-    assert "monl_session" not in autre.cookies
+    assert return_.status_code == 400
+    assert _FauxGitHub.codes_seen == []
+    assert "monl_session" not in other.cookies
 
 
-def test_a_callback_replayed_after_success_is_refused(plateforme):
+def test_a_callback_replayed_after_success_is_refused(platform):
     session = requests.Session()
-    etat = _aller(plateforme, session)
-    params = {"code": "bon", "state": etat}
+    state = _go(platform, session)
+    params = {"code": "bon", "state": state}
 
     succes = session.get(
-        f"{plateforme}/auth/github/retour",
+        f"{platform}/auth/github/retour",
         params=params,
         allow_redirects=False,
         timeout=10,
     )
-    rejeu = session.get(
-        f"{plateforme}/auth/github/retour",
+    replay = session.get(
+        f"{platform}/auth/github/retour",
         params=params,
         allow_redirects=False,
         timeout=10,
     )
 
     assert succes.status_code == 303
-    assert rejeu.status_code == 400
-    assert _FauxGitHub.codes_vus == ["bon"]
+    assert replay.status_code == 400
+    assert _FauxGitHub.codes_seen == ["bon"]
 
 
 def test_the_oauth_cookie_is_transient_and_limited_to_oauth_routes(
-    plateforme, monkeypatch
+    platform, monkeypatch
 ):
     monkeypatch.setenv("MONL_COOKIE_SECURE", "1")
 
-    depart = requests.get(
-        f"{plateforme}/auth/github", allow_redirects=False, timeout=10
+    start = requests.get(
+        f"{platform}/auth/github", allow_redirects=False, timeout=10
     )
     cookie = SimpleCookie()
-    cookie.load(depart.headers["Set-Cookie"])
+    cookie.load(start.headers["Set-Cookie"])
     morsel = cookie[OAUTH_FLOW_COOKIE]
 
     assert morsel["httponly"]
@@ -383,37 +383,37 @@ def test_the_oauth_cookie_is_transient_and_limited_to_oauth_routes(
     assert morsel["path"] == OAUTH_FLOW_PATH
     assert morsel["max-age"] == str(STATE_TTL)
     assert morsel["secure"]
-    etat = parse_qs(urlparse(depart.headers["location"]).query)["state"][0]
-    assert morsel.value not in etat
+    state = parse_qs(urlparse(start.headers["location"]).query)["state"][0]
+    assert morsel.value not in state
 
 
-def test_a_user_refusal_is_not_a_failure(plateforme):
-    retour = requests.get(f"{plateforme}/auth/github/retour",
+def test_a_user_refusal_is_not_a_failure(platform):
+    return_ = requests.get(f"{platform}/auth/github/retour",
                           params={"error": "access_denied"},
                           allow_redirects=False, timeout=10)
 
-    assert retour.status_code == 303
-    assert retour.headers["location"] == "/login?erreur=refus"
+    assert return_.status_code == 303
+    assert return_.headers["location"] == "/login?erreur=refus"
 
 
-def test_a_provider_account_does_not_log_in_by_password(plateforme):
+def test_a_provider_account_does_not_log_in_by_password(platform):
     """It has NO password: `None` must never become a door."""
     session = requests.Session()
-    etat = _aller(plateforme, session)
+    state = _go(platform, session)
     session.get(
-        f"{plateforme}/auth/github/retour",
-        params={"code": "bon", "state": etat},
+        f"{platform}/auth/github/retour",
+        params={"code": "bon", "state": state},
         allow_redirects=False,
         timeout=10,
     )
 
-    for essai in ("", "None", "null", "jeton-fournisseur"):
-        reponse = requests.post(
-            f"{plateforme}/api/auth/login",
-            json={"email": "github:4242", "password": essai},
+    for attempt in ("", "None", "null", "jeton-fournisseur"):
+        response = requests.post(
+            f"{platform}/api/auth/login",
+            json={"email": "github:4242", "password": attempt},
             timeout=10,
         )
-        assert reponse.status_code == 401, (essai, reponse.text)
+        assert response.status_code == 401, (attempt, response.text)
 
 
 def test_an_oauth_account_is_never_worth_a_password(tmp_path):
@@ -432,11 +432,11 @@ def test_an_oauth_account_is_never_worth_a_password(tmp_path):
     assert identities.session_user(identities.create_session(user_id))["email"] == "github:4242"
 
 
-def test_the_console_offers_the_configured_providers(plateforme):
-    liste = requests.get(f"{plateforme}/auth/fournisseurs", timeout=10).json()
+def test_the_console_offers_the_configured_providers(platform):
+    list_ = requests.get(f"{platform}/auth/fournisseurs", timeout=10).json()
 
-    assert [f["name"] for f in liste["providers"]] == ["github"]
-    assert liste["providers"][0]["label"] == "GitHub"
+    assert [f["name"] for f in list_["providers"]] == ["github"]
+    assert list_["providers"][0]["label"] == "GitHub"
 
 
 # ───────────────────────────────────────── refusal at STARTUP, not on click ──
@@ -525,7 +525,7 @@ const rapport = {};
 """
 
 
-def test_the_console_goes_through_login_in_a_real_browser(plateforme, tmp_path):
+def test_the_console_goes_through_login_in_a_real_browser(platform, tmp_path):
     """The part HTTP alone does not prove: the button and the fragment.
 
     A button can exist and target a route that does not exist — exactly the
@@ -534,47 +534,47 @@ def test_the_console_goes_through_login_in_a_real_browser(plateforme, tmp_path):
     bar, it lingers in the history and the session is not opened anyway.
     """
     session = requests.Session()
-    depart = session.get(f"{plateforme}/auth/github", allow_redirects=False, timeout=10)
-    assert depart.status_code == 307
-    etat = parse_qs(urlparse(depart.headers["location"]).query)["state"][0]
-    retour = session.get(
-        f"{plateforme}/auth/github/retour",
-        params={"code": "bon", "state": etat},
+    start = session.get(f"{platform}/auth/github", allow_redirects=False, timeout=10)
+    assert start.status_code == 307
+    state = parse_qs(urlparse(start.headers["location"]).query)["state"][0]
+    return_ = session.get(
+        f"{platform}/auth/github/retour",
+        params={"code": "bon", "state": state},
         allow_redirects=False,
         timeout=10,
     )
-    assert retour.status_code == 303
-    assert "#" not in retour.headers["location"]
-    assert session.get(f"{plateforme}/console", timeout=10).status_code == 200
-    assert session.get(f"{plateforme}/api/auth/me", timeout=10).json()["email"] == "github:4242"
+    assert return_.status_code == 303
+    assert "#" not in return_.headers["location"]
+    assert session.get(f"{platform}/console", timeout=10).status_code == 200
+    assert session.get(f"{platform}/api/auth/me", timeout=10).json()["email"] == "github:4242"
 
 
-@pytest.mark.parametrize("ancienne", [False, True])
-def test_oauth_deletion_requires_a_recent_login(plateforme, tmp_path, ancienne):
+@pytest.mark.parametrize("previous", [False, True])
+def test_oauth_deletion_requires_a_recent_login(platform, tmp_path, previous):
     session = requests.Session()
-    etat = _aller(plateforme, session)
-    retour = session.get(plateforme + "/auth/github/retour",
-                         params={"code": "bon-code", "state": etat},
+    state = _go(platform, session)
+    return_ = session.get(platform + "/auth/github/retour",
+                         params={"code": "bon-code", "state": state},
                          allow_redirects=False, timeout=10)
-    assert retour.status_code == 303, retour.text
-    cle = session.post(plateforme + "/api/keys", json={"name": "preuve"}, timeout=10)
-    assert cle.status_code == 201, cle.text
-    assert requests.post(plateforme + "/mcp",
-                         headers={"Authorization": "Bearer " + cle.json()["key"]},
+    assert return_.status_code == 303, return_.text
+    key = session.post(platform + "/api/keys", json={"name": "preuve"}, timeout=10)
+    assert key.status_code == 201, key.text
+    assert requests.post(platform + "/mcp",
+                         headers={"Authorization": "Bearer " + key.json()["key"]},
                          json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
                          timeout=10).status_code == 200
-    if ancienne:
+    if previous:
         with sqlite_db(tmp_path / "projects" / "platform.sqlite3") as db:
             db.execute("UPDATE sessions SET created_at = created_at - 601")
-    reponse = session.delete(plateforme + "/api/auth/account", json={}, timeout=10)
-    if ancienne:
-        assert reponse.status_code == 403, "An old OAuth session allows deletion"
-        assert "Sign in again with your OAuth provider" in reponse.text
-        assert session.get(plateforme + "/api/auth/me", timeout=10).status_code == 200
+    response = session.delete(platform + "/api/auth/account", json={}, timeout=10)
+    if previous:
+        assert response.status_code == 403, "An old OAuth session allows deletion"
+        assert "Sign in again with your OAuth provider" in response.text
+        assert session.get(platform + "/api/auth/me", timeout=10).status_code == 200
     else:
-        assert reponse.status_code == 204, "A recent OAuth login does not allow deletion"
-        assert session.get(plateforme + "/api/auth/me", timeout=10).status_code == 401
-        assert requests.post(plateforme + "/mcp",
-                             headers={"Authorization": "Bearer " + cle.json()["key"]},
+        assert response.status_code == 204, "A recent OAuth login does not allow deletion"
+        assert session.get(platform + "/api/auth/me", timeout=10).status_code == 401
+        assert requests.post(platform + "/mcp",
+                             headers={"Authorization": "Bearer " + key.json()["key"]},
                              json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
                              timeout=10).status_code == 401

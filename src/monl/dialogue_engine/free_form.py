@@ -3,7 +3,7 @@
 from .foundations import RELATION_TYPES
 
 
-class LibreMixin:
+class FreeMixin:
     """The path without a template: the user describes their entities."""
 
     def _run_free(self):
@@ -16,36 +16,36 @@ class LibreMixin:
         description = self._ask_free_text("Describe the project in one sentence (used on the homepage) > ")
 
         # Entities and fields
-        entities = self._demander_les_entites()
+        entities = self._ask_the_entities()
         entity_names = list(entities.keys())
 
         # Public storefront (reading without an account) and public creation
         # (contact)
         self._show(self.ui.phase(2))
-        public_read, public_create = self._demander_lacces_public(entity_names)
+        public_read, public_create = self._ask_access_public(entity_names)
 
         # Acteurs
-        actors = self._demander_les_acteurs()
+        actors = self._ask_the_actors()
 
         # Write management: a single actor by default (no collision possible,
         # strict rule no. 1 respected BY CONSTRUCTION), or an EXPLICIT sharing
         # between several actors — in which case the dialogue emits the
         # matching 'sharedBy' rules, exactly the legitimate path the compiler
         # provides (point 1 of the journal).
-        managers = self._demander_les_gestionnaires(entity_names, actors)
+        managers = self._ask_the_handlers(entity_names, actors)
 
         # Per-record ownership (ownedBy): only a record's creator can
         # update/delete it. Requires an "owner" entity named like the actor +
         # the relation that provides the foreign key column (canonical pattern:
         # exemples/03, point 5 of the journal). Not offered when management is
         # shared (v1).
-        owned = self._demander_la_propriete(entities, entity_names, managers)
+        owned = self._ask_the_ownership(entities, entity_names, managers)
 
         # Additional readers (reads create no collision)
-        readers = self._demander_les_lecteurs(entity_names, actors, managers)
+        readers = self._ask_the_readers(entity_names, actors, managers)
 
         # Relations
-        relations = self._demander_les_relations(entity_names)
+        relations = self._ask_the_relations(entity_names)
 
         self._show(self.ui.phase(6))
         self_register = self._ask_self_register(actors, managers, owned)
@@ -84,9 +84,9 @@ class LibreMixin:
         # Final guarantee: the emitted spec MUST compile. It is revalidated
         # through the real pipeline — if it does not, it is an engine bug, not
         # the user's, and we fail loudly rather than return a broken file.
-        return self._revalider_la_spec(spec)
+        return self._revalidate_the_spec(spec)
 
-    def _demander_les_entites(self):
+    def _ask_the_entities(self):
         """Entities and their fields, until a blank name."""
         entities = {}   # name -> [(field, type)]
         self._show(self.ui.phase(1))
@@ -99,11 +99,11 @@ class LibreMixin:
                     else self._ask_optional_identifier(prompt, forbidden=entities.keys()))
             if name is None:
                 break
-            fields = self._champs_sur_mesure(name)
+            fields = self._fields_on_measure(name)
             entities[name] = fields
         return entities
 
-    def _demander_lacces_public(self, entity_names):
+    def _ask_access_public(self, entity_names):
         """Public storefront and public creation (contact form)."""
         public_read = []
         for ent in entity_names:
@@ -114,7 +114,7 @@ class LibreMixin:
             entity_names, allow_none=True)
         return public_read, public_create
 
-    def _demander_les_acteurs(self):
+    def _ask_the_actors(self):
         """The actors, until a blank name."""
         actors = []
         self._show(self.ui.phase(3))
@@ -129,7 +129,7 @@ class LibreMixin:
             actors.append(a)
         return actors
 
-    def _demander_les_gestionnaires(self, entity_names, actors):
+    def _ask_the_handlers(self, entity_names, actors):
         """Who writes each entity: one actor, or an explicit share."""
         managers = {}  # ent -> [actors] (only 1, or 2+ if shared)
         for ent in entity_names:
@@ -151,7 +151,7 @@ class LibreMixin:
             managers[ent] = shared
         return managers
 
-    def _demander_la_propriete(self, entities, entity_names, managers):
+    def _ask_the_ownership(self, entities, entity_names, managers):
         """Per-record ownership, creating the owner entity if needed."""
         owned = {}  # ent -> owning entity
         for ent in entity_names:
@@ -172,7 +172,7 @@ class LibreMixin:
                     f"(displayName: String), linked by '{actor} hasMany {ent}'."))
         return owned
 
-    def _demander_les_lecteurs(self, entity_names, actors, managers):
+    def _ask_the_readers(self, entity_names, actors, managers):
         """Additional signed-in readers per entity."""
         readers = {ent: set() for ent in entity_names}
         for ent in entity_names:
@@ -183,7 +183,7 @@ class LibreMixin:
                     readers[ent].add(act)
         return readers
 
-    def _demander_les_relations(self, entity_names):
+    def _ask_the_relations(self, entity_names):
         """Relations between entities, until '(finish)'."""
         relations = []
         if len(entity_names) >= 2 and self._ask_yes_no("\nAre any entities related to each other?"):
@@ -216,11 +216,11 @@ class LibreMixin:
                 relations.append((owner, "hasMany", ent))
 
     @staticmethod
-    def _nom_de_ligne(entite, entities):
+    def _name_of_line(entity, entities):
         """A free entity name for the cart line. A silent collision would overwrite
         one of the user's entities."""
-        base = f"Ligne{entite}"
-        nom, n = base, 2
-        while nom in entities:
-            nom, n = f"{base}{n}", n + 1
-        return nom
+        base = f"Ligne{entity}"
+        name, n = base, 2
+        while name in entities:
+            name, n = f"{base}{n}", n + 1
+        return name

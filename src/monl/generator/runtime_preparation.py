@@ -9,7 +9,7 @@ from string import Template
 class PreparationRuntimeMixin:
     """WAL, transient lock, database preparation, `init_db`."""
 
-    def _lignes_de_base(self, totp_migration_lines):
+    def _lines_of_base(self, totp_migration_lines):
         """The foundation: WAL, transient lock, preparation, application, init_db."""
         return [
             *Template(r'''def _activer_wal(connection):

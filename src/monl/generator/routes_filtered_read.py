@@ -3,7 +3,7 @@
 from . import sql
 
 
-class LectureFiltreeRoutesMixin:
+class ReadFilteredRoutesMixin:
     """Reading with declared filtering and sorting (brick B3)."""
 
     def _generate_read_route_lines_with_query(self, plan, context, act_type):
@@ -21,7 +21,7 @@ class LectureFiltreeRoutesMixin:
         sort_fields = self.sortable_fields_by_entity.get(base_target, [])
         table = base_target.lower()
 
-        e = self._etat_lecture(context)
+        e = self._state_read(context)
         masked = e.masked
         categorized_here = e.categorized_here
         read_dep_suffix = e.read_dep_suffix
@@ -50,8 +50,8 @@ class LectureFiltreeRoutesMixin:
             "    offset = max(0, offset)",
         ]
 
-        api_lines += self._where_de_base_filtree(base_target, e)
-        api_lines += self._filtres_et_tri(filter_fields, filter_fragments, sort_fields)
+        api_lines += self._where_of_base_filtered(base_target, e)
+        api_lines += self._filters_and_sort(filter_fields, filter_fragments, sort_fields)
         api_lines += [
             "    conn = _connect(); cursor = conn.cursor()",
             f"    cursor.execute('SELECT COUNT(*) FROM \"{table}\"' + _query_where, _query_params)",
@@ -83,7 +83,7 @@ class LectureFiltreeRoutesMixin:
             "    if not row: raise HTTPException(status_code=404, detail='Record not found')",
             "    named_row = dict(zip(_columns, row))",
         ]
-        api_lines += self._gardes_detail_filtree(base_target, e)
+        api_lines += self._guards_detail_filtered(base_target, e)
         if masked:
             api_lines.append(f"    for _f in [{mask_literal}]: named_row.pop(_f, None)")
         for cf in categorized_here:
@@ -94,7 +94,7 @@ class LectureFiltreeRoutesMixin:
         ]
         return api_lines
 
-    def _where_de_base_filtree(self, base_target, e):
+    def _where_of_base_filtered(self, base_target, e):
         """The ACL WHERE the filters are ANDed onto."""
         condition_fragment = e.condition_fragment
         condition_supervisors = e.condition_supervisors
@@ -177,7 +177,7 @@ class LectureFiltreeRoutesMixin:
             api_lines += ["    _base_where, _base_params = '', ()"]
         return api_lines
 
-    def _filtres_et_tri(self, filter_fields, filter_fragments, sort_fields):
+    def _filters_and_sort(self, filter_fields, filter_fragments, sort_fields):
         """Exact filter equalities and the whitelisted ORDER BY."""
         api_lines = []
         api_lines += [
@@ -225,7 +225,7 @@ class LectureFiltreeRoutesMixin:
             api_lines.append("    _order_by = ''")
         return api_lines
 
-    def _gardes_detail_filtree(self, base_target, e):
+    def _guards_detail_filtered(self, base_target, e):
         """Detail read guards: publicWhen 404, owner 404, parties 403."""
         public_condition = e.public_condition
         condition_supervisors = e.condition_supervisors

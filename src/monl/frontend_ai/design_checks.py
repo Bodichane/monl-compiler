@@ -106,8 +106,8 @@ def _frontend_source(frontend_dir):
                 continue
             try:
                 with open(os.path.join(root, name), encoding="utf-8",
-                          errors="ignore") as fichier:
-                    sources.append(fichier.read())
+                          errors="ignore") as file:
+                    sources.append(file.read())
             except OSError:
                 pass
     return "\n".join(sources)
@@ -142,9 +142,9 @@ def _required_marker_errors(manifest, frontend_dir):
             content = fh.read()
         unique_markers = set(unique_markers_by_file.get(filename, []))
         errors.extend(_marker_errors(content, markers, unique_markers))
-        regles = (manifest.get("section_substance") or {}).get(filename) or {}
+        rules = (manifest.get("section_substance") or {}).get(filename) or {}
         errors.extend(substance_errors(content, {
-            marker: regle for marker, regle in regles.items()
+            marker: rule for marker, rule in rules.items()
             if content.count(marker)
         }))
     return errors
@@ -174,8 +174,8 @@ def _generated_asset_reuse_errors(frontend_dir, generated_assets):
                 continue
             try:
                 with open(os.path.join(root, name), encoding="utf-8",
-                          errors="ignore") as fichier:
-                    html_sources.append(fichier.read())
+                          errors="ignore") as file:
+                    html_sources.append(file.read())
             except OSError:
                 pass
     refs = re.findall(

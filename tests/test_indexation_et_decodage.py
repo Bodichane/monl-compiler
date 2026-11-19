@@ -214,7 +214,7 @@ def test_counter_proof_a_unique_gets_a_second_index_if_dedup_disarmed(
     monkeypatch.setattr(MonlSecureGenerator, "_compute_lookup_indexes",
                         with_redundant_unique_index)
     _compile(tmp_path)
-    with _server(tmp_path), pytest.raises(AssertionError, match="second index"):
+    with _server(tmp_path), pytest.raises(AssertionError, match="second lookup index"):
         _assert_lookup_layout(tmp_path)
 
 

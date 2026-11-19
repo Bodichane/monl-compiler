@@ -30,7 +30,7 @@ from .theme import icon
 # Three writes the client attempted, and what the compiler does with them. Each
 # comes from a REAL defect, found on a running server — never by rereading
 # code. The amounts are the ones that were measured.
-REFUS = [
+REFUSAL = [
     {
         "titre": "A calculated value came from the client",
         "attaque": 'POST /order\n{ "total": 0.01 }',
@@ -67,7 +67,7 @@ REFUS = [
 # The comparison. Each row is a FACT verifiable on both sides, never a
 # judgment: "simpler", "more modern" and "safer" have no place here. The reader
 # decides.
-COMPARAISON = [
+COMPARISON = [
     ("What you receive",
      "A hosted service: database, API, authentication, storage.",
      "Source code — <code>app.py</code>, <code>schema.sql</code>, "
@@ -234,7 +234,7 @@ EXTRA_CSS = """
 """
 
 
-def _refus(item: dict, index: int) -> str:
+def _refusal(item: dict, index: int) -> str:
     """An attempt, folded. Opened, the why and the how."""
     return f"""<details data-reveal style="--reveal-delay:{index * 60}ms">
 <summary><span class="tag-refus">rule enforced</span>{item['titre']}
@@ -251,25 +251,25 @@ def _refus(item: dict, index: int) -> str:
 </details>"""
 
 
-def _ligne(axe: str, eux: str, nous: str) -> str:
+def _line(axe: str, eux: str, nous: str) -> str:
     return (f'<div class="compare-row"><div class="axis">{axe}</div>'
             f'<div class="them">{eux}</div><div class="us">{nous}</div></div>')
 
 
 def _montage(item: dict, index: int) -> str:
-    libelle = ("verified by the tests" if item["etat"] == "verifie"
+    label = ("verified by the tests" if item["etat"] == "verifie"
                else "stated limit")
-    symbole = "check" if item["etat"] == "verifie" else "shield"
+    symbol = "check" if item["etat"] == "verifie" else "shield"
     # One LINE per command. Squeezed onto a single one, they overflowed the
     # frame and got cut: one read "postgresql://… python3 -m" without the end,
     # and two commands separated by a middle dot could not be copied. The first
     # card gains its `export` along the way: a `VAR=… command` prefix is ONE
     # invocation, so cutting it in two would have given a line that does
     # nothing.
-    lignes = "\n".join(html.escape(ligne) for ligne in item["code"])
-    code = f'<pre><code>{lignes}</code></pre>' if lignes else ""
+    lines = "\n".join(html.escape(line) for line in item["code"])
+    code = f'<pre><code>{lines}</code></pre>' if lines else ""
     return f"""<article class="montage" data-reveal style="--reveal-delay:{index * 70}ms">
-<span class="etat {item['etat']}">{icon(symbole)}{libelle}</span>
+<span class="etat {item['etat']}">{icon(symbol)}{label}</span>
 <h3>{item['titre']}</h3><p>{item['texte']}</p>
 <p class="muted" style="font-size:13.5px">{item['preuve']}</p>{code}</article>"""
 
@@ -278,7 +278,7 @@ SECTIONS = f"""
 <section class="shell section" aria-labelledby="pourquoi-title">
 <div class="section-head" data-reveal><h2 id="pourquoi-title">The business rules keep applying.</h2>
 <p>Calculated values, limits and final states live in the backend, not in an interface button. Open an example to see the rule and the check that enforces it.</p></div>
-<div class="refus">{"".join(_refus(r, i) for i, r in enumerate(REFUS))}</div>
+<div class="refus">{"".join(_refusal(r, i) for i, r in enumerate(REFUSAL))}</div>
 </section>
 
 <section class="band"><div class="shell section" aria-labelledby="compare-title">
@@ -288,7 +288,7 @@ SECTIONS = f"""
 <div class="compare-row head"><div>&nbsp;</div>
 <div class="who"><span class="dot them"></span>A managed platform</div>
 <div class="who"><span class="dot us"></span>MONL</div></div>
-{"".join(_ligne(*ligne) for ligne in COMPARAISON)}
+{"".join(_line(*line) for line in COMPARISON)}
 </div></div></section>
 
 <section class="shell section" aria-labelledby="ensemble-title">

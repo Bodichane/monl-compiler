@@ -251,14 +251,14 @@ def test_an_always_truncated_chunk_does_not_run_a_second_full_generation(project
     # The steps are DERIVED from the constants, never copied: hard-coded here,
     # they had let the ladder climb 8,000 → 12,000 → 18,000 while the code
     # announced a 32,000 bound nothing reached.
-    paliers = [limit for _target_name, limit in provider.calls]
-    attendus = [DEFAULT_CHUNK_MAX_OUTPUT_TOKENS]
-    while len(attendus) <= CHUNK_MAX_RETRIES:
-        suivant = min(int(attendus[-1] * CHUNK_RETRY_OUTPUT_TOKEN_FACTOR),
+    steps = [limit for _target_name, limit in provider.calls]
+    expected_items = [DEFAULT_CHUNK_MAX_OUTPUT_TOKENS]
+    while len(expected_items) <= CHUNK_MAX_RETRIES:
+        next_ = min(int(expected_items[-1] * CHUNK_RETRY_OUTPUT_TOKEN_FACTOR),
                       CHUNK_RETRY_MAX_OUTPUT_TOKENS)
-        attendus.append(suivant)
-    assert paliers == attendus, (paliers, attendus)
-    assert paliers[-1] == CHUNK_RETRY_MAX_OUTPUT_TOKENS, (
+        expected_items.append(next_)
+    assert steps == expected_items, (steps, expected_items)
+    assert steps[-1] == CHUNK_RETRY_MAX_OUTPUT_TOKENS, (
         "the last retry does not reach the declared bound: the bound then "
         "constrains nothing, and the error message citing it lies")
     assert "no second complete attempt" in errors[0]
@@ -311,11 +311,11 @@ def test_a_chunk_timeout_does_not_replay_already_paid_files(project):
 
 # ---- The requested budget follows the contract (point 149) ----
 
-def _contract(tmp_path, nb_routes, nb_entites=3):
+def _contract(tmp_path, nb_routes, nb_entities=3):
     tmp_path.mkdir(parents=True, exist_ok=True)
     (tmp_path / "frontend_contract.json").write_text(json.dumps({
         "routes": [{"method": "GET", "path": f"/r{i}"} for i in range(nb_routes)],
-        "entities": {f"E{i}": {} for i in range(nb_entites)},
+        "entities": {f"E{i}": {} for i in range(nb_entities)},
     }), encoding="utf-8")
     return str(tmp_path)
 
@@ -328,14 +328,14 @@ def test_the_app_js_budget_follows_the_number_of_routes(tmp_path):
     We asked for the impossible, then rejected it. The repository's complete
     frontends weigh 26 to 43 KB, that is 7,000 to 11,000 tokens.
     """
-    from monl.frontend_ai import ampleur_du_contrat
+    from monl.frontend_ai import extent_of_contract
 
-    petit = _build_chunk_prompt("brief", "app.js", {},
-                                ampleur_du_contrat(_contract(tmp_path / "a", 2)))
+    small = _build_chunk_prompt("brief", "app.js", {},
+                                extent_of_contract(_contract(tmp_path / "a", 2)))
     grand = _build_chunk_prompt("brief", "app.js", {},
-                                ampleur_du_contrat(_contract(tmp_path / "b", 15)))
+                                extent_of_contract(_contract(tmp_path / "b", 15)))
 
-    assert _vise(grand) > _vise(petit), (_vise(petit), _vise(grand))
+    assert _vise(grand) > _vise(small), (_vise(small), _vise(grand))
     assert _vise(grand) >= 6_000, "a 15-route contract does not fit in less"
     assert "1,500 tokens" not in grand and "1500 tokens" not in grand
 
@@ -343,23 +343,23 @@ def test_the_app_js_budget_follows_the_number_of_routes(tmp_path):
 def test_the_budget_never_exceeds_the_stage_ceiling(tmp_path):
     """Asking more than the stage can return would produce a truncation on every
     build: the output ceiling is the real bound."""
-    from monl.frontend_ai import DEFAULT_CHUNK_MAX_OUTPUT_TOKENS, ampleur_du_contrat
+    from monl.frontend_ai import DEFAULT_CHUNK_MAX_OUTPUT_TOKENS, extent_of_contract
 
-    enorme = _build_chunk_prompt("brief", "app.js", {},
-                                 ampleur_du_contrat(_contract(tmp_path / "c", 400)))
+    huge = _build_chunk_prompt("brief", "app.js", {},
+                                 extent_of_contract(_contract(tmp_path / "c", 400)))
 
-    assert _vise(enorme) <= DEFAULT_CHUNK_MAX_OUTPUT_TOKENS
+    assert _vise(huge) <= DEFAULT_CHUNK_MAX_OUTPUT_TOKENS
 
 
 def test_the_hard_limit_no_longer_contradicts_the_budget(tmp_path):
     """It was 12,000 characters for a 26 to 43 KB file."""
-    from monl.frontend_ai import ampleur_du_contrat
+    from monl.frontend_ai import extent_of_contract
 
     prompt = _build_chunk_prompt("brief", "app.js", {},
-                                 ampleur_du_contrat(_contract(tmp_path / "d", 15)))
-    caracteres = int(re.search(r"finish before (\d+) characters", prompt).group(1))
+                                 extent_of_contract(_contract(tmp_path / "d", 15)))
+    characters = int(re.search(r"finish before (\d+) characters", prompt).group(1))
 
-    assert caracteres >= _vise(prompt) * 3, (
+    assert characters >= _vise(prompt) * 3, (
         "the hard limit cuts into the requested budget: the model obeys the "
         "smaller of the two, and that one decides completeness")
 
@@ -367,10 +367,10 @@ def test_the_hard_limit_no_longer_contradicts_the_budget(tmp_path):
 def test_the_route_floor_is_STATED_to_the_model(tmp_path):
     """The brief said "call ONLY the listed routes" — a ceiling. The refusal,
     however, is about a floor nothing stated at the stage."""
-    from monl.frontend_ai import ampleur_du_contrat
+    from monl.frontend_ai import extent_of_contract
 
     prompt = _build_chunk_prompt("brief", "app.js", {},
-                                 ampleur_du_contrat(_contract(tmp_path / "e", 15)))
+                                 extent_of_contract(_contract(tmp_path / "e", 15)))
 
     assert "15 routes" in prompt
     assert "REFUSED" in prompt
@@ -378,9 +378,9 @@ def test_the_route_floor_is_STATED_to_the_model(tmp_path):
 
 def test_without_readable_contract_sizing_does_not_break(tmp_path):
     """Tests and historical calls have no contract at hand."""
-    from monl.frontend_ai import ampleur_du_contrat
+    from monl.frontend_ai import extent_of_contract
 
-    assert ampleur_du_contrat(str(tmp_path / "nulle-part")) is None
+    assert extent_of_contract(str(tmp_path / "nulle-part")) is None
     prompt = _build_chunk_prompt("brief", "app.js", {}, None)
     assert "Aim for about" in prompt
 

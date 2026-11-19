@@ -8,14 +8,14 @@ saying so would teach the rule to an attacker."""
 from string import Template
 
 
-class ConnexionRuntimeMixin:
+class LoginRuntimeMixin:
     """Registration, login, logout, and the guards around them."""
 
-    def _lignes_connexion_gardee(self):
+    def _lines_login_kept(self):
         """Reads the account at login when `lockout` or `totp` arm guards. Extracted
         from `_socle_authentification` to stay under the complexity ceiling; the
         emitted lines are unchanged."""
-        select = Template(r"""SELECT id, password_hash, salt, actor, anon_handle${version}""").substitute(version=self._colonne_version())
+        select = Template(r"""SELECT id, password_hash, salt, actor, anon_handle${version}""").substitute(version=self._column_version())
         if self.auth_features.get("totp"):
             select = Template(r"""${select}, totp_secret, totp_enabled, totp_last_step""").substitute(select=select)
         lookup_lines = [
@@ -63,13 +63,13 @@ class ConnexionRuntimeMixin:
             ])
         return lookup_lines
 
-    def _socle_authentification(self, api_lines):
+    def _base_authentication(self, api_lines):
         """Registration, login, logout — and the guards around them."""
         auth_checks = bool(self.auth_features.get("lockout") or self.auth_features.get("totp"))
         login_request_extra = ([Template(r"""    totp_code: Optional[str] = None""").substitute()]
                                if self.auth_features.get("totp") else [])
         if auth_checks:
-            lookup_lines = self._lignes_connexion_gardee()
+            lookup_lines = self._lines_login_kept()
         else:
             lookup_lines = [
                 *Template(r"""    cursor.execute('SELECT id, password_hash, salt, actor, anon_handle FROM _monl_users WHERE username = ?', (_identifiant,))
@@ -81,8 +81,8 @@ class ConnexionRuntimeMixin:
     if not hmac.compare_digest(_hash_password(req.password, salt_hex), stored_hash):
         raise HTTPException(status_code=401, detail='Invalid credentials.')""").substitute().split("\n"),
             ]
-        lookup_lines = self._lookup_avec_version(lookup_lines, auth_checks)
-        lookup_lines = self._lookup_avec_verification(lookup_lines)
+        lookup_lines = self._lookup_with_version(lookup_lines, auth_checks)
+        lookup_lines = self._lookup_with_verification(lookup_lines)
         success_lines = ([Template(r"""    _clear_account_failures(db_user_id)""").substitute()]
                          if self.auth_features.get("lockout") else [])
         if self.auth_features.get("refresh_tokens"):
@@ -254,7 +254,7 @@ def login(req: LoginRequest, request: Request):
              if self.auth_features.get('refresh_tokens') else
              "        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=TOKEN_TTL_HOURS)"),
             Template(r"""    }""").substitute(),
-            *self._ligne_version_du_jeton(),
+            *self._line_version_of_token(),
             Template(r"""    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)""").substitute(),
             *success_lines,
             *login_return_lines,
@@ -285,15 +285,15 @@ def logout(credentials: HTTPAuthorizationCredentials = Depends(security_bearer))
     # BRICK B4 (D3–D5): the account's token version travels in the JWT; without
     # a B4 option, none of these lines is emitted (historical output
     # byte-identical).
-    def _colonne_version(self):
+    def _column_version(self):
         return ", token_version" if self.auth_features else ""
 
-    def _lookup_avec_version(self, lookup_lines, auth_checks):
+    def _lookup_with_version(self, lookup_lines, auth_checks):
         if not self.auth_features or auth_checks:
             return lookup_lines
         return [line.replace('anon_handle FROM', 'anon_handle, token_version FROM')
                 .replace('anon_handle = row', 'anon_handle, token_version = row')
                 for line in lookup_lines]
 
-    def _ligne_version_du_jeton(self):
+    def _line_version_of_token(self):
         return [Template(r"""    payload['token_version'] = token_version""").substitute()] if self.auth_features else []

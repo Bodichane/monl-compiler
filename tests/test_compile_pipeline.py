@@ -29,21 +29,21 @@ def test_compile_project_parses_and_validates_only_once(tmp_path, monkeypatch):
     """
     spec = tmp_path / "spec.ml"
     spec.write_text(SPEC, encoding="utf-8")
-    appels = 0
-    vrai_parse = compiler_main.parse_monl_file
+    calls = 0
+    true_parse = compiler_main.parse_monl_file
 
-    def compter_parse(chemin):
-        nonlocal appels
-        appels += 1
-        return vrai_parse(chemin)
+    def count_parse(path):
+        nonlocal calls
+        calls += 1
+        return true_parse(path)
 
-    monkeypatch.setattr(compiler_main, "parse_monl_file", compter_parse)
+    monkeypatch.setattr(compiler_main, "parse_monl_file", count_parse)
 
-    contrat = compile_project(str(spec), str(tmp_path))
+    contract = compile_project(str(spec), str(tmp_path))
 
-    assert appels == 1
-    assert contrat["app"] == "PipelineUnique"
-    for artefact in (
+    assert calls == 1
+    assert contract["app"] == "PipelineUnique"
+    for artifact in (
         "app.py",
         "schema.sql",
         "manage.py",
@@ -51,7 +51,7 @@ def test_compile_project_parses_and_validates_only_once(tmp_path, monkeypatch):
         "docs/FRONTEND_PROMPT.md",
         "monl.json",
     ):
-        assert (tmp_path / artefact).is_file()
+        assert (tmp_path / artifact).is_file()
     # `sandbox_ai.py` left this list: SPEC has no `custom` block, so the module
     # is no longer emitted (see tests/test_bloc_custom_absent.py). We assert
     # its ABSENCE rather than stop looking at it — a list from which a name is

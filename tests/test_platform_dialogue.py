@@ -71,69 +71,69 @@ def test_the_full_http_replay_produces_the_expected_backend(running_platform):
     """The whole journey goes over HTTP against uvicorn, without a server session."""
     base = running_platform
     session = _session(base)
-    reponses = []
-    derniere = None
+    responses = []
+    last = None
 
-    for reponse in SCENARIO_PORTFOLIO:
-        derniere = session.post(
-            f"{base}/api/dialogue", json={"answers": reponses}, timeout=30
+    for response in SCENARIO_PORTFOLIO:
+        last = session.post(
+            f"{base}/api/dialogue", json={"answers": responses}, timeout=30
         )
-        assert derniere.status_code == 200, derniere.text
-        assert derniere.json()["complete"] is False
-        assert derniere.json()["question"]
-        reponses.append(reponse)
+        assert last.status_code == 200, last.text
+        assert last.json()["complete"] is False
+        assert last.json()["question"]
+        responses.append(response)
 
-    derniere = session.post(
-        f"{base}/api/dialogue", json={"answers": reponses}, timeout=30
+    last = session.post(
+        f"{base}/api/dialogue", json={"answers": responses}, timeout=30
     )
-    assert derniere.status_code == 200, derniere.text
-    resultat = derniere.json()
-    assert resultat["complete"] is True
-    assert resultat["question"] is None
-    assert "What the spec will declare" in "\n".join(resultat["messages"])
-    assert "No vulnerabilities" in "\n".join(resultat["messages"])
-    spec = resultat["spec"]
+    assert last.status_code == 200, last.text
+    result = last.json()
+    assert result["complete"] is True
+    assert result["question"] is None
+    assert "What the spec will declare" in "\n".join(result["messages"])
+    assert "No vulnerabilities" in "\n".join(result["messages"])
+    spec = result["spec"]
     assert spec.splitlines()[0] == "app StudioTest"
     assert len(spec.splitlines()) == 44
-    attendu = iter(SCENARIO_PORTFOLIO)
-    spec_directe = GuidedDialogue(ask=lambda _prompt: next(attendu)).run()
-    assert spec == spec_directe
+    expected = iter(SCENARIO_PORTFOLIO)
+    spec_direct = GuidedDialogue(ask=lambda _prompt: next(expected)).run()
+    assert spec == spec_direct
 
-    validee = session.post(f"{base}/api/validate", json={"spec": spec}, timeout=30)
-    assert validee.status_code == 200, validee.text
-    assert validee.json()["valid"] is True
+    validated = session.post(f"{base}/api/validate", json={"spec": spec}, timeout=30)
+    assert validated.status_code == 200, validated.text
+    assert validated.json()["valid"] is True
 
-    compilee = session.post(f"{base}/api/compile", json={"spec": spec}, timeout=120)
-    assert compilee.status_code == 201, compilee.text
-    manifeste = compilee.json()
-    assert manifeste["summary"]["app"] == "StudioTest"
-    assert {"app.py", "schema.sql", "frontend_contract.json"} <= set(manifeste["files"])
+    compiled = session.post(f"{base}/api/compile", json={"spec": spec}, timeout=120)
+    assert compiled.status_code == 201, compiled.text
+    manifest = compiled.json()
+    assert manifest["summary"]["app"] == "StudioTest"
+    assert {"app.py", "schema.sql", "frontend_contract.json"} <= set(manifest["files"])
 
 
 def test_the_replay_refuses_inputs_bounded_by_http(running_platform):
     session = _session(running_platform)
-    trop_long = session.post(
+    too_long = session.post(
         f"{running_platform}/api/dialogue",
         json={"answers": ["x"] * (MAX_DIALOGUE_ANSWERS + 1)},
         timeout=30,
     )
-    trop_grand = session.post(
+    too_grand = session.post(
         f"{running_platform}/api/dialogue",
         json={"answers": ["x" * (MAX_DIALOGUE_ANSWER_BYTES + 1)]},
         timeout=30,
     )
-    assert trop_long.status_code == 422, trop_long.text
-    assert trop_grand.status_code == 422, trop_grand.text
-    assert "at most" in trop_long.json()["detail"]
-    assert "bytes" in trop_grand.json()["detail"]
+    assert too_long.status_code == 422, too_long.text
+    assert too_grand.status_code == 422, too_grand.text
+    assert "at most" in too_long.json()["detail"]
+    assert "bytes" in too_grand.json()["detail"]
 
 
 def test_the_pure_replay_stays_stable_and_stops_at_the_next_question():
-    premier = replay([])
-    suivant = replay(["1"])
-    assert premier == replay([])
-    assert "What type of application are you building?" in premier["question"]
-    assert suivant["question"] == "Application name (e.g. StudioNova) > "
+    first = replay([])
+    next_ = replay(["1"])
+    assert first == replay([])
+    assert "What type of application are you building?" in first["question"]
+    assert next_["question"] == "Application name (e.g. StudioNova) > "
 
 
 def test_three_typos_do_not_kill_the_dialogue(running_platform):
@@ -150,25 +150,25 @@ def test_three_typos_do_not_kill_the_dialogue(running_platform):
     then checks that the right answer still goes through.
     """
     session = _session(running_platform)
-    retenues = []
-    for essai in range(6):
-        reponse = session.post(
+    kept = []
+    for attempt in range(6):
+        response = session.post(
             f"{running_platform}/api/dialogue",
-            json={"answers": retenues, "answer": "réponse invalide"},
+            json={"answers": kept, "answer": "réponse invalide"},
             timeout=30,
         )
-        assert reponse.status_code == 200, f"faute {essai + 1} : {reponse.text}"
-        data = reponse.json()
+        assert response.status_code == 200, f"faute {attempt + 1} : {response.text}"
+        data = response.json()
         assert data["accepted"] is False
         assert data["answers"] == [], "a refused answer must NEVER be kept"
         # The user must know WHY: without the message, their question comes
         # back unexplained and they make the same mistake again.
-        assert any("✗" in ligne for ligne in data["messages"]), data["messages"]
-        retenues = data["answers"]
+        assert any("✗" in line for line in data["messages"]), data["messages"]
+        kept = data["answers"]
 
     suite = session.post(
         f"{running_platform}/api/dialogue",
-        json={"answers": retenues, "answer": "1"},
+        json={"answers": kept, "answer": "1"},
         timeout=30,
     )
     assert suite.status_code == 200, suite.text
@@ -187,9 +187,9 @@ def test_three_typos_do_not_kill_the_dialogue(running_platform):
 
 def _premiere_question(base):
     session = _session(base)
-    reponse = session.post(f"{base}/api/dialogue", json={"answers": []}, timeout=10)
-    assert reponse.status_code == 200, reponse.text
-    return reponse.json()
+    response = session.post(f"{base}/api/dialogue", json={"answers": []}, timeout=10)
+    assert response.status_code == 200, response.text
+    return response.json()
 
 
 def test_the_choices_reach_the_route(running_platform):
@@ -222,7 +222,7 @@ def test_the_value_to_answer_comes_from_the_server_never_the_rank():
     dialogue = GuidedDialogue(ask=lambda _prompt: "0")
     assert dialogue._ask_choice("Une question ?", ["a", "b"],
                                 allow_none=True) is None
-    assert dialogue.derniere_question["options"] == [
+    assert dialogue.last_question["options"] == [
         {"label": "a", "value": "1"},
         {"label": "b", "value": "2"},
         {"label": "none", "value": "0"},

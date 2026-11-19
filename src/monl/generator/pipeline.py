@@ -81,14 +81,14 @@ class PipelineMixin:
             # `publish_files` requires every listed name to EXIST: the
             # condition must therefore apply to the list, not only to the
             # write.
-            publie = (BACKEND_ARTIFACTS if self.custom_functions
+            published = (BACKEND_ARTIFACTS if self.custom_functions
                       else sans_sandbox(BACKEND_ARTIFACTS))
-            publish_files(temporary, target_dir, publie)
+            publish_files(temporary, target_dir, published)
 
-        produits = "'schema.sql', 'app.py' and 'manage.py'"
+        products = "'schema.sql', 'app.py' and 'manage.py'"
         if self.custom_functions:
-            produits = "'schema.sql', 'app.py', 'sandbox_ai.py' and 'manage.py'"
-        print(f"💾 Foundation generated: {produits} are ready!")
+            products = "'schema.sql', 'app.py', 'sandbox_ai.py' and 'manage.py'"
+        print(f"💾 Foundation generated: {products} are ready!")
         if not self.self_register_actors:
             print("🔒 No self-registration role: create the first account with "
                   "'python3 manage.py adduser <user> <role>'.")
@@ -109,8 +109,8 @@ class PipelineMixin:
                 entity: frozenset(columns)
                 for entity, columns in identity.items()
             },
-            **self._plans_par_entite(),
-            **self._tables_recopiees(),
+            **self._plans_by_entity(),
+            **self._tables_copied(),
             reputation_rules_by_trigger=self.reputation_rules_by_trigger,
             entity_models=self.entity_models,
             access_policies=self.access_policies,
@@ -133,7 +133,7 @@ class PipelineMixin:
 
     # The next two methods are extracted from `build_compilation_plans`
     # (complexity ceiling): same keys, same values, same copies.
-    def _plans_par_entite(self):
+    def _plans_by_entity(self):
         """The analyses computed entity by entity."""
         return {
             "client_foreign_keys": {
@@ -151,7 +151,7 @@ class PipelineMixin:
             },
         }
 
-    def _tables_recopiees(self):
+    def _tables_copied(self):
         """The IR tables copied so that the plan shares nothing mutable with it."""
         return {
             "release_rules_by_entity": {

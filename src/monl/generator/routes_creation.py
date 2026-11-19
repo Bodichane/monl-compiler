@@ -39,10 +39,10 @@ class CreationRoutesMixin:
         # attachment ("this line goes in THIS order") — writing
         # `current_user_id` there was the point 80 defect.
         chaine_create = self._transitive_chain(base_target)
-        colonnes_identite = self._identity_fk_columns().get(base_target, set())
-        colonne_identite = sorted(colonnes_identite)[0] if colonnes_identite else None
-        populate_owner = colonne_identite is not None
-        verifie_parent = bool(chaine_create) and not is_public
+        columns_identity = self._identity_fk_columns().get(base_target, set())
+        column_identity = sorted(columns_identity)[0] if columns_identity else None
+        populate_owner = column_identity is not None
+        checked_parent = bool(chaine_create) and not is_public
         # ADDED (roadmap, capability ecosystem -- follow-up to brick 1): a
         # 'generated' field is filled from the current account's anonymous
         # pseudonym (already carried by the JWT since /login), never from the
@@ -53,9 +53,9 @@ class CreationRoutesMixin:
         # ADDED (brick 17, point 90): the profile the caller must already own.
         # It is looked up by its ACCOUNT identifier, so the route needs
         # `current_user_id` even when nothing else required it.
-        fiche_exigee = self._profile_lookup(base_target)
-        create_deps_suffix = self._dependances_create(
-            context, populate_owner or verifie_parent or fiche_exigee or message_here,
+        fiche_required = self._profile_lookup(base_target)
+        create_deps_suffix = self._dependencies_create(
+            context, populate_owner or checked_parent or fiche_required or message_here,
             generated_here)
 
         api_lines.append(f"@app.post('/{base_target.lower()}', tags=['{tag}'])")
@@ -67,19 +67,19 @@ class CreationRoutesMixin:
             if type_ != "Upload"
         ]
         insert_columns = list(fields)
-        api_lines += self._prealables_create(
-            base_target, fiche_exigee, chaine_create, verifie_parent)
-        derives_ici = self.derived_by_entity.get(base_target, ())
-        api_lines += self._calculs_derives_create(derives_ici)
-        calcules, lignes_numerotation = self._valeurs_serveur_create(
-            base_target, derives_ici)
+        api_lines += self._prerequisites_create(
+            base_target, fiche_required, chaine_create, checked_parent)
+        derives_here = self.derived_by_entity.get(base_target, ())
+        api_lines += self._calculations_derives_create(derives_here)
+        computed, lines_numbering = self._values_server_create(
+            base_target, derives_here)
         value_exprs = [
-            calcules.get(f, "current_anon_handle" if f in generated_here
+            computed.get(f, "current_anon_handle" if f in generated_here
                          else f"data.{f}")
             for f in fields
         ]
         if populate_owner:
-            insert_columns.append(colonne_identite)
+            insert_columns.append(column_identity)
             value_exprs.append("current_user_id")
         for counter_fk in counter_fk_columns:
             insert_columns.append(counter_fk)
@@ -107,7 +107,7 @@ class CreationRoutesMixin:
         # effect target still raises no error (UPDATE with no matching row) —
         # it simply does nothing.
         api_lines.append("    try:")
-        api_lines += lignes_numerotation
+        api_lines += lines_numbering
         api_lines.append(f"        cursor.execute(query, ({values_list},))")
         api_lines.append("        row_id = cursor.fetchone()[0]")
         # ADDED (brick 12, point 82): the parent's total is recomputed IN the
@@ -115,13 +115,13 @@ class CreationRoutesMixin:
         # leave a line created and a total lagging behind — that is, a cart
         # that does not say what it costs, and on a 'payable' entity, a wrong
         # amount to charge.
-        for recalcul in self._aggregation_recomputes(base_target):
-            parent = f"data.{recalcul['fk_column']}"
+        for recompute in self._aggregation_recomputes(base_target):
+            parent = f"data.{recompute['fk_column']}"
             api_lines.append(
-                f"        cursor.execute({recalcul['sql']!r}, ({parent}, {parent}))")
-        api_lines += self._effets_compteurs_create(base_target)
+                f"        cursor.execute({recompute['sql']!r}, ({parent}, {parent}))")
+        api_lines += self._effects_counters_create(base_target)
         api_lines.append("        conn.commit()")
-        api_lines += self._conflits_dintegrite_create(base_target)
+        api_lines += self._conflicts_integrity_create(base_target)
         api_lines.append("    except Exception:")
         api_lines.append("        conn.rollback(); conn.close(); raise")
         api_lines.append("    conn.close()")
@@ -137,16 +137,16 @@ class CreationRoutesMixin:
         return api_lines
 
     @staticmethod
-    def _dependances_create(context, besoin_du_compte, generated_here):
+    def _dependencies_create(context, need_of_account, generated_here):
         """The route's dependency suffix: account id and anonymous pseudonym."""
         create_deps = context["dependency_injection"]
-        if besoin_du_compte:
+        if need_of_account:
             create_deps += ", current_user_id: int = Depends(get_current_user_id)" if create_deps else "current_user_id: int = Depends(get_current_user_id)"
         if generated_here:
             create_deps += ", current_anon_handle: str = Depends(get_current_anon_handle)" if create_deps else "current_anon_handle: str = Depends(get_current_anon_handle)"
         return f", {create_deps}" if create_deps else ""
 
-    def _prealables_create(self, base_target, fiche_exigee, chaine_create, verifie_parent):
+    def _prerequisites_create(self, base_target, fiche_required, chaine_create, checked_parent):
         """Profile, parent ownership and payment lock: refused before anything."""
         api_lines = []
         # ADDED (brick 17, point 90): "no ordering without identifying
@@ -155,11 +155,11 @@ class CreationRoutesMixin:
         # whether a given product exists, nor consuming stock. 409 and not 403
         # — no permission is missing, it is a state to fix, and the message
         # says which one.
-        if fiche_exigee:
-            table_fiche, colonne_fiche = fiche_exigee
+        if fiche_required:
+            table_fiche, column_fiche = fiche_required
             api_lines += [
                 f"    cursor.execute('SELECT 1 FROM \"{table_fiche}\" "
-                f'WHERE "{colonne_fiche}" = ?\', (current_user_id,))',
+                f'WHERE "{column_fiche}" = ?\', (current_user_id,))',
                 "    if not cursor.fetchone():",
                 "        conn.close()",
                 "        raise HTTPException(status_code=409, detail=(",
@@ -180,7 +180,7 @@ class CreationRoutesMixin:
         # A single answer for "does not exist" and "not yours": distinguishing
         # them would allow enumerating other people's orders, exactly what the
         # detail read's 404 avoids.
-        if verifie_parent:
+        if checked_parent:
             # The chain (transitive, of any depth) is climbed in one go, from
             # the parent the CLIENT designates through its foreign key
             # (data.<fk>). A missing or foreign parent gets the same refusal:
@@ -210,13 +210,13 @@ class CreationRoutesMixin:
         # it — but it was validated just above by transitive ownership, so it
         # is indeed THEIR order. The guard comes before any calculation and
         # before any stock count: a refused write must have consumed nothing.
-        for verrou in self._payment_locked_parents(base_target):
+        for lock in self._payment_locked_parents(base_target):
             api_lines += self._payment_lock_lines(
-                verrou["table"], f"data.{verrou['fk_column']}",
-                verrou["entity"], var="_parent_regle")
+                lock["table"], f"data.{lock['fk_column']}",
+                lock["entity"], var="_parent_regle")
         return api_lines
 
-    def _calculs_derives_create(self, derives_ici):
+    def _calculations_derives_create(self, derives_here):
         """Each derivedFrom amount, calculated from the designated row."""
         # ADDED (brick 10, point 77): a 'derivedFrom' field is not in `data` —
         # the server calculates it here, BEFORE the insertion, by reading the
@@ -224,24 +224,24 @@ class CreationRoutesMixin:
         # wrong amount: a bogus reference must stop the order, not create it at
         # zero euros.
         api_lines = []
-        for regle in derives_ici:
-            fk_col = regle.source_fk
-            var = f"_calcul_{regle.field}"
+        for rule in derives_here:
+            fk_col = rule.source_fk
+            var = f"_calcul_{rule.field}"
             api_lines += [
-                f"    cursor.execute('SELECT \"{regle.source_field}\" FROM "
-                f'"{regle.source_entity.lower()}" WHERE id = ?\', '
+                f"    cursor.execute('SELECT \"{rule.source_field}\" FROM "
+                f'"{rule.source_entity.lower()}" WHERE id = ?\', '
                 f"(data.{fk_col},))",
-                f"    _src_{regle.field} = cursor.fetchone()",
-                f"    if not _src_{regle.field}:",
+                f"    _src_{rule.field} = cursor.fetchone()",
+                f"    if not _src_{rule.field}:",
                 "        conn.close()",
                 "        raise HTTPException(status_code=409, detail=(",
-                f"            '{regle.source_entity} not found: unable to calculate "
-                f"{regle.field}.'))",
-                f"    if data.{regle.factor} <= 0:",
+                f"            '{rule.source_entity} not found: unable to calculate "
+                f"{rule.field}.'))",
+                f"    if data.{rule.factor} <= 0:",
                 "        conn.close()",
                 "        raise HTTPException(status_code=400, detail=(",
                 "            'The quantity must be strictly positive.'))",
-                f"    {var} = round(float(_src_{regle.field}[0] or 0) "
-                f"* int(data.{regle.factor}), 2)",
+                f"    {var} = round(float(_src_{rule.field}[0] or 0) "
+                f"* int(data.{rule.factor}), 2)",
             ]
         return api_lines

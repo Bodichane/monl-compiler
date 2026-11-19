@@ -11,13 +11,13 @@ from . import brief_blocks, markers
 
 def _render_prompt(contract):
     skills_block = render_skill_block(contract.get("design_skills", ["monl-showcase"]))
-    routes_lines = brief_blocks.lignes_de_routes(contract)
-    entities_lines = brief_blocks.lignes_d_entites(contract)
+    routes_lines = brief_blocks.lines_of_routes(contract)
+    entities_lines = brief_blocks.lines_d_entities(contract)
 
     brief_line = (f"\n**Product brief:** {contract['brief']}\n" if contract.get("brief") else "")
 
-    sections_block = brief_blocks.bloc_sections(contract)
-    faq_block = brief_blocks.bloc_faq(contract)
+    sections_block = brief_blocks.block_sections(contract)
+    faq_block = brief_blocks.block_faq(contract)
     # POINT 72 — monl decides NOTHING visual. It did not compute a palette to
     # be helpful: it computed it so that two projects would not look alike
     # (point 20). But what the compiler guesses about a project's taste, it
@@ -78,9 +78,9 @@ This freedom covers writing and presentation only. It authorizes no route,
 business data, permission or promise absent from the contract.
 """
 
-    paiement_block = brief_blocks.bloc_paiement(contract)
+    payment_block = brief_blocks.block_payment(contract)
 
-    identifiant_block, auth_feature_block = _blocs_auth(contract)
+    identifier_block, auth_feature_block = _blocks_auth(contract)
 
     markers_block = markers._required_markers_block(contract)
 
@@ -143,12 +143,12 @@ business states.
   `Bearer undefined` and the server answers 401 with nothing saying why. Roles declared but absent from this list
   ({[a for a in contract['actors'] if a not in contract['self_register_actors']] or "none"})
   are provisioned offline: they sign in through `/login`, never through
-  `/register`.{identifiant_block}{auth_feature_block}
+  `/register`.{identifier_block}{auth_feature_block}
 - List routes are paginated: `?limit=&offset=`, response
   `{{status, total, limit, offset, data}}`.
 - Never send a field marked "server-generated" on creation.
 - Do not modify `app.py`, `schema.sql`, the `.ml` spec or the other monl
-  artifacts.{paiement_block}
+  artifacts.{payment_block}
 
 {sections_block}{faq_block}{markers_block}
 ## Entities
@@ -174,10 +174,10 @@ will be pasted back here for correction.
 """
 
 
-def _blocs_auth(contract):
+def _blocks_auth(contract):
     """The register-identifier note and the declared auth features."""
-    identifiant_note = contract["api"]["auth"]["register"].get("note")
-    identifiant_block = (f"\n- {identifiant_note}" if identifiant_note else "")
+    identifier_note = contract["api"]["auth"]["register"].get("note")
+    identifier_block = (f"\n- {identifier_note}" if identifier_note else "")
     auth_features = contract["api"]["auth"].get("features") or {}
     auth_feature_lines = []
     if "account_lockout" in auth_features:
@@ -209,7 +209,7 @@ def _blocs_auth(contract):
             "after activation. A code cannot be replayed.")
     auth_feature_block = ("\n" + "\n".join(auth_feature_lines)
                           if auth_feature_lines else "")
-    return identifiant_block, auth_feature_block
+    return identifier_block, auth_feature_block
 
 
 def _instructions_verification(auth_features):

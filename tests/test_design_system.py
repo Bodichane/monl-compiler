@@ -89,19 +89,19 @@ def _section(marker, manifest=None):
     therefore provide enough to pass the substance barrier without conceding
     anything to it.
     """
-    regle = ((manifest or {}).get("section_substance", {}).get("index.html", {})
+    rule = ((manifest or {}).get("section_substance", {}).get("index.html", {})
              .get(marker, {}))
-    corps = [
+    body = [
         "<h2>Titre de la section</h2>",
         "<p>" + ("Un texte de section suffisamment long pour ressembler à "
                  "quelque chose qu'un humain lirait vraiment sur la page. " * 4)
         + "</p>",
         '<a href="#suite">Continuer</a>',
     ]
-    if regle.get("form"):
-        corps.append("<form><label>Message<input></label>"
+    if rule.get("form"):
+        body.append("<form><label>Message<input></label>"
                      "<button>Envoyer</button></form>")
-    return f"<section {marker}>" + "".join(corps) + "</section>"
+    return f"<section {marker}>" + "".join(body) + "</section>"
 
 
 def test_sections_with_the_same_slug_are_distinct_and_accepted(tmp_path):

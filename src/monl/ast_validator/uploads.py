@@ -18,29 +18,29 @@ class UploadsMixin:
         "image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf",
     }
 
-    def _valider_champs_uploades(self):
+    def _validate_fields_uploaded(self):
         """Validates the complete declaration of a client upload.
 
         ``Image`` stays an asset path checked at compile time. An ``Upload`` is
         accepted only if it is tied to a complete rule, to a write and a read
         route, and to a private per-record ACL."""
-        self._refuser_upload_en_entree_custom()
-        regles = {}
+        self._refuse_upload_in_entry_custom()
+        rules = {}
         for rule in self.rules:
             if rule.get("type") != "upload":
                 continue
-            reference, declaration = self._exiger_regle_upload(rule, regles)
-            regles[reference] = declaration
-        self._exiger_une_regle_par_upload(regles)
-        self._exiger_acl_des_uploads(regles)
+            reference, declaration = self._require_rule_upload(rule, rules)
+            rules[reference] = declaration
+        self._require_a_rule_by_upload(rules)
+        self._require_acl_of_uploads(rules)
         self.upload_fields = [
-            regles[f"{entity}.{field}"]
+            rules[f"{entity}.{field}"]
             for entity, fields in self.entities.items()
             for field, declared in fields.items()
             if declared == "Upload"
         ]
 
-    def _refuser_upload_en_entree_custom(self):
+    def _refuse_upload_in_entry_custom(self):
         """Bytes never enter the sandbox: no custom block takes an Upload."""
         for custom in self.custom_logic.values():
             for input_ in custom.get("input", []):
@@ -56,7 +56,7 @@ class UploadsMixin:
                         "an Upload as input. Bytes pass only through the entity's "
                         "multipart route, never through the sandbox.")
 
-    def _exiger_regle_upload(self, rule, regles):
+    def _require_rule_upload(self, rule, rules):
         """One 'upload' rule, checked: returns (reference, declaration)."""
         reference = rule.get("reference", "")
         if "." not in reference:
@@ -78,7 +78,7 @@ class UploadsMixin:
                 f"Structure: the 'upload' rule targets '{reference}' of type "
                 f"'{declared}'. Only the Upload type accepts a client upload; "
                 "Image remains a build-time asset.")
-        if reference in regles:
+        if reference in rules:
             raise ASTValidationError(
                 f"Structure: multiple 'upload' rules declare '{reference}'.")
         maximum = rule.get("max_bytes")
@@ -95,11 +95,11 @@ class UploadsMixin:
             raise ASTValidationError(
                 f"Structure: the 'upload' rule for '{reference}' repeats a MIME "
                 "type; each type must be declared only once.")
-        inconnus = [mime for mime in accepted if mime not in self.UPLOAD_TYPES]
-        if inconnus:
+        unknown = [mime for mime in accepted if mime not in self.UPLOAD_TYPES]
+        if unknown:
             raise ASTValidationError(
                 f"Structure: unauthorized MIME type(s) for '{reference}': "
-                f"{', '.join(inconnus)}. Recognized safe formats: "
+                f"{', '.join(unknown)}. Recognized safe formats: "
                 f"{', '.join(sorted(self.UPLOAD_TYPES))}. Executable HTML and SVG "
                 "are rejected by design.")
         return reference, {
@@ -107,20 +107,20 @@ class UploadsMixin:
             "accepted_types": accepted,
         }
 
-    def _exiger_une_regle_par_upload(self, regles):
+    def _require_a_rule_by_upload(self, rules):
         """Every Upload field carries its rule: the type alone produces nothing."""
         for entity, fields in self.entities.items():
             for field, declared in fields.items():
                 reference = f"{entity}.{field}"
-                if declared == "Upload" and reference not in regles:
+                if declared == "Upload" and reference not in rules:
                     raise ASTValidationError(
                         f"Structure: '{reference}: Upload' has no upload rule. "
                         f"Declare 'rule {reference} upload max N types \"…\"': "
                         "the type alone would produce neither a limit nor a route.")
 
-    def _exiger_acl_des_uploads(self, regles):
+    def _require_acl_of_uploads(self, rules):
         """Read and Update exist, are never public, and carry a per-row ACL."""
-        for reference, rule in regles.items():
+        for reference, rule in rules.items():
             entity = rule["entity"]
             has_actions = {
                 action["type"]

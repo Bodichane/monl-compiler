@@ -35,21 +35,21 @@ class IdentityRecoveryMixin:
         does so because they fear the old ones leaked. Accumulating them would
         keep alive exactly what they want to get rid of."""
         codes = [secrets.token_urlsafe(12) for _ in range(self.NB_CODES)]
-        maintenant = int(time.time())
+        now = int(time.time())
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            compte = db.execute("SELECT auth_provider FROM users WHERE id = ?",
+            account = db.execute("SELECT auth_provider FROM users WHERE id = ?",
                                 (user_id,)).fetchone()
-            if compte and compte["auth_provider"] is not None:
+            if account and account["auth_provider"] is not None:
                 raise IdentityError("OAuth accounts cannot use recovery codes.")
             db.execute("DELETE FROM recovery_codes WHERE user_id = ?", (user_id,))
             db.executemany(
                 "INSERT INTO recovery_codes VALUES (?, ?, ?)",
-                [(self._token_hash(code), user_id, maintenant) for code in codes])
+                [(self._token_hash(code), user_id, now) for code in codes])
             if revoke_access:
                 db.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
                 db.execute("UPDATE api_keys SET revoked_at = ? WHERE user_id = ? "
-                           "AND revoked_at IS NULL", (maintenant, user_id))
+                           "AND revoked_at IS NULL", (now, user_id))
             elif session is not None:
                 db.execute("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?",
                            (user_id, self._token_hash(session)))
@@ -77,22 +77,22 @@ class IdentityRecoveryMixin:
             secret = self._password(password)
         except IdentityError:
             return None
-        empreinte = self._token_hash(str(code or ""))
+        fingerprint = self._token_hash(str(code or ""))
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            ligne = db.execute(
+            line = db.execute(
                 "SELECT users.id AS user_id, users.email FROM recovery_codes "
                 "JOIN users ON users.id = recovery_codes.user_id "
                 "WHERE recovery_codes.code_hash = ? AND users.email = ?",
-                (empreinte, normalise)).fetchone()
-            if not ligne:
+                (fingerprint, normalise)).fetchone()
+            if not line:
                 return None
             sel = secrets.token_bytes(16)
             db.execute("UPDATE users SET password_hash = ?, password_salt = ? "
                        "WHERE id = ?",
-                       (self._password_hash(secret, sel), sel, ligne["user_id"]))
-            db.execute("DELETE FROM recovery_codes WHERE code_hash = ?", (empreinte,))
-            db.execute("DELETE FROM sessions WHERE user_id = ?", (ligne["user_id"],))
+                       (self._password_hash(secret, sel), sel, line["user_id"]))
+            db.execute("DELETE FROM recovery_codes WHERE code_hash = ?", (fingerprint,))
+            db.execute("DELETE FROM sessions WHERE user_id = ?", (line["user_id"],))
             db.execute("UPDATE api_keys SET revoked_at = ? WHERE user_id = ? "
-                       "AND revoked_at IS NULL", (int(time.time()), ligne["user_id"]))
-        return {"id": ligne["user_id"], "email": ligne["email"]}
+                       "AND revoked_at IS NULL", (int(time.time()), line["user_id"]))
+        return {"id": line["user_id"], "email": line["email"]}

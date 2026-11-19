@@ -44,9 +44,9 @@ def test_a_stored_project_with_a_capital_stays_reachable(store, tmp_path):
     raw.commit()
     raw.close()
 
-    trouves = store.list_projects_by_slug("myown")
+    found = store.list_projects_by_slug("myown")
 
-    assert [row["project_id"] for row in trouves] == [project_id]
+    assert [row["project_id"] for row in found] == [project_id]
 
 
 def test_the_host_a_browser_sends_designates_the_project(store, tmp_path):
@@ -74,10 +74,10 @@ def test_two_cases_of_one_name_do_not_make_two_addresses(store):
     second = uuid.uuid4().hex
     IdentityStore(store.workspace).add_project(user_id, second, "autre")
 
-    retenu = store.create_project(user_id, second, "MYOWN")
+    kept = store.create_project(user_id, second, "MYOWN")
 
-    assert retenu == "myown-2", (
-        f"case rebuilt an address already taken: {retenu!r}")
+    assert kept == "myown-2", (
+        f"case rebuilt an address already taken: {kept!r}")
     assert len(store.list_projects_by_slug("myown")) == 1, (
         "the myown host designates two projects: it would no longer be served at all")
 
@@ -92,19 +92,19 @@ def test_an_address_already_in_capitals_is_seen_as_taken(store):
     case of the witness
     `test_a_stored_project_with_a_capital_stays_reachable`.
     """
-    user_id, premier = _account_and_project(store, "a@monl.test", "provisoire")
+    user_id, first = _account_and_project(store, "a@monl.test", "provisoire")
     raw = sqlite3.connect(store.database)
     raw.execute("UPDATE builder_projects SET slug = 'myOwn' WHERE project_id = ?",
-                (premier,))
+                (first,))
     raw.commit()
     raw.close()
 
     second = uuid.uuid4().hex
     IdentityStore(store.workspace).add_project(user_id, second, "autre")
-    retenu = store.create_project(user_id, second, "myown")
+    kept = store.create_project(user_id, second, "myown")
 
-    assert retenu == "myown-2", (
-        f"the 'myOwn' row was not seen as taken: {retenu!r}")
+    assert kept == "myown-2", (
+        f"the 'myOwn' row was not seen as taken: {kept!r}")
 
 
 def test_the_canonical_form_is_named_and_shared():

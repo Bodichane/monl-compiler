@@ -55,14 +55,14 @@ pytestmark = pytest.mark.skipif(
 
 #: What we push. Far above both bounds (300 KiB and 40 MiB), and enough for the
 #: absence of a bound to show unambiguously.
-POUSSE_MIO = 200
+PUSHED_MIB = 200
 
 #: What a server that BOUNDS is allowed to allocate on top. The platform's JSON
 #: reader keeps nothing beyond 300 KiB; the relay, however, accumulates up to
 #: its own bound because it must forward the body — hence two thresholds, each
 #: derived from what the bound ALLOWS.
-MARGE_MIO = 60
-SEUIL_RELAIS_MIO = SITE_MAX_BODY_BYTES / (1024 * 1024) + MARGE_MIO
+MARGE_MIB = 60
+THRESHOLD_RELAY_MIB = SITE_MAX_BODY_BYTES / (1024 * 1024) + MARGE_MIB
 
 SPEC = """app BancMemoire
 
@@ -84,22 +84,22 @@ landing
 """
 
 
-def _rss_mio(pid):
+def _rss_mib(pid):
     """The process's RESIDENT memory, in megabytes.
 
     `VmRSS` and not `VmSize`: a Python process's virtual memory says nothing of
     what it really occupies, and it moves for reasons unrelated to the body sent
     to it.
     """
-    contenu = pathlib.Path(f"/proc/{pid}/status").read_text(encoding="utf-8")
-    for ligne in contenu.splitlines():
-        if ligne.startswith("VmRSS:"):
-            return int(ligne.split()[1]) / 1024
+    content = pathlib.Path(f"/proc/{pid}/status").read_text(encoding="utf-8")
+    for line in content.splitlines():
+        if line.startswith("VmRSS:"):
+            return int(line.split()[1]) / 1024
     pytest.fail("VmRSS missing from /proc/<pid>/status: the measurement would be mute")
 
 
 @contextlib.contextmanager
-def _plateforme_mesurable(workspace, **environnement):
+def _platform_measurable(workspace, **environment):
     """The platform in its OWN process, whose memory can be read.
 
     A server mounted in a thread of the pytest process would mix its memory with
@@ -110,30 +110,30 @@ def _plateforme_mesurable(workspace, **environnement):
     sock.bind(("127.0.0.1", 0))
     sock.listen(128)
     port = sock.getsockname()[1]
-    descripteur = sock.fileno()
-    os.set_inheritable(descripteur, True)
+    descriptor = sock.fileno()
+    os.set_inheritable(descriptor, True)
 
     env = os.environ.copy()
     env["PYTHONPATH"] = str(RACINE / "src")
     env["MONL_PLATFORM_WORKSPACE"] = str(workspace)
-    env.update(environnement)
+    env.update(environment)
 
-    journal = tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace")
+    log = tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace")
     try:
         try:
-            processus = subprocess.Popen(
+            process = subprocess.Popen(
                 [sys.executable, "-m", "uvicorn", "monl_platform.app:app",
-                 "--fd", str(descripteur)],
-                cwd=str(RACINE), env=env, pass_fds=(descripteur,),
-                stdout=journal, stderr=subprocess.STDOUT,
+                 "--fd", str(descriptor)],
+                cwd=str(RACINE), env=env, pass_fds=(descriptor,),
+                stdout=log, stderr=subprocess.STDOUT,
             )
         finally:
             sock.close()
         base = f"http://127.0.0.1:{port}"
         try:
             for _ in range(160):
-                if processus.poll() is not None:
-                    pytest.fail(_diagnostic("the platform stopped", journal))
+                if process.poll() is not None:
+                    pytest.fail(_diagnostic("the platform stopped", log))
                 try:
                     if requests.get(base + "/health", timeout=1).status_code == 200:
                         break
@@ -141,27 +141,27 @@ def _plateforme_mesurable(workspace, **environnement):
                     pass
                 time.sleep(0.25)
             else:
-                pytest.fail(_diagnostic("the platform never answered", journal))
-            yield base, processus
+                pytest.fail(_diagnostic("the platform never answered", log))
+            yield base, process
         finally:
-            if processus.poll() is None:
-                processus.terminate()
+            if process.poll() is None:
+                process.terminate()
                 try:
-                    processus.wait(timeout=10)
+                    process.wait(timeout=10)
                 except subprocess.TimeoutExpired:  # pragma: no cover - filet
-                    processus.kill()
-                    processus.wait(timeout=5)
+                    process.kill()
+                    process.wait(timeout=5)
     finally:
-        journal.close()
+        log.close()
 
 
-def _diagnostic(entete, journal):
-    journal.seek(0)
-    sortie = journal.read().strip()
-    return f"{entete}\n--- sortie d'uvicorn ---\n{sortie or '(rien écrit)'}"
+def _diagnostic(header, log):
+    log.seek(0)
+    output = log.read().strip()
+    return f"{header}\n--- sortie d'uvicorn ---\n{output or '(rien écrit)'}"
 
 
-def _push_and_measure(base, chemin, pid, *, hote=None, mio=POUSSE_MIO):
+def _push_and_measure(base, path, pid, *, hote=None, mib=PUSHED_MIB):
     """Pushes `mio` megabytes chunked, sampling RSS during the send.
 
     In chunked mode, the server has NO way to know the size in advance: it is
@@ -170,37 +170,37 @@ def _push_and_measure(base, chemin, pid, *, hote=None, mio=POUSSE_MIO):
     system what it freed, but it does not make visible either what it held for
     an instant.
     """
-    bloc = b"x" * (1024 * 1024)
-    connexion = http.client.HTTPConnection(base.removeprefix("http://"), timeout=180)
-    pic = _rss_mio(pid)
+    block = b"x" * (1024 * 1024)
+    login = http.client.HTTPConnection(base.removeprefix("http://"), timeout=180)
+    pic = _rss_mib(pid)
     coupe_a = None
     try:
-        connexion.putrequest("POST", chemin, skip_host=hote is not None,
+        login.putrequest("POST", path, skip_host=hote is not None,
                              skip_accept_encoding=True)
         if hote is not None:
-            connexion.putheader("Host", hote)
-        connexion.putheader("Content-Type", "application/json")
-        connexion.putheader("Transfer-Encoding", "chunked")
-        connexion.endheaders()
-        for tour in range(mio):
+            login.putheader("Host", hote)
+        login.putheader("Content-Type", "application/json")
+        login.putheader("Transfer-Encoding", "chunked")
+        login.endheaders()
+        for tour in range(mib):
             try:
-                connexion.send(b"%x\r\n" % len(bloc) + bloc + b"\r\n")
+                login.send(b"%x\r\n" % len(block) + block + b"\r\n")
             except OSError:
                 coupe_a = tour
                 break
             if tour % 10 == 0:
-                pic = max(pic, _rss_mio(pid))
-        pic = max(pic, _rss_mio(pid))
+                pic = max(pic, _rss_mib(pid))
+        pic = max(pic, _rss_mib(pid))
         if coupe_a is None:
             with contextlib.suppress(OSError):
-                connexion.send(b"0\r\n\r\n")
+                login.send(b"0\r\n\r\n")
         try:
-            statut = connexion.getresponse().status
+            status = login.getresponse().status
         except Exception:
-            statut = None
+            status = None
     finally:
-        connexion.close()
-    return statut, pic, coupe_a
+        login.close()
+    return status, pic, coupe_a
 
 
 def test_the_platform_refuses_a_huge_body_without_keeping_it(tmp_path):
@@ -210,22 +210,22 @@ def test_the_platform_refuses_a_huge_body_without_keeping_it(tmp_path):
     call made the server allocate the size of the sent body — measured at
     +397.6 MiB for 400 MiB pushed, with a 400 "invalid JSON body" as the answer.
     """
-    with _plateforme_mesurable(tmp_path / "projets") as (base, processus):
-        repos = _rss_mio(processus.pid)
-        statut, pic, _ = _push_and_measure(base, "/api/auth/register",
-                                             processus.pid)
-        croissance = pic - repos
+    with _platform_measurable(tmp_path / "projets") as (base, process):
+        repos = _rss_mib(process.pid)
+        status, pic, _ = _push_and_measure(base, "/api/auth/register",
+                                             process.pid)
+        growth = pic - repos
 
     # MEMORY first: that is the guarantee this file carries, and the status is
     # already guarded by `test_limite_corps_http.py`. Asserted second, it would
     # never be reached — the counter-proof would go red on the HTTP code, hence
     # for the same reason as the existing witness, and this file would guard
     # nothing more (point 170).
-    assert croissance < MARGE_MIO, (
-        f"the server grew by {croissance:.1f} MiB while receiving "
-        f"{POUSSE_MIO} MiB: the body is materialized before being refused"
+    assert growth < MARGE_MIB, (
+        f"the server grew by {growth:.1f} MiB while receiving "
+        f"{PUSHED_MIB} MiB: the body is materialized before being refused"
     )
-    assert statut == 413, f"response {statut} instead of a size refusal"
+    assert status == 413, f"response {status} instead of a size refusal"
 
 
 def test_the_relay_refuses_a_huge_body_without_keeping_it(tmp_path):
@@ -247,35 +247,35 @@ def test_the_relay_refuses_a_huge_body_without_keeping_it(tmp_path):
     # and the relay would never be reached — measured while writing this test.
     workspace = tmp_path / "projets"
     store = PlatformStore(workspace)
-    identites = IdentityStore(store.workspace)
-    compte = identites.register("memoire@monl.test", "MotDePasse-123")
+    identities = IdentityStore(store.workspace)
+    account = identities.register("memoire@monl.test", "MotDePasse-123")
     project_id = uuid.uuid4().hex
-    identites.add_project(compte["id"], project_id, "memoire")
-    store.create_project(compte["id"], project_id, "memoire")
-    projet = store.get_project(project_id)
-    dossier = project_directory(workspace, projet["user_id"], projet["project_id"])
-    (dossier / "spec.ml").write_text(SPEC, encoding="utf-8")
-    compile_project(str(dossier / "spec.ml"), str(dossier))
+    identities.add_project(account["id"], project_id, "memoire")
+    store.create_project(account["id"], project_id, "memoire")
+    project = store.get_project(project_id)
+    folder = project_directory(workspace, project["user_id"], project["project_id"])
+    (folder / "spec.ml").write_text(SPEC, encoding="utf-8")
+    compile_project(str(folder / "spec.ml"), str(folder))
 
-    with _plateforme_mesurable(workspace, MONL_PLATFORM_DOMAIN="localhost") as (
-            base, processus):
+    with _platform_measurable(workspace, MONL_PLATFORM_DOMAIN="localhost") as (
+            base, process):
         # The site must be running: the bound lives AFTER host resolution. The
         # warm-up targets `/note`, which exists ONLY on the site —
         # `/openapi.json` would have answered 200 from the PLATFORM without the
         # relay even being called, and the warm-up would have certified the
         # opposite of what it measures.
-        amorce = requests.get(base + "/note",
+        warmup = requests.get(base + "/note",
                               headers={"Host": "memoire.localhost"}, timeout=60)
-        assert amorce.status_code == 200, (
-            f"the relay did not reach the site ({amorce.status_code}): "
-            f"{amorce.text[:200]}")
-        repos = _rss_mio(processus.pid)
-        statut, pic, _ = _push_and_measure(base, "/note", processus.pid,
+        assert warmup.status_code == 200, (
+            f"the relay did not reach the site ({warmup.status_code}): "
+            f"{warmup.text[:200]}")
+        repos = _rss_mib(process.pid)
+        status, pic, _ = _push_and_measure(base, "/note", process.pid,
                                              hote="memoire.localhost")
-        croissance = pic - repos
+        growth = pic - repos
 
-    assert croissance < SEUIL_RELAIS_MIO, (
-        f"the relay grew by {croissance:.1f} MiB while receiving "
-        f"{POUSSE_MIO} MiB: it accumulates beyond its own bound"
+    assert growth < THRESHOLD_RELAY_MIB, (
+        f"the relay grew by {growth:.1f} MiB while receiving "
+        f"{PUSHED_MIB} MiB: it accumulates beyond its own bound"
     )
-    assert statut == 413, f"response {statut} instead of a size refusal"
+    assert status == 413, f"response {status} instead of a size refusal"

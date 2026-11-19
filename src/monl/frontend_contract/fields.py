@@ -63,10 +63,10 @@ def _client_supplied_fks(plans: CompilationPlans, entity):
     # side, keeping only the "owner" relation — hence `variant_id` missing from
     # `POST /orderline` (issue #82, point 195). A target can also be an
     # ordinary client FK: `dict.fromkeys` keeps the order without duplicates.
-    colonnes = [plan.target_fk
+    columns = [plan.target_fk
                 for plan in plans.reputation_rules_by_trigger.get(entity, ())]
-    colonnes.extend(plans.client_foreign_keys.get(entity, ()))
-    return list(dict.fromkeys(colonnes))
+    columns.extend(plans.client_foreign_keys.get(entity, ()))
+    return list(dict.fromkeys(columns))
 
 def _creatable_fields(entity_spec):
     if not entity_spec:
@@ -80,19 +80,19 @@ def _assets_contract(assets):
     """The contract's 'assets' section: where the human's files are, and which
     ones are declared. `served_at` gives the real URL, not the disk path —
     that is the one the browser will request."""
-    dossier = assets.get("dir") or "assets"
-    contrat = {
-        "dir": dossier,
-        "served_at": f"/site/{dossier}/",
+    folder = assets.get("dir") or "assets"
+    contract = {
+        "dir": folder,
+        "served_at": f"/site/{folder}/",
         "note": (f"Files supplied by the human (photos, logo). Reference them with a "
-                 f"RELATIVE path from the page: '{dossier}/…'. Never modify or move "
+                 f"RELATIVE path from the page: '{folder}/…'. Never modify or move "
                  f"them: they are not produced by the AI, and this folder lives OUTSIDE "
                  f"frontend/ to survive a frontend rebuild."),
     }
-    for cle in ("logo", "favicon"):
-        if assets.get(cle):
-            contrat[cle] = f"{dossier}/{assets[cle]}"
-    if "logo" in contrat:
-        contrat["logo_note"] = ("A real logo is supplied: use it in the header rather "
+    for key in ("logo", "favicon"):
+        if assets.get(key):
+            contract[key] = f"{folder}/{assets[key]}"
+    if "logo" in contract:
+        contract["logo_note"] = ("A real logo is supplied: use it in the header rather "
                                 "than a text wordmark.")
-    return contrat
+    return contract

@@ -10,7 +10,7 @@ import pytest
 from monl.cli import compile_project
 from monl.design_system import activate_asset_manifest
 from monl.frontend_ai import (
-    RETOUCHE_PROMPT_FILENAME,
+    RETOUCH_PROMPT_FILENAME,
     FrontendAIError,
     generate_and_verify,
     parse_files_payload,
@@ -105,12 +105,12 @@ def test_coherence_refuses_a_missing_local_image(project):
 def test_coherence_refuses_each_of_the_three_missing_local_svgs(project):
     front = project / "frontend"
     front.mkdir()
-    chemins = (
+    paths = (
         "assets/product/vase-rondeur.svg",
         "assets/product/bol-terre.svg",
         "assets/product/plateau-ligne.svg",
     )
-    sources = "".join(f'<img src="{chemin}">' for chemin in chemins)
+    sources = "".join(f'<img src="{path}">' for path in paths)
     (front / "index.html").write_text(
         f"<!doctype html><html><body>{sources}</body></html>",
         encoding="utf-8")
@@ -118,9 +118,9 @@ def test_coherence_refuses_each_of_the_three_missing_local_svgs(project):
 
     errors = _frontend_local_reference_errors(str(project))
     missing = [error for error in errors if "local resource missing" in error]
-    assert len(missing) == len(chemins)
-    for chemin in chemins:
-        assert sum(chemin in error for error in missing) == 1
+    assert len(missing) == len(paths)
+    for path in paths:
+        assert sum(path in error for error in missing) == 1
 
 
 def test_a_render_template_is_not_a_file_path(project):
@@ -216,7 +216,7 @@ def test_smoke_names_the_absolute_url_instead_of_fetch_failed(project):
     assert not any("the frontend made no API calls" in w for w in warnings), warnings
 
 
-def test_parse_files_payload_gardes_fous():
+def test_parse_files_payload_guards_crazy():
     with pytest.raises(FrontendAIError):   # path traversal
         parse_files_payload(json.dumps({"files": {"../evil.html": "x", "index.html": "x"}}))
     with pytest.raises(FrontendAIError):   # extension interdite
@@ -287,7 +287,7 @@ def test_design_refuses_reused_generated_image_and_duplicated_editorial_text(pro
     assert any("editorial content repeated" in error for error in text_errors)
 
 
-def test_boucle_ia_corrige_puis_reussit(project):
+def test_loop_ia_fixed_puis_succeeds(project):
     calls = []
 
     def provider(prompt):
@@ -332,19 +332,19 @@ def test_a_degrading_correction_does_not_replace_the_previous_attempt(project):
     journeys with them. The first attempt was nearly good. The user paid for two
     passes and left with the worse of the two.
     """
-    rendus = [BAD_FRONT, PIRE_FRONT]
+    rendered = [BAD_FRONT, PIRE_FRONT]
     dits = []
 
     def provider(_prompt):
-        return json.dumps({"files": {"index.html": rendus.pop(0)}})
+        return json.dumps({"files": {"index.html": rendered.pop(0)}})
 
     ok, errors = generate_and_verify(str(project), provider, say=dits.append)
 
     assert not ok, "both attempts fail: the verdict stays a failure"
-    conserve = (project / "frontend" / "index.html").read_text(encoding="utf-8")
-    assert conserve == BAD_FRONT, (
+    kept = (project / "frontend" / "index.html").read_text(encoding="utf-8")
+    assert kept == BAD_FRONT, (
         "the degraded attempt was kept although it is worse")
-    assert any("Attempt 1 restored" in ligne for ligne in dits), dits
+    assert any("Attempt 1 restored" in line for line in dits), dits
     # The REPORTED errors must describe the kept files: returning the discarded
     # attempt's would describe a frontend absent from disk.
     assert not any("/autre-fantome" in e for e in errors), errors
@@ -354,31 +354,31 @@ def test_a_degrading_correction_does_not_replace_the_previous_attempt(project):
 def test_an_improving_correction_is_kept(project):
     """Indispensable counter-proof: a safeguard always freezing the first attempt
     would cancel automatic correction entirely, and pass for good."""
-    rendus = [PIRE_FRONT, BAD_FRONT]
+    rendered = [PIRE_FRONT, BAD_FRONT]
     dits = []
 
     def provider(_prompt):
-        return json.dumps({"files": {"index.html": rendus.pop(0)}})
+        return json.dumps({"files": {"index.html": rendered.pop(0)}})
 
     ok, errors = generate_and_verify(str(project), provider, say=dits.append)
 
     assert not ok
-    conserve = (project / "frontend" / "index.html").read_text(encoding="utf-8")
-    assert conserve == BAD_FRONT, "the better of the two is the second here"
-    assert not any("restaurée" in ligne for ligne in dits), dits
+    kept = (project / "frontend" / "index.html").read_text(encoding="utf-8")
+    assert kept == BAD_FRONT, "the better of the two is the second here"
+    assert not any("restaurée" in line for line in dits), dits
 
 
 def test_restoration_leaves_no_file_from_the_discarded_attempt(project):
     """A mix of the two attempts would be worse than either: the restored file
     would call a script its version did not write."""
-    rendus = [
+    rendered = [
         {"index.html": BAD_FRONT},
         {"index.html": PIRE_FRONT, "extra.js": "console.log('tentative 2');"},
     ]
     dits = []
 
     def provider(_prompt):
-        return json.dumps({"files": rendus.pop(0)})
+        return json.dumps({"files": rendered.pop(0)})
 
     generate_and_verify(str(project), provider, say=dits.append)
 
@@ -516,7 +516,7 @@ sys.stderr.write("Error: Reached max turns (40)\\n")
 sys.exit(1)
 """
 
-MAXTURNS_VIDE_AGENT = """sys.stderr.write("Error: Reached max turns (40)\\n")
+MAXTURNS_EMPTY_AGENT = """sys.stderr.write("Error: Reached max turns (40)\\n")
 sys.exit(1)
 """
 
@@ -537,7 +537,7 @@ def test_turn_budget_exhausted_but_frontend_valid(project, tmp_path):
 def test_budget_exhausted_without_output_goes_through_correction(project, tmp_path):
     """The same overrun, but without a frontend: it is a failure — which must go
     through the correction loop, not interrupt the command."""
-    agent = _fake_agent(tmp_path, MAXTURNS_VIDE_AGENT)
+    agent = _fake_agent(tmp_path, MAXTURNS_EMPTY_AGENT)
     msgs = []
     ok, errors = generate_with_claude_code(str(project), command=agent, say=msgs.append)
     assert not ok
@@ -583,7 +583,7 @@ def test_an_agent_cannot_rewrite_manage_py(project, tmp_path):
     frontend.mkdir(exist_ok=True)
     (frontend / "index.html").write_text(
         "<html><body>déjà là</body></html>", encoding="utf-8")
-    avant = (project / "manage.py").read_text(encoding="utf-8")
+    before = (project / "manage.py").read_text(encoding="utf-8")
 
     agent = _fake_agent(tmp_path, SNEAKY_AGENT)
     ok, errors = generate_with_claude_code(str(project), command=agent, say=_quiet)
@@ -592,7 +592,7 @@ def test_an_agent_cannot_rewrite_manage_py(project, tmp_path):
     assert any("manage.py" in e for e in errors), errors
     # The file stays on disk — monl says to restore it, it does not do it for
     # you (point 73). The test NOTES it rather than suggesting a repair.
-    assert (project / "manage.py").read_text(encoding="utf-8") != avant
+    assert (project / "manage.py").read_text(encoding="utf-8") != before
 
 
 # The agent does REAL frontend work — and takes advantage of it on the way. It
@@ -637,9 +637,9 @@ def test_everything_executing_outside_frontend_is_protected():
     declaration of ownership: the author adapts their Dockerfile between two runs
     without trouble. That confusion is what had left executable files outside on
     the pretext that they are editable."""
-    from monl.frontend_ai import PROTECTED_ARTEFACTS
-    for nom in ("manage.py", "serve.py", "Dockerfile", ".dockerignore"):
-        assert nom in PROTECTED_ARTEFACTS, nom
+    from monl.frontend_ai import PROTECTED_ARTIFACTS
+    for name in ("manage.py", "serve.py", "Dockerfile", ".dockerignore"):
+        assert name in PROTECTED_ARTIFACTS, name
 
 
 # ───────────────────────────────────────────────────────────────────── POINT
@@ -663,7 +663,7 @@ def test_openai_compatible_provider_shapes_the_request(monkeypatch):
     monkeypatch.setenv("GROQ_API_KEY", "cle-de-test")
     vu = {}
 
-    class Reponse:
+    class Response:
         status_code = 200
         text = ""
 
@@ -672,7 +672,7 @@ def test_openai_compatible_provider_shapes_the_request(monkeypatch):
 
     def faux_post(url, headers=None, json=None, timeout=None):
         vu.update(url=url, headers=headers, body=json)
-        return Reponse()
+        return Response()
 
     import requests
     monkeypatch.setattr(requests, "post", faux_post)
@@ -692,7 +692,7 @@ def test_yandex_uses_its_authentication_and_measures_tokens(monkeypatch):
     monkeypatch.delenv("MONL_AI_CHUNK_MAX_TOKENS", raising=False)
     vu = {}
 
-    class Reponse:
+    class Response:
         status_code = 200
         text = ""
 
@@ -705,7 +705,7 @@ def test_yandex_uses_its_authentication_and_measures_tokens(monkeypatch):
 
     def faux_post(url, headers=None, json=None, timeout=None):
         vu.update(url=url, headers=headers, body=json)
-        return Reponse()
+        return Response()
 
     import requests
     monkeypatch.setattr(requests, "post", faux_post)
@@ -738,7 +738,7 @@ def test_yandex_frontend_is_generated_file_by_file(project, monkeypatch):
     together after assembling them."""
     calls = []
 
-    class Fournisseur:
+    class Provider:
         provider_name = "yandex"
         model = "deepseek-v4-flash/latest"
         chunked_generation = True
@@ -746,10 +746,10 @@ def test_yandex_frontend_is_generated_file_by_file(project, monkeypatch):
 
         def __call__(self, prompt):
             calls.append(prompt)
-            ligne = next(texte for texte in prompt.splitlines()
-                         if texte.startswith("The target file is exactly: "))
-            cible = ligne.rsplit(": ", 1)[1]
-            contenus = {
+            line = next(text for text in prompt.splitlines()
+                         if text.startswith("The target file is exactly: "))
+            target = line.rsplit(": ", 1)[1]
+            contents = {
                 "index.html": GOOD_SPLIT_HTML,
                 "styles.css": "body { color: #111; }",
                 "app.js": GOOD_SPLIT_JS,
@@ -757,9 +757,9 @@ def test_yandex_frontend_is_generated_file_by_file(project, monkeypatch):
             self.last_usage = {"duration_seconds": 0.1,
                                "input_tokens": 100, "output_tokens": 200,
                                "total_tokens": 300}
-            return json.dumps({"files": {cible: contenus[cible]}})
+            return json.dumps({"files": {target: contents[target]}})
 
-    provider = Fournisseur()
+    provider = Provider()
     ok, errors = generate_and_verify(str(project), provider, say=_quiet)
     assert ok, errors
     assert len(calls) == 3
@@ -772,9 +772,9 @@ def test_yandex_frontend_is_generated_file_by_file(project, monkeypatch):
 def test_yandex_names_the_missing_folder(monkeypatch):
     monkeypatch.setenv("YANDEX_API_KEY", "cle-yandex")
     monkeypatch.delenv("YANDEX_FOLDER_ID", raising=False)
-    with pytest.raises(FrontendAIError) as erreur:
+    with pytest.raises(FrontendAIError) as error:
         PROVIDERS["yandex"](model="gpt://dossier/yandexgpt/latest")
-    assert "YANDEX_FOLDER_ID" in str(erreur.value)
+    assert "YANDEX_FOLDER_ID" in str(error.value)
 
 
 def test_the_api_ceiling_is_set_by_the_environment(monkeypatch):
@@ -782,7 +782,7 @@ def test_the_api_ceiling_is_set_by_the_environment(monkeypatch):
     monkeypatch.setenv("MONL_AI_MAX_TOKENS", "8000")
     vu = {}
 
-    class Reponse:
+    class Response:
         status_code = 200
         text = ""
 
@@ -791,7 +791,7 @@ def test_the_api_ceiling_is_set_by_the_environment(monkeypatch):
 
     import requests
     monkeypatch.setattr(requests, "post",
-                        lambda _url, **kw: (vu.update(kw), Reponse())[1])
+                        lambda _url, **kw: (vu.update(kw), Response())[1])
     assert PROVIDERS["groq"](model="un-modele")("brief") == "ok"
     assert vu["json"]["max_tokens"] == 8000
 
@@ -800,7 +800,7 @@ def test_telemetry_keeps_neither_prompt_nor_response(project, monkeypatch):
     """The log serves the product price, not copying the client's content."""
     from monl.frontend_ai import USAGE_FILENAME
 
-    class Fournisseur:
+    class Provider:
         provider_name = "yandex"
         model = "modele-test"
         last_usage = None
@@ -811,28 +811,28 @@ def test_telemetry_keeps_neither_prompt_nor_response(project, monkeypatch):
                                "output_tokens": 20, "total_tokens": 120}
             return json.dumps({"files": {"index.html": GOOD_FRONT}})
 
-    ok, errors = generate_and_verify(str(project), Fournisseur(), say=_quiet)
+    ok, errors = generate_and_verify(str(project), Provider(), say=_quiet)
     assert ok, errors
-    contenu = (project / USAGE_FILENAME).read_text(encoding="utf-8")
-    evenement = json.loads(contenu)
-    assert evenement["provider"] == "yandex"
-    assert evenement["operation"] == "construction"
-    assert evenement["total_tokens"] == 120
-    assert "SmokeApp" not in contenu
-    assert GOOD_FRONT not in contenu
+    content = (project / USAGE_FILENAME).read_text(encoding="utf-8")
+    event = json.loads(content)
+    assert event["provider"] == "yandex"
+    assert event["operation"] == "construction"
+    assert event["total_tokens"] == 120
+    assert "SmokeApp" not in content
+    assert GOOD_FRONT not in content
 
 
 def test_each_preset_names_its_own_key_variable(monkeypatch):
     """A missing key must name THE expected variable: "missing key" without
     saying which sends the user to read the code."""
     from monl.frontend_ai import FrontendAIError
-    for nom, (_url, variable) in OPENAI_COMPATIBLE.items():
-        if nom == "ollama":
+    for name, (_url, variable) in OPENAI_COMPATIBLE.items():
+        if name == "ollama":
             continue                      # local server: no key required
         monkeypatch.delenv(variable, raising=False)
         with pytest.raises(FrontendAIError) as e:
-            PROVIDERS[nom](model="un-modele")
-        assert variable in str(e.value), nom
+            PROVIDERS[name](model="un-modele")
+        assert variable in str(e.value), name
 
 
 def test_no_default_model_outside_the_anthropic_path(monkeypatch):
@@ -850,7 +850,7 @@ def test_free_endpoint_through_the_environment(monkeypatch):
     monkeypatch.setenv("MONL_AI_API_KEY", "cle-maison")
     vu = {}
 
-    class Reponse:
+    class Response:
         status_code = 200
         text = ""
 
@@ -859,7 +859,7 @@ def test_free_endpoint_through_the_environment(monkeypatch):
 
     import requests
     monkeypatch.setattr(requests, "post",
-                        lambda url, **kw: (vu.update(url=url), Reponse())[1])
+                        lambda url, **kw: (vu.update(url=url), Response())[1])
     call = PROVIDERS["openai-compatible"](model="modele-maison")
     assert call("brief") == "ok"
     assert vu["url"] == "https://exemple.interne/v1/chat/completions"
@@ -868,17 +868,17 @@ def test_free_endpoint_through_the_environment(monkeypatch):
 def test_each_agent_has_its_own_command_line():
     """The point of the generalization: the instruction travels to the agent,
     whatever the shape of its argv."""
-    for nom in CLI_AGENTS:
-        binaire, args = build_agent_argv(nom, "CONSIGNE", 120)
-        assert binaire == CLI_AGENTS[nom]["binary"]
-        assert "CONSIGNE" in args, nom
+    for name in CLI_AGENTS:
+        binary, args = build_agent_argv(name, "CONSIGNE", 120)
+        assert binary == CLI_AGENTS[name]["binary"]
+        assert "CONSIGNE" in args, name
     assert build_agent_argv("codex", "CONSIGNE", 120)[1][0] == "exec"
 
 
 def test_free_template_for_an_unlisted_agent():
-    binaire, args = build_agent_argv(None, "CONSIGNE", 120,
+    binary, args = build_agent_argv(None, "CONSIGNE", 120,
                                      agent_command="mon-agent --auto {instruction}")
-    assert (binaire, args) == ("mon-agent", ["--auto", "CONSIGNE"])
+    assert (binary, args) == ("mon-agent", ["--auto", "CONSIGNE"])
 
 
 def test_template_without_instruction_is_refused():
@@ -925,11 +925,11 @@ def test_the_free_template_goes_through_the_whole_loop(project, tmp_path):
 # POINT 93: the touch-up — fixing without rebuilding
 # --------------------------------------------------------------------------
 
-DEMANDE = "les images de la section Tendances sont mal cadrées"
+REQUEST = "les images de la section Tendances sont mal cadrées"
 
 NOOP_AGENT = "pass  # l'agent ne touche à rien\n"
 
-RETOUCHE_AGENT = """open("frontend/index.html", "a").write(
+RETOUCH_AGENT = """open("frontend/index.html", "a").write(
     "<!-- object-position ajusté -->")
 """
 
@@ -945,13 +945,13 @@ def test_the_touch_up_writes_its_instruction_and_backs_up_existing(project):
     """The backup is not overzealousness: no automatic check can settle a matter
     of taste, so the only guarantee one can offer is being able to go back. It is
     a COPY — the AI must find the existing work in place to evolve it."""
-    from monl.cli import cmd_retouche
+    from monl.cli import cmd_retouch
 
     front = _project_with_frontend(project)
-    cmd_retouche(str(project), DEMANDE, say=_quiet)
+    cmd_retouch(str(project), REQUEST, say=_quiet)
 
-    consigne = (project / RETOUCHE_PROMPT_FILENAME).read_text(encoding="utf-8")
-    assert DEMANDE in consigne
+    consigne = (project / RETOUCH_PROMPT_FILENAME).read_text(encoding="utf-8")
+    assert REQUEST in consigne
     assert (project / "frontend.precedent" / "index.html").read_text(
         encoding="utf-8") == GOOD_FRONT
     assert front.joinpath("index.html").exists(), "the existing work must stay in place"
@@ -960,32 +960,32 @@ def test_the_touch_up_writes_its_instruction_and_backs_up_existing(project):
 def test_the_touch_up_refuses_a_project_without_frontend(project):
     """Touching up what does not exist makes no sense — and the message must
     point to the command that builds, not leave it to guesswork."""
-    from monl.cli import cmd_retouche
+    from monl.cli import cmd_retouch
 
     with pytest.raises(SystemExit):
-        cmd_retouche(str(project), DEMANDE, say=_quiet)
+        cmd_retouch(str(project), REQUEST, say=_quiet)
 
 
 def test_the_touch_up_refuses_an_empty_request(project):
-    from monl.cli import cmd_retouche
+    from monl.cli import cmd_retouch
 
     _project_with_frontend(project)
     with pytest.raises(SystemExit):
-        cmd_retouche(str(project), "   ", say=_quiet)
+        cmd_retouch(str(project), "   ", say=_quiet)
 
 
 def test_the_touch_up_prompt_carries_request_files_and_contract(project):
     """The three pieces are indispensable together: the request says WHAT, the
     current files say it is an evolution and not a new page, the contract recalls
     what stays non-negotiable."""
-    from monl.cli import cmd_retouche
+    from monl.cli import cmd_retouch
     from monl.frontend_ai import build_generation_prompt
 
     _project_with_frontend(project)
-    cmd_retouche(str(project), DEMANDE, say=_quiet)
+    cmd_retouch(str(project), REQUEST, say=_quiet)
 
-    prompt = build_generation_prompt(str(project), False, retouche_mode=True)
-    assert DEMANDE in prompt
+    prompt = build_generation_prompt(str(project), False, retouch_mode=True)
+    assert REQUEST in prompt
     assert "Current frontend files" in prompt
     assert "fetch('/item?limit=5')" in prompt, "the existing work must be attached"
     assert "Reminder of the original contract" in prompt
@@ -995,11 +995,11 @@ def test_the_touch_up_asks_for_the_narrowest_interpretation(project):
     """Without this instruction, "the images are badly cropped" invites redoing
     the whole layout — and a too broad touch-up can no longer be told apart from a
     rebuild, that is from what the command avoids."""
-    from monl.cli import cmd_retouche
+    from monl.cli import cmd_retouch
 
     _project_with_frontend(project)
-    chemin = cmd_retouche(str(project), DEMANDE, say=_quiet)
-    consigne = pathlib.Path(chemin).read_text(encoding="utf-8")
+    path = cmd_retouch(str(project), REQUEST, say=_quiet)
+    consigne = pathlib.Path(path).read_text(encoding="utf-8")
     assert "NARROWEST" in consigne
     assert "do not redo the overall layout" in consigne.lower()
     # And the content safeguard: what comes from the spec is not fixed by a
@@ -1010,22 +1010,22 @@ def test_the_touch_up_asks_for_the_narrowest_interpretation(project):
 def test_the_agent_gets_a_touch_up_instruction_not_a_build_one(project, tmp_path):
     """The agent path must change template: "build the requested frontend"
     invited starting from scratch."""
-    from monl.cli import cmd_retouche
+    from monl.cli import cmd_retouch
     from monl.frontend_ai import generate_with_cli_agent
 
     _project_with_frontend(project)
-    cmd_retouche(str(project), DEMANDE, say=_quiet)
-    mouchard = tmp_path / "argv.json"
-    agent = _fake_agent(tmp_path, RETOUCHE_AGENT + f"""
+    cmd_retouch(str(project), REQUEST, say=_quiet)
+    spy = tmp_path / "argv.json"
+    agent = _fake_agent(tmp_path, RETOUCH_AGENT + f"""
 import json
-json.dump(sys.argv, open({str(mouchard)!r}, "w"))
+json.dump(sys.argv, open({str(spy)!r}, "w"))
 """)
     generate_with_cli_agent(str(project), command=agent, say=_quiet,
-                            retouche_mode=True)
+                            retouch_mode=True)
 
-    argv = json.loads(mouchard.read_text(encoding="utf-8"))
+    argv = json.loads(spy.read_text(encoding="utf-8"))
     instruction = " ".join(argv)
-    assert RETOUCHE_PROMPT_FILENAME in instruction
+    assert RETOUCH_PROMPT_FILENAME in instruction
     assert "defect OBSERVED" in instruction
     assert "build the requested frontend" not in instruction
 
@@ -1035,15 +1035,15 @@ def test_a_touch_up_changing_nothing_is_a_failure(project, tmp_path):
     is a warning: a valid frontend already existed. On a TOUCH-UP, it is the
     request unhandled — the human reported a defect they SEE, and answering
     "everything is fine" would be the opposite of an honest report."""
-    from monl.cli import cmd_retouche
+    from monl.cli import cmd_retouch
     from monl.frontend_ai import generate_with_cli_agent
 
     _project_with_frontend(project)
-    cmd_retouche(str(project), DEMANDE, say=_quiet)
+    cmd_retouch(str(project), REQUEST, say=_quiet)
     agent = _fake_agent(tmp_path, NOOP_AGENT)
 
     ok, errors = generate_with_cli_agent(str(project), command=agent, say=_quiet,
-                                         retouche_mode=True)
+                                         retouch_mode=True)
 
     assert not ok
     assert any("touch-up not applied" in e for e in errors), errors
@@ -1052,15 +1052,15 @@ def test_a_touch_up_changing_nothing_is_a_failure(project, tmp_path):
 def test_the_touch_up_cannot_touch_the_backend_either(project, tmp_path):
     """The safeguard does not depend on the command using it — that is the whole
     stake of having ONE path to the AI and not two."""
-    from monl.cli import cmd_retouche
+    from monl.cli import cmd_retouch
     from monl.frontend_ai import generate_with_cli_agent
 
     _project_with_frontend(project)
-    cmd_retouche(str(project), DEMANDE, say=_quiet)
+    cmd_retouch(str(project), REQUEST, say=_quiet)
     agent = _fake_agent(tmp_path, EVIL_AGENT)
 
     ok, errors = generate_with_cli_agent(str(project), command=agent, say=_quiet,
-                                         retouche_mode=True)
+                                         retouch_mode=True)
 
     assert not ok
     assert any("app.py" in e for e in errors), errors
@@ -1069,20 +1069,20 @@ def test_the_touch_up_cannot_touch_the_backend_either(project, tmp_path):
 def test_a_successful_touch_up_evolves_existing_and_rechecks(project, tmp_path):
     """The end to end: the agent modifies, monl re-checks (consistency + smoke
     test), and what the agent wrote is STILL there after the check."""
-    from monl.cli import cmd_retouche
+    from monl.cli import cmd_retouch
     from monl.frontend_ai import generate_with_cli_agent
 
     _project_with_frontend(project)
-    cmd_retouche(str(project), DEMANDE, say=_quiet)
-    agent = _fake_agent(tmp_path, RETOUCHE_AGENT)
+    cmd_retouch(str(project), REQUEST, say=_quiet)
+    agent = _fake_agent(tmp_path, RETOUCH_AGENT)
 
     ok, errors = generate_with_cli_agent(str(project), command=agent, say=_quiet,
-                                         retouche_mode=True)
+                                         retouch_mode=True)
 
     assert ok, errors
-    rendu = (project / "frontend" / "index.html").read_text(encoding="utf-8")
-    assert "object-position ajusté" in rendu
-    assert "fetch('/item?limit=5')" in rendu, "the existing work must not be rewritten"
+    rendered = (project / "frontend" / "index.html").read_text(encoding="utf-8")
+    assert "object-position ajusté" in rendered
+    assert "fetch('/item?limit=5')" in rendered, "the existing work must not be rewritten"
 
 
 DECLINING_AGENT = """print("Je ne peux pas retirer cette rubrique depuis frontend/ :")
@@ -1100,40 +1100,40 @@ def test_when_the_agent_declines_its_reason_is_shown(project, tmp_path):
     The touch-up instruction explicitly asks the AI to REPORT this case rather
     than work around it; hearing it and not repeating it was the costliest
     possible defect — it sent the user rephrasing an already clear request."""
-    from monl.cli import cmd_retouche
+    from monl.cli import cmd_retouch
     from monl.frontend_ai import generate_with_cli_agent
 
     _project_with_frontend(project)
-    cmd_retouche(str(project), "retire la rubrique À propos de l'accueil", say=_quiet)
+    cmd_retouch(str(project), "retire la rubrique À propos de l'accueil", say=_quiet)
     agent = _fake_agent(tmp_path, DECLINING_AGENT)
     msgs = []
 
     ok, _errors = generate_with_cli_agent(str(project), command=agent,
-                                          say=msgs.append, retouche_mode=True)
+                                          say=msgs.append, retouch_mode=True)
 
-    sortie = "\n".join(msgs)
+    output = "\n".join(msgs)
     assert not ok
-    assert "elle vient du bloc 'landing' de la spec" in sortie, sortie
+    assert "elle vient du bloc 'landing' de la spec" in output, output
     # And the old assumption must NO LONGER be displayed when the agent spoke.
-    assert "Rephrasing the request" not in sortie, sortie
+    assert "Rephrasing the request" not in output, output
     # …replaced by the gesture that really fits.
-    assert "monl update" in sortie, sortie
+    assert "monl update" in output, output
 
 
 def test_without_explanation_the_rephrasing_advice_stays(project, tmp_path):
     """The witness: a mute agent says nothing useful, and there the rephrasing
     advice keeps its full meaning. Removing it for good would have left the user
     without a lead."""
-    from monl.cli import cmd_retouche
+    from monl.cli import cmd_retouch
     from monl.frontend_ai import generate_with_cli_agent
 
     _project_with_frontend(project)
-    cmd_retouche(str(project), DEMANDE, say=_quiet)
+    cmd_retouch(str(project), REQUEST, say=_quiet)
     agent = _fake_agent(tmp_path, NOOP_AGENT)
     msgs = []
 
     generate_with_cli_agent(str(project), command=agent, say=msgs.append,
-                            retouche_mode=True)
+                            retouch_mode=True)
 
     assert "Rephrasing the request" in "\n".join(msgs)
 
@@ -1148,12 +1148,12 @@ def test_a_file_returned_in_a_fenced_block_is_accepted():
     retry loop then pushes it towards what PARSES — measured, `app.js` ended at
     834 output tokens.
     """
-    contenu = 'const a = "guillemet";\nfetch("/item");\n'
-    brut = "Voici le fichier :\n```javascript\n" + contenu + "```\n"
+    content = 'const a = "guillemet";\nfetch("/item");\n'
+    brut = "Voici le fichier :\n```javascript\n" + content + "```\n"
 
-    rendu = parse_single_file_payload(brut, "app.js")
+    rendered = parse_single_file_payload(brut, "app.js")
 
-    assert rendu == {"app.js": contenu}
+    assert rendered == {"app.js": content}
 
 
 def test_json_stays_the_normal_path():
@@ -1182,11 +1182,11 @@ def test_the_safety_net_goes_through_the_same_safeguards():
 
 def test_the_largest_block_wins_over_a_comment_excerpt():
     """A talkative model illustrates its answer before returning the file."""
-    fichier = "fetch('/item');\n" * 20
+    file = "fetch('/item');\n" * 20
     brut = ("Je vais utiliser :\n```js\nfetch()\n```\n"
-            "Voici le fichier complet :\n```js\n" + fichier + "```")
+            "Voici le fichier complet :\n```js\n" + file + "```")
 
-    assert parse_single_file_payload(brut, "app.js") == {"app.js": fichier}
+    assert parse_single_file_payload(brut, "app.js") == {"app.js": file}
 
 
 def test_a_truncated_response_never_goes_through_the_safety_net():
@@ -1198,11 +1198,11 @@ def test_a_truncated_response_never_goes_through_the_safety_net():
     it held the file. Worse: the ladder enlarging the output ceiling, made exactly
     for this case, would never be reached again.
     """
-    tronquee = ("Je commence par :\n```js\nfetch('/item');\n```\n"
+    truncated = ("Je commence par :\n```js\nfetch('/item');\n```\n"
                 "Voici le fichier complet :\n```js\n" + "const x = 1;\n" * 40)
 
     with pytest.raises(FrontendAIError, match="unreadable"):
-        parse_single_file_payload(tronquee, "app.js")
+        parse_single_file_payload(truncated, "app.js")
 
 
 def test_the_retry_ladder_really_reaches_its_bound():
@@ -1220,16 +1220,16 @@ def test_the_retry_ladder_really_reaches_its_bound():
         _raise_chunk_output_limit,
     )
 
-    class Etage:
+    class Stage:
         max_output_tokens = DEFAULT_CHUNK_MAX_OUTPUT_TOKENS
 
-    etage = Etage()
-    paliers = [etage.max_output_tokens]
+    stage = Stage()
+    steps = [stage.max_output_tokens]
     for _ in range(CHUNK_MAX_RETRIES):
-        assert _raise_chunk_output_limit(etage), "the ladder stops too early"
-        paliers.append(etage.max_output_tokens)
+        assert _raise_chunk_output_limit(stage), "the ladder stops too early"
+        steps.append(stage.max_output_tokens)
 
-    assert paliers[-1] == CHUNK_RETRY_MAX_OUTPUT_TOKENS, (
-        f"the last retry caps at {paliers[-1]} while the declared bound "
+    assert steps[-1] == CHUNK_RETRY_MAX_OUTPUT_TOKENS, (
+        f"the last retry caps at {steps[-1]} while the declared bound "
         f"is {CHUNK_RETRY_MAX_OUTPUT_TOKENS}: it constrains nothing")
-    assert paliers == sorted(set(paliers)), paliers
+    assert steps == sorted(set(steps)), steps

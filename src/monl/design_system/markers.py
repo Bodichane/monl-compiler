@@ -66,24 +66,24 @@ def _section_substance(contract: dict, profile: dict) -> dict[str, dict]:
     longueurs = {}
     for section, marker in zip(contract.get("sections") or [],
                                _declared_section_markers(contract), strict=False):
-        corps = " ".join((section.get("body") or "").split())
-        titre = " ".join((section.get("title") or "").split())
-        longueurs[marker] = len(titre) + len(corps)
-    regles = {}
+        body = " ".join((section.get("body") or "").split())
+        title = " ".join((section.get("title") or "").split())
+        longueurs[marker] = len(title) + len(body)
+    rules = {}
     for marker in _required_markers(contract, profile):
         if not marker.startswith('data-monl-section="'):
             continue
         slug = marker.partition("=")[2].strip('"')
-        regles[marker] = rule_for(slug, longueurs.get(marker))
-    return regles
+        rules[marker] = rule_for(slug, longueurs.get(marker))
+    return rules
 
 # Both languages: a manifest written before the English migration still carries
 # the French role, and must keep placing its image.
-ROLE_BANDEAU = ("main banner", "bandeau principal")
-ROLE_VIGNETTE = ("secondary thumbnail", "vignette secondaire")
+ROLE_BANNER = ("main banner", "bandeau principal")
+ROLE_THUMBNAIL = ("secondary thumbnail", "vignette secondaire")
 
 
-def _role_est(role, formes):
+def _role_is(role, formes):
     return any(forme in role for forme in formes)
 
 
@@ -110,9 +110,9 @@ def _generated_image_block_markers(contract: dict, profile: dict,
     used = set()
     for item in generated:
         role = str(item.get("role") or "").casefold()
-        if _role_est(role, ROLE_BANDEAU):
+        if _role_is(role, ROLE_BANNER):
             candidates = [hero_marker]
-        elif _role_est(role, ROLE_VIGNETTE):
+        elif _role_is(role, ROLE_THUMBNAIL):
             candidates = declared_sections + fallback_sections + [
                 marker for marker in required
                 if marker.startswith('data-monl-section="')

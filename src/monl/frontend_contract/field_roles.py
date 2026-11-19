@@ -8,11 +8,11 @@ declared AFTER assignment, otherwise it steals one."""
 from . import foundations
 
 
-def _nomme(f, indices):
-    return any(h in f["name"].lower() for h in indices)
+def _named(f, indexes):
+    return any(h in f["name"].lower() for h in indexes)
 
 
-def _est_titre(f):
+def _is_title(f):
     return f["type"] == "String"
 
 
@@ -20,38 +20,38 @@ def _est_description(f):
     return f["type"] == "Text"
 
 
-def _est_prix(f):
+def _is_price(f):
     return f["type"] == "Money"
 
 
 def _est_stock(f):
-    return f["type"] in ("Integer", "Float") and _nomme(f, foundations.STOCK_HINTS)
+    return f["type"] in ("Integer", "Float") and _named(f, foundations.STOCK_HINTS)
 
 
-def _est_categorie(f):
-    return _nomme(f, foundations.CATEGORY_HINTS)
+def _is_category(f):
+    return _named(f, foundations.CATEGORY_HINTS)
 
 
 # After the media, one field per role, in the point 35 priority order: each
 # role takes the first visible field no earlier role has claimed.
-_ROLES_UNIQUES = (("title", _est_titre), ("description", _est_description),
-                  ("price", _est_prix), ("stock", _est_stock),
-                  ("category", _est_categorie))
+_ROLES_UNIQUES = (("title", _is_title), ("description", _est_description),
+                  ("price", _is_price), ("stock", _est_stock),
+                  ("category", _is_category))
 
 
-def _champ_media(visibles):
+def _field_media(visible):
     """The declared Image field, else a text field named like a media."""
-    media = next((f["name"] for f in visibles if f["type"] == "Image"), None)
+    media = next((f["name"] for f in visible if f["type"] == "Image"), None)
     if not media:
-        media = next((f["name"] for f in visibles
+        media = next((f["name"] for f in visible
                       if f["type"] in ("String", "Text")
                       and any(h in f["name"].lower() for h in foundations.MEDIA_HINTS)), None)
     return media
 
 
-def _ajouter_les_meta(visibles, roles):
+def _add_the_meta(visible, roles):
     """The remaining visible fields become meta, at most 3."""
-    for f in visibles:                       # meta: at most 3 (point 35)
+    for f in visible:                       # meta: at most 3 (point 35)
         if f["name"] not in roles and sum(1 for r in roles.values() if r == "meta") < 3:
             roles[f["name"]] = "meta"
 
@@ -63,7 +63,7 @@ def _assign_field_roles(fields):
     would invite the AI to display them."""
     # An Upload is not media supplied by the author and is not rendered as a
     # JSON read field: its multipart routes are described separately.
-    visibles = [f for f in fields
+    visible = [f for f in fields
                 if not f["hidden_in_reads"] and f["type"] != "Upload"]
     roles = {}
 
@@ -73,21 +73,21 @@ def _assign_field_roles(fields):
     # and the interface AI then did not make it an image. An 'Image' field says
     # what it is; the heuristic now serves only as a fallback for specs that
     # have not adopted the type yet.
-    media = _champ_media(visibles)
+    media = _field_media(visible)
     if media:
         roles[media] = "media"
     # The title is the first String that is not already the media: on an entity
     # whose only String is `imageUrl`, taking that field as the title would
     # display a URL as a name (a real defect of the fallback).
-    for role, convient in _ROLES_UNIQUES:
-        nom = next((f["name"] for f in visibles
-                    if f["name"] not in roles and convient(f)), None)
-        if nom:
-            roles[nom] = role
-    _ajouter_les_meta(visibles, roles)
+    for role, fits in _ROLES_UNIQUES:
+        name = next((f["name"] for f in visible
+                    if f["name"] not in roles and fits(f)), None)
+        if name:
+            roles[name] = role
+    _add_the_meta(visible, roles)
     return roles
 
-def _archetype(roles, lisible, public):
+def _archetype(roles, readable, public):
     """Interface shape deduced from the roles present AND from who can read.
 
     PUBLIC readability is a point 35 condition that the first version of
@@ -105,14 +105,14 @@ def _archetype(roles, lisible, public):
     a description): a media ALONE is now enough. A `photo + caption` entity
     without a title field — an ordinary portfolio case — fell back to a list,
     and its image, its only reason to exist, shrank to a table row."""
-    if not lisible:
+    if not readable:
         return "form"
     if not public:
         return "list"
-    valeurs = set(roles.values())
-    if "price" in valeurs:
+    values = set(roles.values())
+    if "price" in values:
         return "shop"
-    if "media" in valeurs or ("title" in valeurs and "description" in valeurs):
+    if "media" in values or ("title" in values and "description" in values):
         return "gallery"
     return "list"
 

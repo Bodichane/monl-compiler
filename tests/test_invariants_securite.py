@@ -27,43 +27,43 @@ from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_file, parse_monl_string
 from tests.support.cases import check_each_case
 
-EXEMPLES_DIR = os.path.join(os.path.dirname(__file__), "../exemples")
+EXAMPLES_DIR = os.path.join(os.path.dirname(__file__), "../exemples")
 
 # Python expressions (client or runtime value) that must ALWAYS be bound as a
 # parameter, hence never appear in a query's text.
-INTERDITS_EN_SQL = ("data.", "named_row", "current_user_id")
+FORBIDDEN_IN_SQL = ("data.", "named_row", "current_user_id")
 
 # A literal is "SQL" as soon as it carries one of these markers — enough to
 # catch any read, write or access-control query.
-JALONS_SQL = ("SELECT ", "INSERT ", "UPDATE ", "DELETE ", " FROM ", " WHERE ")
+MILESTONES_SQL = ("SELECT ", "INSERT ", "UPDATE ", "DELETE ", " FROM ", " WHERE ")
 
 
-def _litteraux_sql(source):
+def _literals_sql(source):
     """Every string literal of the module that is SQL, through the AST."""
-    arbre = ast.parse(source)
-    for noeud in ast.walk(arbre):
-        if isinstance(noeud, ast.Constant) and isinstance(noeud.value, str):
-            texte = noeud.value
-            if any(jalon in texte for jalon in JALONS_SQL):
-                yield texte
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            text = node.value
+            if any(milestone in text for milestone in MILESTONES_SQL):
+                yield text
 
 
-def _app_source(spec_ou_chemin, depuis_fichier, base_dir):
-    raw = (parse_monl_file(spec_ou_chemin) if depuis_fichier
-           else parse_monl_string(spec_ou_chemin))
+def _app_source(spec_ou_path, from_file, base_dir):
+    raw = (parse_monl_file(spec_ou_path) if from_file
+           else parse_monl_string(spec_ou_path))
     ast_manager = MonlAST(raw, base_dir=base_dir)
     normalized = ast_manager.validate_and_audit()
-    with tempfile.TemporaryDirectory() as sortie:
-        MonlSecureGenerator(normalized, output_dir=sortie).generate_all()
-        with open(os.path.join(sortie, "app.py"), encoding="utf-8") as fichier:
-            return fichier.read()
+    with tempfile.TemporaryDirectory() as output:
+        MonlSecureGenerator(normalized, output_dir=output).generate_all()
+        with open(os.path.join(output, "app.py"), encoding="utf-8") as file:
+            return file.read()
 
 
 # A spec cut to exercise the WHOLE transitive access-control surface (depth 2:
 # list, detail, create, Update, Delete), where point 107 lived. The examples
 # cover depth 1 (02_boutique); this one guarantees depth 2 is tested by the
 # invariant too.
-SPEC_PROFONDEUR = """app Inv
+SPEC_DEPTH = """app Inv
 
 entity Commande
     libelle: String
@@ -97,31 +97,31 @@ workflow W for Client
     Delete Ligne
 """
 
-EXEMPLES = sorted(glob.glob(os.path.join(EXEMPLES_DIR, "*.ml")))
+EXAMPLES = sorted(glob.glob(os.path.join(EXAMPLES_DIR, "*.ml")))
 
 
 def test_no_example_pastes_a_value_into_sql():
-    table = EXEMPLES
-    noms = [os.path.basename(p) for p in EXEMPLES]
+    table = EXAMPLES
+    names = [os.path.basename(p) for p in EXAMPLES]
 
-    def cas(chemin):
-        source = _app_source(chemin, depuis_fichier=True, base_dir=EXEMPLES_DIR)
-        for requete in _litteraux_sql(source):
-            for interdit in INTERDITS_EN_SQL:
-                assert interdit not in requete, (
-                    f"{os.path.basename(chemin)}: value '{interdit}' pasted into "
-                f"the SQL text (point 107) — {requete!r}")
+    def cas(path):
+        source = _app_source(path, from_file=True, base_dir=EXAMPLES_DIR)
+        for query in _literals_sql(source):
+            for forbidden in FORBIDDEN_IN_SQL:
+                assert forbidden not in query, (
+                    f"{os.path.basename(path)}: value '{forbidden}' pasted into "
+                f"the SQL text (point 107) — {query!r}")
 
-    check_each_case([(valeur,) for valeur in table], cas, ids=noms)
+    check_each_case([(valeur,) for valeur in table], cas, ids=names)
 
 
 def test_depth_2_pastes_no_value_into_sql():
-    source = _app_source(SPEC_PROFONDEUR, depuis_fichier=False, base_dir=None)
-    for requete in _litteraux_sql(source):
-        for interdit in INTERDITS_EN_SQL:
-            assert interdit not in requete, (
-                f"depth 2: value '{interdit}' pasted into the SQL text "
-                f"(point 107) — {requete!r}")
+    source = _app_source(SPEC_DEPTH, from_file=False, base_dir=None)
+    for query in _literals_sql(source):
+        for forbidden in FORBIDDEN_IN_SQL:
+            assert forbidden not in query, (
+                f"depth 2: value '{forbidden}' pasted into the SQL text "
+                f"(point 107) — {query!r}")
 
 
 def test_the_invariant_really_sees_access_control():
@@ -129,20 +129,20 @@ def test_the_invariant_really_sees_access_control():
     query would always pass, and would no longer say anything. The depth spec
     MUST produce access-control queries (ownership join), and they MUST bind
     their values (`= ?`)."""
-    requetes = list(_litteraux_sql(
-        _app_source(SPEC_PROFONDEUR, depuis_fichier=False, base_dir=None)))
-    controle = [r for r in requetes if "IN (SELECT id FROM" in r or
+    queries = list(_literals_sql(
+        _app_source(SPEC_DEPTH, from_file=False, base_dir=None)))
+    control = [r for r in queries if "IN (SELECT id FROM" in r or
                 ('WHERE id = ' in r and "SELECT" in r)]
-    assert controle, "no access-control query generated — invariant blind"
-    assert any("= ?" in r for r in controle), \
+    assert control, "no access-control query generated — invariant blind"
+    assert any("= ?" in r for r in control), \
         "access control binds no value — point 107 regression"
 
 
 def test_b4_pastes_no_value_into_sql():
     from tests.test_authentification_b4 import SPEC_B4
 
-    source = _app_source(SPEC_B4, depuis_fichier=False, base_dir=None)
-    for requete in _litteraux_sql(source):
-        for interdit in (*INTERDITS_EN_SQL, "req.", "payload.", "row["):
-            assert interdit not in requete, (
-                f"B4: value '{interdit}' pasted into the SQL text — {requete!r}")
+    source = _app_source(SPEC_B4, from_file=False, base_dir=None)
+    for query in _literals_sql(source):
+        for forbidden in (*FORBIDDEN_IN_SQL, "req.", "payload.", "row["):
+            assert forbidden not in query, (
+                f"B4: value '{forbidden}' pasted into the SQL text — {query!r}")

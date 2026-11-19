@@ -69,10 +69,10 @@ def database_url(request):
         admin.commit()
     finally:
         admin.close()
-    morceaux = urlsplit(base)
-    params = dict(parse_qsl(morceaux.query, keep_blank_values=True))
+    chunks = urlsplit(base)
+    params = dict(parse_qsl(chunks.query, keep_blank_values=True))
     params["options"] = f"-c search_path={schema}"
-    dsn = urlunsplit(morceaux._replace(
+    dsn = urlunsplit(chunks._replace(
         query=urlencode(params, quote_via=quote)))
     try:
         yield dsn
@@ -204,10 +204,10 @@ def test_contract_and_signature_describe_the_capabilities(tmp_path):
     assert fields["status"]["filterable"] is True
     assert fields["status"]["filter"]["allowed_values"] == ["pending", "shipped"]
     assert fields["rank"]["sortable"] is True
-    liste = next(route for route in contract["routes"]
+    list_ = next(route for route in contract["routes"]
                  if route["action"] == "List" and route["entity"] == "Item")
-    assert liste["list_query"]["sort"]["fields"] == ["rank"]
-    assert {item["field"] for item in liste["list_query"]["filters"]} == {
+    assert list_["list_query"]["sort"]["fields"] == ["rank"]
+    assert {item["field"] for item in list_["list_query"]["filters"]} == {
         "status", "title"}
 
     sans = tmp_path / "sans.ml"

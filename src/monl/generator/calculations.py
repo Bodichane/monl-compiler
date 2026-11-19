@@ -7,13 +7,13 @@ keep each effect's target."""
 from string import Template
 
 
-class CalculsMixin:
+class CalculationsMixin:
     """What the server CALCULATES: derivation, sum, counters."""
 
-    def _valeur_initiale_postpaiement(self, entity, field):
+    def _value_initial_postpayment(self, entity, field):
         """First closed state, or the legitimate absence of a known value."""
-        choix = self.enumerated_fields.get(entity, {}).get(field)
-        return repr(choix[0]) if choix else "None"
+        choice = self.enumerated_fields.get(entity, {}).get(field)
+        return repr(choice[0]) if choice else "None"
 
     def _derived_field_names(self, entity: str) -> list[str]:
         """Fields of 'entity' calculated by the server (brick 10, point 77).
@@ -36,16 +36,16 @@ class CalculsMixin:
         The query recomputes the parent's lines inside the write's transaction.
         COALESCE gives zero to an empty cart and ROUND keeps the monetary rounding
         the existing routes expect."""
-        recalculs = []
+        recomputes = []
         for plan in self.aggregations_by_source.get(source_entity, ()):
             fk = plan.parent_fk
-            recalculs.append({
+            recomputes.append({
                 "fk_column": fk,
                 "sql": (Template(r"""UPDATE "${entity}" SET "${field}" = (SELECT ROUND(COALESCE(SUM("${source_field}"), 0), 2) FROM "${source_entity}" WHERE "${fk}" = ?) WHERE id = ?""").substitute(entity=plan.entity.lower(), field=plan.field, source_field=plan.source_field, source_entity=source_entity.lower(), fk=fk)),
             })
-        return recalculs
+        return recomputes
 
-    def _lignes_restitution(self, enfant, fk_enfant, indent="    "):
+    def _lines_restitution(self, child, fk_child, indent="    "):
         """Gives back to the parent what its child lines had consumed.
 
         SINGLE source of brick 20's restoration, shared by the TWO routes that can
@@ -55,25 +55,25 @@ class CalculsMixin:
         effect where each branch keeps its own version ends up diverging.
 
         No floor: we restore a state that existed and was valid."""
-        lignes = []
-        for decompte in self.reputation_rules_by_trigger.get(enfant, []):
-            if decompte.direction != "decrements":
+        lines = []
+        for count in self.reputation_rules_by_trigger.get(child, []):
+            if count.direction != "decrements":
                 continue
-            champ = decompte.amount_field
-            quantite = "_l[1]" if champ else str(decompte.amount)
-            colonnes = (Template(r'''"${target_fk}", "${champ}"''').substitute(target_fk=decompte.target_fk, champ=champ) if champ
-                        else Template(r'''"${target_fk}"''').substitute(target_fk=decompte.target_fk))
-            lignes.extend([
-                Template(r"""${indent}cursor.execute('SELECT ${colonnes} FROM "${enfant}" WHERE "${fk_enfant}" = ?', (id,))""").substitute(indent=indent, colonnes=colonnes, enfant=enfant.lower(), fk_enfant=fk_enfant),
+            field = count.amount_field
+            quantity = "_l[1]" if field else str(count.amount)
+            columns = (Template(r'''"${target_fk}", "${champ}"''').substitute(target_fk=count.target_fk, champ=field) if field
+                        else Template(r'''"${target_fk}"''').substitute(target_fk=count.target_fk))
+            lines.extend([
+                Template(r"""${indent}cursor.execute('SELECT ${colonnes} FROM "${enfant}" WHERE "${fk_enfant}" = ?', (id,))""").substitute(indent=indent, colonnes=columns, enfant=child.lower(), fk_enfant=fk_child),
                 Template(r"""${indent}for _l in cursor.fetchall():""").substitute(indent=indent),
-                Template(r"""${indent}    cursor.execute('UPDATE "${target_entity}" SET "${target_field}" = "${target_field_2}" + ? WHERE id = ?', (int(${quantite} or 0), _l[0]))""").substitute(indent=indent, target_entity=decompte.target_entity.lower(), target_field=decompte.target_field, target_field_2=decompte.target_field, quantite=quantite),
+                Template(r"""${indent}    cursor.execute('UPDATE "${target_entity}" SET "${target_field}" = "${target_field_2}" + ? WHERE id = ?', (int(${quantite} or 0), _l[0]))""").substitute(indent=indent, target_entity=count.target_entity.lower(), target_field=count.target_field, target_field_2=count.target_field, quantite=quantity),
             ])
-        return lignes
+        return lines
 
-    def _fk_enfant_libere(self, parent, enfant):
+    def _fk_child_released(self, parent, child):
         """Child column designating the parent whose state flips."""
         return next(
-            (p["fk_column"] for p in self._compute_fk_placements().get(enfant, [])
+            (p["fk_column"] for p in self._compute_fk_placements().get(child, [])
              if p["owner_entity"] == parent), None)
 
     def _counter_fk_columns(self, trigger_entity: str) -> list[str]:

@@ -7,7 +7,7 @@ neither becomes a criterion by accident."""
 from .base import ASTValidationError
 
 
-class CapacitesDeListeMixin:
+class CapabilitiesOfListMixin:
     """The filtering and sorting declared on a list route (brick B3)."""
 
     # BRICK B3: these are the only types for which equality or sorting has
@@ -24,7 +24,7 @@ class CapacitesDeListeMixin:
         "password", "passwd", "secret", "token", "apikey", "api_key",
     )
 
-    def _valider_capacites_de_liste(self):
+    def _validate_capabilities_of_list(self):
         """Validates the declared filters and sorts, without opening a query
         language.
 
@@ -81,24 +81,24 @@ class CapacitesDeListeMixin:
                 )
             return entity, field
 
-        def refuser_oracle(entity, field, kind):
-            type_champ = self.entities[entity][field]
+        def refuse_oracle(entity, field, kind):
+            type_field = self.entities[entity][field]
             if (entity, field) in self.masked_fields:
-                raison = "hidden: counting it would reveal a masked value"
+                reason = "hidden: counting it would reveal a masked value"
             elif any(item["entity"] == entity and item["field"] == field
                      for item in self.categorized_fields):
-                raison = "categorized: counting it would reveal the number replaced by a label"
-            elif type_champ == "Upload":
-                raison = "Upload: counting it would reveal whether a file exists"
+                reason = "categorized: counting it would reveal the number replaced by a label"
+            elif type_field == "Upload":
+                reason = "Upload: counting it would reveal whether a file exists"
             else:
                 compact = field.lower().replace("-", "_")
                 if any(part in compact for part in self.LIST_QUERY_SECRET_PARTS):
-                    raison = "secret name: counting it would reveal sensitive data"
+                    reason = "secret name: counting it would reveal sensitive data"
                 else:
-                    return type_champ
+                    return type_field
             raise ASTValidationError(
                 f"Security: '{entity}.{field}' cannot be used for {kind}: "
-                f"{raison}. A filter or sort is an oracle; declare a "
+                f"{reason}. A filter or sort is an oracle; declare a "
                 "visible, untransformed field."
             )
 
@@ -107,27 +107,27 @@ class CapacitesDeListeMixin:
             if kind not in ("filter", "sort"):
                 continue
             entity, field = reference_parts(rule, kind)
-            type_champ = refuser_oracle(entity, field, kind)
-            if type_champ not in self.LIST_QUERY_TYPES:
+            type_field = refuse_oracle(entity, field, kind)
+            if type_field not in self.LIST_QUERY_TYPES:
                 raise ASTValidationError(
                     f"Structure: '{kind}' can only target declared scalar fields "
                     f"({', '.join(self.LIST_QUERY_TYPES)}), received "
-                    f"'{entity}.{field}: {type_champ}'."
+                    f"'{entity}.{field}: {type_field}'."
                 )
-            cible = (entity, field)
+            target = (entity, field)
             if kind == "filter":
-                if cible in seen_filters:
+                if target in seen_filters:
                     raise ASTValidationError(
                         f"Structure: multiple 'filter' rules for "
                         f"'{entity}.{field}' -- one declaration is enough."
                     )
-                seen_filters.add(cible)
+                seen_filters.add(target)
                 self.filterable_fields.append({"entity": entity, "field": field})
             else:
-                if cible in seen_sorts:
+                if target in seen_sorts:
                     raise ASTValidationError(
                         f"Structure: multiple 'sort' rules for "
                         f"'{entity}.{field}' -- one declaration is enough."
                     )
-                seen_sorts.add(cible)
+                seen_sorts.add(target)
                 self.sortable_fields.append({"entity": entity, "field": field})

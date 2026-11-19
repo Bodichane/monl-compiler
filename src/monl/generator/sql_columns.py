@@ -7,14 +7,14 @@ cannot add `UNIQUE` to an existing column."""
 
 
 
-class SqlColonnesMixin:
+class SqlColumnsMixin:
     """The columns and indexes the schema must carry."""
 
     def _unique_fields(self, entity):
         """The fields of this entity declared 'unique' (point 85)."""
-        return sorted(champ for champ, contraintes
+        return sorted(field for field, constraints
                       in self.field_constraints.get(entity, {}).items()
-                      if contraintes.get("unique"))
+                      if constraints.get("unique"))
 
     def _once_per_rules_for(self, entity):
         return [rule for rule in self.once_per_rules
@@ -44,14 +44,14 @@ class SqlColonnesMixin:
                 # incoming relation, and `oncePer Member, Post` no longer bit.
                 # Refuse rather than produce a rule with no effect — exactly
                 # what point 85 closed for `unique`.
-                ecrites = set(self._client_fk_columns(entity))
-                ecrites |= set(self._identity_fk_columns().get(entity, set()))
+                written = set(self._client_fk_columns(entity))
+                written |= set(self._identity_fk_columns().get(entity, set()))
                 # The counter branch of the Create route writes these columns
                 # outside the client FKs. The refusal therefore stays active
                 # for a column that is truly never written, without rejecting a
                 # real server write.
-                ecrites |= set(self._counter_fk_columns(entity))
-                if placement["fk_column"] not in ecrites:
+                written |= set(self._counter_fk_columns(entity))
+                if placement["fk_column"] not in written:
                     raise ValueError(
                         f"Generation: 'oncePer' on '{entity}' points to '{parent}', "
                         f"but the column '{placement['fk_column']}' is never "
@@ -79,17 +79,17 @@ class SqlColonnesMixin:
         index name derives from the table and the column, declaring both produces
         a single index."""
         vises = {
-            (entite, champ)
-            for entite, champs in self.field_constraints.items()
-            for champ, contraintes in champs.items()
-            if contraintes.get("unique")
+            (entity, field)
+            for entity, fields in self.field_constraints.items()
+            for field, constraints in fields.items()
+            if constraints.get("unique")
         }
-        vises |= {(entite, regle["field"])
-                  for entite, regles in self.numbered_fields_by_entity.items()
-                  for regle in regles}
+        vises |= {(entity, rule["field"])
+                  for entity, rules in self.numbered_fields_by_entity.items()
+                  for rule in rules}
         return [
-            (entite.lower(), champ, f"idx_unique_{entite.lower()}_{champ.lower()}")
-            for entite, champ in sorted(vises)
+            (entity.lower(), field, f"idx_unique_{entity.lower()}_{field.lower()}")
+            for entity, field in sorted(vises)
         ]
 
     def _compute_lookup_indexes(self):
@@ -146,9 +146,9 @@ class SqlColonnesMixin:
         numbering them at startup would claim an arrival order the server never
         observed."""
         return [
-            (entite.lower(), regle["field"])
-            for entite, regles in sorted(self.numbered_fields_by_entity.items())
-            for regle in regles
+            (entity.lower(), rule["field"])
+            for entity, rules in sorted(self.numbered_fields_by_entity.items())
+            for rule in rules
         ]
 
     def _compute_timestamp_columns(self):
@@ -157,9 +157,9 @@ class SqlColonnesMixin:
         Used only for the startup report: counting the records older than the
         rule, which will never have a date."""
         return [
-            (entite.lower(), champ)
-            for entite, champs in sorted(self.timestamp_fields_by_entity.items())
-            for champ in sorted(champs)
+            (entity.lower(), field)
+            for entity, fields in sorted(self.timestamp_fields_by_entity.items())
+            for field in sorted(fields)
         ]
 
     def _compute_postpayment_enumerated_columns(self):

@@ -147,14 +147,14 @@ def _variant(name: str, kind: str) -> str:
     return choices.get(name, choices["hero"])
 
 
-def _route_ecrite_mentionnant(routes, mots):
+def _route_written_mentioning(routes, words):
     """Is there a Create/Update route whose entity or path mentions one of
     the words? Extracted from `select_ui_patterns` (complexity ceiling): the
     booking and contact detections were the same expression twice."""
     return any(
         route.get("action") in {"Create", "Update"}
         and any(word in (f"{route.get('entity', '')} {route.get('path', '')}").lower()
-                for word in mots)
+                for word in words)
         for route in routes
     )
 
@@ -175,7 +175,7 @@ def select_ui_patterns(contract: dict, kind: str) -> list[dict]:
     entities = contract.get("entities") or {}
     archetypes = {entity.get("archetype") for entity in entities.values()}
     routes = contract.get("routes") or []
-    booking_route = _route_ecrite_mentionnant(
+    booking_route = _route_written_mentioning(
         routes, ("booking", "appointment", "reservation", "rendez-vous"))
     selected = ["hero"]
     # A priced service can be classified `shop` by the fields' archetype, but
@@ -212,7 +212,7 @@ def select_ui_patterns(contract: dict, kind: str) -> list[dict]:
         selected.append("faq")
     if booking_route:
         selected.append("booking")
-    contact_route = _route_ecrite_mentionnant(routes, ("message", "contact"))
+    contact_route = _route_written_mentioning(routes, ("message", "contact"))
     if contact_route:
         selected.append("contact")
     selected.append("closing-cta")

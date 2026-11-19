@@ -3,7 +3,7 @@
 from .foundations import DESIGN_IMAGERY, DESIGN_REGISTERS, FIELD_TYPES
 
 
-class ParcoursMixin:
+class WalkMixin:
     """The guided path: the template catalog, and express mode."""
 
     # ---------- dialogue flow ----------
@@ -22,16 +22,16 @@ class ParcoursMixin:
         labels = [f"{t['name']} — {t['hint']}" for t in TEMPLATES] + [FREE_MODE_LABEL]
         courts = {label: TEMPLATES[i]["name"] for i, label in enumerate(labels[:-1])}
         courts[FREE_MODE_LABEL] = FREE_MODE_LABEL.split(" (")[0]
-        aides = {t["name"]: f'{t["hint"]} — {self._ligne_de_compte(t)}'
+        aides = {t["name"]: f'{t["hint"]} — {self._line_of_account(t)}'
                  for t in TEMPLATES}
         aides[courts[FREE_MODE_LABEL]] = "describe my entities freely, without a template"
 
         self._show(self.ui.plan(["Application type", "Project identity",
                                  "Template options", "Finishing touches"]))
         self._show(self.ui.phase(0))
-        choisi_court = self._ask_choice("What type of application are you building?",
+        chosen_court = self._ask_choice("What type of application are you building?",
                                         [courts[label] for label in labels], hints=aides)
-        picked = labels[[courts[label] for label in labels].index(choisi_court)]
+        picked = labels[[courts[label] for label in labels].index(chosen_court)]
         if picked == FREE_MODE_LABEL:
             return self._run_free()
         template = TEMPLATES[labels.index(picked)]
@@ -73,7 +73,7 @@ class ParcoursMixin:
         )
 
     @staticmethod
-    def _ligne_de_compte(template):
+    def _line_of_account(template):
         """Will visitors have an account? DERIVED, never written by hand.
 
         The question "website or application?" does not exist in the dialogue,
@@ -93,7 +93,7 @@ class ParcoursMixin:
         managers = {n: [m["manager"]] for n, m in template["entities"].items()}
         owned = {n: m["manager"] for n, m in template["entities"].items()
                  if m["owned"]}
-        role = ParcoursMixin._default_self_register(
+        role = WalkMixin._default_self_register(
             template["actors"], managers, owned)
         return (f"self-registration: {role}" if role
                 else "accounts created by the administrator")
@@ -102,13 +102,13 @@ class ParcoursMixin:
     def _default_self_register(actors, managers, owned):
         """Cautious choice of the public role, the deterministic counterpart of the
         question."""
-        privilegies = {
+        privileged = {
             actor
             for entity, entity_managers in managers.items()
             for actor in entity_managers
             if owned.get(entity) != actor and entity != actor
         }
-        return next((actor for actor in actors if actor not in privilegies), None)
+        return next((actor for actor in actors if actor not in privileged), None)
 
     @staticmethod
     def _express_image_topic(template):
@@ -145,7 +145,7 @@ class ParcoursMixin:
             "Describe the project in one sentence (used as the frontend brief) > ")
 
         if self.express:
-            return self._parcours_express(template, app_name, description)
+            return self._walk_express(template, app_name, description)
 
         self._show(self.ui.phase(2))
         for followup in template["followups"]:
@@ -154,10 +154,10 @@ class ParcoursMixin:
 
         # Conversion from the template to the emitter's format
         (entities, actors, managers, readers, public_read, public_create,
-         owned, relations) = self._depuis_le_modele(template)
+         owned, relations) = self._from_the_template(template)
 
         # Escape hatch: one custom entity on top of the template.
-        self._entites_sur_mesure(entities, actors, managers, readers, public_read)
+        self._entities_on_measure(entities, actors, managers, readers, public_read)
 
         self._ensure_ownership_structure(entities, managers, readers, owned, relations)
 
@@ -192,12 +192,12 @@ class ParcoursMixin:
                                extra_workflows=template.get("extra_workflows", ()),
                                custom_seeds=template["seeds"],
                                payable=payable)
-        return self._revalider_la_spec(spec)
+        return self._revalidate_the_spec(spec)
 
-    def _parcours_express(self, template, app_name, description):
+    def _walk_express(self, template, app_name, description):
         """Express mode: the template as is, no question asked."""
         (entities, actors, managers, readers, public_read, public_create,
-         owned, relations) = self._depuis_le_modele(template)
+         owned, relations) = self._from_the_template(template)
         self._ensure_ownership_structure(
             entities, managers, readers, owned, relations)
         self_register = self._default_self_register(actors, managers, owned)
@@ -211,10 +211,10 @@ class ParcoursMixin:
             image_topic=self._express_image_topic(template),
             self_register=self_register,
             extra_rules=template["extra_rules"], custom_seeds=template["seeds"])
-        return self._revalider_la_spec(spec)
+        return self._revalidate_the_spec(spec)
 
     @staticmethod
-    def _depuis_le_modele(template):
+    def _from_the_template(template):
         """The template converted to the emitter's format."""
         entities = {name: list(meta["fields"]) for name, meta in template["entities"].items()}
         actors = list(template["actors"])
@@ -227,11 +227,11 @@ class ParcoursMixin:
         return (entities, actors, managers, readers, public_read, public_create,
                 owned, relations)
 
-    def _entites_sur_mesure(self, entities, actors, managers, readers, public_read):
+    def _entities_on_measure(self, entities, actors, managers, readers, public_read):
         """Custom entities added on top of the template, one at a time."""
         while self._ask_yes_no("Add a custom entity in addition to the template?"):
             name = self._ask_identifier("  Entity name > ", forbidden=entities.keys())
-            fields = self._champs_sur_mesure(name)
+            fields = self._fields_on_measure(name)
             entities[name] = fields
             managers[name] = [actors[0] if len(actors) == 1
                               else self._ask_choice(f"  Who manages {name} for writing?", actors)]
@@ -239,7 +239,7 @@ class ParcoursMixin:
             if self._ask_yes_no(f"  Should {name} be readable without an account?"):
                 public_read.append(name)
 
-    def _champs_sur_mesure(self, name):
+    def _fields_on_measure(self, name):
         """The fields of a custom entity: at least one, blank to finish."""
         fields = []
         while True:
@@ -255,7 +255,7 @@ class ParcoursMixin:
         return fields
 
     @staticmethod
-    def _revalider_la_spec(spec):
+    def _revalidate_the_spec(spec):
         """The produced spec goes through the real parser and validator."""
         from ..ast_validator import MonlAST
         from ..parser import parse_monl_string

@@ -12,11 +12,11 @@ def _project():
         import tomli as tomllib
 
     racine = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    with open(os.path.join(racine, "pyproject.toml"), "rb") as fichier:
-        return tomllib.load(fichier)["project"]
+    with open(os.path.join(racine, "pyproject.toml"), "rb") as file:
+        return tomllib.load(file)["project"]
 
 
-def _workflow_versions(nom):
+def _workflow_versions(name):
     """Returns the Python versions a workflow really tests.
 
     Read from the file rather than copied: two version lists kept separately
@@ -27,11 +27,11 @@ def _workflow_versions(nom):
     import re
 
     racine = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    chemin = os.path.join(racine, ".github", "workflows", nom)
-    with open(chemin, encoding="utf-8") as fichier:
-        contenu = fichier.read()
-    ligne = re.search(r"python-version:\s*\[([^\]]*)\]", contenu)
-    return re.findall(r"\d+\.\d+", ligne.group(1)) if ligne else []
+    path = os.path.join(racine, ".github", "workflows", name)
+    with open(path, encoding="utf-8") as file:
+        content = file.read()
+    line = re.search(r"python-version:\s*\[([^\]]*)\]", content)
+    return re.findall(r"\d+\.\d+", line.group(1)) if line else []
 
 
 def _ci_versions():
@@ -62,11 +62,11 @@ def test_the_publishing_metadata_describe_the_project():
     # user of true information.
     testees = _ci_versions()
     assert testees, "unreadable CI matrix: this witness no longer guards anything"
-    manquantes = [v for v in testees
+    missing = [v for v in testees
                   if f"Programming Language :: Python :: {v}" not in classifiers]
-    assert not manquantes, (
+    assert not missing, (
         f"versions tested by CI but not announced on the index: "
-        f"{manquantes}")
+        f"{missing}")
     assert project["urls"] == {
         "Repository": "https://github.com/Bodichane/monl-compiler",
         "Documentation": "https://github.com/Bodichane/monl-compiler/tree/main/docs",
@@ -94,7 +94,7 @@ def test_an_author_cannot_be_the_package_name():
 def test_the_distribution_author_is_the_legal_publisher():
     project = _project()
 
-    assert project["authors"] == [{"name": legal.EDITEUR}], (
+    assert project["authors"] == [{"name": legal.PUBLISHER}], (
         "the distribution's author must stay identical to legal.EDITEUR"
     )
 

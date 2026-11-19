@@ -26,7 +26,7 @@ from monl.generator import (
     schemas,
 )
 from tests.support.cases import check_each_case
-from tests.test_bloc_custom_absent import AVEC_CUSTOM, _compiler
+from tests.test_bloc_custom_absent import WITH_CUSTOM, _compiler
 
 MIGRATED_MODULES = (
     sandbox, runtime_extras, runtime_preparation, runtime_migrations,
@@ -82,7 +82,7 @@ def test_sandbox_emission_without_f_string_or_concatenation():
 
 
 def test_custom_sandbox_bytes_and_execution(tmp_path):
-    source = AVEC_CUSTOM.replace('Publie une note', 'Publie ${name} {note} $5 \\n')
+    source = WITH_CUSTOM.replace('Publie une note', 'Publie ${name} {note} $5 \\n')
     folder = _compiler(source, tmp_path / 'custom')
     generated = (folder / 'sandbox_ai.py').read_bytes()
     expected = b"# 'custom' BLOCKS \xe2\x80\x94 business logic to complete by hand (deterministic)\n\ndef Publier(context: dict) -> dict:\n    \"\"\"\n    Purpose: Publie ${name} {note} $5 \\\\n\n    \"\"\"\n    # TODO:\n    return {'message': 'Deterministic empty shell for Publier'}\n"
@@ -95,7 +95,7 @@ def test_custom_sandbox_bytes_and_execution(tmp_path):
 
 
 def test_schema_server_fields_do_not_mask_substrings(tmp_path):
-    source = AVEC_CUSTOM.replace(
+    source = WITH_CUSTOM.replace(
         "    titre: String", "    titre: String\n    a: String\n    created_at: DateTime"
     ) + "\nrule Note.created_at timestamp\n"
     folder = _compiler(source, tmp_path / "schema")
@@ -115,8 +115,8 @@ def test_schema_server_fields_do_not_mask_substrings(tmp_path):
     r'Etude \"\"\" x',
     "Etude " + "\\" * 2,
 ])
-def test_sandbox_description_antislash_litteral(tmp_path, description):
-    source = AVEC_CUSTOM.replace("Publie une note", description)
+def test_sandbox_description_backslash_literal(tmp_path, description):
+    source = WITH_CUSTOM.replace("Publie une note", description)
     folder = _compiler(source, tmp_path / "custom")
     path = folder / "sandbox_ai.py"
     ast.parse(path.read_text(encoding="utf-8"))

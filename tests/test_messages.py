@@ -25,7 +25,7 @@ import requests
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import _contract_signature, compile_project
 from monl.parser import parse_monl_string
-from tests.support.processus import fermer_tubes
+from tests.support.process import close_tubes
 from tests.support.server import free_port
 
 SPEC = """app Notifications
@@ -124,28 +124,28 @@ class _RunningServer:
     def __init__(self, process, base):
         self.process = process
         self.base = base
-        self._morceaux = []
-        self._lecteur = threading.Thread(target=self._read, daemon=True)
-        self._lecteur.start()
+        self._chunks = []
+        self._reader = threading.Thread(target=self._read, daemon=True)
+        self._reader.start()
 
     def _read(self):
-        for ligne in self.process.stdout:
-            self._morceaux.append(ligne)
+        for line in self.process.stdout:
+            self._chunks.append(line)
 
     @property
     def output(self):
-        return "".join(self._morceaux)
+        return "".join(self._chunks)
 
-    def attendre(self, motif, delai=15.0):
+    def wait(self, motif, delay=15.0):
         """Waits until `motif` appears in the output, and shows it in the failure
         message if it never comes."""
-        limite = time.monotonic() + delai
-        while time.monotonic() < limite:
+        limit = time.monotonic() + delay
+        while time.monotonic() < limit:
             if motif in self.output:
                 return True
             time.sleep(0.05)
         raise AssertionError(
-            f"{motif!r} missing from the server output after {delai:.0f} s:\n"
+            f"{motif!r} missing from the server output after {delay:.0f} s:\n"
             f"{self.output[-3000:]}")
 
     def stop(self):
@@ -156,10 +156,10 @@ class _RunningServer:
         except subprocess.TimeoutExpired:
             self.process.kill()
             self.process.wait(timeout=5)
-        self._lecteur.join(timeout=5)
+        self._reader.join(timeout=5)
         # Close AFTER the reader thread ends: closing while it reads would make
         # it raise on its side.
-        fermer_tubes(self.process)
+        close_tubes(self.process)
 
 
 @contextlib.contextmanager
@@ -409,7 +409,7 @@ def test_a_crlf_recipient_is_never_sent(database_kind, faux_smtp,
         )
         assert response.status_code == 200, response.text
         assert requests.get(f"{server.base}/health", timeout=10).status_code == 200
-        server.attendre("[MONL_MESSAGE]")
+        server.wait("[MONL_MESSAGE]")
         assert not faux_smtp.messages
 
 
@@ -430,7 +430,7 @@ def test_unreachable_smtp_does_not_undo_the_route_and_names_the_variable(
         assert response.status_code == 200, response.text
         assert elapsed < 2, f"the route waits for SMTP ({elapsed:.3f}s)"
         assert requests.get(f"{server.base}/health", timeout=10).status_code == 200
-        server.attendre("[MONL_MESSAGE]")
+        server.wait("[MONL_MESSAGE]")
 
 
 def test_missing_smtp_variable_is_named(database_kind, faux_smtp, tmp_path):
@@ -445,7 +445,7 @@ def test_missing_smtp_variable_is_named(database_kind, faux_smtp, tmp_path):
             timeout=10,
         )
         assert response.status_code == 200, response.text
-        server.attendre("MONL_SMTP_HOST")
+        server.wait("MONL_SMTP_HOST")
 
 
 def test_contract_and_delta_see_a_message(tmp_path, capsys):

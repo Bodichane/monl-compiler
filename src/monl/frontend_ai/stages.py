@@ -18,8 +18,8 @@ def _planned_generated_asset_paths(project_dir):
     if not os.path.exists(path):
         return []
     try:
-        with open(path, encoding="utf-8") as fichier:
-            content = fichier.read()
+        with open(path, encoding="utf-8") as file:
+            content = file.read()
         if content.startswith(GENERATED_MARKER):
             content = "\n".join(content.splitlines()[1:])
         manifest = json.loads(content)
@@ -87,7 +87,7 @@ def _chunk_context(files, target=None):
     else:
         useful_paths = ()
 
-    morceaux = []
+    chunks = []
     for path in useful_paths:
         if path not in files or path == target:
             continue
@@ -100,15 +100,15 @@ def _chunk_context(files, target=None):
             # the rules and their values, often much longer.
             content = skeleton._css_selector_skeleton(files[path])
             label = "declared CSS selectors (without the rules)"
-        morceaux.append(f"### frontend/{path} — {label}\n```\n{content}\n```")
+        chunks.append(f"### frontend/{path} — {label}\n```\n{content}\n```")
 
     # An SVG's content serves neither the CSS selectors nor the JS hooks. Its
     # path is enough for the following pieces to refer to it.
     for path in sorted(path for path in files if path.endswith(".svg")):
-        morceaux.append(
+        chunks.append(
             f"### frontend/{path}\n(SVG file already produced; the name is enough)"
         )
-    return "\n\n".join(morceaux) or "(no file generated yet)"
+    return "\n\n".join(chunks) or "(no file generated yet)"
 
 def _chunk_response_reached_limit(provider):
     """Tells whether the provider used up its whole output ceiling."""
@@ -139,7 +139,7 @@ def _generate_chunked_files(project_dir, provider, base_prompt, operation,
     model_routes = model_routes or {}
     _validate_model_routing(project_dir, model_routes)
     files = response._read_existing_frontend(project_dir)
-    ampleur = drafting.ampleur_du_contrat(project_dir)
+    extent = drafting.extent_of_contract(project_dir)
     targets = list(CHUNKED_FRONTEND_FILES) + _planned_generated_asset_paths(project_dir)
     for target in targets:
         stage_provider = _provider_for_chunk(
@@ -152,7 +152,7 @@ def _generate_chunked_files(project_dir, provider, base_prompt, operation,
                     say(f" -> Retrying frontend/{target} "
                         f"({retry}/{providers.CHUNK_MAX_RETRIES})…")
                 chunk_prompt = _build_chunk_prompt(base_prompt, target, files,
-                                                   ampleur)
+                                                   extent)
                 if retry:
                     chunk_prompt += (
                         "\n\n## Generation retry\n"
@@ -211,21 +211,21 @@ def _generate_chunked_files(project_dir, provider, base_prompt, operation,
 #: (call, loading state, error, form). Measured backwards on the repository's
 #: complete frontends — 26 to 43 KB for some fifteen routes, that is 7,000 to
 #: 11,000 tokens.
-APPJS_SOCLE_TOKENS = 1_200
+APPJS_BASE_TOKENS = 1_200
 
-APPJS_TOKENS_PAR_ROUTE = 400
+APPJS_TOKENS_BY_ROUTE = 400
 
-INDEX_SOCLE_TOKENS = 1_200
+INDEX_BASE_TOKENS = 1_200
 
 INDEX_TOKENS_PAR_ROUTE = 200
 
-def _budget(socle, par_route, ampleur, defaut):
-    if not ampleur:
-        return defaut
-    return min(socle + par_route * ampleur["routes"],
+def _budget(base, par_route, extent, default):
+    if not extent:
+        return default
+    return min(base + par_route * extent["routes"],
                providers.DEFAULT_CHUNK_MAX_OUTPUT_TOKENS)
 
-def _build_chunk_prompt(base_prompt, target, files, ampleur=None):
+def _build_chunk_prompt(base_prompt, target, files, extent=None):
     """Requests a single complete piece of the frontend.
 
     The full brief stays present: the model keeps the API contract and the
@@ -243,19 +243,19 @@ def _build_chunk_prompt(base_prompt, target, files, ampleur=None):
             "Reference exactly these names; do not create or reference any "
             "other local graphic file.\n"
         )
-    index_tokens = _budget(INDEX_SOCLE_TOKENS, INDEX_TOKENS_PAR_ROUTE,
-                           ampleur, 1_600)
-    app_tokens = _budget(APPJS_SOCLE_TOKENS, APPJS_TOKENS_PAR_ROUTE,
-                         ampleur, 1_500)
+    index_tokens = _budget(INDEX_BASE_TOKENS, INDEX_TOKENS_PAR_ROUTE,
+                           extent, 1_600)
+    app_tokens = _budget(APPJS_BASE_TOKENS, APPJS_TOKENS_BY_ROUTE,
+                         extent, 1_500)
     # The hard limit follows the budget instead of contradicting it: ~4
     # characters per token. It was 12,000 characters for a file whose
     # successful examples in the repository weigh 26 to 43 KB — three times too
     # little.
-    plancher = ""
-    if ampleur:
-        plancher = (
-            f" This contract carries {ampleur['routes']} routes over "
-            f"{ampleur['entites']} entities: a file that calls only two or "
+    floor = ""
+    if extent:
+        floor = (
+            f" This contract carries {extent['routes']} routes over "
+            f"{extent['entites']} entities: a file that calls only two or "
             "three of them will be REFUSED. Each declared flow must have its "
             "entry point."
         )
@@ -289,7 +289,7 @@ def _build_chunk_prompt(base_prompt, target, files, ampleur=None):
             "flows. `dataset.*` values are strings: convert them with "
             "Number() before comparing them with the API's numeric IDs, then "
             "mentally check the Create, Edit and Delete clicks."
-            f"{plancher} Aim for about {app_tokens} tokens "
+            f"{floor} Aim for about {app_tokens} tokens "
             f"and factor the code. Hard limit: finish before "
             f"{app_tokens * 4} characters."
             + asset_rule

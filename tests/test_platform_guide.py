@@ -29,9 +29,9 @@ def _grammar_types():
     narrower, since reading the file picked up the rest of the module on the way."""
     from monl.parser import grammar
 
-    ligne = re.search(r'^\s*TYPE:\s*(.+)$', grammar, re.MULTILINE)
-    assert ligne, "the TYPE rule disappeared from the grammar"
-    return set(re.findall(r'"([A-Za-z]+)"', ligne.group(1)))
+    line = re.search(r'^\s*TYPE:\s*(.+)$', grammar, re.MULTILINE)
+    assert line, "the TYPE rule disappeared from the grammar"
+    return set(re.findall(r'"([A-Za-z]+)"', line.group(1)))
 
 
 def test_the_guide_documents_exactly_the_grammar_types():
@@ -41,45 +41,45 @@ def test_the_guide_documents_exactly_the_grammar_types():
     # The DSL reference left /guide for /docs: the data is now read in
     # `guide_data`, its SOURCE, which both pages render. The guarantee is
     # unchanged — only the module read has moved.
-    documentes = {nom for nom, _ in guide_data.TYPES}
+    documented = {name for name, _ in guide_data.TYPES}
     reels = _grammar_types()
-    assert documentes == reels, (
-        f"documented in excess: {sorted(documentes - reels)} · "
-        f"missing from the guide: {sorted(reels - documentes)}"
+    assert documented == reels, (
+        f"documented in excess: {sorted(documented - reels)} · "
+        f"missing from the guide: {sorted(reels - documented)}"
     )
 
 
 def test_the_guide_documents_the_really_mounted_routes(tmp_path):
     """The guide describes the platform API; FastAPI knows what it is."""
     app = create_app(workspace=tmp_path)
-    montees = {
-        (methode, route.path)
+    mounted = {
+        (method, route.path)
         for route in app.routes
-        for methode in getattr(route, "methods", set())
-        if methode in {"GET", "POST", "DELETE"}
+        for method in getattr(route, "methods", set())
+        if method in {"GET", "POST", "DELETE"}
     }
-    for verbe, chemin, _ in guide.ROUTES_API:
-        assert (verbe, chemin) in montees, f"the guide announces {verbe} {chemin}, missing from the app"
+    for verb, path, _ in guide.ROUTES_API:
+        assert (verb, path) in mounted, f"the guide announces {verb} {path}, missing from the app"
 
-    publiques = {
-        (methode, route.path)
+    public = {
+        (method, route.path)
         for route in app.routes
-        for methode in getattr(route, "methods", set())
-        if methode in {"GET", "POST", "DELETE"}
+        for method in getattr(route, "methods", set())
+        if method in {"GET", "POST", "DELETE"}
         and (route.path.startswith("/api/") or route.path in {
             "/auth/fournisseurs", "/mcp", "/health", "/ready"
         })
     }
-    documentees = {(verbe, chemin) for verbe, chemin, _ in guide.ROUTES_API}
-    assert publiques == documentees, (
-        f"undocumented routes: {sorted(publiques - documentees)}"
+    documented = {(verb, path) for verb, path, _ in guide.ROUTES_API}
+    assert public == documented, (
+        f"undocumented routes: {sorted(public - documented)}"
     )
 
 
 def test_the_guide_documents_the_tools_the_mcp_server_declares():
-    documentes = {nom for nom, _ in guide.OUTILS_MCP}
-    reels = {outil["name"] for outil in TOOLS}
-    assert documentes == reels
+    documented = {name for name, _ in guide.TOOLS_MCP}
+    reels = {tool["name"] for tool in TOOLS}
+    assert documented == reels
 
 
 def test_the_guide_promises_no_fake_mcp_keys():
@@ -94,11 +94,11 @@ def test_the_documentation_orients_before_detailing_the_reference():
     """The docs page stays a front door: the reader must be able to start, look
     up syntax or check permissions before diving into the full tables."""
     html = docs_page.DOCS_HTML
-    for texte in ("Choose your starting point", "First spec",
+    for text in ("Choose your starting point", "First spec",
                   "Language reference", "Security and permissions",
                   'href="#premiere-spec"', 'href="#mots-cles"',
                   'href="#acces"'):
-        assert texte in html
+        assert text in html
 
 
 def test_each_example_really_compiles(tmp_path):
@@ -106,45 +106,45 @@ def test_each_example_really_compiles(tmp_path):
     teaching a dead syntax: the catalog would be worse than empty. We compile for
     real — validating only proves half the way."""
     service = CompilationService(tmp_path)
-    for exemple in examples.EXAMPLES:
-        manifeste = service.compile(exemple["spec"])
-        assert manifeste["summary"]["counts"]["routes"] > 0, exemple["id"]
-        attendu = exemple["result"]
-        assert manifeste["summary"]["counts"]["entities"] == attendu["entities"]
-        assert manifeste["summary"]["counts"]["routes"] == attendu["routes"]
-        assert len(manifeste["files"]) == attendu["files"]
-        fichiers = set(manifeste["files"])
-        assert {"app.py", "schema.sql", "frontend_contract.json"} <= fichiers, exemple["id"]
-        assert ".jwt_secret" not in fichiers, exemple["id"]
+    for example in examples.EXAMPLES:
+        manifest = service.compile(example["spec"])
+        assert manifest["summary"]["counts"]["routes"] > 0, example["id"]
+        expected = example["result"]
+        assert manifest["summary"]["counts"]["entities"] == expected["entities"]
+        assert manifest["summary"]["counts"]["routes"] == expected["routes"]
+        assert len(manifest["files"]) == expected["files"]
+        files = set(manifest["files"])
+        assert {"app.py", "schema.sql", "frontend_contract.json"} <= files, example["id"]
+        assert ".jwt_secret" not in files, example["id"]
         # The count stays at 16, and it is a COINCIDENCE that must be said:
         # `sandbox_ai.py` left (no example has a `custom` block) and
         # `README.md` arrived. An unchanged count would have suggested neither
         # had moved — so both are named, and the LAYOUT is checked rather than
         # the total alone.
-        assert "sandbox_ai.py" not in fichiers, exemple["id"]
+        assert "sandbox_ai.py" not in files, example["id"]
         assert {"README.md", "AGENTS.md", "docs/FRONTEND_PROMPT.md",
                 "docs/DESIGN_SYSTEM.md", "docs/DESIGN_SPEC.md",
-                "docs/ASSET_MANIFEST.json"} <= fichiers, exemple["id"]
-        assert "CLAUDE.md" not in fichiers, exemple["id"]
+                "docs/ASSET_MANIFEST.json"} <= files, example["id"]
+        assert "CLAUDE.md" not in files, example["id"]
 
 
 def test_no_example_declares_an_asset(tmp_path):
     """The platform offers no upload: an example declaring an image would be
     refused in front of the visitor, at the first keystroke. It is the limit the
     guide STATES — this test makes it true."""
-    for exemple in examples.EXAMPLES:
-        assert "\nassets" not in exemple["spec"], exemple["id"]
-        assert ": Image" not in exemple["spec"], exemple["id"]
+    for example in examples.EXAMPLES:
+        assert "\nassets" not in example["spec"], example["id"]
+        assert ": Image" not in example["spec"], example["id"]
 
 
 def test_the_catalog_does_not_ship_the_specs_and_ids_are_unique():
     catalogue = examples.catalogue()
     assert len(catalogue) == len(examples.EXAMPLES)
-    assert all("spec" not in entree for entree in catalogue), "galerie inutilement lourde"
-    identifiants = [entree["id"] for entree in catalogue]
-    assert len(set(identifiants)) == len(identifiants)
-    for entree in catalogue:
-        assert entree["name"] and entree["summary"] and entree["teaches"]
+    assert all("spec" not in entry for entry in catalogue), "galerie inutilement lourde"
+    identifiers = [entry["id"] for entry in catalogue]
+    assert len(set(identifiers)) == len(identifiers)
+    for entry in catalogue:
+        assert entry["name"] and entry["summary"] and entry["teaches"]
 
 
 def test_the_rules_cited_by_the_guide_all_carry_a_known_keyword():
@@ -157,19 +157,19 @@ def test_the_rules_cited_by_the_guide_all_carry_a_known_keyword():
     # the union of its modules. The file form stays accepted — this test says
     # "the keyword exists in the validator", not "it lives in this file".
     racine = pathlib.Path(__file__).parent.parent / "src/monl"
-    paquet = racine / "ast_validator"
-    fichiers = (sorted(paquet.glob("*.py")) if paquet.is_dir()
+    package = racine / "ast_validator"
+    files = (sorted(package.glob("*.py")) if package.is_dir()
                 else [racine / "ast_validator.py"])
-    assert fichiers, "validator source not found"
-    validateur = "\n".join(f.read_text(encoding="utf-8") for f in fichiers)
-    tableaux = (guide_data.REGLES_ACCES + guide_data.REGLES_CHAMPS
-                + guide_data.REGLES_SERVEUR + guide_data.REGLES_COMMERCE)
-    for regle, _ in tableaux:
-        mots = re.findall(r"\b(ownedBy|accessibleBy|public|publicWhen|sharedBy|oncePer|"
+    assert files, "validator source not found"
+    validator = "\n".join(f.read_text(encoding="utf-8") for f in files)
+    tableaux = (guide_data.RULES_ACCESS + guide_data.RULES_FIELDS
+                + guide_data.RULES_SERVER + guide_data.RULES_COMMERCE)
+    for rule, _ in tableaux:
+        words = re.findall(r"\b(ownedBy|accessibleBy|public|publicWhen|sharedBy|oncePer|"
                           r"requiresOwn|min|max|unique|required|oneOf|generated|timestamp|"
                           r"numbered|derivedFrom|sumOf|hidden|categorized|decrements|"
-                          r"increments|payable|releases|writableAfterPayment)\b", regle)
-        assert mots, f"rule without identifiable keyword: {regle}"
-        for mot in mots:
-            assert f'"{mot}"' in validateur or f"'{mot}'" in validateur, (
-                f"the guide cites `{mot}`, which the validator does not know")
+                          r"increments|payable|releases|writableAfterPayment)\b", rule)
+        assert words, f"rule without identifiable keyword: {rule}"
+        for word in words:
+            assert f'"{word}"' in validator or f"'{word}'" in validator, (
+                f"the guide cites `{word}`, which the validator does not know")

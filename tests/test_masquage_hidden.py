@@ -23,7 +23,7 @@ from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
 from tests.support.server import uvicorn_server
 
-SPEC_MASQUAGE = """app Registre
+SPEC_MASKING = """app Registre
 
 entity Note
     title: String
@@ -44,78 +44,78 @@ workflow GererNote for Admin
 
 @pytest.fixture(scope="module")
 def application():
-    with tempfile.TemporaryDirectory() as dossier:
-        ast = MonlAST(parse_monl_string(SPEC_MASQUAGE)).validate_and_audit()
-        MonlSecureGenerator(ast, output_dir=dossier).generate_all()
-        with uvicorn_server(dossier) as base:
-            yield base, dossier
+    with tempfile.TemporaryDirectory() as folder:
+        ast = MonlAST(parse_monl_string(SPEC_MASKING)).validate_and_audit()
+        MonlSecureGenerator(ast, output_dir=folder).generate_all()
+        with uvicorn_server(folder) as base:
+            yield base, folder
 
 
 def _admin(base):
     requests.post(f"{base}/register",
                   json={"username": "chef", "password": "motdepasse123",
                         "actor": "Admin"})
-    jeton = requests.post(f"{base}/login",
+    token = requests.post(f"{base}/login",
                           json={"username": "chef", "password": "motdepasse123"}).json()
-    return {"Authorization": "Bearer " + jeton["access_token"]}
+    return {"Authorization": "Bearer " + token["access_token"]}
 
 
 def test_the_hidden_field_disappears_from_reads_and_stays_stored(application):
-    base, dossier = application
-    entetes = _admin(base)
+    base, folder = application
+    headers = _admin(base)
 
-    cree = requests.post(f"{base}/note", headers=entetes,
+    created = requests.post(f"{base}/note", headers=headers,
                          json={"title": "Devis Aurora",
                                "internalNote": "marge 42%, ne pas divulguer"})
-    assert cree.status_code in (200, 201), cree.text
-    note_id = cree.json().get("id") or cree.json().get("data", {}).get("id")
-    assert note_id, cree.text
+    assert created.status_code in (200, 201), created.text
+    note_id = created.json().get("id") or created.json().get("data", {}).get("id")
+    assert note_id, created.text
 
     # 1. The LIST does not show the field — not even to the signed-in author.
-    liste = requests.get(f"{base}/note", headers=entetes).json()
-    lignes = liste["data"]
-    assert lignes, liste
-    for ligne in lignes:
-        assert "title" in ligne
-        assert "internalNote" not in ligne, f"hidden field exposed in list: {ligne}"
+    list_ = requests.get(f"{base}/note", headers=headers).json()
+    lines = list_["data"]
+    assert lines, list_
+    for line in lines:
+        assert "title" in line
+        assert "internalNote" not in line, f"hidden field exposed in list: {line}"
 
     # 2. Nor does the DETAIL.
-    detail = requests.get(f"{base}/note/{note_id}", headers=entetes).json()
-    corps = detail.get("data", detail)
-    assert corps.get("title") == "Devis Aurora", detail
-    assert "internalNote" not in corps, f"hidden field exposed in detail: {detail}"
+    detail = requests.get(f"{base}/note/{note_id}", headers=headers).json()
+    body = detail.get("data", detail)
+    assert body.get("title") == "Devis Aurora", detail
+    assert "internalNote" not in body, f"hidden field exposed in detail: {detail}"
 
     # 3. Nor without an account (reading is public here): masking does not
     # depend on the caller, unlike ownedBy.
-    anonyme = requests.get(f"{base}/note/{note_id}").json()
-    assert "internalNote" not in anonyme.get("data", anonyme)
+    anonymous = requests.get(f"{base}/note/{note_id}").json()
+    assert "internalNote" not in anonymous.get("data", anonymous)
 
     # 4. The field stays WRITABLE — masking is not removing.
-    maj = requests.put(f"{base}/note/{note_id}", headers=entetes,
+    maj = requests.put(f"{base}/note/{note_id}", headers=headers,
                        json={"title": "Devis Aurora",
                              "internalNote": "marge revue à 38%"})
     assert maj.status_code == 200, maj.text
 
     # 5. And it is indeed in the database: hidden on read, not lost.
-    cnx = sqlite3.connect(os.path.join(dossier, "app.db"))
+    conn = sqlite3.connect(os.path.join(folder, "app.db"))
     try:  # `with connect(...)` commits the transaction, it does not close.
-        table = next(nom for (nom,) in cnx.execute(
+        table = next(name for (name,) in conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table'")
-            if nom.lower().startswith("note"))
-        valeur = cnx.execute(
+            if name.lower().startswith("note"))
+        valeur = conn.execute(
             f'SELECT internalNote FROM "{table}" WHERE id = ?', (note_id,)).fetchone()
     finally:
-        cnx.close()
+        conn.close()
     assert valeur and valeur[0] == "marge revue à 38%", valeur
 
 
-def test_the_hidden_field_is_absent_from_the_read_contract(application):
+def test_the_hidden_field_is_missing_from_the_read_contract(application):
     """The frontend contract describes what the routes return: announcing a field
     the server removes would send the interface AI drawing an always-empty
     column."""
-    base, _dossier = application
+    base, _folder = application
     schema = requests.get(f"{base}/openapi.json").json()
-    texte = str(schema)
-    assert "internalNote" in texte, "the field must exist for writing"
+    text = str(schema)
+    assert "internalNote" in text, "the field must exist for writing"
     lecture = schema["paths"]["/note/{id}"]["get"]
     assert "internalNote" not in str(lecture), lecture

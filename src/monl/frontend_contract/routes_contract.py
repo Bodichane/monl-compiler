@@ -7,7 +7,7 @@ against the decorators actually written in app.py."""
 from . import contract_notes, fields
 
 
-def _routes_du_contrat(entity_specs, plans, route_map):
+def _routes_of_contract(entity_specs, plans, route_map):
     """The routes — CRUD from the SAME grouping as FastAPI generation
     (`_compute_route_map`, never parallel logic), then the upload routes,
     which come from no workflow."""
@@ -25,13 +25,13 @@ def _routes_du_contrat(entity_specs, plans, route_map):
             # flow that hits a 409 on the very last screen — the only place
             # where the user has already filled in everything. The constraint
             # must show BEFORE, not be discovered at the end.
-            requise = plans.required_profiles.get(base)
+            required = plans.required_profiles.get(base)
             note_create = (
-                f"PREREQUISITE: the caller must already own a {requise}. Otherwise "
+                f"PREREQUISITE: the caller must already own a {required}. Otherwise "
                 f"this route answers 409 and creates nothing. Check on load "
-                f"(GET /{requise.lower()} returns theirs) and offer to create "
+                f"(GET /{required.lower()} returns theirs) and offer to create "
                 f"the profile BEFORE the form, not after."
-                if requise else None)
+                if required else None)
             # POINT 91: creation is locked TOO — but only by a settled PARENT,
             # never by the entity itself: nothing prevents opening one more
             # order, it is ADDING a line to it that would raise the already
@@ -39,17 +39,17 @@ def _routes_du_contrat(entity_specs, plans, route_map):
             # about it while the backend already refused: a faithful AI drew a
             # "+ Add an item" on a paid order (checked on
             # `exemples/02_boutique.ml`).
-            verrou_parent = contract_notes._verrou_paiement(plans, base, inclure_soi=False)
+            lock_parent = contract_notes._lock_payment(plans, base, include_soi=False)
             message = plans.message_rules_by_trigger.get(base)
             routes.append(fields._route("POST", f"/{low}", act_type, base, is_public, actors,
                                  request_fields=fields._creatable_fields(entity_specs.get(base)),
-                                 note=contract_notes._joindre(note_create,
-                                               contract_notes._note_verrou(verrou_parent, creation=True),
+                                 note=contract_notes._join(note_create,
+                                               contract_notes._note_lock(lock_parent, creation=True),
                                                contract_notes._note_message(message))))
-            if requise:
-                routes[-1]["requires_own"] = requise
-            if verrou_parent:
-                routes[-1]["payment_locked"] = verrou_parent
+            if required:
+                routes[-1]["requires_own"] = required
+            if lock_parent:
+                routes[-1]["payment_locked"] = lock_parent
         elif act_type == "Read":
             # ADDED (brick 23, point 106): a supervisor role (declared through
             # 'sharedBy' on the same reference as 'accessibleBy') pierces the
@@ -57,11 +57,11 @@ def _routes_du_contrat(entity_specs, plans, route_map):
             # party filter to the moderator themselves and carve out an empty
             # view — while the backend shows them everything.
             _sup_lecture = sorted(access.supervisors)
-            _note_lecture = contract_notes._note_superviseurs(_sup_lecture, "lecture")
+            _note_lecture = contract_notes._note_supervisors(_sup_lecture, "lecture")
             list_query = fields._list_query_contract(plans, base)
             routes.append(fields._route(
                 "GET", f"/{low}", "List", base, is_public, actors,
-                note=contract_notes._joindre(
+                note=contract_notes._join(
                     "Parameters: limit (max 200), offset. Response: "
                     "{status, total, limit, offset, data: [...]}.",
                     contract_notes._note_list_query(list_query), _note_lecture)))
@@ -73,31 +73,31 @@ def _routes_du_contrat(entity_specs, plans, route_map):
                 routes[-1]["supervisors"] = _sup_lecture
                 routes[-2]["supervisors"] = _sup_lecture
         elif act_type == "Update":
-            routes.append(_route_de_modification(
+            routes.append(_route_of_modification(
                 entity_specs, plans, base, low, act_type, is_public, actors))
         elif act_type == "Delete":
-            verrou = contract_notes._verrou_paiement(plans, base)
+            lock = contract_notes._lock_payment(plans, base)
             # ADDED (brick 23, point 106): see the Read block — a deletion
             # supervisor sees/deletes every record.
             _sup_delete = sorted(access.supervisors)
             routes.append(fields._route("DELETE", f"/{low}/{{id}}", act_type, base, is_public,
                                  actors,
-                                 note=contract_notes._joindre(contract_notes._note_verrou(verrou),
-                                               contract_notes._note_superviseurs(_sup_delete, "suppression"))))
+                                 note=contract_notes._join(contract_notes._note_lock(lock),
+                                               contract_notes._note_supervisors(_sup_delete, "suppression"))))
             if _sup_delete:
                 routes[-1]["supervisors"] = _sup_delete
-            if verrou:
-                routes[-1]["payment_locked"] = verrou
+            if lock:
+                routes[-1]["payment_locked"] = lock
         elif act_type == "Execute":
             tag = plan.tags[0]
             routes.append(fields._route("POST", f"/workflow/{tag.lower()}/{target.lower()}",
                                  "Execute", target, is_public, actors))
 
-    routes.extend(_routes_de_depot(plans))
+    routes.extend(_routes_of_upload(plans))
     return routes
 
 
-def _route_de_modification(entity_specs, plans, base, low, act_type, is_public, actors):
+def _route_of_modification(entity_specs, plans, base, low, act_type, is_public, actors):
     """The PUT route and its notes. Extracted from `_routes_du_contrat`
     (complexity ceiling); same route, same keys, same order."""
     # ADDED (point 81): the Pydantic schema is UNIQUE per entity, so
@@ -108,15 +108,15 @@ def _route_de_modification(entity_specs, plans, base, low, act_type, is_public, 
     # backend accepts (200) without changing anything. Same requirement
     # as points 76 and 79: the contract describes what the backend
     # DOES.
-    liens = list(entity_specs.get(base, {}).get("client_foreign_keys", []))
-    note_liens = None
-    if liens:
+    links = list(entity_specs.get(base, {}).get("client_foreign_keys", []))
+    note_links = None
+    if links:
         accord = ("must appear in the body (one schema per entity) but are "
-                  "NOT modified" if len(liens) > 1 else
+                  "NOT modified" if len(links) > 1 else
                   "must appear in the body (one schema per entity) but is "
                   "NOT modified")
-        note_liens = (
-            f"{', '.join(liens)} {accord}: an attachment is set on creation. "
+        note_links = (
+            f"{', '.join(links)} {accord}: an attachment is set on creation. "
             f"Do not offer to change it — send back the current value.")
     # POINT 91: fourth form of the blind spot of points 88 to 90. A
     # route changes neither path, nor actors, nor fields, and yet gains
@@ -124,25 +124,25 @@ def _route_de_modification(entity_specs, plans, base, low, act_type, is_public, 
     # this note, an interface faithful to the contract draws an "Edit"
     # button on a paid order — and the user discovers the refusal after
     # filling in the form.
-    verrou = contract_notes._verrou_paiement(plans, base)
+    lock = contract_notes._lock_payment(plans, base)
     # POINT 98: the value that RELEASES, and the one-way trip. Without
     # this note, an interface offers "back to preparation" on a
     # cancelled order and discovers a 409 on click.
-    liberation = (plans.release_rules_by_entity.get(base) or [None])[0]
+    release = (plans.release_rules_by_entity.get(base) or [None])[0]
     route = fields._route("PUT", f"/{low}/{{id}}", act_type, base, is_public, actors,
-                         note=contract_notes._joindre(note_liens, contract_notes._note_verrou(verrou),
-                                       contract_notes._note_liberation(liberation)),
+                         note=contract_notes._join(note_links, contract_notes._note_lock(lock),
+                                       contract_notes._note_release(release)),
                          request_fields=fields._creatable_fields(entity_specs.get(base)))
-    if verrou:
-        route["payment_locked"] = verrou
-    if liberation:
+    if lock:
+        route["payment_locked"] = lock
+    if release:
         route["releases_on"] = {
-            "field": liberation["field"], "value": liberation["value"],
-            "releases": liberation["releases"], "terminal": True}
+            "field": release["field"], "value": release["value"],
+            "releases": release["releases"], "terminal": True}
     return route
 
 
-def _routes_de_depot(plans):
+def _routes_of_upload(plans):
     """The upload routes, which come from no workflow. Extracted from
     `_routes_du_contrat` (complexity ceiling); same routes, same order."""
     routes = []
@@ -151,12 +151,12 @@ def _routes_de_depot(plans):
     # multipart name, explicit limit, types really recognized, POST upload and
     # private GET read.
     for upload in plans.upload_fields:
-        entite = upload["entity"]
-        champ = upload["field"]
-        chemin = f"/{entite.lower()}/{{id}}/{champ}"
+        entity = upload["entity"]
+        field = upload["field"]
+        path = f"/{entity.lower()}/{{id}}/{field}"
         for action, method, contract_action, note in (
                 ("Update", "POST", "Upload", (
-                    f"multipart/form-data required, file field '{champ}'. "
+                    f"multipart/form-data required, file field '{field}'. "
                     f"Exact limit: {upload['max_bytes']} bytes. Types accepted "
                     f"by byte signature: {', '.join(upload['accepted_types'])}. "
                     "The file name and Content-Type declared by the client "
@@ -167,11 +167,11 @@ def _routes_de_depot(plans):
                     "application/octet-stream and nosniff; the row's ACL "
                     "applies to the file too, a known path is not enough.")),
         ):
-            access = plans.access_policies[(entite, action)]
-            route = fields._route(method, chemin, contract_action, entite, False,
+            access = plans.access_policies[(entity, action)]
+            route = fields._route(method, path, contract_action, entity, False,
                            sorted(access.actors), note=note)
             route["upload"] = {
-                "field_name": champ,
+                "field_name": field,
                 "max_bytes": upload["max_bytes"],
                 "accepted_types": list(upload["accepted_types"]),
                 "storage": "server_disk_reference",

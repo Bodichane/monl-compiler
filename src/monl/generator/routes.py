@@ -9,31 +9,31 @@ All access-control SQL goes through the typed emission layer `sql`
 into the text. See generator/sql.py — the family modules each import it on
 their own."""
 
-from .routes_access import AccesRoutesMixin
+from .routes_access import AccessRoutesMixin
 from .routes_creation import CreationRoutesMixin
 from .routes_creation_transaction import CreationTransactionRoutesMixin
-from .routes_deletion import SuppressionRoutesMixin
-from .routes_filtered_read import LectureFiltreeRoutesMixin
+from .routes_deletion import DeletionRoutesMixin
+from .routes_filtered_read import ReadFilteredRoutesMixin
 from .routes_modification import ModificationRoutesMixin
 from .routes_orchestration import OrchestrationRoutesMixin
-from .routes_payment import PaiementRoutesMixin
-from .routes_providers import PrestatairesRoutesMixin
-from .routes_read import LectureRoutesMixin
+from .routes_payment import PaymentRoutesMixin
+from .routes_providers import ProvidersRoutesMixin
+from .routes_read import ReadRoutesMixin
 from .routes_uploads import UploadsRoutesMixin
 
 
 class RoutesMixin(
     OrchestrationRoutesMixin,
-    AccesRoutesMixin,
+    AccessRoutesMixin,
     UploadsRoutesMixin,
     CreationRoutesMixin,
     CreationTransactionRoutesMixin,
-    LectureRoutesMixin,
-    LectureFiltreeRoutesMixin,
+    ReadRoutesMixin,
+    ReadFilteredRoutesMixin,
     ModificationRoutesMixin,
-    SuppressionRoutesMixin,
-    PaiementRoutesMixin,
-    PrestatairesRoutesMixin,
+    DeletionRoutesMixin,
+    PaymentRoutesMixin,
+    ProvidersRoutesMixin,
 ):
     """All the routes of the generated backend, by family.
 

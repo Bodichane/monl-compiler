@@ -101,8 +101,8 @@ seed Post
     # — a child's attachment cannot live in the row itself, the column carrying
     # it not being a declared field. A seed without a parent leaves it at None,
     # and the values are unchanged.
-    rows = [entree["values"] for entree in seed_data["post"]]
-    assert all(entree["parent"] is None for entree in seed_data["post"])
+    rows = [entry["values"] for entry in seed_data["post"]]
+    assert all(entry["parent"] is None for entry in seed_data["post"])
     assert len(rows) == 2
     assert all(r["author"].startswith("Anon#") for r in rows)
     assert rows[0]["author"] != rows[1]["author"]  # uniques

@@ -93,7 +93,7 @@ class _Server:
         self.proc.wait(timeout=10)
 
 
-def _vider_quota(workdir):
+def _empty_quota(workdir):
     """Clears the application's attempt counter (point 67).
 
     The quota (5 / 60 s / IP) is persisted in the database — that is the whole
@@ -101,25 +101,25 @@ def _vider_quota(workdir):
     not sleep a minute: it just empties the table, which weakens nothing in the
     product and only concerns the test bench."""
     import sqlite3
-    cnx = sqlite3.connect(os.path.join(workdir, "app.db"))
+    conn = sqlite3.connect(os.path.join(workdir, "app.db"))
     try:
-        with cnx:
-            cnx.execute("DELETE FROM _monl_rate_limit")
+        with conn:
+            conn.execute("DELETE FROM _monl_rate_limit")
     finally:
         # `with sqlite3.connect(...)` commits the transaction but does not
         # CLOSE the connection: without this close, the suite leaks one
         # descriptor per call and reports it as a ResourceWarning.
-        cnx.close()
+        conn.close()
 
 
 def _login(base, username, password="motdepasse123"):
     """Logs in while tolerating the quota shared by this module's tests."""
     for tentative in range(3):
-        reponse = requests.post(base + "/login", json={"username": username, "password": password})
-        if reponse.status_code != 429:
-            return reponse
+        response = requests.post(base + "/login", json={"username": username, "password": password})
+        if response.status_code != 429:
+            return response
         time.sleep(21)
-    return reponse
+    return response
 
 
 @pytest.fixture(scope="module")
@@ -155,7 +155,7 @@ def test_open_role_accepted_then_stays_confined(app_server):
                          json={"label": "interdit"}).status_code == 403
 
 
-def test_role_provisionne_par_manage_py(app_server):
+def test_role_provisioned_by_manage_py(app_server):
     """The legitimate path: creating the privileged account on the server."""
     proc = subprocess.run(
         [sys.executable, "manage.py", "adduser", "patron", "Admin"],
@@ -207,13 +207,13 @@ def test_login_does_not_reveal_whether_the_account_exists():
     _compile(workdir)
     server = _Server(workdir).__enter__()
     try:
-        _mesurer_canal_temporel(server, workdir)
+        _measure_canal_timing(server, workdir)
     finally:
         server.__exit__()
         shutil.rmtree(workdir, ignore_errors=True)
 
 
-def _mesurer_canal_temporel(server, workdir):
+def _measure_canal_timing(server, workdir):
     import hashlib
 
     requests.post(server.base + "/register",
@@ -223,29 +223,29 @@ def _mesurer_canal_temporel(server, workdir):
     hashlib.pbkdf2_hmac("sha256", b"x", b"y" * 16, 100_000)
     hash_cost = time.perf_counter() - start
 
-    def mesure(username):
+    def measure(username):
         t0 = time.perf_counter()
-        reponse = requests.post(server.base + "/login",
+        response = requests.post(server.base + "/login",
                                 json={"username": username, "password": "mauvais-mot-de-passe"})
-        assert reponse.status_code == 401, f"quota reached during the measurement ({reponse.status_code})"
+        assert response.status_code == 401, f"quota reached during the measurement ({response.status_code})"
         return time.perf_counter() - t0
 
-    def groupe(username, echantillons=5):
-        _vider_quota(workdir)
-        return min(mesure(username) for _ in range(echantillons))
+    def group(username, samples=5):
+        _empty_quota(workdir)
+        return min(measure(username) for _ in range(samples))
 
-    mesure("echauffement")  # first request: startup costs, discarded
+    measure("echauffement")  # first request: startup costs, discarded
 
-    ecarts = []
+    gaps = []
     for _tour in range(3):
-        ecart = abs(groupe("membre") - groupe("fantome"))
-        ecarts.append(ecart)
-        if ecart < hash_cost / 2:
+        gap = abs(group("membre") - group("fantome"))
+        gaps.append(gap)
+        if gap < hash_cost / 2:
             break
 
-    assert min(ecarts) < hash_cost / 2, (
-        f"{min(ecarts) * 1000:.0f} ms gap between existing and nonexistent account "
-        f"over {len(ecarts)} independent measurements (cost of a hash: "
+    assert min(gaps) < hash_cost / 2, (
+        f"{min(gaps) * 1000:.0f} ms gap between existing and nonexistent account "
+        f"over {len(gaps)} independent measurements (cost of a hash: "
         f"{hash_cost * 1000:.0f} ms) — exploitable timing channel")
 
 
@@ -253,7 +253,7 @@ def _mesurer_canal_temporel(server, workdir):
 # Attempt quota: atomicity
 # --------------------------------------------------------------------------
 
-def test_quota_non_contournable_en_parallele():
+def test_quota_non_bypassable_in_parallel():
     """20 simultaneous logins must not all pass the quota of 5."""
     with tempfile.TemporaryDirectory() as workdir:
         _compile(workdir)
@@ -308,7 +308,7 @@ def test_logout_revokes_the_token(app_server):
 # Compilation determinism
 # --------------------------------------------------------------------------
 
-def test_compilation_reproductible_entre_processus():
+def test_compilation_reproducible_entre_process():
     """Two compilations of the same spec must produce the same bytes.
 
     Python set iteration order varies from one process to another

@@ -118,7 +118,7 @@ def _free_port():
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
 
-def _identifiant_smoke(contract, rang=0):
+def _identifier_smoke(contract, rang=0):
     """Test account identifier matching what the app REQUIRES (point 95).
 
     `rang` distinguishes the accounts of a single pass: the
@@ -128,13 +128,13 @@ def _identifiant_smoke(contract, rang=0):
     — never routable, hence never a real recipient by accident."""
     formes = (contract.get("api", {}).get("auth", {}).get("register", {})
               .get("identifier_forms") or [])
-    suffixe = f"-{rang}" if rang else ""
+    suffix = f"-{rang}" if rang else ""
     if "email" in formes:
-        return f"smoke{suffixe}@monl.test"
+        return f"smoke{suffix}@monl.test"
     if "phone" in formes:
         # Range 06 99 00 00 xx: the length of a real number, without being one.
         return f"+3369900{rang:04d}"
-    return f"smoke{suffixe}"
+    return f"smoke{suffix}"
 
 def _http(method, url, body=None, token=None):
     data = json.dumps(body).encode() if body is not None else None

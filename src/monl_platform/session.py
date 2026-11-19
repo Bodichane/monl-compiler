@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 
 COOKIE_SECURE_ENV = "MONL_COOKIE_SECURE"
 PUBLIC_URL_ENV = "MONL_PLATFORM_PUBLIC_URL"
-_VALEURS_VRAIES = {"1", "true", "yes"}
+_VALUES_REAL = {"1", "true", "yes"}
 
 
 def cookie_secure(environ=None) -> bool:
@@ -16,10 +16,10 @@ def cookie_secure(environ=None) -> bool:
     # would survive a rename and the default read would look for a variable
     # that no longer exists — the cookie would silently become insecure again.
     source = os.environ if environ is None else environ
-    return str(source.get(COOKIE_SECURE_ENV, "")).strip().lower() in _VALEURS_VRAIES
+    return str(source.get(COOKIE_SECURE_ENV, "")).strip().lower() in _VALUES_REAL
 
 
-def verifier_configuration_cookie(environ=None) -> None:
+def check_configuration_cookie(environ=None) -> None:
     """Refuses the only configuration that contradicts the announced security.
 
     A missing or HTTP public URL stays allowed: they correspond to local

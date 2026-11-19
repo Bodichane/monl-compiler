@@ -22,14 +22,14 @@ from pathlib import Path
 
 from monl.cli.signature import _contract_signature
 
-from .service import PlatformInputError, compiler_dans, contract_summary
+from .service import PlatformInputError, compiler_in, contract_summary
 
 #: The name of each set returned by ``_contract_signature``, in order. The
 #: first nine are compared as sets; the two DICTIONARIES (contents, mandatory
 #: sections) carry one fingerprint per key — a value that changes without the
 #: key moving is a real interface change (lesson of points 89, 94 and 96), so
 #: "modified" exists.
-RUBRIQUES = (
+SECTIONS = (
     ("routes", "ensemble"),
     ("champs", "ensemble"),
     ("acces", "ensemble"),
@@ -43,38 +43,38 @@ RUBRIQUES = (
 )
 
 
-def _ecart(ancienne, nouvelle, forme):
-    ajoutes = sorted(set(nouvelle) - set(ancienne))
-    retires = sorted(set(ancienne) - set(nouvelle))
-    rubrique = {"ajoutes": ajoutes, "retires": retires}
+def _gap(previous, nouvelle, forme):
+    added = sorted(set(nouvelle) - set(previous))
+    retires = sorted(set(previous) - set(nouvelle))
+    section = {"ajoutes": added, "retires": retires}
     if forme == "dictionnaire":
-        rubrique["modifies"] = sorted(
-            cle for cle in set(ancienne) & set(nouvelle)
-            if ancienne[cle] != nouvelle[cle]
+        section["modifies"] = sorted(
+            key for key in set(previous) & set(nouvelle)
+            if previous[key] != nouvelle[key]
         )
-    return rubrique
+    return section
 
 
-def delta_de_contrat(ancien, nouveau):
+def delta_of_contract(old, new):
     """Names everything that changed between two frontend contracts.
 
     Returns one dictionary per heading, plus ``interface_inchangee`` — the
     only verdict that matters for someone who has already written their
     interface."""
-    avant = _contract_signature(ancien)
-    apres = _contract_signature(nouveau)
+    before = _contract_signature(old)
+    apres = _contract_signature(new)
     rapport = {
-        nom: _ecart(avant[index], apres[index], forme)
-        for index, (nom, forme) in enumerate(RUBRIQUES)
+        name: _gap(before[index], apres[index], forme)
+        for index, (name, forme) in enumerate(SECTIONS)
     }
     rapport["interface_inchangee"] = not any(
-        any(valeurs) for rubrique in rapport.values() if isinstance(rubrique, dict)
-        for valeurs in rubrique.values()
+        any(values) for section in rapport.values() if isinstance(section, dict)
+        for values in section.values()
     )
     return rapport
 
 
-def contrat_dune_spec(service, spec):
+def contract_dune_spec(service, spec):
     """Compiles a spec IN A THROWAWAY FOLDER and returns its contract.
 
     Nothing is written in the account's space: it is the discipline of
@@ -83,18 +83,18 @@ def contrat_dune_spec(service, spec):
     validation = service.validate(spec)
     if not validation.valid:
         raise PlatformInputError(validation.errors[0])
-    with tempfile.TemporaryDirectory(prefix="monl-diff-") as dossier:
-        chemin = Path(dossier)
-        spec_path = chemin / "spec.ml"
+    with tempfile.TemporaryDirectory(prefix="monl-diff-") as folder:
+        path = Path(folder)
+        spec_path = path / "spec.ml"
         spec_path.write_text(spec, encoding="utf-8")
-        compiler_dans(spec_path, chemin)
-        contrat = chemin / "frontend_contract.json"
-        if not contrat.is_file():
+        compiler_in(spec_path, path)
+        contract = path / "frontend_contract.json"
+        if not contract.is_file():
             raise PlatformInputError("The compilation produced no contract.")
-        return json.loads(contrat.read_text(encoding="utf-8"))
+        return json.loads(contract.read_text(encoding="utf-8"))
 
 
-def recompiler(service, project_id, spec):
+def recompile(service, project_id, spec):
     """Replaces a project's artifacts with those of a new spec.
 
     The new folder is produced IN FULL in a throwaway folder before the old
@@ -106,44 +106,44 @@ def recompiler(service, project_id, spec):
     whole point of recompiling rather than starting from a new project — the
     download address does not change. The summary, however, is rebuilt from
     the NEW contract: keeping it would make ``/api/projects/{id}`` lie."""
-    ancien_contrat = service.contract(project_id)
+    old_contract = service.contract(project_id)
     directory = service._project_dir(project_id)
     validation = service.validate(spec)
     if not validation.valid:
         raise PlatformInputError(validation.errors[0])
 
-    with tempfile.TemporaryDirectory(prefix="monl-update-") as dossier:
-        neuf = Path(dossier) / "projet"
-        neuf.mkdir()
-        spec_path = neuf / "spec.ml"
+    with tempfile.TemporaryDirectory(prefix="monl-update-") as folder:
+        fresh = Path(folder) / "projet"
+        fresh.mkdir()
+        spec_path = fresh / "spec.ml"
         spec_path.write_text(spec, encoding="utf-8")
-        compiler_dans(spec_path, neuf)
-        contrat_path = neuf / "frontend_contract.json"
-        if not contrat_path.is_file():
+        compiler_in(spec_path, fresh)
+        contract_path = fresh / "frontend_contract.json"
+        if not contract_path.is_file():
             raise PlatformInputError("The compilation produced no contract.")
-        nouveau_contrat = json.loads(contrat_path.read_text(encoding="utf-8"))
-        rapport = delta_de_contrat(ancien_contrat, nouveau_contrat)
+        new_contract = json.loads(contract_path.read_text(encoding="utf-8"))
+        rapport = delta_of_contract(old_contract, new_contract)
 
-        manifeste_path = directory / "platform-manifest.json"
-        manifeste = json.loads(manifeste_path.read_text(encoding="utf-8"))
-        for entree in directory.iterdir():
-            if entree.is_dir():
-                shutil.rmtree(entree)
+        manifest_path = directory / "platform-manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        for entry in directory.iterdir():
+            if entry.is_dir():
+                shutil.rmtree(entry)
             else:
-                entree.unlink()
-        for entree in neuf.iterdir():
-            cible = directory / entree.name
-            if entree.is_dir():
-                shutil.copytree(entree, cible)
+                entry.unlink()
+        for entry in fresh.iterdir():
+            target = directory / entry.name
+            if entry.is_dir():
+                shutil.copytree(entry, target)
             else:
-                shutil.copy2(entree, cible)
+                shutil.copy2(entry, target)
 
-    manifeste["summary"] = contract_summary(nouveau_contrat)
-    manifeste["files"] = sorted(
+    manifest["summary"] = contract_summary(new_contract)
+    manifest["files"] = sorted(
         str(path.relative_to(directory))
         for path in directory.rglob("*")
         if path.is_file() and path.name != ".jwt_secret"
     )
-    manifeste_path.write_text(
-        json.dumps(manifeste, ensure_ascii=False, indent=2), encoding="utf-8")
+    manifest_path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     return rapport

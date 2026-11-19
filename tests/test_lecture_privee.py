@@ -19,7 +19,7 @@ from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
 from tests.support.server import uvicorn_server
 
-SPEC_PRIVEE = """app Depenses
+SPEC_PRIVATE = """app Depenses
 
 entity Expense
     label: String
@@ -48,37 +48,37 @@ workflow Controle for Auditor
 """
 
 
-def _compte(base, nom):
+def _account(base, name):
     requests.post(f"{base}/register",
-                  json={"username": nom, "password": "motdepasse123", "actor": "User"})
-    jeton = requests.post(f"{base}/login",
-                          json={"username": nom, "password": "motdepasse123"}).json()
-    return {"Authorization": "Bearer " + jeton["access_token"]}
+                  json={"username": name, "password": "motdepasse123", "actor": "User"})
+    token = requests.post(f"{base}/login",
+                          json={"username": name, "password": "motdepasse123"}).json()
+    return {"Authorization": "Bearer " + token["access_token"]}
 
 
 @pytest.fixture(scope="module")
 def application():
     """Compiles the spec, starts the server, hands it to the caller."""
-    with tempfile.TemporaryDirectory() as dossier:
-        ast = MonlAST(parse_monl_string(SPEC_PRIVEE)).validate_and_audit()
-        MonlSecureGenerator(ast, output_dir=dossier).generate_all()
-        with uvicorn_server(dossier) as base:
-            yield base, dossier
+    with tempfile.TemporaryDirectory() as folder:
+        ast = MonlAST(parse_monl_string(SPEC_PRIVATE)).validate_and_audit()
+        MonlSecureGenerator(ast, output_dir=folder).generate_all()
+        with uvicorn_server(folder) as base:
+            yield base, folder
 
 
 def test_an_account_does_not_read_another_accounts_data(application):
-    base, dossier = application
-    alice, bob = _compte(base, "alice"), _compte(base, "bob")
-    cree = requests.post(f"{base}/expense", headers=alice,
+    base, folder = application
+    alice, bob = _account(base, "alice"), _account(base, "bob")
+    created = requests.post(f"{base}/expense", headers=alice,
                          json={"label": "Consultation", "amount": 120.0})
-    assert cree.status_code == 200
-    id_alice = cree.json()["id"]
+    assert created.status_code == 200
+    id_alice = created.json()["id"]
     requests.post(f"{base}/expense", headers=bob, json={"label": "Courses", "amount": 42.0})
 
     # List: Bob only sees his own, and the total only counts his own.
-    vue_bob = requests.get(f"{base}/expense", headers=bob).json()
-    assert vue_bob["total"] == 1, vue_bob
-    assert [d["label"] for d in vue_bob["data"]] == ["Courses"]
+    view_bob = requests.get(f"{base}/expense", headers=bob).json()
+    assert view_bob["total"] == 1, view_bob
+    assert [d["label"] for d in view_bob["data"]] == ["Courses"]
 
     # Direct access: 404 and not 403 — a 403 would confirm that someone else's
     # record exists, hence allow counting it by enumeration.
@@ -96,21 +96,21 @@ def test_an_allowed_third_role_still_sees_everything(application):
     Without this nuance, a shop's manager would see no order and the ownership
     check would break the applications it is meant to protect.
     """
-    base, dossier = application
+    base, folder = application
     subprocess.run([sys.executable, "manage.py", "adduser", "inspecteur", "Auditor"],
-                   cwd=dossier, input="motdepasse123\nmotdepasse123\n",
+                   cwd=folder, input="motdepasse123\nmotdepasse123\n",
                    capture_output=True, text=True)
-    jeton = requests.post(f"{base}/login",
+    token = requests.post(f"{base}/login",
                           json={"username": "inspecteur", "password": "motdepasse123"}).json()
-    auditeur = {"Authorization": "Bearer " + jeton["access_token"]}
-    vue = requests.get(f"{base}/expense", headers=auditeur).json()
-    assert vue["total"] >= 2, vue
+    auditor = {"Authorization": "Bearer " + token["access_token"]}
+    view = requests.get(f"{base}/expense", headers=auditor).json()
+    assert view["total"] >= 2, view
 
 
 def test_ownedby_on_create_is_refused_at_compile_time():
     """A rule without effect must fail, not be silently ignored."""
     from monl.ast_validator import ASTValidationError
-    spec = SPEC_PRIVEE.replace("rule Expense.Read ownedBy User",
+    spec = SPEC_PRIVATE.replace("rule Expense.Read ownedBy User",
                                "rule Expense.Create ownedBy User")
     with pytest.raises(ASTValidationError, match="Create"):
         MonlAST(parse_monl_string(spec)).validate_and_audit()

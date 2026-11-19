@@ -10,7 +10,7 @@ from lark import Transformer, v_args
 
 
 @v_args(inline=True)
-class BlocsMixin(Transformer):
+class BlocksMixin(Transformer):
     """The top-level blocks: `ui`, `landing`, `assets`,
 
     INHERITS FROM ``Transformer`` ON PURPOSE, and carries its OWN
@@ -45,24 +45,24 @@ class BlocsMixin(Transformer):
     def landing_brief(self, string_literal):
         return {"brief": str(string_literal).strip('"')}
 
-    def landing_section(self, titre, corps):
+    def landing_section(self, title, body):
         # Temporary marker: the sections ACCUMULATE, whereas the block's other
         # keys overwrite each other. A plain merge would lose all of them but
         # the last.
-        return {"_section": {"title": str(titre).strip('"'),
-                             "body": str(corps).strip('"')}}
+        return {"_section": {"title": str(title).strip('"'),
+                             "body": str(body).strip('"')}}
 
-    def landing_question(self, question, reponse):
+    def landing_question(self, question, response):
         # Same temporary marker as the sections, same reason: the questions
         # ACCUMULATE where the other keys overwrite each other.
         return {"_question": {"question": str(question).strip('"'),
-                              "answer": str(reponse).strip('"')}}
+                              "answer": str(response).strip('"')}}
 
-    def landing_link(self, libelle, adresse):
+    def landing_link(self, label, address):
         # Same temporary marker as the sections and the questions: the links
         # ACCUMULATE where the other keys overwrite each other.
-        return {"_link": {"label": str(libelle).strip('"'),
-                          "url": str(adresse).strip('"')}}
+        return {"_link": {"label": str(label).strip('"'),
+                          "url": str(address).strip('"')}}
 
     def landing_block(self, *props):
         merged, sections, faq, links = {}, [], [], []
@@ -127,31 +127,31 @@ class BlocsMixin(Transformer):
     def capability_phone_prefix(self, valeur):
         return {"phone_prefix": str(valeur).strip('"')}
 
-    def capability_lockout(self, maximum, fenetre):
+    def capability_lockout(self, maximum, window):
         return {"lockout": {"max_attempts": int(maximum),
-                             "window_seconds": int(fenetre)}}
+                             "window_seconds": int(window)}}
 
-    def capability_verify_email(self, duree):
-        return {"verify_email": int(duree)}
+    def capability_verify_email(self, duration):
+        return {"verify_email": int(duration)}
 
-    def capability_verify_resend(self, maximum, fenetre):
+    def capability_verify_resend(self, maximum, window):
         return {"verify_resend": {"max_attempts": int(maximum),
-                                  "window_seconds": int(fenetre)}}
+                                  "window_seconds": int(window)}}
 
-    def capability_password_reset(self, duree):
-        return {"password_reset": int(duree)}
+    def capability_password_reset(self, duration):
+        return {"password_reset": int(duration)}
 
-    def capability_refresh_tokens(self, duree):
-        return {"refresh_tokens": int(duree)}
+    def capability_refresh_tokens(self, duration):
+        return {"refresh_tokens": int(duration)}
 
     def capability_totp(self):
         return {"totp": True}
 
-    def capability_provider(self, nom):
+    def capability_provider(self, name):
         # Lowercased at parse time: 'FedaPay' and 'fedapay' are the same
         # provider, and letting both through would make two specs for a single
         # intent (same reason as for the currency).
-        return {"provider": str(nom).lower()}
+        return {"provider": str(name).lower()}
 
     def capability_currency(self, code):
         # Normalized to uppercase at parse time: 'xof' and 'XOF' are the same

@@ -10,32 +10,32 @@ from fastapi import HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from .identity import IdentityStore
-from .journal import anomalie
+from .log import anomaly
 from .session import set_session_cookie
 from .theme import page
 
-TAILLE_MAX_CORPS_JSON = 300_000
-LIMITE_COMPILATIONS_PAR_HEURE = 10
-FENETRE_COMPILATIONS_SECONDES = 3600
+SIZE_MAX_BODY_JSON = 300_000
+LIMIT_COMPILATIONS_BY_HOUR = 10
+WINDOW_COMPILATIONS_SECONDES = 3600
 
 
-def _liens_de_pied(brut):
+def _links_of_footer(brut):
     """Normalizes the links declared by the console, without guessing the
     others."""
-    from monl.dialogue_engine import adresse_de_lien
+    from monl.dialogue_engine import address_of_link
 
-    liens, vus = [], set()
-    for entree in brut or []:
-        if not isinstance(entree, dict):
+    links, seen = [], set()
+    for entry in brut or []:
+        if not isinstance(entry, dict):
             continue
-        label = str(entree.get("label") or "").strip()
-        adresse = adresse_de_lien(str(entree.get("url") or ""))
-        cle = label.casefold()
-        if not label or '"' in label or not adresse or cle in vus:
+        label = str(entry.get("label") or "").strip()
+        address = address_of_link(str(entry.get("url") or ""))
+        key = label.casefold()
+        if not label or '"' in label or not address or key in seen:
             continue
-        vus.add(cle)
-        liens.append({"label": label, "url": adresse})
-    return liens
+        seen.add(key)
+        links.append({"label": label, "url": address})
+    return links
 
 def _session_response(identities: IdentityStore, user: dict[str, str],
                       status_code: int = 200, extra: dict | None = None) -> JSONResponse:
@@ -52,15 +52,15 @@ def _require_user(request: Request, identities: IdentityStore) -> dict[str, str]
     return user
 
 
-def _cle_mcp(request: Request) -> str | None:
+def _key_mcp(request: Request) -> str | None:
     """The key carried by the ``Authorization: Bearer …`` header, or nothing."""
-    autorisation = request.headers.get("authorization", "")
-    if not autorisation.lower().startswith("bearer "):
+    authorization = request.headers.get("authorization", "")
+    if not authorization.lower().startswith("bearer "):
         return None
-    return autorisation[7:].strip() or None
+    return authorization[7:].strip() or None
 
 
-def _require_user_ou_cle(request: Request, identities: IdentityStore) -> dict[str, str]:
+def _require_user_ou_key(request: Request, identities: IdentityStore) -> dict[str, str]:
     """The browser session OR an MCP key.
 
     POINT 162. Fetching one's archive was the ONLY thing an agent could not do
@@ -76,9 +76,9 @@ def _require_user_ou_cle(request: Request, identities: IdentityStore) -> dict[st
     user = identities.session_user(request.cookies.get("monl_session"))
     if user:
         return user
-    cle = _cle_mcp(request)
-    if cle:
-        user = identities.api_key_user(cle)
+    key = _key_mcp(request)
+    if key:
+        user = identities.api_key_user(key)
         if user:
             return user
     raise HTTPException(
@@ -108,7 +108,7 @@ def _rate_limit(request: Request, identities: IdentityStore, scope: str,
     if retry is not None:
         # `sujet` is NOT logged: it is an IP address or an account identifier.
         # The scope and the wait are enough to notice abuse.
-        anomalie("debit_depasse", portee=scope, attente_s=retry)
+        anomaly("debit_depasse", portee=scope, attente_s=retry)
         raise HTTPException(
             status_code=429,
             detail="Too many requests. Try again later.",
@@ -121,7 +121,7 @@ def _rate_limit(request: Request, identities: IdentityStore, scope: str,
 #: too (in a throwaway folder for the first, in the project for the second) —
 #: forgetting them here would leave the concurrency bound intact when read and
 #: bypassed when executed.
-OUTILS_QUI_COMPILENT = frozenset({
+TOOLS_QUI_COMPILE = frozenset({
     "monl_compile_backend", "monl_diff_spec", "monl_update_backend",
 })
 
@@ -131,11 +131,11 @@ def _is_compile_message(message: dict) -> bool:
     return (
         message.get("method") == "tools/call"
         and isinstance(params, dict)
-        and params.get("name") in OUTILS_QUI_COMPILENT
+        and params.get("name") in TOOLS_QUI_COMPILE
     )
 
 
-def _veut_du_json(request: Request) -> bool:
+def _wants_of_json(request: Request) -> bool:
     if request.url.path.startswith(("/api/", "/mcp")):
         return True
     return "text/html" not in request.headers.get("accept", "")
@@ -162,19 +162,19 @@ def _page_404(detail: str) -> str:
 async def _json_body(request: Request) -> dict:
     if request.headers.get("content-length"):
         try:
-            if int(request.headers["content-length"]) > TAILLE_MAX_CORPS_JSON:
+            if int(request.headers["content-length"]) > SIZE_MAX_BODY_JSON:
                 raise HTTPException(status_code=413, detail="Request too large.")
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid Content-Length.") from None
     try:
-        morceaux = []
-        taille = 0
-        async for morceau in request.stream():
-            taille += len(morceau)
-            if taille > TAILLE_MAX_CORPS_JSON:
+        chunks = []
+        size = 0
+        async for chunk in request.stream():
+            size += len(chunk)
+            if size > SIZE_MAX_BODY_JSON:
                 raise HTTPException(status_code=413, detail="Request too large.")
-            morceaux.append(morceau)
-        payload = json.loads(b"".join(morceaux))
+            chunks.append(chunk)
+        payload = json.loads(b"".join(chunks))
     except HTTPException:
         raise
     except Exception as exc:
@@ -185,17 +185,17 @@ async def _json_body(request: Request) -> dict:
 
 
 @contextlib.asynccontextmanager
-async def _admission_compilation(request, identities, compile_slots, preparer=None):
+async def _admission_compilation(request, identities, compile_slots, prepare=None):
     """Shares the quota and the execution slot of every HTTP compilation."""
     _rate_limit(
         request,
         identities,
         "compile",
         _require_user(request, identities)["id"],
-        LIMITE_COMPILATIONS_PAR_HEURE,
-        FENETRE_COMPILATIONS_SECONDES,
+        LIMIT_COMPILATIONS_BY_HOUR,
+        WINDOW_COMPILATIONS_SECONDES,
     )
-    preparation = await preparer() if preparer is not None else None
+    preparation = await prepare() if prepare is not None else None
     if not compile_slots.acquire(blocking=False):
         raise HTTPException(
             status_code=503,
@@ -210,10 +210,10 @@ async def _admission_compilation(request, identities, compile_slots, preparer=No
 
 def mount_error_handler(application):
     @application.exception_handler(404)
-    async def introuvable(request: Request, exc: HTTPException):
+    async def not_found(request: Request, exc: HTTPException):
         # A visitor receives a page, an API client receives JSON. Serving HTML
         # to curl would make the error unreadable where it must be read.
         detail = getattr(exc, "detail", "Introuvable.")
-        if _veut_du_json(request):
+        if _wants_of_json(request):
             return JSONResponse({"detail": detail}, status_code=404)
         return HTMLResponse(_page_404(detail), status_code=404)

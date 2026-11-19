@@ -9,10 +9,10 @@ from ..ir import AggregatedFieldIR, CounterRuleIR, DerivedFieldIR
 from .base import ASTValidationError
 
 
-class ChampsCalculesMixin:
+class FieldsComputedMixin:
     """The fields whose value the server calculates from other rows."""
 
-    def _valider_champs_derives(self):
+    def _validate_fields_derives(self):
         """Validates the numeric fields calculated from a linked row."""
         self.derived_fields: list[DerivedFieldIR] = []
         for rule in self.rules:
@@ -31,17 +31,17 @@ class ChampsCalculesMixin:
                 raise ASTValidationError(f"Structure: 'derivedFrom' targets entity '{entity}', which does not exist.")
             if source_entity not in self.entities:
                 raise ASTValidationError(f"Structure: 'derivedFrom' reads entity '{source_entity}', which does not exist.")
-            self._exiger_types_derives(entity, field, source_entity, source_field)
-            self._exiger_multiplicateur(entity, field, factor)
-            self._refuser_double_calcul_derive(entity, field)
-            self._exiger_ligne_source(entity, field, source_entity, source_field)
+            self._require_types_derives(entity, field, source_entity, source_field)
+            self._require_multiplier(entity, field, factor)
+            self._refuse_double_calculation_derive(entity, field)
+            self._require_line_source(entity, field, source_entity, source_field)
             self.derived_fields.append({
                 "entity": entity, "field": field,
                 "source_entity": source_entity, "source_field": source_field,
                 "factor": factor,
             })
 
-    def _exiger_types_derives(self, entity, field, source_entity, source_field):
+    def _require_types_derives(self, entity, field, source_entity, source_field):
         """Both sides of a derivation are numeric."""
         field_type = self.entities[entity].get(field)
         if field_type not in ("Money", "Float", "Integer"):
@@ -56,7 +56,7 @@ class ChampsCalculesMixin:
                 f"Money, Float, or Integer attribute (received: {source_type or 'field does not exist'})."
             )
 
-    def _exiger_multiplicateur(self, entity, field, factor):
+    def _require_multiplier(self, entity, field, factor):
         """The multiplier is a required Integer quantity, other than the field."""
         factor_type = self.entities[entity].get(factor)
         if factor_type != "Integer":
@@ -73,7 +73,7 @@ class ChampsCalculesMixin:
         if factor == field:
             raise ASTValidationError(f"Structure: '{entity}.{field}' cannot be its own multiplier.")
 
-    def _refuser_double_calcul_derive(self, entity, field):
+    def _refuse_double_calculation_derive(self, entity, field):
         """One server calculation per field, and an amount that stays readable."""
         if (entity, field) in self.masked_fields:
             raise ASTValidationError(
@@ -90,7 +90,7 @@ class ChampsCalculesMixin:
                 f"Structure: '{entity}.{field}' has multiple 'derivedFrom' rules -- only one calculation is allowed per field."
             )
 
-    def _exiger_ligne_source(self, entity, field, source_entity, source_field):
+    def _require_line_source(self, entity, field, source_entity, source_field):
         """The source row is linked, and chosen by the client, never the token."""
         has_source_relation = any(
             (rel["type"] in ("hasMany", "hasOne")
@@ -119,7 +119,7 @@ class ChampsCalculesMixin:
                 f"from the one supplied by the client to select the row to read."
             )
 
-    def _valider_champs_agreges(self):
+    def _validate_fields_aggregated(self):
         """Validates the fields calculated as a sum of child rows."""
         self.aggregated_fields: list[AggregatedFieldIR] = []
         for rule in self.rules:
@@ -137,9 +137,9 @@ class ChampsCalculesMixin:
                 raise ASTValidationError(f"Structure: 'sumOf' targets entity '{entity}', which does not exist.")
             if source_entity not in self.entities:
                 raise ASTValidationError(f"Structure: 'sumOf' sums entity '{source_entity}', which does not exist.")
-            self._exiger_types_de_somme(entity, field, source_entity, source_field)
-            self._exiger_relation_enfant(entity, source_entity)
-            self._refuser_double_calcul_de_somme(entity, field)
+            self._require_types_of_sum(entity, field, source_entity, source_field)
+            self._require_relation_child(entity, source_entity)
+            self._refuse_double_calculation_of_sum(entity, field)
             source_owners = {v for (ent, _act), v in self.ownership_rules.items() if ent == source_entity}
             if not source_owners:
                 raise ASTValidationError(
@@ -153,7 +153,7 @@ class ChampsCalculesMixin:
                 "source_entity": source_entity, "source_field": source_field,
             })
 
-    def _exiger_types_de_somme(self, entity, field, source_entity, source_field):
+    def _require_types_of_sum(self, entity, field, source_entity, source_field):
         """A sum is numeric on both sides, and never of an entity over itself."""
         field_type = self.entities[entity].get(field)
         if field_type not in ("Money", "Float", "Integer"):
@@ -174,7 +174,7 @@ class ChampsCalculesMixin:
                 f"(e.g. 'Order hasMany Line')."
             )
 
-    def _exiger_relation_enfant(self, entity, source_entity):
+    def _require_relation_child(self, entity, source_entity):
         """The summed rows must be CHILDREN of the entity carrying the total."""
         child_relation = any(
             (rel["type"] in ("hasMany", "hasOne")
@@ -191,7 +191,7 @@ class ChampsCalculesMixin:
                 f"would cover the entire table."
             )
 
-    def _refuser_double_calcul_de_somme(self, entity, field):
+    def _refuse_double_calculation_of_sum(self, entity, field):
         """One server calculation per field, and a total that stays readable."""
         if (entity, field) in self.masked_fields:
             raise ASTValidationError(
@@ -216,7 +216,7 @@ class ChampsCalculesMixin:
 
     # The next two methods are extracted from `_valider_effets_compteurs`
     # (complexity ceiling): same checks, same order, same messages.
-    def _exiger_relation_de_compteur(self, direction, trigger_entity,
+    def _require_relation_of_counter(self, direction, trigger_entity,
                                      target_entity, target_field):
         """A counter needs a relation between the triggering and the target
         entity — it is the foreign key the effect follows."""
@@ -233,7 +233,7 @@ class ChampsCalculesMixin:
                 f"requires a relation between them (e.g. '{target_entity} hasMany {trigger_entity}'), which is missing here."
             )
 
-    def _valider_quantite_de_compteur(self, direction, trigger_entity, amount_field):
+    def _validate_quantity_of_counter(self, direction, trigger_entity, amount_field):
         """`by <field>`: an Integer of the triggering entity, and required."""
         if not amount_field:
             return
@@ -252,7 +252,7 @@ class ChampsCalculesMixin:
                 f"required', otherwise a client omitting it would trigger a decrement with no value."
             )
 
-    def _valider_effets_compteurs(self):
+    def _validate_effects_counters(self):
         """Validates the counter effects triggered at creation."""
         self.reputation_rules: list[CounterRuleIR] = []
         for rule in self.rules:
@@ -276,24 +276,24 @@ class ChampsCalculesMixin:
                 )
             if target_entity not in self.entities:
                 raise ASTValidationError(f"Structure: '{direction}' references entity '{target_entity}', which does not exist.")
-            self._refuser_compteur_sur_acteur(direction, target_entity, target_field)
+            self._refuse_counter_on_actor(direction, target_entity, target_field)
             target_type = self.entities[target_entity].get(target_field)
             if target_type not in ("Integer", "Float"):
                 raise ASTValidationError(
                     f"Structure: '{direction}' targets field '{target_entity}.{target_field}', which must be "
                     f"a declared Integer or Float attribute (received: {target_type or 'field does not exist'})."
                 )
-            self._exiger_relation_de_compteur(
+            self._require_relation_of_counter(
                 direction, trigger_entity, target_entity, target_field)
             amount_field = rule.get("amount_field")
-            self._valider_quantite_de_compteur(direction, trigger_entity, amount_field)
+            self._validate_quantity_of_counter(direction, trigger_entity, amount_field)
             self.reputation_rules.append({
                 "trigger_entity": trigger_entity, "target_entity": target_entity,
                 "target_field": target_field, "amount": rule.get("amount"),
                 "amount_field": amount_field, "direction": direction,
             })
 
-    def _refuser_compteur_sur_acteur(self, direction, target_entity, target_field):
+    def _refuse_counter_on_actor(self, direction, target_entity, target_field):
         """Refuses a counter whose target is named like an actor (issue #89).
 
         The rows of such an entity are linked to no account, whereas any
@@ -311,7 +311,7 @@ class ChampsCalculesMixin:
                 f"counter on a business entity (e.g. '{direction} Post.score')."
             )
 
-    def _verifier_parents_once_per(self, reference, entity, parents):
+    def _check_parents_once_per(self, reference, entity, parents):
         """At least two distinct, existing parents, linked to `entity`, one of them
         an actor. Extracted from `_valider_regles_once_per` (complexity ceiling);
         the relation is read through `_relation_parent_enfant`, the same as for a
@@ -325,7 +325,7 @@ class ChampsCalculesMixin:
                 raise ASTValidationError(
                     f"Structure: 'oncePer' references parent '{parent}', which does not exist."
                 )
-            if not self._relation_parent_enfant(parent, entity):
+            if not self._relation_parent_child(parent, entity):
                 raise ASTValidationError(
                     f"Structure: 'oncePer' requires a relation between '{parent}' and '{entity}'."
                 )
@@ -335,7 +335,7 @@ class ChampsCalculesMixin:
                 "to identify the current account."
             )
 
-    def _valider_regles_once_per(self):
+    def _validate_rules_once_per(self):
         """Validates the business uniqueness of an action per account and per
         targets.
 
@@ -361,7 +361,7 @@ class ChampsCalculesMixin:
                     f"Structure: 'oncePer' only applies to 'Create' (received '{reference}')."
                 )
             parents = list(rule.get("parents") or [])
-            self._verifier_parents_once_per(reference, entity, parents)
+            self._check_parents_once_per(reference, entity, parents)
             if (entity, "Create") in self.public_actions:
                 raise ASTValidationError(
                     f"Structure: '{reference}' is public, so no account can enforce "

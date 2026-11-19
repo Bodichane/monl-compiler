@@ -42,14 +42,14 @@ def test_the_demo_frontend_follows_the_contract_to_the_letter():
     photos live outside `frontend/`: that is the whole point of brick 13, and
     why `.webp` need not be in the allowlist."""
     frontend = os.path.join(DEMO_DIR, "frontend")
-    autorisees = (".html", ".css", ".js", ".svg", ".json")
-    fichiers = 0
-    for racine, _dirs, noms in os.walk(frontend):
-        for name in noms:
-            chemin = os.path.join(racine, name)
-            assert name.lower().endswith(autorisees), f"extension hors liste blanche : {chemin}"
-            with open(chemin, encoding="utf-8") as fh:
+    allowed = (".html", ".css", ".js", ".svg", ".json")
+    files = 0
+    for racine, _dirs, names in os.walk(frontend):
+        for name in names:
+            path = os.path.join(racine, name)
+            assert name.lower().endswith(allowed), f"extension hors liste blanche : {path}"
+            with open(path, encoding="utf-8") as fh:
                 content = fh.read()
             assert "https://cdn" not in content and "<script src=\"http" not in content
-            fichiers += 1
-    assert fichiers >= 1
+            files += 1
+    assert files >= 1

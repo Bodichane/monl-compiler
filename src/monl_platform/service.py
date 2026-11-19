@@ -177,7 +177,7 @@ class CompilationService:
         spec_path.write_text(spec, encoding="utf-8")
         output = io.StringIO()
         try:
-            output.write(compiler_dans(spec_path, project_dir))
+            output.write(compiler_in(spec_path, project_dir))
             contract = json.loads(
                 (project_dir / "frontend_contract.json").read_text(encoding="utf-8")
             )
@@ -203,7 +203,7 @@ class CompilationService:
         return manifest
 
     @staticmethod
-    def compiler_isole(spec_path: Path, project_dir: Path) -> str:
+    def compiler_isolated(spec_path: Path, project_dir: Path) -> str:
         timeout = max(5, int(os.environ.get("MONL_COMPILE_TIMEOUT_SECONDS", "45")))
         command = [sys.executable, "-m", "monl.cli", "compile", str(spec_path),
                    "--output", str(project_dir)]
@@ -275,7 +275,7 @@ class CompilationService:
         shutil.rmtree(directory)
 
 
-def compiler_dans(spec_path: Path, project_dir: Path) -> str:
+def compiler_in(spec_path: Path, project_dir: Path) -> str:
     """Compiles a spec into a folder and returns the compiler's output.
 
     SINGLE SOURCE of the isolation decision (point 162): the foundation
@@ -285,7 +285,7 @@ def compiler_dans(spec_path: Path, project_dir: Path) -> str:
     prevents a supplied spec from executing in the platform's interpreter."""
     output = io.StringIO()
     if os.environ.get("MONL_ISOLATE_COMPILES", "1").lower() in {"1", "true", "yes"}:
-        output.write(CompilationService.compiler_isole(spec_path, project_dir))
+        output.write(CompilationService.compiler_isolated(spec_path, project_dir))
     else:
         with contextlib.redirect_stdout(output):
             compile_project(str(spec_path), str(project_dir))

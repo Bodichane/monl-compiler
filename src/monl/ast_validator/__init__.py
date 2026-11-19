@@ -4,29 +4,29 @@ The public surface did not move when it became a package — `MonlAST`,
 `ASTValidationError`, `DEFAULT_ASSETS_DIR` and `resoudre_asset` are
 imported from `monl.ast_validator` exactly as before."""
 
-from .assets import candidats_asset, resoudre_asset
+from .assets import candidates_asset, resolve_asset
 from .base import (
+                    CURRENCIES_BY_PROVIDER,
+                    CURRENCY_DEFAULT,
                     DEFAULT_ASSETS_DIR,
-                    DEVISE_PAR_DEFAUT,
                     DEVISES,
-                    DEVISES_PAR_PRESTATAIRE,
-                    PRESTATAIRE_PAR_DEFAUT,
-                    PRESTATAIRES,
-                    PRESTATAIRES_ECARTES,
+                    PROVIDER_DEFAULT,
+                    PROVIDERS,
+                    PROVIDERS_DISCARDED,
                     ASTValidationError,
 )
 from .core import MonlAST
 
 __all__ = [
+                    "CURRENCIES_BY_PROVIDER",
+                    "CURRENCY_DEFAULT",
                     "DEFAULT_ASSETS_DIR",
                     "DEVISES",
-                    "DEVISES_PAR_PRESTATAIRE",
-                    "DEVISE_PAR_DEFAUT",
-                    "PRESTATAIRES",
-                    "PRESTATAIRES_ECARTES",
-                    "PRESTATAIRE_PAR_DEFAUT",
+                    "PROVIDERS",
+                    "PROVIDERS_DISCARDED",
+                    "PROVIDER_DEFAULT",
                     "ASTValidationError",
                     "MonlAST",
-                    "candidats_asset",
-                    "resoudre_asset",
+                    "candidates_asset",
+                    "resolve_asset",
 ]

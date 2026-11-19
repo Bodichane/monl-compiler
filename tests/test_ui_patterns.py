@@ -55,7 +55,7 @@ def test_priced_service_does_not_become_a_catalog_through_the_archetype():
     assert "catalogue" not in names
 
 
-def test_kora_maison_shop_gets_a_catalog_without_a_booking_journey():
+def test_kora_home_shop_gets_a_catalog_without_a_booking_journey():
     contract = {
         "brief": "Une boutique de décoration et d'art de vivre.",
         "entities": {

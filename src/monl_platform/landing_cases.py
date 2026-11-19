@@ -11,7 +11,7 @@ put the `glisse` class in one file and the rule that reads it in another."""
 from __future__ import annotations
 
 from . import examples
-from .coloration import coloriser
+from .coloration import colorize
 from .theme import icon, page  # noqa: F401  (page reste importable d'ici)
 
 EXTRA_CSS = """
@@ -114,7 +114,7 @@ def case_panel(item: dict, index: int) -> str:
     hidden = "" if index == 0 else " hidden"
     # Highlighted HERE and not in the table: the table stays plain text,
     # rereadable and comparable to a real spec.
-    snippet = coloriser(CASE_SNIPPETS[item["id"]])
+    snippet = colorize(CASE_SNIPPETS[item["id"]])
     return f"""<section class="case-panel{active}" id="case-{item['id']}" role="tabpanel"
 aria-labelledby="tab-{item['id']}"{hidden}><div><h3>{item['name']}</h3><p>{CASE_OUTCOMES[item['id']]}</p>
 <div class="case-rules" aria-label="Rules demonstrated">{rules}</div>
@@ -128,7 +128,7 @@ CASE_TABS = "".join(case_tab(item, index) for index, item in enumerate(CATALOGUE
 CASE_PANELS = "".join(case_panel(item, index) for index, item in enumerate(CATALOGUE))
 
 
-EXPLORATEUR = f"""<div class="case-explorer" data-reveal>\
+EXPLORER = f"""<div class="case-explorer" data-reveal>\
 <div class="case-tabs" role="tablist" aria-label="Business cases">{CASE_TABS}</div>
 <div class="case-panels">{CASE_PANELS}</div></div>"""
 

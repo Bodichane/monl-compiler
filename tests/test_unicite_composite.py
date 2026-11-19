@@ -41,36 +41,36 @@ workflow Voter for Participant
     Read Entry
 """
 
-MOT_DE_PASSE = "MotDePasse123!"
+PASSWORD = "MotDePasse123!"
 
 
 @pytest.fixture(scope="module")
 def scene(tmp_path_factory):
     """Two participants, two entries: the minimum to settle the rule."""
-    projet = tmp_path_factory.mktemp("unicite_composite")
-    spec = projet / "spec.ml"
+    project = tmp_path_factory.mktemp("unicite_composite")
+    spec = project / "spec.ml"
     spec.write_text(SPEC, encoding="utf-8")
-    compile_project(str(spec), str(projet))
-    with uvicorn_server(str(projet)) as base_url:
-        jetons = {}
-        for nom in ("p1", "p2"):
+    compile_project(str(spec), str(project))
+    with uvicorn_server(str(project)) as base_url:
+        tokens = {}
+        for name in ("p1", "p2"):
             requests.post(f"{base_url}/register", timeout=10, json={
-                "username": f"{nom}@x.co", "password": MOT_DE_PASSE,
+                "username": f"{name}@x.co", "password": PASSWORD,
                 "actor": "Participant"})
-            reponse = requests.post(f"{base_url}/login", timeout=10, json={
-                "username": f"{nom}@x.co", "password": MOT_DE_PASSE})
-            jetons[nom] = reponse.json()["access_token"]
-        for titre in ("Photo A", "Photo B"):
+            response = requests.post(f"{base_url}/login", timeout=10, json={
+                "username": f"{name}@x.co", "password": PASSWORD})
+            tokens[name] = response.json()["access_token"]
+        for title in ("Photo A", "Photo B"):
             requests.post(f"{base_url}/entry", timeout=10,
-                          headers={"Authorization": f"Bearer {jetons['p1']}"},
-                          json={"titre": titre, "score": 0})
-        yield {"base_url": base_url, "jetons": jetons, "projet": projet}
+                          headers={"Authorization": f"Bearer {tokens['p1']}"},
+                          json={"titre": title, "score": 0})
+        yield {"base_url": base_url, "jetons": tokens, "projet": project}
 
 
-def _voter(scene, compte, entry_id, note):
+def _voter(scene, account, entry_id, note):
     return requests.post(
         f"{scene['base_url']}/vote", timeout=10,
-        headers={"Authorization": f"Bearer {scene['jetons'][compte]}"},
+        headers={"Authorization": f"Bearer {scene['jetons'][account]}"},
         json={"note": note, "entry_id": entry_id})
 
 
@@ -79,9 +79,9 @@ def test_the_first_vote_passes(scene):
 
 
 def test_the_same_accounts_second_vote_on_the_same_target_is_refused(scene):
-    reponse = _voter(scene, "p1", 1, "n-p1-e1-bis")
-    assert reponse.status_code == 409
-    assert "already" in reponse.json()["detail"]
+    response = _voter(scene, "p1", 1, "n-p1-e1-bis")
+    assert response.status_code == 409
+    assert "already" in response.json()["detail"]
 
 
 def test_the_same_account_votes_another_target(scene):
@@ -108,18 +108,18 @@ def test_a_unique_field_duplicate_keeps_its_own_message(scene):
     field, on ANOTHER target and ANOTHER account, was answered "you already did
     it for this target". It is the defect point 85 had closed, reopened by the
     next brick."""
-    reponse = _voter(scene, "p2", 2, "n-p1-e1")
-    assert reponse.status_code == 409
-    assert "note must be unique" in reponse.json()["detail"]
+    response = _voter(scene, "p2", 2, "n-p1-e1")
+    assert response.status_code == 409
+    assert "note must be unique" in response.json()["detail"]
 
 
 def test_the_composite_index_really_exists_in_the_database(scene):
     """Uniqueness rests on a SQLite index, not an application check: it is the
     index that also protects two concurrent requests."""
-    connexion = sqlite3.connect(scene["projet"] / "app.db")
-    index = {ligne[0] for ligne in connexion.execute(
+    login = sqlite3.connect(scene["projet"] / "app.db")
+    index = {line[0] for line in login.execute(
         "SELECT name FROM sqlite_master WHERE type = 'index'")}
-    connexion.close()
+    login.close()
     assert "idx_once_per_vote_participant_id_entry_id" in index
 
 
@@ -127,7 +127,7 @@ def test_the_contract_announces_the_rule(scene):
     """Without it, an interface AI draws a "vote" button that collects a 409
     nothing had announced."""
     import json
-    contrat = json.loads(
+    contract = json.loads(
         (scene["projet"] / "frontend_contract.json").read_text(encoding="utf-8"))
-    assert contrat["business_rules"]["once_per"] == [
+    assert contract["business_rules"]["once_per"] == [
         {"trigger_entity": "Vote", "parents": ["Participant", "Entry"]}]

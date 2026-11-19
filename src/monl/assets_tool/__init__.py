@@ -7,23 +7,23 @@ validator BEFORE writing, and full rollback on failure.
 
 The public surface did not move when it became a package."""
 
-from ..ast_validator import DEFAULT_ASSETS_DIR, resoudre_asset
-from .commands import ajouter_asset, lister_assets
-from .editing import _blocs_seed, _litteral
-from .foundations import AssetsToolError, sluggify
-from .resolution import chemins_declares
-from .specio import _charger, _revalider
+from ..ast_validator import DEFAULT_ASSETS_DIR, resolve_asset
+from .commands import add_asset, lister_assets
+from .editing import _blocks_seed, _literal
+from .foundations import AssetsToolError, slugify
+from .resolution import paths_declares
+from .specio import _charger, _revalidate
 
 __all__ = [
     "DEFAULT_ASSETS_DIR",
     "AssetsToolError",
-    "_blocs_seed",
+    "_blocks_seed",
     "_charger",
-    "_litteral",
-    "_revalider",
-    "ajouter_asset",
-    "chemins_declares",
+    "_literal",
+    "_revalidate",
+    "add_asset",
     "lister_assets",
-    "resoudre_asset",
-    "sluggify",
+    "paths_declares",
+    "resolve_asset",
+    "slugify",
 ]

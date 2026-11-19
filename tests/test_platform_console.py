@@ -30,7 +30,7 @@ workflow ManageItem for Admin
     Delete Item
 """
 
-RESSOURCE_EXTERNE = re.compile(
+RESOURCE_EXTERNAL = re.compile(
     r"<(?:link|script|img|iframe)\b[^>]*(?:src|href)\s*=\s*['\"]https?://",
     re.IGNORECASE,
 )
@@ -99,7 +99,7 @@ def test_the_console_is_served_without_remote_resources(running_platform):
     # decides, by parsing it.
     assert "Start the project\\'s API" in response.text
     assert "prefers-reduced-motion" in response.text
-    assert not RESSOURCE_EXTERNE.search(response.text)
+    assert not RESOURCE_EXTERNAL.search(response.text)
 
 
 def test_the_console_compiles_then_starts_the_project_api(running_platform):
@@ -133,8 +133,8 @@ def test_the_console_compiles_then_starts_the_project_api(running_platform):
     ouvert = requests.get(f"http://127.0.0.1:{port}/item", timeout=10)
     assert ouvert.status_code == 200, ouvert.text
 
-    arret = session.post(f"{base}/api/projects/{project_id}/stop", timeout=30)
-    assert arret.status_code == 200 and arret.json()["stopped"] is True
+    stop = session.post(f"{base}/api/projects/{project_id}/stop", timeout=30)
+    assert stop.status_code == 200 and stop.json()["stopped"] is True
 
 
 def test_starting_without_compiling_is_refused_with_a_reason(running_platform, tmp_path):
@@ -146,18 +146,18 @@ def test_starting_without_compiling_is_refused_with_a_reason(running_platform, t
     """
     base = running_platform
     session = _register(base, "sans-compilation@example.test")
-    cree = session.post(f"{base}/api/compile", json={"spec": SPEC}, timeout=10)
-    project_id = cree.json()["id"]
+    created = session.post(f"{base}/api/compile", json={"spec": SPEC}, timeout=10)
+    project_id = created.json()["id"]
 
     # A missing backend must always be refused, even with a manifest.
-    compte = session.get(f"{base}/api/auth/me", timeout=10).json()["id"]
-    dossier = project_directory(tmp_path / "projects", compte, project_id)
-    (dossier / "app.py").unlink()
+    account = session.get(f"{base}/api/auth/me", timeout=10).json()["id"]
+    folder = project_directory(tmp_path / "projects", account, project_id)
+    (folder / "app.py").unlink()
 
-    refus = session.post(f"{base}/api/projects/{project_id}/start", timeout=30)
+    refusal = session.post(f"{base}/api/projects/{project_id}/start", timeout=30)
 
-    assert refus.status_code == 409, refus.text
-    assert "not compiled" in refus.json()["detail"]
+    assert refusal.status_code == 409, refusal.text
+    assert "not compiled" in refusal.json()["detail"]
 
 
 def test_host_routing_serves_the_api_and_stays_distinct_from_the_console(running_platform):
@@ -171,15 +171,15 @@ def test_host_routing_serves_the_api_and_stays_distinct_from_the_console(running
 
     # The relay is born on the first access to the subdomain, without an
     # explicit start.
-    servi = requests.get(
+    served = requests.get(
         f"{base}/item",
         headers={"Host": f"consoleweb.localhost:{base.rsplit(':', 1)[1]}"},
         timeout=30,
     )
     console = session.get(f"{base}/console", timeout=10)
 
-    assert servi.status_code == 200, servi.text
-    assert "data" in servi.json()
+    assert served.status_code == 200, served.text
+    assert "data" in served.json()
     assert console.status_code == 200
     assert "Compilation console" in console.text
     session.post(f"{base}/api/projects/{project_id}/stop", timeout=30)
@@ -191,9 +191,9 @@ def test_an_account_can_only_compile_its_own_projects(running_platform):
     alice = _register(base, "compilatrice@example.test")
     bob = _register(base, "intrus@example.test")
 
-    cree = alice.post(f"{base}/api/compile", json={"spec": SPEC}, timeout=10)
-    assert cree.status_code == 201, cree.text
-    project_id = cree.json()["id"]
+    created = alice.post(f"{base}/api/compile", json={"spec": SPEC}, timeout=10)
+    assert created.status_code == 201, created.text
+    project_id = created.json()["id"]
 
     pour_alice = alice.post(f"{base}/api/projects/{project_id}/compiler", timeout=60)
     pour_bob = bob.post(f"{base}/api/projects/{project_id}/compiler", timeout=60)

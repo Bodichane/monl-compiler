@@ -17,7 +17,7 @@ from tests import test_oauth
 from tests.support.server import uvicorn_server
 
 SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
-plateforme = test_oauth.plateforme
+platform = test_oauth.platform
 faux_github = test_oauth.faux_github
 
 
@@ -194,7 +194,7 @@ async function inclinaison(base, reduit) {
 
 
 @pytest.fixture()
-def rapport_connexion_jsdom(tmp_path, plateforme):
+def report_login_jsdom(tmp_path, platform):
     if shutil.which("node") is None:
         pytest.fail("node is required: a skip would not say \"nothing to check\"")
     assert _ensure_jsdom(str(tmp_path), lambda *_: None), (
@@ -202,61 +202,61 @@ def rapport_connexion_jsdom(tmp_path, plateforme):
     runner = tmp_path / "runner.js"
     runner.write_text(RUNNER, encoding="utf-8")
     env = dict(os.environ)
-    for cle in list(env):
-        if cle.startswith("MONL_OAUTH_") or cle == "MONL_PLATFORM_PUBLIC_URL":
-            del env[cle]
+    for key in list(env):
+        if key.startswith("MONL_OAUTH_") or key == "MONL_PLATFORM_PUBLIC_URL":
+            del env[key]
     env["MONL_PLATFORM_WORKSPACE"] = str(tmp_path / "projects-sans-oauth")
     env["PYTHONPATH"] = SRC + os.pathsep + env.get("PYTHONPATH", "")
     env["NODE_PATH"] = _jsdom_node_path()
     with uvicorn_server(str(tmp_path), env=env, module="monl_platform.app:app",
-                        ready_path="/health") as sans_fournisseur:
-        sortie = subprocess.run(
-            ["node", str(runner), plateforme, sans_fournisseur],
+                        ready_path="/health") as without_provider:
+        output = subprocess.run(
+            ["node", str(runner), platform, without_provider],
             capture_output=True, text=True, timeout=180, env=env,
         )
-    assert sortie.returncode == 0, sortie.stderr[-3000:]
-    lignes = [ligne for ligne in sortie.stdout.splitlines() if ligne.startswith("{")]
-    assert lignes, sortie.stdout[-2000:] + sortie.stderr[-2000:]
-    rapport = json.loads(lignes[-1])
+    assert output.returncode == 0, output.stderr[-3000:]
+    lines = [line for line in output.stdout.splitlines() if line.startswith("{")]
+    assert lines, output.stdout[-2000:] + output.stderr[-2000:]
+    rapport = json.loads(lines[-1])
     assert "echec" not in rapport, rapport
     return rapport
 
 
-def test_the_real_login_page_works_in_jsdom(rapport_connexion_jsdom):
-    assert rapport_connexion_jsdom["github"] == {
+def test_the_real_login_page_works_in_jsdom(report_login_jsdom):
+    assert report_login_jsdom["github"] == {
         "texte": "Continue with GitHub", "chemin": "/auth/github"}
-    assert rapport_connexion_jsdom["oauth_vide"]
-    assert rapport_connexion_jsdom["configuration_absente"]
-    assert "Sign-in cancelled" in rapport_connexion_jsdom["refus"]
-    assert rapport_connexion_jsdom["apres_affichage"] == ["text", "Hide", "true"]
-    assert rapport_connexion_jsdom["apres_masquage"] == ["password", "Show", "false"]
-    assert rapport_connexion_jsdom["onglet"] == ["Create an account", "true"]
-    assert rapport_connexion_jsdom["code_visible"]
-    assert rapport_connexion_jsdom["erreurs"] == []
+    assert report_login_jsdom["oauth_vide"]
+    assert report_login_jsdom["configuration_absente"]
+    assert "Sign-in cancelled" in report_login_jsdom["refus"]
+    assert report_login_jsdom["apres_affichage"] == ["text", "Hide", "true"]
+    assert report_login_jsdom["apres_masquage"] == ["password", "Show", "false"]
+    assert report_login_jsdom["onglet"] == ["Create an account", "true"]
+    assert report_login_jsdom["code_visible"]
+    assert report_login_jsdom["erreurs"] == []
 
 
 LOGIN = {"titre": "Sign in", "code_masque": True, "lien": "Forgot your password?"}
 
 
 def test_recovery_hides_providers_then_returns_to_login(
-        rapport_connexion_jsdom):
+        report_login_jsdom):
     """Issue #75, M5 and M6 — on the page that HAS a provider.
 
     Without a provider the area is empty anyway: one could not see whether it is
     hidden. And the SECOND click is the only visible way out of recovery mode
     outside the tabs: clicking only once leaves the way back untested.
     """
-    assert rapport_connexion_jsdom["reprise_avant"] == {**LOGIN, "oauth_masque": False}
-    assert rapport_connexion_jsdom["reprise_ouverte"] == {
+    assert report_login_jsdom["reprise_avant"] == {**LOGIN, "oauth_masque": False}
+    assert report_login_jsdom["reprise_ouverte"] == {
         "titre": "Recover your account", "code_masque": False,
         "lien": "← Back to sign in", "oauth_masque": True}
-    assert rapport_connexion_jsdom["reprise_fermee"] == {**LOGIN, "oauth_masque": False}
+    assert report_login_jsdom["reprise_fermee"] == {**LOGIN, "oauth_masque": False}
 
 
 def test_a_provider_can_neither_hijack_the_address_nor_inject_markup(
-        rapport_connexion_jsdom):
+        report_login_jsdom):
     """Issue #75, M2: the name is ENCODED in the address, the label stays text."""
-    assert rapport_connexion_jsdom["piege"] == {
+    assert report_login_jsdom["piege"] == {
         "chemin": "/auth/x%2Fy%3F%23",
         "texte": 'Continue with <img src="x" id="injecte">Piège',
         "injecte": False,
@@ -264,18 +264,18 @@ def test_a_provider_can_neither_hijack_the_address_nor_inject_markup(
 
 
 def test_the_card_tilt_obeys_reduced_motion(
-        rapport_connexion_jsdom):
+        report_login_jsdom):
     """Issue #75, M10: the JavaScript half of "reduced motion".
 
     The CSS is guarded by string searches; the script was guarded by nothing.
     BOTH directions are required: without the second, a script that never
     tilted anything would pass for respectful.
     """
-    assert rapport_connexion_jsdom["mouvement_reduit"] == {"present": True, "tilt": ["", ""]}
+    assert report_login_jsdom["mouvement_reduit"] == {"present": True, "tilt": ["", ""]}
     # Pointer at (150, 25) on a 200×100 area: x = +0.25, y = -0.25, hence 0.75°
     # on each axis. An EXACT value: "ends with deg" accepted "NaNdeg" and
     # "-Infinitydeg", which the browser rejects (issue #80).
-    assert rapport_connexion_jsdom["mouvement_libre"] == {
+    assert report_login_jsdom["mouvement_libre"] == {
         "present": True, "tilt": ["0.75deg", "0.75deg"]}
 
 

@@ -12,7 +12,7 @@ import pytest
 
 from monl.cli import compile_project
 from monl_platform.app_templates import materialize_template
-from monl_platform.compilation import ProjectIsolationError, compiler_le_projet
+from monl_platform.compilation import ProjectIsolationError, compiler_the_project
 from monl_platform.identity import IdentityStore
 from monl_platform.paths import project_directory
 from monl_platform.service import PlatformInputError
@@ -69,17 +69,17 @@ def test_compiling_a_project_produces_its_backend_in_the_private_folder(platform
     account, project = _new_project(platform)
     directory = _put_the_spec(root, account, project)
 
-    resultat = compiler_le_projet(
+    result = compiler_the_project(
         project, account_id=account, store=store, workspace_root=root
     )
 
     assert (directory / "app.py").is_file()
     assert (directory / "serve.py").is_file()
     assert (directory / "frontend_contract.json").is_file()
-    assert resultat["contract"]["routes"], "the contract must describe routes"
+    assert result["contract"]["routes"], "the contract must describe routes"
     # The heading: the platform builds NO interface.
     assert not (directory / "frontend").exists()
-    assert ".jwt_secret" not in resultat["files"]
+    assert ".jwt_secret" not in result["files"]
 
 
 def test_a_refused_spec_is_an_input_fault_not_a_failure(platform):
@@ -89,24 +89,24 @@ def test_a_refused_spec_is_an_input_fault_not_a_failure(platform):
     _put_the_spec(root, account, project, spec="app Cassee\n\nentity\n")
 
     with pytest.raises(PlatformInputError):
-        compiler_le_projet(
+        compiler_the_project(
             project, account_id=account, store=store, workspace_root=root
         )
 
 
 def test_two_users_are_isolated(platform):
     store, root = platform
-    alice, projet_alice = _new_project(platform, "alice", "site")
-    bob, projet_bob = _new_project(platform, "bob", "site")
-    alice_dir = project_directory(root, alice, projet_alice)
-    bob_dir = project_directory(root, bob, projet_bob)
+    alice, project_alice = _new_project(platform, "alice", "site")
+    bob, project_bob = _new_project(platform, "bob", "site")
+    alice_dir = project_directory(root, alice, project_alice)
+    bob_dir = project_directory(root, bob, project_bob)
     alice_dir.joinpath("secret.txt").write_text("alice", encoding="utf-8")
 
     assert alice_dir != bob_dir
     assert not bob_dir.joinpath("secret.txt").exists()
     with pytest.raises(ProjectIsolationError):
-        compiler_le_projet(
-            projet_alice, account_id=bob, store=store, workspace_root=root
+        compiler_the_project(
+            project_alice, account_id=bob, store=store, workspace_root=root
         )
     with pytest.raises(ValueError, match="path traversal"):
         store.create_project(alice, uuid.uuid4().hex, "../autre")

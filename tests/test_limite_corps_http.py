@@ -15,22 +15,22 @@ import uvicorn
 from monl_platform.app import create_app
 
 
-def _port_libre():
+def _port_free():
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         return sock.getsockname()[1]
 
 
 @pytest.fixture()
-def plateforme(tmp_path):
-    port = _port_libre()
-    serveur = uvicorn.Server(uvicorn.Config(
+def platform(tmp_path):
+    port = _port_free()
+    server = uvicorn.Server(uvicorn.Config(
         create_app(workspace=tmp_path / "projects"),
         host="127.0.0.1",
         port=port,
         log_level="error",
     ))
-    fil = threading.Thread(target=serveur.run, daemon=True)
+    fil = threading.Thread(target=server.run, daemon=True)
     fil.start()
     base = f"http://127.0.0.1:{port}"
     try:
@@ -44,52 +44,52 @@ def plateforme(tmp_path):
             pytest.fail("the platform did not start")
         yield "127.0.0.1", port
     finally:
-        serveur.should_exit = True
+        server.should_exit = True
         fil.join(timeout=10)
         assert not fil.is_alive()
 
 
-def _post_chunked(plateforme, morceaux):
-    hote, port = plateforme
-    connexion = http.client.HTTPConnection(hote, port, timeout=10)
-    connexion.request(
+def _post_chunked(platform, chunks):
+    hote, port = platform
+    login = http.client.HTTPConnection(hote, port, timeout=10)
+    login.request(
         "POST",
         "/api/auth/login",
-        body=iter(morceaux),
+        body=iter(chunks),
         headers={"Content-Type": "application/json"},
         encode_chunked=True,
     )
-    reponse = connexion.getresponse()
-    contenu = reponse.read()
-    connexion.close()
-    return reponse.status, json.loads(contenu)
+    response = login.getresponse()
+    content = response.read()
+    login.close()
+    return response.status, json.loads(content)
 
 
-def test_a_too_large_chunked_body_is_refused(plateforme):
-    morceaux = [b'{"email":"x","password":"y","remplissage":"']
-    morceaux += [b"a" * 50_000] * 7
-    morceaux.append(b'"}')
+def test_a_too_large_chunked_body_is_refused(platform):
+    chunks = [b'{"email":"x","password":"y","remplissage":"']
+    chunks += [b"a" * 50_000] * 7
+    chunks.append(b'"}')
 
-    statut, contenu = _post_chunked(plateforme, morceaux)
+    status, content = _post_chunked(platform, chunks)
 
-    assert statut == 413
-    assert contenu["detail"] == "Request too large."
+    assert status == 413
+    assert content["detail"] == "Request too large."
 
 
-def test_a_bounded_valid_chunked_body_stays_accepted(plateforme):
-    statut, contenu = _post_chunked(
-        plateforme,
+def test_a_bounded_valid_chunked_body_stays_accepted(platform):
+    status, content = _post_chunked(
+        platform,
         [b'{"email":"inconnu@exemple.test",', b'"password":"mauvais"}'],
     )
 
-    assert statut == 401
-    assert contenu["detail"] == "Incorrect email or password."
+    assert status == 401
+    assert content["detail"] == "Incorrect email or password."
 
 
-def test_too_large_content_length_is_refused_before_reading(plateforme):
-    hote, port = plateforme
-    connexion = http.client.HTTPConnection(hote, port, timeout=10)
-    connexion.request(
+def test_too_large_content_length_is_refused_before_reading(platform):
+    hote, port = platform
+    login = http.client.HTTPConnection(hote, port, timeout=10)
+    login.request(
         "POST",
         "/api/auth/login",
         body=b"{}",
@@ -98,19 +98,19 @@ def test_too_large_content_length_is_refused_before_reading(plateforme):
             "Content-Length": "300001",
         },
     )
-    reponse = connexion.getresponse()
-    contenu = json.loads(reponse.read())
-    connexion.close()
+    response = login.getresponse()
+    content = json.loads(response.read())
+    login.close()
 
-    assert reponse.status == 413
-    assert contenu["detail"] == "Request too large."
+    assert response.status == 413
+    assert content["detail"] == "Request too large."
 
 
-def test_a_non_object_chunked_json_keeps_its_error(plateforme):
-    statut, contenu = _post_chunked(plateforme, [b"[", b"]"])
+def test_a_non_object_chunked_json_keeps_its_error(platform):
+    status, content = _post_chunked(platform, [b"[", b"]"])
 
-    assert statut == 400
-    assert contenu["detail"] == "A JSON object is expected."
+    assert status == 400
+    assert content["detail"] == "A JSON object is expected."
 
 
 def test_routes_do_not_read_the_body_outside_bounded_readers():
@@ -121,29 +121,29 @@ def test_routes_do_not_read_the_body_outside_bounded_readers():
     # witness went red on that move while everything else was green, which is
     # exactly what it is asked to do: a reader that moves declares itself
     # again, it does not slip through.
-    autorises = {
+    allowed = {
         ("app_http.py", "_json_body", "stream"),
         ("builder_host.py", "_bounded_body", "stream"),
     }
     lectures = set()
-    for chemin in racine.glob("*.py"):
-        arbre = ast.parse(chemin.read_text(encoding="utf-8"), filename=str(chemin))
+    for path in racine.glob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         parents = {
-            enfant: parent
-            for parent in ast.walk(arbre)
-            for enfant in ast.iter_child_nodes(parent)
+            child: parent
+            for parent in ast.walk(tree)
+            for child in ast.iter_child_nodes(parent)
         }
-        for appel in (n for n in ast.walk(arbre) if isinstance(n, ast.Call)):
-            cible = appel.func
-            if not isinstance(cible, ast.Attribute) or cible.attr not in {
+        for call in (n for n in ast.walk(tree) if isinstance(n, ast.Call)):
+            target = call.func
+            if not isinstance(target, ast.Attribute) or target.attr not in {
                 "json", "body", "form", "stream"
             }:
                 continue
-            parent = appel
+            parent = call
             while parent in parents and not isinstance(
                 parent, (ast.FunctionDef, ast.AsyncFunctionDef)
             ):
                 parent = parents[parent]
-            lectures.add((chemin.name, parent.name, cible.attr))
+            lectures.add((path.name, parent.name, target.attr))
 
-    assert lectures == autorises
+    assert lectures == allowed

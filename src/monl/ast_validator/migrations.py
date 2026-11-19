@@ -9,7 +9,7 @@ from .base import ASTValidationError
 class MigrationsMixin:
     """Declared migrations, and what they are allowed to do."""
 
-    def _operation_de_migration(self, name, reference, entity, field, operation, known_types):
+    def _operation_of_migration(self, name, reference, entity, field, operation, known_types):
         """A `rename`, `alter` or `drop` operation, validated and normalized.
         Extracted from `_valider_migrations` (complexity ceiling); refusals,
         messages and the operation's shape unchanged."""
@@ -63,7 +63,7 @@ class MigrationsMixin:
             "old": field, "reversible": False,
         }
 
-    def _valider_migrations(self):
+    def _validate_migrations(self):
         """Validates the schema operations that are not additive.
 
         A migration describes the spec's target state, so its old column may
@@ -107,6 +107,6 @@ class MigrationsMixin:
                         f"Structure: operation {index} of migration '{name}' "
                         "is declared more than once.")
                 seen_operations.add(key)
-                operations.append(self._operation_de_migration(
+                operations.append(self._operation_of_migration(
                     name, reference, entity, field, operation, known_types))
             self.migrations.append({"name": name, "operations": operations})

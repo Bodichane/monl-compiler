@@ -11,9 +11,9 @@ from . import foundations
 # ------------------------------------------------------ parsing + guards --
 # Tab, line feed and carriage return are the only legitimate control characters
 # in a delivered text file.
-_CONTROLES_AUTORISES = {"\t", "\n", "\r"}
+_CHECKS_ALLOWED = {"\t", "\n", "\r"}
 
-def _refuser_caracteres_de_controle(path, content):
+def _refuse_characters_of_control(path, content):
     """Refuses a file carrying control characters, NUL first and foremost.
 
     A model that writes its accents as Unicode escapes can produce `\\u0000`
@@ -23,17 +23,17 @@ def _refuser_caracteres_de_controle(path, content):
     re », thirty-one NUL bytes in an index.html declared successful. Refusing
     here rather than further on gives the model its targeted retry, instead
     of publishing a mutilated French text."""
-    fautifs = {
-        caractere for caractere in content
-        if ord(caractere) < 32 and caractere not in _CONTROLES_AUTORISES
+    offenders = {
+        character for character in content
+        if ord(character) < 32 and character not in _CHECKS_ALLOWED
     }
-    if not fautifs:
+    if not offenders:
         return
-    nombre = sum(content.count(caractere) for caractere in fautifs)
-    noms = ", ".join(f"U+{ord(c):04X}" for c in sorted(fautifs))
+    number = sum(content.count(character) for character in offenders)
+    names = ", ".join(f"U+{ord(c):04X}" for c in sorted(offenders))
     raise foundations.FrontendAIError(
-        f"forbidden control character in {path}: {noms} "
-        f"({nombre} occurrence(s)) — a badly escaped accent produces this defect, "
+        f"forbidden control character in {path}: {names} "
+        f"({number} occurrence(s)) — a badly escaped accent produces this defect, "
         "and the file is still valid UTF-8.")
 
 def _validate_files(files, require_index=True):
@@ -52,7 +52,7 @@ def _validate_files(files, require_index=True):
             raise foundations.FrontendAIError(f"extension refused: {path}")
         if not isinstance(content, str):
             raise foundations.FrontendAIError(f"non-text content for: {path}")
-        _refuser_caracteres_de_controle(path, content)
+        _refuse_characters_of_control(path, content)
         if norm.lower().endswith(".svg"):
             try:
                 root = ElementTree.fromstring(content)
@@ -93,9 +93,9 @@ def parse_files_payload(raw_text):
 
 #: A fenced Markdown block, with or without a language name. The content is
 #: captured as is: it is a FILE, not JSON.
-_BLOC_CLOTURE = re.compile(r"```[a-zA-Z0-9_+-]*\s*\n(.*?)\n?```", re.DOTALL)
+_BLOCK_CLOTURE = re.compile(r"```[a-zA-Z0-9_+-]*\s*\n(.*?)\n?```", re.DOTALL)
 
-def _fichier_depuis_un_bloc(raw_text, expected_path):
+def _file_from_a_block(raw_text, expected_path):
     """Fallback: the model returned the FILE, not a JSON that contains it.
 
     A sequential step has to wrap a whole JavaScript file in a JSON string —
@@ -117,21 +117,21 @@ def _fichier_depuis_un_bloc(raw_text, expected_path):
     # case, would never be reached.
     if raw_text.count("```") % 2:
         return None
-    blocs = [bloc for bloc in _BLOC_CLOTURE.findall(raw_text) if bloc.strip()]
-    if not blocs:
+    blocks = [block for block in _BLOCK_CLOTURE.findall(raw_text) if block.strip()]
+    if not blocks:
         return None
     # The BIGGEST block: a chatty model comments on its response with small
     # excerpts before returning the file.
-    contenu = max(blocs, key=len)
+    content = max(blocks, key=len)
     # A block that IS the expected JSON is not a file: writing it as is would
     # drop `{"files": …}` into app.js, which parses and does not work.
-    if contenu.lstrip().startswith("{"):
+    if content.lstrip().startswith("{"):
         return None
     # The fence swallows the last line break: a source file ends with a line
     # break, it is restored rather than delivering a last line stuck to
     # nothing.
-    contenu = contenu.rstrip("\n") + "\n"
-    return _validate_files({expected_path: contenu}, require_index=False)
+    content = content.rstrip("\n") + "\n"
+    return _validate_files({expected_path: content}, require_index=False)
 
 def parse_single_file_payload(raw_text, expected_path):
     """Decodes the response of a sequential generation step.
@@ -144,14 +144,14 @@ def parse_single_file_payload(raw_text, expected_path):
         payload = _json_payload(raw_text)
         files = _validate_files(payload.get("files"), require_index=False)
     except foundations.FrontendAIError:
-        secours = _fichier_depuis_un_bloc(raw_text, expected_path)
-        if secours is None:
+        recovery = _file_from_a_block(raw_text, expected_path)
+        if recovery is None:
             raise
-        return secours
+        return recovery
     if set(files) != {expected_path}:
-        rendus = ", ".join(sorted(files))
+        rendered = ", ".join(sorted(files))
         raise foundations.FrontendAIError(
-            f"the stage was to return only {expected_path}, received: {rendus}")
+            f"the stage was to return only {expected_path}, received: {rendered}")
     return files
 
 def _write_files(project_dir, files):
@@ -164,16 +164,16 @@ def _write_files(project_dir, files):
             fh.write(content)
     return frontend_dir
 
-def _restaurer_frontend(project_dir, instantane):
+def _restore_frontend(project_dir, snapshot):
     """Puts the frontend back in the exact state of a snapshot.
 
     Targeted on purpose: only the ALLOWLISTED files are touched. Wiping the
     folder would take away the generated images, which are not subject to it
     and which nobody would replay without paying again."""
     frontend_dir = os.path.join(project_dir, "frontend")
-    for rel in set(_read_existing_frontend(project_dir)) - set(instantane):
+    for rel in set(_read_existing_frontend(project_dir)) - set(snapshot):
         os.remove(os.path.join(frontend_dir, rel))
-    return _write_files(project_dir, instantane)
+    return _write_files(project_dir, snapshot)
 
 def _read_existing_frontend(project_dir):
     frontend_dir = os.path.join(project_dir, "frontend")

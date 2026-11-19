@@ -8,7 +8,7 @@ from .runtime_headers import security_headers_lines
 class MontageRuntimeMixin:
     """The database foundation mounted in app.py, and uploads."""
 
-    def _socle_base_et_uploads(self, api_lines):
+    def _base_base_and_uploads(self, api_lines):
         """The database foundation, its migrations, and uploads."""
         if self._condition_identity_needed():
             api_lines.extend([

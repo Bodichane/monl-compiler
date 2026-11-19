@@ -30,10 +30,10 @@ from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_file
 from tests.support.cases import check_each_case
 
-EXEMPLES_DIR = os.path.join(os.path.dirname(__file__), "../exemples")
-PLUGIN_EXEMPLES_DIR = os.path.join(os.path.dirname(__file__), "../plugin/reference/exemples")
+EXAMPLES_DIR = os.path.join(os.path.dirname(__file__), "../exemples")
+PLUGIN_EXAMPLES_DIR = os.path.join(os.path.dirname(__file__), "../plugin/reference/exemples")
 EXAMPLE_FILES = sorted(
-    path for directory in (EXEMPLES_DIR, PLUGIN_EXEMPLES_DIR)
+    path for directory in (EXAMPLES_DIR, PLUGIN_EXAMPLES_DIR)
     for extension in ("ml", "monl", "yaml")
     for path in glob.glob(os.path.join(directory, "**", f"*.{extension}"), recursive=True))
 
@@ -42,29 +42,29 @@ def test_example_compiles():
     """Compiles the deterministic base (parsing + audit + generation) for each
     example, and checks that it succeeds without error."""
     table = EXAMPLE_FILES
-    noms = [os.path.basename(p) for p in EXAMPLE_FILES]
+    names = [os.path.basename(p) for p in EXAMPLE_FILES]
 
     def cas(yaml_path):
         raw_json = parse_monl_file(yaml_path)
         ast_manager = MonlAST(raw_json, base_dir=os.path.dirname(yaml_path))
         normalized_ast = ast_manager.validate_and_audit()
-        with tempfile.TemporaryDirectory() as sortie:
-            MonlSecureGenerator(normalized_ast, output_dir=sortie).generate_all()
+        with tempfile.TemporaryDirectory() as output:
+            MonlSecureGenerator(normalized_ast, output_dir=output).generate_all()
 
             # Checks that the 3 expected infrastructure artifacts were
             # produced. REMOVAL (roadmap, on explicit request): 'frontend.html'
             # (the old React back office '/ui') is no longer generated at all —
             # see docs/design_decisions.md, point 22. NO frontend at all is
             # generated since the pivot (point 41) — see the last test.
-            for artefact in ("app.py", "schema.sql"):
-                artefact_path = os.path.join(sortie, artefact)
-                assert os.path.exists(artefact_path), f"{artefact} was not generated for {os.path.basename(yaml_path)}"
+            for artifact in ("app.py", "schema.sql"):
+                artifact_path = os.path.join(output, artifact)
+                assert os.path.exists(artifact_path), f"{artifact} was not generated for {os.path.basename(yaml_path)}"
             # Presence on disk does not prove an emitter produced an importable
             # module. Parsing each generated source catches a broken quote or
             # indentation at once, without running the produced code or
             # depending on an external service.
             for module in ("app.py", "manage.py", "sandbox_ai.py"):
-                module_path = os.path.join(sortie, module)
+                module_path = os.path.join(output, module)
                 if os.path.exists(module_path):
                     with open(module_path, encoding="utf-8") as generated:
                         ast.parse(generated.read(), filename=module)
@@ -74,16 +74,16 @@ def test_example_compiles():
             # of the five examples has a `custom` block — its absence is
             # therefore the right output, and we assert it rather than stop
             # looking.
-            assert not os.path.exists(os.path.join(sortie, "sandbox_ai.py")), (
+            assert not os.path.exists(os.path.join(output, "sandbox_ai.py")), (
                 f"{os.path.basename(yaml_path)} has no 'custom' block and yet "
             "gets the empty module")
 
-    check_each_case([(valeur,) for valeur in table], cas, ids=noms)
+    check_each_case([(valeur,) for valeur in table], cas, ids=names)
 
 
 def test_at_least_one_example_exists():
     """Safeguard: avoids a false 'all green' if the exemples/ folder is empty."""
-    for directory in (EXEMPLES_DIR, PLUGIN_EXEMPLES_DIR):
+    for directory in (EXAMPLES_DIR, PLUGIN_EXAMPLES_DIR):
         assert any(p.startswith(directory + os.sep)
                    for p in EXAMPLE_FILES), f"No specs in {directory}"
 
@@ -96,9 +96,9 @@ def test_no_example_ever_produces_frontend_html():
     for yaml_path in EXAMPLE_FILES:
         raw_json = parse_monl_file(yaml_path)
         normalized_ast = MonlAST(raw_json, base_dir=os.path.dirname(yaml_path)).validate_and_audit()
-        with tempfile.TemporaryDirectory() as sortie:
-            MonlSecureGenerator(normalized_ast, output_dir=sortie).generate_all()
-            frontend_path = os.path.join(sortie, "frontend.html")
+        with tempfile.TemporaryDirectory() as output:
+            MonlSecureGenerator(normalized_ast, output_dir=output).generate_all()
+            frontend_path = os.path.join(output, "frontend.html")
         assert not os.path.exists(frontend_path), (
             f"'frontend.html' was generated for {os.path.basename(yaml_path)} — "
             f"monl must never again produce an auto-generated back office."
@@ -113,11 +113,11 @@ def test_no_example_ever_produces_any_generated_frontend():
     for yaml_path in EXAMPLE_FILES:
         raw_json = parse_monl_file(yaml_path)
         normalized_ast = MonlAST(raw_json, base_dir=os.path.dirname(yaml_path)).validate_and_audit()
-        with tempfile.TemporaryDirectory() as sortie:
-            MonlSecureGenerator(normalized_ast, output_dir=sortie).generate_all()
-            fantomes = {g: os.path.exists(os.path.join(sortie, g))
+        with tempfile.TemporaryDirectory() as output:
+            MonlSecureGenerator(normalized_ast, output_dir=output).generate_all()
+            phantoms = {g: os.path.exists(os.path.join(output, g))
                         for g in ("landing.html", "dashboard.html", "frontend.html")}
-        for ghost, present in fantomes.items():
+        for ghost, present in phantoms.items():
             assert not present, (
                 f"'{ghost}' was generated for {os.path.basename(yaml_path)} — "
                 f"monl must no longer produce any frontend (point 41)."

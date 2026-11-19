@@ -9,9 +9,9 @@ from html import unescape
 # A reference built at runtime (JS template, template engine) is not a file
 # path: `src="${esc(p.imageUrl)}"` designates an image the API will return, not
 # a file to find on disk.
-_REFERENCE_DYNAMIQUE = re.compile(r"\$\{|\{\{|<%")
+_REFERENCE_DYNAMIC = re.compile(r"\$\{|\{\{|<%")
 
-_BALISE_RESSOURCE = re.compile(
+_TAG_RESOURCE = re.compile(
     r"<(?:img|script|link|source|video|audio|object)\b[^>]*?"
     r"\b(?:src|href|data)=['\"]([^'\"]+)['\"]",
     re.IGNORECASE | re.DOTALL,
@@ -19,7 +19,7 @@ _BALISE_RESSOURCE = re.compile(
 
 # Only explicit resource assignments. Do not confuse a fetch('/booking') or a
 # navigation link with a static file.
-_RESSOURCE_JS = re.compile(
+_RESOURCE_JS = re.compile(
     r"\.(?:src|href)\s*=\s*['\"]([^'\"]+)['\"]|"
     r"setAttribute\(\s*['\"](?:src|href)['\"]\s*,\s*['\"]([^'\"]+)['\"]",
     re.IGNORECASE,
@@ -27,7 +27,7 @@ _RESSOURCE_JS = re.compile(
 
 _URL_CSS = re.compile(r"url\(\s*['\"]?([^)'\"]+)['\"]?\s*\)", re.IGNORECASE)
 
-def _sans_corps_de_script(html):
+def _without_body_of_script(html):
     """Removes the BODY of <script>s, keeping the tags themselves.
 
     A <script>'s content is not markup: reading it as such makes a render
@@ -54,16 +54,16 @@ def _declared_link_errors(project_dir, rendered_source):
         return []
     try:
         with open(contract_path, encoding="utf-8") as fh:
-            liens = json.load(fh).get("links") or []
+            links = json.load(fh).get("links") or []
     except (OSError, json.JSONDecodeError):
         return []
     source = unescape(rendered_source)
     return [
-        f"declared link missing from the site: “{lien['label']}” → {lien['url']}"
-        for lien in liens if lien["url"] not in source
+        f"declared link missing from the site: “{link['label']}” → {link['url']}"
+        for link in links if link["url"] not in source
     ]
 
-def _dossier_assets_du_contrat(project_dir):
+def _folder_assets_of_contract(project_dir):
     """The assets folder declared by the contract, or None if it is unreadable.
     Extracted from `_frontend_local_reference_errors` (complexity ceiling)."""
     contract_path = os.path.join(project_dir, "frontend_contract.json")
@@ -93,32 +93,32 @@ def _frontend_local_reference_errors(project_dir):
     serves; it is ``/assets/photo.png``, served by nobody, that is."""
     frontend_dir = os.path.join(project_dir, "frontend")
     errors = []
-    prefixe_assets = (_dossier_assets_du_contrat(project_dir) or "").strip("/")
+    prefix_assets = (_folder_assets_of_contract(project_dir) or "").strip("/")
     # The wrapper mounts the assets folder only `if os.path.isdir(...)`:
     # declared in the spec does not mean present on disk. When it is missing,
     # no route is registered and Starlette lets the request fall through to
     # /site, so `assets/x.webp` is served from `frontend/assets/x.webp`.
     # Checked against a real server: taking the contract at its word made three
     # KoraMaison images that answer 200 get refused.
-    monte_assets = bool(prefixe_assets) and os.path.isdir(
-        os.path.join(project_dir, prefixe_assets))
+    monte_assets = bool(prefix_assets) and os.path.isdir(
+        os.path.join(project_dir, prefix_assets))
 
-    def fichier_servi(url):
+    def file_served(url):
         """The disk file served for a URL, or None if nothing serves it."""
         if url != "/site" and not url.startswith("/site/"):
             return None
         reste = url[len("/site"):].lstrip("/")
-        if monte_assets and (reste == prefixe_assets
-                             or reste.startswith(prefixe_assets + "/")):
+        if monte_assets and (reste == prefix_assets
+                             or reste.startswith(prefix_assets + "/")):
             # Mounted BEFORE /site by the wrapper: this folder lives outside
             # frontend/, at the project root (brick 13, point 83).
-            chemin = os.path.join(project_dir, reste)
+            path = os.path.join(project_dir, reste)
         else:
-            chemin = os.path.join(frontend_dir, reste)
+            path = os.path.join(frontend_dir, reste)
         # StaticFiles(html=True) serves a folder's index.
-        if os.path.isdir(chemin):
-            chemin = os.path.join(chemin, "index.html")
-        return chemin
+        if os.path.isdir(path):
+            path = os.path.join(path, "index.html")
+        return path
 
     def check(origin, reference):
         ref = reference.strip()
@@ -130,7 +130,7 @@ def _frontend_local_reference_errors(project_dir):
         # monl can assert nothing about a reference built at runtime: it stays
         # quiet rather than guessing a file (same trade-off as the asset
         # existence check, point 83).
-        if _REFERENCE_DYNAMIQUE.search(ref):
+        if _REFERENCE_DYNAMIC.search(ref):
             return
         clean = ref.split("#", 1)[0].split("?", 1)[0].strip()
         if not clean:
@@ -140,14 +140,14 @@ def _frontend_local_reference_errors(project_dir):
         else:
             url = posixpath.normpath(
                 posixpath.join("/site", posixpath.dirname(origin), clean))
-        candidat = fichier_servi(url)
-        if candidat is None:
+        candidate = file_served(url)
+        if candidate is None:
             errors.append(
                 f"ressource jamais servie (hors de /site) : {origin} → {ref}")
             return
-        if not os.path.isfile(candidat):
-            relatif = os.path.relpath(candidat, project_dir).replace(os.sep, "/")
-            errors.append(f"local resource missing: {relatif} (referenced by {origin})")
+        if not os.path.isfile(candidate):
+            relative = os.path.relpath(candidate, project_dir).replace(os.sep, "/")
+            errors.append(f"local resource missing: {relative} (referenced by {origin})")
 
     for root, _dirs, names in os.walk(frontend_dir):
         for name in names:
@@ -155,17 +155,17 @@ def _frontend_local_reference_errors(project_dir):
                 continue
             path = os.path.join(root, name)
             try:
-                with open(path, encoding="utf-8", errors="ignore") as fichier:
-                    content = fichier.read()
+                with open(path, encoding="utf-8", errors="ignore") as file:
+                    content = file.read()
             except OSError as exc:
                 errors.append(f"frontend illisible : {path} — {exc}")
                 continue
             origin = os.path.relpath(path, frontend_dir).replace(os.sep, "/")
             if name.endswith(".html"):
-                for ref in _BALISE_RESSOURCE.findall(_sans_corps_de_script(content)):
+                for ref in _TAG_RESOURCE.findall(_without_body_of_script(content)):
                     check(origin, ref)
             elif name.endswith(".js"):
-                for match in _RESSOURCE_JS.finditer(content):
+                for match in _RESOURCE_JS.finditer(content):
                     check(origin, match.group(1) or match.group(2))
             elif name.endswith(".css"):
                 for ref in _URL_CSS.findall(content):
@@ -187,8 +187,8 @@ def _frontend_behavioral_quality_errors(project_dir):
                 continue
             path = os.path.join(root, name)
             try:
-                with open(path, encoding="utf-8", errors="ignore") as fichier:
-                    content = fichier.read()
+                with open(path, encoding="utf-8", errors="ignore") as file:
+                    content = file.read()
             except OSError:
                 continue
             for match in re.finditer(

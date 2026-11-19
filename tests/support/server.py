@@ -32,7 +32,7 @@ def free_port():
         return sock.getsockname()[1]
 
 
-def _diagnostic(entete, journal, module, directory):
+def _diagnostic(header, log, module, directory):
     """What uvicorn wrote before dying.
 
     This output went to `DEVNULL`: that is why nobody ever knew WHY the server
@@ -40,14 +40,14 @@ def _diagnostic(entete, journal, module, directory):
     wrong place.
     """
     try:
-        journal.seek(0)
-        sortie = journal.read().strip()
+        log.seek(0)
+        output = log.read().strip()
     except (OSError, ValueError):  # pragma: no cover - log already closed
-        sortie = ""
-    return (f"{entete}\n"
+        output = ""
+    return (f"{header}\n"
             f"module={module!r} dossier={directory!r}\n"
             f"--- sortie d'uvicorn ---\n"
-            f"{sortie or '(the server wrote nothing)'}")
+            f"{output or '(the server wrote nothing)'}")
 
 
 @contextlib.contextmanager
@@ -79,7 +79,7 @@ def uvicorn_server(directory, *, env=None, module="app:app",
     fd = sock.fileno()
     os.set_inheritable(fd, True)
 
-    journal = tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace")
+    log = tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace")
     try:
         try:
             process = subprocess.Popen(
@@ -87,7 +87,7 @@ def uvicorn_server(directory, *, env=None, module="app:app",
                 cwd=directory,
                 env=env or os.environ.copy(),
                 pass_fds=(fd,),
-                stdout=journal,
+                stdout=log,
                 stderr=subprocess.STDOUT,
             )
         finally:
@@ -104,7 +104,7 @@ def uvicorn_server(directory, *, env=None, module="app:app",
                     pytest.fail(_diagnostic(
                         "the uvicorn server stopped before answering "
                         f"(code {process.returncode})",
-                        journal, module, directory))
+                        log, module, directory))
                 try:
                     response = requests.get(base_url + ready_path, timeout=1)
                     if response.status_code < 500:
@@ -116,7 +116,7 @@ def uvicorn_server(directory, *, env=None, module="app:app",
                 pytest.fail(_diagnostic(
                     f"the uvicorn server never answered on {ready_path} "
                     f"after {attempts} attempts",
-                    journal, module, directory))
+                    log, module, directory))
             yield base_url
         finally:
             if process.poll() is None:
@@ -127,4 +127,4 @@ def uvicorn_server(directory, *, env=None, module="app:app",
                     process.kill()
                     process.wait(timeout=5)
     finally:
-        journal.close()
+        log.close()

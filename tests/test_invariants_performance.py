@@ -28,11 +28,11 @@ from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_file
 from tests.support.cases import check_each_case
 
-EXEMPLES_DIR = os.path.join(os.path.dirname(__file__), "../exemples")
-PROJETS_DIR = os.path.join(os.path.dirname(__file__), "../projets")
+EXAMPLES_DIR = os.path.join(os.path.dirname(__file__), "../exemples")
+PROJECTS_DIR = os.path.join(os.path.dirname(__file__), "../projets")
 SPEC_FILES = sorted(
-    glob.glob(os.path.join(EXEMPLES_DIR, "*.ml"))
-    + glob.glob(os.path.join(PROJETS_DIR, "*/spec.ml"))
+    glob.glob(os.path.join(EXAMPLES_DIR, "*.ml"))
+    + glob.glob(os.path.join(PROJECTS_DIR, "*/spec.ml"))
 )
 
 _SQL_TABLE = re.compile(r'\bFROM\s+["`]?([A-Za-z_]\w*)["`]?', re.IGNORECASE)
@@ -46,8 +46,8 @@ _SQL_CONDITION = re.compile(
 
 # The social network must provide a real witness: status, member_id and both
 # parties of PrivateMessage are all present in its list fragments.
-SPEC_TEMOIN = os.path.join(EXEMPLES_DIR, "03_reseau_social.ml")
-MIN_COLONNES_TEMOIN = 4
+SPEC_WITNESS = os.path.join(EXAMPLES_DIR, "03_reseau_social.ml")
+MIN_COLUMNS_WITNESS = 4
 
 
 def _condition_column(match):
@@ -199,18 +199,18 @@ def _assert_performance_invariant(path, *, minimum_witness=None):
 
 def test_every_business_column_filtering_a_list_is_indexed():
     table = SPEC_FILES
-    noms = [os.path.relpath(path) for path in SPEC_FILES]
+    names = [os.path.relpath(path) for path in SPEC_FILES]
 
     def cas(path):
-        minimum = MIN_COLONNES_TEMOIN if path == SPEC_TEMOIN else None
+        minimum = MIN_COLUMNS_WITNESS if path == SPEC_WITNESS else None
         _assert_performance_invariant(path, minimum_witness=minimum)
 
-    check_each_case([(valeur,) for valeur in table], cas, ids=noms)
+    check_each_case([(valeur,) for valeur in table], cas, ids=names)
 
 
 def test_the_witness_sees_the_four_social_network_filters():
     found = _assert_performance_invariant(
-        SPEC_TEMOIN, minimum_witness=MIN_COLONNES_TEMOIN)
+        SPEC_WITNESS, minimum_witness=MIN_COLUMNS_WITNESS)
     assert {("post", "status"), ("post", "member_id"),
             ("privatemessage", "member_id"),
             ("privatemessage", "recipient_id")} <= found
@@ -247,7 +247,7 @@ def test_counterproof_accessible_by_turns_the_invariant_red(monkeypatch):
         _without_source(access=True),
     )
     with pytest.raises(AssertionError, match="recipient_id"):
-        _assert_performance_invariant(SPEC_TEMOIN, minimum_witness=MIN_COLONNES_TEMOIN)
+        _assert_performance_invariant(SPEC_WITNESS, minimum_witness=MIN_COLUMNS_WITNESS)
 
 
 def test_counterproof_public_when_turns_the_invariant_red(monkeypatch):
@@ -256,4 +256,4 @@ def test_counterproof_public_when_turns_the_invariant_red(monkeypatch):
         _without_source(public=True),
     )
     with pytest.raises(AssertionError, match="status"):
-        _assert_performance_invariant(SPEC_TEMOIN, minimum_witness=MIN_COLONNES_TEMOIN)
+        _assert_performance_invariant(SPEC_WITNESS, minimum_witness=MIN_COLUMNS_WITNESS)

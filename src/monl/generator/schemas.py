@@ -5,7 +5,7 @@ when it was split into a package — see docs/design_decisions.md."""
 
 from string import Template
 
-from ..ast_validator.fields import ChampsMixin
+from ..ast_validator.fields import FieldsMixin
 
 
 class SchemasMixin:
@@ -15,16 +15,16 @@ class SchemasMixin:
         # 1. Generation of the standard CRUD schemas
         for ent_name, attrs in self.entities.items():
             api_lines.append(Template(r"""class ${ent_name}Schema(BaseModel):""").substitute(ent_name=ent_name))
-            exclus = self._champs_hors_schema(ent_name)
+            excluded = self._fields_outside_schema(ent_name)
             has_schema_field = False
             non_blank = []
             for attr_name, attr_type in attrs.items():
-                if (attr_name in exclus
+                if (attr_name in excluded
                         or (ent_name, attr_name) in self.event_counters
                         or attr_type == "Upload"):
                     continue
                 non_blank.extend(self._non_blank_field(ent_name, attr_name, attr_type))
-                api_lines.append(self._ligne_de_champ(ent_name, attr_name, attr_type))
+                api_lines.append(self._line_of_field(ent_name, attr_name, attr_type))
                 has_schema_field = True
             # ADDED (roadmap, capability ecosystem -- brick 3, generalized into
             # brick 4): every relation to a 'decrements'/'increments' target is
@@ -48,11 +48,11 @@ class SchemasMixin:
             api_lines.append(Template(r"""
 """).substitute())
 
-        api_lines.extend(self._lignes_schemas_custom())
+        api_lines.extend(self._lines_schemas_custom())
 
         return api_lines
 
-    def _champs_hors_schema(self, ent_name):
+    def _fields_outside_schema(self, ent_name):
         """The fields the SERVER fills: never in the input schema."""
         # ADDED (roadmap, capability ecosystem -- follow-up to brick 1): a
         # 'generated' field does NOT appear in the Pydantic schema -- the
@@ -67,32 +67,32 @@ class SchemasMixin:
         # single {Ent}Schema): removing it from there closes at once both
         # paths through which the client wrote the amount that `payable`
         # then reread.
-        derives_ici = self._derived_field_names(ent_name)
+        derives_here = self._derived_field_names(ent_name)
         # ADDED (brick 12, point 82): a 'sumOf' field is recomputed by the
         # server on every write of a child line. Same treatment, same
         # reason: leaving it in the schema would let the client write a
         # cart's total, i.e. the point 77 flaw coming back through the
         # cart.
-        sommes_ici = self._aggregated_field_names(ent_name)
+        sums_here = self._aggregated_field_names(ent_name)
         # ADDED (brick 16, point 89): a 'timestamp' field is written by the
         # server at creation. Leaving it in the schema would make the date
         # declarative — that is, worthless: an order book where everyone
         # picks their own dates attests to nothing.
-        horodates_ici = self.timestamp_fields_by_entity.get(ent_name, [])
+        timestamped_here = self.timestamp_fields_by_entity.get(ent_name, [])
         # BRICK 22 (point 102): a number the client could write would
         # number nothing — they would pick their own, and two clients would
         # pick the same.
-        horodates_ici = [*horodates_ici, *[
+        timestamped_here = [*timestamped_here, *[
             n["field"] for n in self.numbered_fields_by_entity.get(ent_name, [])]]
         # BRICK 25 (point 113): a 'writableAfterPayment' field must be
         # written ONLY by the dedicated route, never by the generic create
         # or update routes the client can reach.
-        postpaiement_ici = self.postpayment_writable_by_entity.get(
+        postpayment_here = self.postpayment_writable_by_entity.get(
             ent_name, {}).get("fields", [])
-        return {*generated_here_schema, *derives_ici, *sommes_ici, *horodates_ici,
-                *postpaiement_ici}
+        return {*generated_here_schema, *derives_here, *sums_here, *timestamped_here,
+                *postpayment_here}
 
-    def _ligne_de_champ(self, ent_name, attr_name, attr_type):
+    def _line_of_field(self, ent_name, attr_name, attr_type):
         """One schema line, with its bounds or its list of values."""
         py_type = "str"
         if attr_type == "Integer": py_type = "int"
@@ -120,33 +120,33 @@ class SchemasMixin:
         # to copy it. The values go through `repr()`: never manual
         # interpolation between quotes, that is the lesson of
         # `categorized` (brick 5).
-        choix = self.enumerated_fields.get(ent_name, {}).get(attr_name)
-        if choix:
-            valeurs = ", ".join(repr(v) for v in choix)
-            return Template(r"""    ${attr_name}: Literal[${valeurs}]""").substitute(attr_name=attr_name, valeurs=valeurs)
-        contraintes = self.field_constraints.get(ent_name, {}).get(attr_name, {})
-        bornes = []
-        for nom, mot_texte, mot_nombre in (("min", "min_length", "ge"),
+        choice = self.enumerated_fields.get(ent_name, {}).get(attr_name)
+        if choice:
+            values = ", ".join(repr(v) for v in choice)
+            return Template(r"""    ${attr_name}: Literal[${valeurs}]""").substitute(attr_name=attr_name, valeurs=values)
+        constraints = self.field_constraints.get(ent_name, {}).get(attr_name, {})
+        bounds = []
+        for name, word_text, word_number in (("min", "min_length", "ge"),
                                            ("max", "max_length", "le")):
-            borne_regle = contraintes.get(nom)
-            if not borne_regle:
+            bound_rule = constraints.get(name)
+            if not bound_rule:
                 continue
-            mot = mot_texte if borne_regle["portee"] == "longueur" else mot_nombre
-            bornes.append(Template(r"""${mot}=${value}""").substitute(mot=mot, value=borne_regle['valeur']))
+            word = word_text if bound_rule["portee"] == "longueur" else word_number
+            bounds.append(Template(r"""${mot}=${value}""").substitute(mot=word, value=bound_rule['valeur']))
         if py_type == "str":
-            self._bornes_de_texte(attr_type, bornes)
-            return Template(r"""    ${attr_name}: str = Field(..., ${value})""").substitute(attr_name=attr_name, value=', '.join(bornes))
-        if bornes:
-            return Template(r"""    ${attr_name}: ${py_type} = Field(..., ${value})""").substitute(attr_name=attr_name, py_type=py_type, value=', '.join(bornes))
+            self._bounds_of_text(attr_type, bounds)
+            return Template(r"""    ${attr_name}: str = Field(..., ${value})""").substitute(attr_name=attr_name, value=', '.join(bounds))
+        if bounds:
+            return Template(r"""    ${attr_name}: ${py_type} = Field(..., ${value})""").substitute(attr_name=attr_name, py_type=py_type, value=', '.join(bounds))
         return Template(r"""    ${attr_name}: ${py_type}""").substitute(attr_name=attr_name, py_type=py_type)
 
-    def _bornes_de_texte(self, attr_type, bornes):
+    def _bounds_of_text(self, attr_type, bounds):
         """Length bound of the column, and the Email/UUID form patterns."""
-        borne = {"Text": 20000, "Email": 320, "UUID": 36}.get(attr_type, 255)
+        bound = {"Text": 20000, "Email": 320, "UUID": 36}.get(attr_type, 255)
         # A declared 'max' wins over the column bound: the
         # validator checked it does not exceed it.
-        if not any(b.startswith("max_length=") for b in bornes):
-            bornes.append(Template(r"""max_length=${borne}""").substitute(borne=borne))
+        if not any(b.startswith("max_length=") for b in bounds):
+            bounds.append(Template(r"""max_length=${borne}""").substitute(borne=bound))
         # POINT 91: the 'Email' type only fixed a LENGTH —
         # 'not-an-email' went into the database with a 200. A type
         # that names an address and checks none is exactly what
@@ -157,7 +157,7 @@ class SchemasMixin:
         # something, hence an outgoing call the compiler forbids
         # itself.
         if attr_type == "Email":
-            bornes.append(r"pattern=r'^[^@\s]+@[^@\s]+\.[^@\s]{2,}$'")
+            bounds.append(r"pattern=r'^[^@\s]+@[^@\s]+\.[^@\s]{2,}$'")
         # POINT 101: the sibling type had the same defect, and it
         # stood ten points longer. 'UUID' only fixed a length of
         # 255: `smoke-reference` went into the database under a
@@ -171,10 +171,10 @@ class SchemasMixin:
         # UUID and future versions, though they are well formed --
         # monl checks the FORM, it does not judge provenance.
         if attr_type == "UUID":
-            bornes.append(
+            bounds.append(
                 Template(r"""pattern=r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$$'""").substitute())
 
-    def _lignes_schemas_custom(self):
+    def _lines_schemas_custom(self):
         """Strict schemas for the inputs of 'custom' functions."""
         api_lines = []
         # 2. Strict schemas for the inputs of 'custom' functions
@@ -209,7 +209,7 @@ class SchemasMixin:
             if self._non_blank_field(entity, field, self.entities[entity][field])])
 
     def _non_blank_field(self, entity, field, type_):
-        if (type_ in ChampsMixin.BORNES_TEXTE
+        if (type_ in FieldsMixin.BOUNDS_TEXT
                 and self.field_constraints.get(entity, {}).get(field, {}).get("required")):
             return [field]
         return []

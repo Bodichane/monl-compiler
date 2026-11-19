@@ -9,22 +9,22 @@ timestamps, numbers), the counters moved in the same transaction, and the
 class CreationTransactionRoutesMixin:
     """The `Create` route's transaction body."""
 
-    def _valeurs_serveur_create(self, base_target, derives_ici):
+    def _values_server_create(self, base_target, derives_here):
         """Expressions the server writes instead of `data.<field>`, and the
         numbering lines that belong inside the transaction."""
-        calcules = {r.field: f"_calcul_{r.field}" for r in derives_ici}
-        calcules.update(dict.fromkeys(self.event_counters_by_entity.get(base_target, ()), "0"))
+        computed = {r.field: f"_calcul_{r.field}" for r in derives_here}
+        computed.update(dict.fromkeys(self.event_counters_by_entity.get(base_target, ()), "0"))
         # ADDED (brick 12, point 82): an order is born without lines, so its
         # total is born at 0 — never NULL, which no frontend knows how to
         # display, and never from `data` (the field is no longer there). The
         # sum will follow the lines, write by write.
-        for nom_somme in self._aggregated_field_names(base_target):
-            calcules[nom_somme] = "0"
+        for name_sum in self._aggregated_field_names(base_target):
+            computed[name_sum] = "0"
         # ADDED (brick 16, point 89): the creation moment. Written here, only
         # once, and removed from the Update route's SET — a creation date that
         # moves is not a creation date.
-        for nom_date in self.timestamp_fields_by_entity.get(base_target, []):
-            calcules[nom_date] = "_horodatage()"
+        for name_date in self.timestamp_fields_by_entity.get(base_target, []):
+            computed[name_date] = "_horodatage()"
         # BRICK 25 (point 113): a field reserved to the `apres-paiement` route
         # is absent from the generic input schema. At creation it is therefore
         # born empty, exactly like a tracking value that does not exist yet.
@@ -32,35 +32,35 @@ class CreationTransactionRoutesMixin:
         # AttributeError and a 500 on EVERY creation of the entity — discovered
         # on CodexShop's real checkout, where fulfillmentStatus and
         # trackingNumber are legitimately unknown before payment.
-        postpaiement_ici = set(
+        postpayment_here = set(
             self.postpayment_writable_by_entity.get(
                 base_target, {}).get("fields", []))
-        for nom_postpaiement in postpaiement_ici:
+        for name_postpayment in postpayment_here:
             # POINT 191: the order of the `oneOf` is the life cycle (point 96).
             # A status reserved to post-payment is therefore born in its first
             # state; data without a closed list (tracking number, etc.) stays
             # legitimately unknown. `enumerated_fields` is the single source
             # already consumed by the Pydantic `Literal`s, and `repr()`
             # protects the generated literal as everywhere else.
-            calcules[nom_postpaiement] = self._valeur_initiale_postpaiement(
-                base_target, nom_postpaiement)
+            computed[name_postpayment] = self._value_initial_postpayment(
+                base_target, name_postpayment)
         # BRICK 22 (point 102): the readable number. The counter is read AND
         # incremented in the database; these lines therefore go INTO the `try`
         # below, not here — outside the transaction, a refused insertion would
         # leave the counter advanced and the next number would skip. Never
         # `MAX(...) + 1` on the business table: it would give back a deleted
         # record's number, and would go wrong as soon as two creations cross.
-        lignes_numerotation = []
-        for regle in self.numbered_fields_by_entity.get(base_target, []):
-            var = f"_numero_{regle['field']}"
-            lignes_numerotation.append(
+        lines_numbering = []
+        for rule in self.numbered_fields_by_entity.get(base_target, []):
+            var = f"_numero_{rule['field']}"
+            lines_numbering.append(
                 f"        {var} = _attribuer_numero(cursor, "
-                f"{base_target!r}, {regle['field']!r}, "
-                f"{regle['format']!r}, {regle['periode']!r})")
-            calcules[regle["field"]] = var
-        return calcules, lignes_numerotation
+                f"{base_target!r}, {rule['field']!r}, "
+                f"{rule['format']!r}, {rule['periode']!r})")
+            computed[rule["field"]] = var
+        return computed, lines_numbering
 
-    def _effets_compteurs_create(self, base_target):
+    def _effects_counters_create(self, base_target):
         """increments/decrements, with the floored stock check."""
         api_lines = []
         reputation_rules_here = self.reputation_rules_by_trigger.get(base_target, [])
@@ -77,11 +77,11 @@ class CreationTransactionRoutesMixin:
             # compiler had already known this defect ("a foreign key mechanism
             # that decremented the wrong record"): it came back through the
             # door of the second relation.
-            fk_vers_cible = rule.target_fk
-            fk_value_expr = f"data.{fk_vers_cible}"
+            fk_vers_target = rule.target_fk
+            fk_value_expr = f"data.{fk_vers_target}"
             # BRICK 14 (point 86): the quantity is either a constant or a field
             # of the request body ('by quantity').
-            quantite = (f"data.{rule.amount_field}" if rule.amount_field
+            quantity = (f"data.{rule.amount_field}" if rule.amount_field
                         else str(rule.amount))
             # THE heart of the brick. A count that can go below its floor is a
             # stock that LIES: the shop would show -3 pairs available, and
@@ -89,15 +89,15 @@ class CreationTransactionRoutesMixin:
             # is not a hard-coded "stock" exception — it comes from the point
             # 85 'min' DECLARATION on the targeted field. A reputation without
             # 'min' keeps going below zero, as is its right.
-            borne = rule.minimum
-            if borne is not None and rule.direction == "decrements":
+            bound = rule.minimum
+            if bound is not None and rule.direction == "decrements":
                 # ONE single statement: the condition and the write are
                 # evaluated together, so two simultaneous orders cannot read
                 # the same stock and count it down twice.
                 api_lines.append(
                     f"        cursor.execute('UPDATE \"{target_table}\" SET \"{target_field}\" = "
                     f'"{target_field}" - ? WHERE id = ? AND "{target_field}" - ? >= ?\', '
-                    f"({quantite}, {fk_value_expr}, {quantite}, {borne}))")
+                    f"({quantity}, {fk_value_expr}, {quantity}, {bound}))")
                 # Neither rollback nor close HERE: we are in the creation's
                 # `try`, whose `except Exception` handles it before re-raising.
                 # Doing them twice gave 500 — the second close operated on an
@@ -112,11 +112,11 @@ class CreationTransactionRoutesMixin:
             else:
                 api_lines.append(
                     f"        cursor.execute('UPDATE \"{target_table}\" SET \"{target_field}\" = \"{target_field}\" {sql_op} ? "
-                    f"WHERE id = ?', ({quantite}, {fk_value_expr}))"
+                    f"WHERE id = ?', ({quantity}, {fk_value_expr}))"
                 )
         return api_lines
 
-    def _conflits_dintegrite_create(self, base_target):
+    def _conflicts_integrity_create(self, base_target):
         """The integrity `except`: once_per, unique, foreign key, then a raise."""
         api_lines = []
         # POINT 85: until now this 409 could only come from a foreign key, and
@@ -133,8 +133,8 @@ class CreationTransactionRoutesMixin:
         # the next brick. The two causes are therefore distinguished by the
         # COLUMNS SQLite names in its error, instead of assuming which of the
         # two rules spoke.
-        uniques_ici = self._unique_fields(base_target)
-        once_ici = [index for index in self._compute_once_per_indexes()
+        uniques_here = self._unique_fields(base_target)
+        once_here = [index for index in self._compute_once_per_indexes()
                     if index[0] == base_target.lower()]
         # A1: classification goes through SQLSTATE on the PostgreSQL side and
         # through the historical message on the SQLite side. THREE named
@@ -147,15 +147,15 @@ class CreationTransactionRoutesMixin:
         # (UnboundLocalError on `row_id`) instead of a 409, and the case where
         # `row_id` is already bound would have given a false success. An
         # `except` that does not end in a `raise` is an `except` that lies.
-        once_names = tuple(index[2] for index in once_ici)
+        once_names = tuple(index[2] for index in once_here)
         once_signatures = tuple(
-            f"{table}.{col}" for table, columns, _index in once_ici for col in columns)
+            f"{table}.{col}" for table, columns, _index in once_here for col in columns)
         api_lines.append("    except _DATABASE_INTEGRITY_ERRORS as _err:")
         api_lines.append("        conn.rollback(); conn.close()")
         api_lines.append(
             f"        _integrity_kind = _database_integrity_kind(_err, {once_names!r}, "
             f"{once_signatures!r})")
-        if once_ici:
+        if once_here:
             api_lines.append("        if _integrity_kind == 'once_per':")
             api_lines.append("            raise HTTPException(status_code=409, detail=(")
             api_lines.append(
@@ -167,9 +167,9 @@ class CreationTransactionRoutesMixin:
         # the second left the first without an answer.
         api_lines.append("        if _integrity_kind == 'unique':")
         api_lines.append("            raise HTTPException(status_code=409, detail=(")
-        if uniques_ici:
+        if uniques_here:
             api_lines.append(
-                f"                'Value already in use: {', '.join(uniques_ici)} "
+                f"                'Value already in use: {', '.join(uniques_here)} "
                 f"must be unique.'))")
         else:
             api_lines.append(

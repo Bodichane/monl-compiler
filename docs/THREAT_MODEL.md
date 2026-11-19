@@ -70,7 +70,7 @@ including intentionally public actions, rather than universal authentication.
 | Forged/unsigned JWT or self-assigned privileged role (S, E) | Explicit HS256 verification; registration limited to `selfRegister` actors. | tests/test_temoins_securite.py::test_the_server_refuses_unsigned_or_differently_signed_tokens; tests/test_beta3_regressions.py::test_provisioned_role_refused_at_registration |
 | Cross-record private messaging access (I, T, E) | Party filtering and route authorization; supervisor access is separately declared. | tests/test_access_parties.py::test_private_messaging_end_to_end; tests/test_access_parties.py::test_supervisor_moderates_private_messages_end_to_end |
 | Injection of SQL values (T, I, E) | Parameterized values; grammar-constrained identifiers. This witness checks emitted SQL, not arbitrary handwritten code. | tests/test_invariants_securite.py::test_no_example_pastes_a_value_into_sql |
-| Account enumeration/brute force (I, D) | Dummy password hash for unknown identifiers; atomic database-backed authentication quota. | tests/test_beta3_regressions.py::test_login_does_not_reveal_whether_the_account_exists; tests/test_beta3_regressions.py::test_quota_non_contournable_en_parallele |
+| Account enumeration/brute force (I, D) | Dummy password hash for unknown identifiers; atomic database-backed authentication quota. | tests/test_beta3_regressions.py::test_login_does_not_reveal_whether_the_account_exists; tests/test_beta3_regressions.py::test_quota_non_bypassable_in_parallel |
 | Stolen logged-out token remains usable (S) | JWT `jti` blacklist and logout revocation. | tests/test_beta3_regressions.py::test_logout_revokes_the_token |
 | Local disclosure of fallback JWT key (I) | Secret file created owner-only (0600); production environment injection is documented separately. | tests/test_beta3_regressions.py::test_jwt_secret_readable_only_by_its_owner |
 | Malicious file/path, oversized upload, unauthorized file access (T, I, D) | Upload ACL, byte/type limits, generated names, storage outside served frontend. | tests/test_uploads.py::test_real_upload_acl_bytes_limit_type_name_and_deletion |
@@ -119,14 +119,14 @@ admin web endpoint. The shell operator is intentionally trusted.
 
 | Threat (STRIDE) | Existing mitigation | Test evidence |
 | --- | --- | --- |
-| Visitor obtains provisioned role or web administration (S, E) | Offline provisioning; platform admin creates no HTTP administration routes. | tests/test_beta3_regressions.py::test_role_provisionne_par_manage_py; tests/test_administration.py::test_administration_opens_no_route |
+| Visitor obtains provisioned role or web administration (S, E) | Offline provisioning; platform admin creates no HTTP administration routes. | tests/test_beta3_regressions.py::test_role_provisioned_by_manage_py; tests/test_administration.py::test_administration_opens_no_route |
 | Accidental destructive administration (T, D) | Platform deletion requires its explicit CLI confirmation flag. | tests/test_administration.py::test_deleting_without_confirm_touches_nothing |
 | Operator denies changes / logs disclose identities (R, I) | Platform mutations are journaled, identifiers are redacted. This is traceability, not protection against a malicious shell operator. | tests/test_administration.py::test_every_writing_gesture_leaves_a_trace; tests/test_administration.py::test_the_administration_log_gives_no_bare_identifier |
 
 ### TB5 — Compiler ↔ third-party specification (compilation isolation)
 
 DSL text enters parser/validation/generation; it is not an authorization to run
-Python. `compiler_dans` in `src/monl_platform/service.py` defaults to a separate
+Python. `compiler_in` in `src/monl_platform/service.py` defaults to a separate
 worker (`MONL_ISOLATE_COMPILES=1`), with a wall timeout and POSIX CPU, address-space,
 file-size and descriptor limits. Disabling that option compiles in-process.
 These resource limits do not revoke filesystem/network access or inherited secrets.
@@ -182,9 +182,9 @@ security boundary. An implementation receives backend process authority.
 | Expired confirmation link (S) | Expiration checked in the atomic consumption statement. | tests/test_verification_email.py::test_expired_token |
 | Enumeration or message flooding through resend (I, D) | Same generic response and duration floor for absent, known and limited addresses; declared persistent resend quota, old token invalidated on issuance. | tests/test_verification_email.py::test_generic_resend_limit_and_invalidation |
 | Healthy guard is mistakenly reported as broken (D) | Smoke expects the unconfirmed 403 and checks both POST routes; names untested authenticated flows. | tests/test_verification_email.py::test_monl_run_check |
-| Guard silently stops protecting | Each disabled 403, consumption, expiry and resend quota makes the same execution witness fail. | tests/test_verification_email.py::test_contre_epreuves |
+| Guard silently stops protecting | Each disabled 403, consumption, expiry and resend quota makes the same execution witness fail. | tests/test_verification_email.py::test_counter_tests |
 
-| Pre-registration password takeover or blocking (S, D) | Unconfirmed replacement with shared quota; confirmed-account guard; same pending response. Last registrant can still win before confirmation. | tests/test_verification_email.py::test_preinscription |
+| Pre-registration password takeover or blocking (S, D) | Unconfirmed replacement with shared quota; confirmed-account guard; same pending response. Last registrant can still win before confirmation. | tests/test_verification_email.py::test_preregistration |
 
 ## Known gaps
 

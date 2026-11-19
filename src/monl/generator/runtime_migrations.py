@@ -48,10 +48,10 @@ class MigrationsRuntimeMixin:
                 conn.commit()''').substitute().split("\n"),
             ])
         totp_migration_lines.extend(self._verification_migration_lines())
-        return [*self._lignes_de_migration(system_tables_literal),
-                *self._lignes_de_base(totp_migration_lines)]
+        return [*self._lines_of_migration(system_tables_literal),
+                *self._lines_of_base(totp_migration_lines)]
 
-    def _lignes_de_migration(self, system_tables_literal):
+    def _lines_of_migration(self, system_tables_literal):
         """The migration primitives: fingerprint, differences, refusal, ALTER."""
         return [
             *Template(r"""def _table_exists(cursor, table):

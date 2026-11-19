@@ -5,11 +5,11 @@ import os
 import subprocess
 import sys
 
-from ..serving import rendre_wrapper
+from ..serving import render_wrapper
 from . import coherence, location
 
 
-def _eprouver_avant_lancement(project_dir):
+def _try_before_launch(project_dir):
     """The smoke test that precedes `monl run`; exits with code 1 if it fails.
     Extracted from `cmd_run` (complexity ceiling); outputs unchanged."""
     from ..smoke_test import run_smoke_test
@@ -43,13 +43,13 @@ def cmd_run(project_dir, check_only=False, port=8000, skip_smoke=False):
     # real data untouched): the contract's routes exercised over real HTTP, the
     # frontend run in jsdom if Node is available.
     if not skip_smoke:
-        _eprouver_avant_lancement(project_dir)
+        _try_before_launch(project_dir)
     if check_only:
         return
 
     project_dir = os.path.abspath(project_dir)
     has_frontend = os.path.isdir(os.path.join(project_dir, "frontend"))
-    assets_dir = location._assets_dir_du_projet(project_dir)
+    assets_dir = location._assets_dir_of_project(project_dir)
     # POINT 133: ALWAYS `serve:app`, with or without a frontend. The wrapper
     # can now start without one — and running `app:app` here while the Docker
     # image runs `serve:app` would make two behaviors for one project, only one
@@ -69,11 +69,11 @@ def cmd_run(project_dir, check_only=False, port=8000, skip_smoke=False):
     # Refreshing it stays the job of 'monl update', which recompiles AND
     # re-records the fingerprint.
     wrapper = os.path.join(project_dir, "serve.py")
-    etat = location._load_state(project_dir) or {}
-    scelle = "serve.py" in (etat.get("backend_sha256") or {})
-    if not os.path.exists(wrapper) or not scelle:
+    state = location._load_state(project_dir) or {}
+    sealed = "serve.py" in (state.get("backend_sha256") or {})
+    if not os.path.exists(wrapper) or not sealed:
         with open(wrapper, "w", encoding="utf-8") as fh:
-            fh.write(rendre_wrapper(assets_dir))
+            fh.write(render_wrapper(assets_dir))
     module = "serve:app"
     if has_frontend:
         print(f" -> Frontend mounted at http://127.0.0.1:{port}/site")

@@ -26,7 +26,7 @@ def _load_state(project_dir):
     with open(path, encoding="utf-8") as fh:
         return json.load(fh)
 
-def _erreur_de_chemin(project_dir, *, fichier_requis=None):
+def _error_of_path(project_dir, *, file_required=None):
     """Error message for a missing folder or frontend artifact.
 
     POINT 105: "monl.json not found — this folder is not a monl project" was
@@ -41,26 +41,26 @@ def _erreur_de_chemin(project_dir, *, fichier_requis=None):
     command that must give it to an AI: naming it here avoids letting a file
     open answer in place of the CLI."""
     if os.path.isdir(project_dir):
-        if fichier_requis and not os.path.isfile(
-                os.path.join(project_dir, fichier_requis)):
-            return (f" ❌ Incomplete frontend contract: {fichier_requis} missing — "
+        if file_required and not os.path.isfile(
+                os.path.join(project_dir, file_required)):
+            return (f" ❌ Incomplete frontend contract: {file_required} missing — "
                     "run 'monl compile' first.")
         return None
-    lignes = [f" ❌ Directory not found: {project_dir}"]
+    lines = [f" ❌ Directory not found: {project_dir}"]
     # The most common mistake, and the one that motivated this point: a
     # RELATIVE path written with a leading slash. `/projets/X` is not
     # "projets/X here" — it is "X in the projets folder AT THE SYSTEM ROOT",
     # which obviously does not exist.
     if project_dir.startswith(os.sep):
-        voisin = project_dir.lstrip(os.sep)
-        if os.path.isdir(voisin):
-            lignes.append(
+        neighbor = project_dir.lstrip(os.sep)
+        if os.path.isdir(neighbor):
+            lines.append(
                 f"    The path starts with '{os.sep}': it is searched from the "
                 f"system root, not from here.")
-            lignes.append(f"    Did you mean: {voisin}")
-    lignes.append("    (the directory contents have not been inspected yet: "
+            lines.append(f"    Did you mean: {neighbor}")
+    lines.append("    (the directory contents have not been inspected yet: "
                   "the path is the problem, not the compilation)")
-    return "\n".join(lignes)
+    return "\n".join(lines)
 
 def _save_state(project_dir, spec_relpath, spec_source_path=None):
     from .. import __version__
@@ -83,34 +83,34 @@ def _save_state(project_dir, spec_relpath, spec_source_path=None):
         # verified. Discovered while writing the first test of the command
         # journey, not by rereading the code.
         "backend_sha256": {
-            nom: _sha256_file(os.path.join(project_dir, nom))
-            for nom in nomenclature.SCELLE_ARTEFACTS
-            if os.path.exists(os.path.join(project_dir, nom))
+            name: _sha256_file(os.path.join(project_dir, name))
+            for name in nomenclature.SEALED_ARTIFACTS
+            if os.path.exists(os.path.join(project_dir, name))
         },
     }
     with open(os.path.join(project_dir, nomenclature.STATE_FILENAME), "w", encoding="utf-8") as fh:
         json.dump(state, fh, indent=2)
     return state
 
-def _situer_projet(project_dir, geste):
+def _locate_project(project_dir, gesture):
     """(absolute folder, spec path) — or exit with an error.
 
     Shared by 'update' and 'diff': both start from the same state, and only
     one of them knowing how to read it would be one more divergence."""
     project_dir = os.path.abspath(project_dir)
-    souci = _erreur_de_chemin(project_dir)
-    if souci:
-        print(souci)
+    issue = _error_of_path(project_dir)
+    if issue:
+        print(issue)
         sys.exit(1)
     state = _load_state(project_dir)
     if state is None:
-        print(f" ❌ {nomenclature.STATE_FILENAME} not found — nothing to {geste} here.")
+        print(f" ❌ {nomenclature.STATE_FILENAME} not found — nothing to {gesture} here.")
         sys.exit(1)
     spec_path = state["spec"] if os.path.isabs(state["spec"]) \
         else os.path.join(project_dir, state["spec"])
     return project_dir, spec_path
 
-def _signature_precedente(project_dir):
+def _signature_previous(project_dir):
     """The signature of the contract ALREADY in place, or empty sets if there is
     none yet — in which case everything is "added", which is accurate."""
     contract_path = os.path.join(project_dir, CONTRACT_FILENAME)
@@ -120,15 +120,15 @@ def _signature_precedente(project_dir):
         return signature._contract_signature(json.load(fh))
 
 # ----------------------------------------------------------------- assets --
-def _spec_du_projet(project_dir):
+def _spec_of_project(project_dir):
     """Path of a compiled project's spec, according to monl.json.
 
     Pass the path to assets_tool rather than making it reread monl.json: the
     project state is the CLI's business, and a second reader of monl.json
     would be a second place to fix."""
-    souci = _erreur_de_chemin(os.path.abspath(project_dir))
-    if souci:
-        print(souci)
+    issue = _error_of_path(os.path.abspath(project_dir))
+    if issue:
+        print(issue)
         sys.exit(1)
     state = _load_state(os.path.abspath(project_dir))
     if state is None:
@@ -142,17 +142,17 @@ def _spec_du_projet(project_dir):
         sys.exit(1)
     return spec_path
 
-def _assets_dir_du_projet(project_dir):
+def _assets_dir_of_project(project_dir):
     """Declared assets folder, read from the CONTRACT and not from the spec.
 
     The contract is already derived from the spec and checked consistent with
     it: rereading it here avoids a second parser to drift. Returns None if
     the project declares none — the wrapper then adds no mount."""
-    chemin = os.path.join(project_dir, CONTRACT_FILENAME)
-    if not os.path.exists(chemin):
+    path = os.path.join(project_dir, CONTRACT_FILENAME)
+    if not os.path.exists(path):
         return None
     try:
-        with open(chemin, encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             return (json.load(fh).get("assets") or {}).get("dir") or None
     except (OSError, ValueError):
         return None

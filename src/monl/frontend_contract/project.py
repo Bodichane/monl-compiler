@@ -107,7 +107,7 @@ Never modify `app.py` directly — the next compilation would overwrite it.
 """
 
 
-def _ecrire_si_a_nous(path, marker, contenu):
+def _write_si_a_nous(path, marker, content):
     """Never overwrites a document the user has taken over.
 
     The absence of the marker signals a file someone wrote or rewrote:
@@ -117,13 +117,13 @@ def _ecrire_si_a_nous(path, marker, contenu):
             if marker not in fh.read():
                 return False
     with open(path, "w", encoding="utf-8") as fh:
-        fh.write(contenu)
+        fh.write(content)
     return True
 
 
 def write_project_claude_md(app_name, output_dir, spec_name="spec.ml", auth_features=None):
     """Writes the PROJECT's AGENTS.md and README.md (not the monl repository's)."""
-    _ecrire_si_a_nous(
+    _write_si_a_nous(
         os.path.join(output_dir, AGENTS_FILENAME),
         PROJECT_CLAUDE_MD_MARKER,
         PROJECT_CLAUDE_MD.format(marker=PROJECT_CLAUDE_MD_MARKER, app=app_name))
@@ -137,7 +137,7 @@ def write_project_claude_md(app_name, output_dir, spec_name="spec.ml", auth_feat
             "password reset preserves TOTP. TOTP enable requires the current "
             "password and a valid code; all devices must log in again with TOTP.\n"
         )
-    _ecrire_si_a_nous(
+    _write_si_a_nous(
         os.path.join(output_dir, README_FILENAME),
         PROJECT_README_MARKER,
         readme)

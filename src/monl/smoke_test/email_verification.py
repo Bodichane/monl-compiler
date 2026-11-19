@@ -3,7 +3,7 @@
 from . import foundations
 
 
-def verifier_connexion(base, contract, status, body, errors, warnings):
+def check_login(base, contract, status, body, errors, warnings):
     """Exercises the refusal and the presence of both POSTs without consuming a
     link."""
     if not contract.get('api', {}).get('auth', {}).get('features', {}).get('verify_email'):
@@ -25,7 +25,7 @@ def verifier_connexion(base, contract, status, body, errors, warnings):
     return None
 
 
-def acteur_connecte(actor, contract):
+def actor_connected(actor, contract):
     if contract.get('api', {}).get('auth', {}).get('features', {}).get('verify_email'):
         return None
     return actor

@@ -28,24 +28,24 @@ def _payable_fields(tpl):
     personal ledger)."""
     if not tpl.get("accept_payments", True):
         return []
-    candidats = []
+    candidates = []
     for name, meta in tpl["entities"].items():
         if not meta["owned"]:
             continue
-        montants = [f for f, t in meta["fields"] if t == "Money"]
-        if not montants:
+        amounts = [f for f, t in meta["fields"] if t == "Money"]
+        if not amounts:
             continue
         for source, m2 in tpl["entities"].items():
             if source == name or source == meta["manager"] or tpl["entities"][source]["owned"]:
                 continue
-            prix = [f for f, t in m2["fields"] if t in ("Money", "Float", "Integer")]
-            if prix:
+            price = [f for f, t in m2["fields"] if t in ("Money", "Float", "Integer")]
+            if price:
                 # POINT 86: the SOURCE is returned too. The following questions
                 # (cart, stock) depend on it, and a harness not knowing them
                 # shifts every scripted answer.
-                candidats.append((f"{name}.{montants[0]}", source, prix[0]))
+                candidates.append((f"{name}.{amounts[0]}", source, price[0]))
                 break
-    return candidats
+    return candidates
 
 
 def _run_template(index, followup_answer, want_seed, upload_pour=None,
@@ -72,19 +72,19 @@ def _run_template(index, followup_answer, want_seed, upload_pour=None,
         "1" if followup_answer == "o" or name == upload_pour else "0"
         for name in upload_entities
     ]
-    candidats_payables = _payable_fields(tpl)
-    if candidats_payables:                             # payable question asked (point 75)
+    candidates_payables = _payable_fields(tpl)
+    if candidates_payables:                             # payable question asked (point 75)
         answers += [followup_answer]
-        if followup_answer == "o" and len(candidats_payables) > 1:
+        if followup_answer == "o" and len(candidates_payables) > 1:
             answers += ["1"]                           # field to choose: the first
         if followup_answer == "o":
             # POINT 86: two more questions, in this order — multi-item cart,
             # then stock counting. The kept catalog is the first candidate's,
             # which the choice above selects.
             answers += ["o"]                           # panier multi-articles
-            _montant, source, prix = candidats_payables[0]
+            _amount, source, price = candidates_payables[0]
             stocks = [f for f, t in tpl["entities"][source]["fields"]
-                      if t == "Integer" and f != prix]
+                      if t == "Integer" and f != price]
             if stocks:
                 answers += ["o"]                       # count the stock
                 if len(stocks) > 1:
@@ -109,13 +109,13 @@ def _run_template(index, followup_answer, want_seed, upload_pour=None,
     # Footer destinations (brick 30). The NUMBER of offered entries is read
     # from the source: freezing it here would make it diverge silently, and
     # that is exactly what just broke these ten tests.
-    proposees = len(GuidedDialogue.LIENS_PROPOSES)
+    proposed = len(GuidedDialogue.LINKS_PROPOSES)
     if followup_answer == "o":
-        saisies = ["contact@exemple.fr", "+33 6 12 34 56 78",
+        inputs = ["contact@exemple.fr", "+33 6 12 34 56 78",
                    "instagram.com/exemple"]
-        answers += (saisies + [""] * proposees)[:proposees]
+        answers += (inputs + [""] * proposed)[:proposed]
     else:
-        answers += [""] * proposees
+        answers += [""] * proposed
     answers += ["n"]                                   # no other link
     it = iter(answers)
     ask = ((lambda prompt: (prompts.append(prompt), next(it))[1])
@@ -125,18 +125,18 @@ def _run_template(index, followup_answer, want_seed, upload_pour=None,
 
 def test_each_template_compiles_all_refused():
     table = range(1, len(TEMPLATES) + 1)
-    noms = [t["name"] for t in TEMPLATES]
+    names = [t["name"] for t in TEMPLATES]
 
     def cas(index):
         spec = _run_template(index, "n", want_seed=False)
         MonlAST(parse_monl_string(spec)).validate_and_audit()
 
-    check_each_case([(valeur,) for valeur in table], cas, ids=noms)
+    check_each_case([(valeur,) for valeur in table], cas, ids=names)
 
 
 def test_each_template_compiles_all_accepted():
     table = range(1, len(TEMPLATES) + 1)
-    noms = [t["name"] for t in TEMPLATES]
+    names = [t["name"] for t in TEMPLATES]
 
     def cas(index):
         spec = _run_template(index, "o", want_seed=True)
@@ -147,7 +147,7 @@ def test_each_template_compiles_all_accepted():
         for ref, owner in normalized["security"]["ownership"].items():
             assert owner in normalized["schema"]["entities"]
 
-    check_each_case([(valeur,) for valeur in table], cas, ids=noms)
+    check_each_case([(valeur,) for valeur in table], cas, ids=names)
 
 
 def test_each_template_opens_registration_to_a_role(index=3):
@@ -155,9 +155,9 @@ def test_each_template_opens_registration_to_a_role(index=3):
     marker, nobody can create an account on the produced application (regression
     introduced then fixed in beta 3)."""
     spec = _run_template(index, "o", want_seed=True)
-    inscriptibles = [ligne for ligne in spec.splitlines() if ligne.startswith("actor ")
-                     and ligne.endswith("selfRegister")]
-    assert len(inscriptibles) == 1, spec
+    writable = [line for line in spec.splitlines() if line.startswith("actor ")
+                     and line.endswith("selfRegister")]
+    assert len(writable) == 1, spec
     normalized = MonlAST(parse_monl_string(spec)).validate_and_audit()
     # The first offered role must be the one writing only on ITS data (here: a
     # shop's customer), never the catalog administrator.
@@ -303,22 +303,22 @@ def test_the_contract_sees_the_derived_filter_and_sort(tmp_path):
     spec_path.write_text(spec, encoding="utf-8")
     contract = compile_project(str(spec_path), str(tmp_path))
     signature = _contract_signature(contract)
-    listes = [k for k in signature[6] if k.startswith("list capabilities of ")]
-    assert listes, "the contract carries no list capability"
+    lists = [k for k in signature[6] if k.startswith("list capabilities of ")]
+    assert lists, "the contract carries no list capability"
 
     # COUNTER-PROOF: removing the sort rule must CHANGE the signature. A first
     # version compared the modified spec with the original spec — it therefore
     # measured nothing of the signature, and a `replace` not finding its target
     # turned it green. We compile BOTH and compare what the contract carries.
-    ligne_de_tri = "rule Order.Read sort creeLe"
-    assert ligne_de_tri in spec, "the derived rule changed shape"
-    ampute = spec.replace(ligne_de_tri + "\n", "")
-    assert ampute != spec
-    autre = tmp_path / "ampute"
-    autre.mkdir()
-    (autre / "spec.ml").write_text(ampute, encoding="utf-8")
+    line_of_sort = "rule Order.Read sort creeLe"
+    assert line_of_sort in spec, "the derived rule changed shape"
+    truncated = spec.replace(line_of_sort + "\n", "")
+    assert truncated != spec
+    other = tmp_path / "ampute"
+    other.mkdir()
+    (other / "spec.ml").write_text(truncated, encoding="utf-8")
     signature_amputee = _contract_signature(
-        compile_project(str(autre / "spec.ml"), str(autre)))
+        compile_project(str(other / "spec.ml"), str(other)))
     assert signature_amputee[6] != signature[6], (
         "the contract does not follow the sort: monl update would say \"no "
         "interface change\" leaving a screen to redo")
@@ -335,11 +335,11 @@ def test_a_public_listing_never_gets_an_upload(tmp_path):
                  if t["name"] == "Classified ads")
     spec = _run_template(index, "o", True)
     assert "ListingPhoto" not in spec
-    entites = {n for n, _ in re.findall(r"^entity (\w+)()$", spec, re.M)}
-    assert "Listing" in entites
-    for ligne in spec.splitlines():
-        if " upload max " in ligne:
-            assert "Listing." not in ligne, ligne
+    entities = {n for n, _ in re.findall(r"^entity (\w+)()$", spec, re.M)}
+    assert "Listing" in entities
+    for line in spec.splitlines():
+        if " upload max " in line:
+            assert "Listing." not in line, line
 
 
 def test_the_upload_question_only_targets_private_rows():
@@ -387,13 +387,13 @@ def test_forum_likes_via_increments():
 def test_public_when_templates_declare_the_supervisor():
     """A moderator must keep access to hidden posts."""
     table = [(2, "Article.Read"), (5, "Post.Read")]
-    noms = ["blog", "forum"]
+    names = ["blog", "forum"]
 
     def cas(index, reference):
         spec = _run_template(index, "n", want_seed=False)
         assert f"rule {reference} sharedBy Moderator" in spec
 
-    check_each_case(table, cas, ids=noms)
+    check_each_case(table, cas, ids=names)
 
 
 def test_custom_entity_on_top_of_the_template():
@@ -425,11 +425,11 @@ def test_custom_entity_on_top_of_the_template():
 def test_catalog_never_mutated_between_two_runs():
     """The deepcopy protects the catalog: two runs of the same template with
     different answers must not contaminate each other."""
-    spec_oui = _run_template(3, "o", want_seed=True)
+    spec_yes = _run_template(3, "o", want_seed=True)
     spec_non = _run_template(3, "n", want_seed=True)
     # The category stays optional (stock has become standard): it is therefore
     # what distinguishes an "all yes" run from an "all no" one.
-    assert "category: String" in spec_oui
+    assert "category: String" in spec_yes
     assert "category: String" not in spec_non, "the catalog was mutated!"
 
 
@@ -439,7 +439,7 @@ def test_standard_elements_are_no_longer_questions():
     """Backed by research (point 60): these elements appear in public surveys of
     essentials for their category. Asking for them put on the user a choice that
     is not one, and produced by default applications missing the obvious."""
-    acquis = {
+    standard = {
         1: ["entity Message"],                          # contact d'un portfolio
         2: ["author: String", "publishedOn: String"],    # signature et date
         3: ["stock: Integer"],                           # product availability
@@ -447,11 +447,11 @@ def test_standard_elements_are_no_longer_questions():
         6: ["location: String", "entity Inquiry"],       # lieu + contact vendeur
         7: ["description: Text"],                        # service described
     }
-    for index, attendus in acquis.items():
+    for index, expected_items in standard.items():
         spec = _run_template(index, "n", want_seed=False)   # EVERYTHING refused
-        for attendu in attendus:
-            assert attendu in spec, (
-                f"template {index} ({TEMPLATES[index - 1]['name']}): \"{attendu}\" "
+        for expected in expected_items:
+            assert expected in spec, (
+                f"template {index} ({TEMPLATES[index - 1]['name']}): \"{expected}\" "
                 f"should be standard, it is missing when everything is refused")
 
 
@@ -485,7 +485,7 @@ def test_editorial_sections_are_asked_not_offered():
     MonlAST(parse_monl_string(spec)).validate_and_audit()
 
 
-def test_a_section_left_empty_is_simply_absent():
+def test_a_section_left_empty_is_simply_missing():
     answers = iter(["1", "AppTest", "Un portfolio.", "n", "n", "1", "0", "o", "n", "o",
                     "consulter", "1", "2",
                     "", "Reportage et portrait.", "", "n",
@@ -499,10 +499,10 @@ def test_an_internal_tool_gets_no_imposed_section():
     """Kanban, inventory, expenses: no source gives an expected section for a
     tool without visitors. The dialogue therefore falls back on the generic offer
     rather than inventing an "about"."""
-    for nom in ("Task management", "Inventory / stock management",
+    for name in ("Task management", "Inventory / stock management",
                 "Personal expense tracking"):
-        tpl = next(t for t in TEMPLATES if t["name"] == nom)
-        assert tpl["sections"] == [], nom
+        tpl = next(t for t in TEMPLATES if t["name"] == name)
+        assert tpl["sections"] == [], name
 
 
 def test_the_dialogue_was_indeed_lightened():
@@ -512,10 +512,10 @@ def test_the_dialogue_was_indeed_lightened():
     total = sum(len(t["followups"]) for t in TEMPLATES)
     assert total == 6, f"{total} questions de suivi (6 attendues)"
     # Templates whose every element is standard no longer ask any.
-    sans_question = [t["name"] for t in TEMPLATES if not t["followups"]]
-    assert "Task management" in sans_question
-    assert "Classified ads" in sans_question
-    assert "Appointment booking" in sans_question
+    without_question = [t["name"] for t in TEMPLATES if not t["followups"]]
+    assert "Task management" in without_question
+    assert "Classified ads" in without_question
+    assert "Appointment booking" in without_question
 
 
 def test_the_dialogue_can_produce_a_full_cart():
@@ -530,22 +530,22 @@ def test_the_dialogue_can_produce_a_full_cart():
     shop, or worse to an amount the buyer writes."""
     index = next(i for i, t in enumerate(TEMPLATES, 1) if t["name"] == "Online shop")
     spec = _run_template(index, "o", want_seed=True)
-    regles = [li for li in spec.splitlines() if li.startswith("rule ")]
+    rules = [li for li in spec.splitlines() if li.startswith("rule ")]
 
     assert "entity LigneOrder" in spec
     # TRANSITIVE ownership: the line belongs to whoever owns its order.
-    assert "rule LigneOrder.Read ownedBy Order" in regles
+    assert "rule LigneOrder.Read ownedBy Order" in rules
     # The subtotal is CALCULATED, the total is the SUM, and it is what gets
     # charged.
-    assert "rule LigneOrder.sousTotal derivedFrom Product.price by quantite" in regles
-    assert "rule Order.total sumOf LigneOrder.sousTotal" in regles
-    assert "rule Order.total payable" in regles
+    assert "rule LigneOrder.sousTotal derivedFrom Product.price by quantite" in rules
+    assert "rule Order.total sumOf LigneOrder.sousTotal" in rules
+    assert "rule Order.total payable" in rules
     # Stock: a DECLARED floor, and the counting it arms.
-    assert "rule Product.stock min 0" in regles
-    assert "rule LigneOrder.Create decrements Product.stock by quantite" in regles
+    assert "rule Product.stock min 0" in rules
+    assert "rule LigneOrder.Create decrements Product.stock by quantite" in rules
     # No server-calculated field is declared "required": the contract would say
     # both "to fill" and "do not send".
-    assert "rule Order.total required" not in regles
+    assert "rule Order.total required" not in rules
 
     normalized = MonlAST(parse_monl_string(spec)).validate_and_audit()
     assert normalized["security"]["aggregated_fields"]
@@ -563,12 +563,12 @@ def test_the_dialogue_can_still_produce_a_simple_order():
     answers += ["0"]                          # account identifier: none (point 138)
     answers += ["0"]                          # no upload for Order
     answers += ["o"]                          # encaisser un paiement
-    candidats = _payable_fields(tpl)
-    if len(candidats) > 1:
+    candidates = _payable_fields(tpl)
+    if len(candidates) > 1:
         answers += ["1"]
     answers += ["n"]                          # PAS de panier
-    _montant, source, prix = candidats[0]
-    if [f for f, t in tpl["entities"][source]["fields"] if t == "Integer" and f != prix]:
+    _amount, source, price = candidates[0]
+    if [f for f, t in tpl["entities"][source]["fields"] if t == "Integer" and f != price]:
         answers += ["n"]                      # no stock counting
     answers += ["n"]                          # no seed
     answers += ["n"]                          # no brief
@@ -580,7 +580,7 @@ def test_the_dialogue_can_still_produce_a_simple_order():
     MonlAST(parse_monl_string(spec)).validate_and_audit()
 
 
-class _Arret(Exception):
+class _Stop(Exception):
     """Stop the engine at its first question, without answering it."""
 
 
@@ -594,7 +594,7 @@ def test_the_account_line_is_derived_not_hand_written():
     since "ModeleInvente" would not be in it. A hand-written list silently stops
     bounding at the first addition — point 146.
     """
-    avec_role = {
+    with_role = {
         "name": "ModeleInvente",
         "actors": ["Patron", "Visiteur"],
         "entities": {
@@ -602,13 +602,13 @@ def test_the_account_line_is_derived_not_hand_written():
             "Demande": {"manager": "Visiteur", "owned": True},
         },
     }
-    sans_role = {
+    without_role = {
         "name": "AutreModeleInvente",
         "actors": ["Patron"],
         "entities": {"Fiche": {"manager": "Patron", "owned": False}},
     }
-    assert GuidedDialogue._ligne_de_compte(avec_role) == "self-registration: Visiteur"
-    assert (GuidedDialogue._ligne_de_compte(sans_role)
+    assert GuidedDialogue._line_of_account(with_role) == "self-registration: Visiteur"
+    assert (GuidedDialogue._line_of_account(without_role)
             == "accounts created by the administrator")
 
 
@@ -616,10 +616,10 @@ def test_each_catalog_template_says_whether_one_registers():
     """No template is chosen without knowing what it implies."""
     formes = 0
     for tpl in TEMPLATES:
-        ligne = GuidedDialogue._ligne_de_compte(tpl)
-        assert (ligne.startswith("self-registration: ")
-                or ligne == "accounts created by the administrator"), (tpl["name"], ligne)
-        formes += ligne.startswith("self-registration: ")
+        line = GuidedDialogue._line_of_account(tpl)
+        assert (line.startswith("self-registration: ")
+                or line == "accounts created by the administrator"), (tpl["name"], line)
+        formes += line.startswith("self-registration: ")
     # BOTH forms exist in the catalog: if only one came out, the witness above
     # would pass without settling anything.
     assert 0 < formes < len(TEMPLATES), formes
@@ -633,11 +633,11 @@ def test_the_account_line_reaches_the_dialogue_menu():
     nothing. We therefore run the real engine and read what it actually put on
     its question.
     """
-    dialogue = GuidedDialogue(ask=lambda _p: (_ for _ in ()).throw(_Arret()))
-    with pytest.raises(_Arret):
+    dialogue = GuidedDialogue(ask=lambda _p: (_ for _ in ()).throw(_Stop()))
+    with pytest.raises(_Stop):
         dialogue.run()
-    aides = dialogue.derniere_question["hints"]
-    assert dialogue.derniere_question["title"] == \
+    aides = dialogue.last_question["hints"]
+    assert dialogue.last_question["title"] == \
         "What type of application are you building?"
     assert "self-registration: Customer" in aides["Online shop"]
     assert "accounts created by the" in aides["Portfolio / showcase site"]

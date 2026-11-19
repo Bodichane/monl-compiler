@@ -14,7 +14,7 @@ from .foundations import (
     CONTRACT_VERSION,
     PROMPT_FILENAME,
     README_FILENAME,
-    paragraphes,
+    paragraphs,
 )
 from .project import PROJECT_CLAUDE_MD_MARKER
 
@@ -28,5 +28,5 @@ __all__ = [
     "build_contract",
     "contract_sha256",
     "generate_frontend_contract",
-    "paragraphes",
+    "paragraphs",
 ]

@@ -134,7 +134,7 @@ def noter(dossier):
     contrat = json.loads((dossier / "frontend_contract.json").read_text(encoding="utf-8"))
     routes = [r for r in contrat.get("routes", []) if r["path"] != "/paiement/webhook"]
     appels = coverage._frontend_fetch_calls(str(dossier / "frontend"))
-    couvertes = sum(1 for route in routes if coverage._route_est_appelee(route, appels))
+    couvertes = sum(1 for route in routes if coverage._route_is_called(route, appels))
     verif = subprocess.run(MONL + ["run", str(dossier), "--check"], capture_output=True,
                            text=True, timeout=600, stdin=subprocess.DEVNULL)
     sortie = verif.stdout + verif.stderr

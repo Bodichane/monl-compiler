@@ -58,7 +58,7 @@ workflow Main for User
 # spontaneous reopening with the short window; the measurement server must be
 # able to hold the full escalation (135 pairs, i.e. 270 calls) without turning
 # the lock into a hidden variable of the measurement.
-SPEC_B4_MESURE = SPEC_B4.replace("lockout: 3 in 10", "lockout: 3 in 300")
+SPEC_B4_MEASURE = SPEC_B4.replace("lockout: 3 in 10", "lockout: 3 in 300")
 
 SPEC_LEGACY = """app CompleteAuth
 
@@ -152,12 +152,12 @@ def b4_application(request, tmp_path, faux_smtp):
     spec_path.write_text(SPEC_B4, encoding="utf-8")
     with contextlib.redirect_stdout(io.StringIO()):
         compile_project(str(spec_path), str(tmp_path))
-    mesure_dir = tmp_path / "mesure-verrou"
-    mesure_dir.mkdir()
-    mesure_spec = mesure_dir / "spec.ml"
-    mesure_spec.write_text(SPEC_B4_MESURE, encoding="utf-8")
+    measure_dir = tmp_path / "mesure-verrou"
+    measure_dir.mkdir()
+    measure_spec = measure_dir / "spec.ml"
+    measure_spec.write_text(SPEC_B4_MEASURE, encoding="utf-8")
     with contextlib.redirect_stdout(io.StringIO()):
-        compile_project(str(mesure_spec), str(mesure_dir))
+        compile_project(str(measure_spec), str(measure_dir))
 
     env = os.environ.copy()
     env.pop("MONL_DATABASE_URL", None)
@@ -180,8 +180,8 @@ def b4_application(request, tmp_path, faux_smtp):
         env["MONL_DATABASE_URL"] = dsn
     try:
         with (uvicorn_server(str(tmp_path), env=env) as base,
-              uvicorn_server(str(mesure_dir), env=env) as mesure_base):
-            yield base, Path(tmp_path), dsn, faux_smtp, mesure_base
+              uvicorn_server(str(measure_dir), env=env) as measure_base):
+            yield base, Path(tmp_path), dsn, faux_smtp, measure_base
     finally:
         if admin is not None:
             admin.close()
@@ -281,8 +281,8 @@ def _token(response):
 # Starting number of rounds of the time measurements. The message counter below
 # depends on it: the "known address" path sends an email on EVERY round. The
 # noise witness can buy resolution, without exceeding the bound declared below.
-TOURS_MESURE = 15
-TOURS_ESCALADE = (TOURS_MESURE, TOURS_MESURE * 3, TOURS_MESURE * 9)
+TOURS_MEASURE = 15
+TOURS_ESCALATION = (TOURS_MEASURE, TOURS_MEASURE * 3, TOURS_MEASURE * 9)
 
 # The tolerance comes from a WITNESS measured just before each comparison: two
 # calls of the same path, with distinct IPs. Their gap cannot carry an
@@ -297,12 +297,12 @@ TOURS_ESCALADE = (TOURS_MESURE, TOURS_MESURE * 3, TOURS_MESURE * 9)
 #
 # These two constants express a resolution requirement, not a machine
 # calibration: the 20 ms leak is point 160's counter-proof.
-FACTEUR_MARGE_BRUIT = 2.0
-BRUIT_MAX_RESOLUBLE = 0.0075
-PLANCHER_ECART = 0.005
+FACTOR_MARGE_BRUIT = 2.0
+BRUIT_MAX_RESOLVABLE = 0.0075
+FLOOR_GAP = 0.005
 
 
-def _ecart_apparie(appel_a, appel_b, tours=TOURS_MESURE):
+def _gap_paired(call_a, call_b, tours=TOURS_MEASURE):
     """Median gap between two paths, measured ALTERNATELY and in pairs.
 
     A timing oracle is a TREND, not an instant. Measured with a single draw on a
@@ -326,26 +326,26 @@ def _ecart_apparie(appel_a, appel_b, tours=TOURS_MESURE):
     and 33) would answer 429 on the sixth call and measure the limiter's refusal
     instead of the authentication path.
     """
-    ecarts, durees = [], []
-    reponse_a = reponse_b = None
+    gaps, durations = [], []
+    response_a = response_b = None
     for tour in range(tours):
-        depart = time.perf_counter()
-        reponse_a = appel_a(tour)
-        duree_a = time.perf_counter() - depart
-        depart = time.perf_counter()
-        reponse_b = appel_b(tour)
-        duree_b = time.perf_counter() - depart
-        ecarts.append(duree_a - duree_b)
-        durees += [duree_a, duree_b]
+        start = time.perf_counter()
+        response_a = call_a(tour)
+        duration_a = time.perf_counter() - start
+        start = time.perf_counter()
+        response_b = call_b(tour)
+        duration_b = time.perf_counter() - start
+        gaps.append(duration_a - duration_b)
+        durations += [duration_a, duration_b]
     # The median duration goes with the gap: it is the SCALE at which the gap
     # must be judged. Without it, the caller could only compare with a number
     # of seconds written in advance, which does not mean the same thing from
     # one machine to another.
-    return (statistics.median(ecarts), statistics.median(durees),
-            reponse_a, reponse_b)
+    return (statistics.median(gaps), statistics.median(durations),
+            response_a, response_b)
 
 
-def _mesurer_bruit(appel_a, appel_b, *, nom):
+def _measure_bruit(call_a, call_b, *, name):
     """Measures pure noise, then increases the spend if needed.
 
     `appel_a` and `appel_b` must represent the same path. The offset passed to
@@ -353,30 +353,30 @@ def _mesurer_bruit(appel_a, appel_b, *, nom):
     measurement: the limiter must never become the observed signal.
     """
     offset = 0
-    dernier_ecart = 0.0
-    for tours in TOURS_ESCALADE:
-        ecart, duree, reponse_a, reponse_b = _ecart_apparie(
-            lambda tour, offset=offset: appel_a(offset + tour),
-            lambda tour, offset=offset: appel_b(offset + tour),
+    last_gap = 0.0
+    for tours in TOURS_ESCALATION:
+        gap, duration, response_a, response_b = _gap_paired(
+            lambda tour, offset=offset: call_a(offset + tour),
+            lambda tour, offset=offset: call_b(offset + tour),
             tours=tours)
-        dernier_ecart = ecart
-        if abs(ecart) <= BRUIT_MAX_RESOLUBLE:
-            return ecart, duree, tours, reponse_a, reponse_b
+        last_gap = gap
+        if abs(gap) <= BRUIT_MAX_RESOLVABLE:
+            return gap, duration, tours, response_a, response_b
         offset += tours
     raise AssertionError(
-        f"machine too noisy for {nom}: median witness "
-        f"{abs(dernier_ecart) * 1000:.2f} ms after {TOURS_ESCALADE[-1]} "
-        f"rounds, beyond {BRUIT_MAX_RESOLUBLE * 1000:.2f} ms; "
+        f"machine too noisy for {name}: median witness "
+        f"{abs(last_gap) * 1000:.2f} ms after {TOURS_ESCALATION[-1]} "
+        f"rounds, beyond {BRUIT_MAX_RESOLVABLE * 1000:.2f} ms; "
         "cannot conclude about a 20 ms leak")
 
 
-def _tolerance_ecart(ecart_bruit):
+def _tolerance_gap(gap_bruit):
     """The margin derived from the witness, with a resolution bound."""
-    return max(FACTEUR_MARGE_BRUIT * abs(ecart_bruit), PLANCHER_ECART)
+    return max(FACTOR_MARGE_BRUIT * abs(gap_bruit), FLOOR_GAP)
 
 
-def _mesurer_ecart_corrige(appel_a, appel_b, *, bruit, tours_depart,
-                           statut_attendu, nom):
+def _measure_gap_fixed(call_a, call_b, *, bruit, tours_start,
+                           status_expected, name):
     """Measures the real gap, making an isolated undecided spike explicit.
 
     The witness chooses a first number of pairs. If the real measurement stays
@@ -385,28 +385,28 @@ def _mesurer_ecart_corrige(appel_a, appel_b, *, bruit, tours_depart,
     retry. A real leak stays present at every step and therefore still fails at
     the end.
     """
-    tolerance = _tolerance_ecart(bruit)
-    candidats = TOURS_ESCALADE[TOURS_ESCALADE.index(tours_depart):]
-    total_appels_a = 0
+    tolerance = _tolerance_gap(bruit)
+    candidates = TOURS_ESCALATION[TOURS_ESCALATION.index(tours_start):]
+    total_calls_a = 0
     offset = 0
-    dernier = None
-    for tours in candidats:
-        mesure = _ecart_apparie(
-            lambda tour, offset=offset: appel_a(offset + tour),
-            lambda tour, offset=offset: appel_b(offset + tour),
+    last = None
+    for tours in candidates:
+        measure = _gap_paired(
+            lambda tour, offset=offset: call_a(offset + tour),
+            lambda tour, offset=offset: call_b(offset + tour),
             tours=tours)
-        total_appels_a += tours
+        total_calls_a += tours
         offset += tours
-        ecart, duree, reponse_a, reponse_b = mesure
-        if not (reponse_a.status_code == reponse_b.status_code == statut_attendu):
+        gap, duration, response_a, response_b = measure
+        if not (response_a.status_code == response_b.status_code == status_expected):
             raise AssertionError(
-                f"inconclusive {nom} measurement: responses "
-                f"{reponse_a.status_code} and {reponse_b.status_code} after "
-                f"{total_appels_a} calls of the first path")
-        dernier = (*mesure, tours, total_appels_a)
-        if abs(ecart - bruit) < tolerance:
-            return dernier
-    return dernier
+                f"inconclusive {name} measurement: responses "
+                f"{response_a.status_code} and {response_b.status_code} after "
+                f"{total_calls_a} calls of the first path")
+        last = (*measure, tours, total_calls_a)
+        if abs(gap - bruit) < tolerance:
+            return last
+    return last
 
 
 def _wait_for_message(smtp, count):
@@ -445,10 +445,10 @@ def _expire_reset_token(directory, dsn, raw_token):
 
 # Margin required before using a TOTP step: enough to hold the few HTTP round
 # trips that follow, even under the full suite's load.
-MARGE_FENETRE_TOTP = 10.0
+MARGE_WINDOW_TOTP = 10.0
 
 
-def _stable_totp_step(marge=MARGE_FENETRE_TOTP):
+def _stable_totp_step(marge=MARGE_WINDOW_TOTP):
     """The current TOTP step, with the guarantee it stays so for `marge` seconds.
 
     Without this wait, the 30 s window can flip between computing a code and the
@@ -481,7 +481,7 @@ def _totp_code(secret, step):
 
 
 def test_full_b4_authentication_on_both_engines(b4_application):
-    base, directory, dsn, smtp, mesure_base = b4_application
+    base, directory, dsn, smtp, measure_base = b4_application
     alice = "alice-b4@example.invalid"
     bob = "bob-b4@example.invalid"
     _register(base, alice)
@@ -504,17 +504,17 @@ def test_full_b4_authentication_on_both_engines(b4_application):
     # The witness and the measurement live on the second server: its `3 in 300`
     # is not a production value, but the bench configuration that makes
     # resolution independent of the time spent by the escalation.
-    mesure_alice = "alice-lock-mesure@example.invalid"
-    _register(mesure_base, mesure_alice)
+    measure_alice = "alice-lock-mesure@example.invalid"
+    _register(measure_base, measure_alice)
     # 1. Per-account counter, generic response and duration comparable to the
     # missing identifier. The IPs change so as not to confuse this test with
     # the historical per-IP limiting.
     for index in range(3):
-        failed = _login(mesure_base, mesure_alice, "mauvais-pass",
+        failed = _login(measure_base, measure_alice, "mauvais-pass",
                         ip=f"mesure-lock-fail-{index}")
         assert failed.status_code == 401
         assert failed.json()["detail"] == "Invalid credentials."
-    locked = _login(mesure_base, mesure_alice, "motdepasse8", ip="mesure-lock-correct")
+    locked = _login(measure_base, measure_alice, "motdepasse8", ip="mesure-lock-correct")
     assert locked.status_code == 401
     assert locked.json()["detail"] == "Invalid credentials."
 
@@ -522,64 +522,64 @@ def test_full_b4_authentication_on_both_engines(b4_application):
     # lock: on the long bench, even the full escalation can no longer make it
     # expire. Noise and comparison thus undergo the same server load, instead
     # of comparing two distant moments.
-    bruit_verrou, _, tours_verrou, control_a, control_b = _mesurer_bruit(
-        lambda tour: _login(mesure_base, f"absent-lock-a-{tour}@example.invalid",
+    bruit_lock, _, tours_lock, control_a, control_b = _measure_bruit(
+        lambda tour: _login(measure_base, f"absent-lock-a-{tour}@example.invalid",
                             "motdepasse8", ip=f"lock-noise-a-{tour}"),
-        lambda tour: _login(mesure_base, f"absent-lock-b-{tour}@example.invalid",
+        lambda tour: _login(measure_base, f"absent-lock-b-{tour}@example.invalid",
                             "motdepasse8", ip=f"lock-noise-b-{tour}"),
-        nom="verrouillage")
+        name="verrouillage")
     assert control_a.status_code == control_b.status_code == 401
     assert control_a.json() == control_b.json()
 
-    (ecart_verrou, duree_verrou, locked_probe, missing_probe,
-     tours_verrou_reel, _verrou_appels) = _mesurer_ecart_corrige(
-        lambda tour: _login(mesure_base, mesure_alice, "motdepasse8",
+    (gap_lock, duration_lock, locked_probe, missing_probe,
+     tours_lock_reel, _lock_calls) = _measure_gap_fixed(
+        lambda tour: _login(measure_base, measure_alice, "motdepasse8",
                             ip=f"mesure-lock-timing-{tour}"),
-        lambda tour: _login(mesure_base, "absent-b4@example.invalid", "motdepasse8",
+        lambda tour: _login(measure_base, "absent-b4@example.invalid", "motdepasse8",
                             ip=f"mesure-missing-timing-{tour}"),
-        bruit=bruit_verrou, tours_depart=tours_verrou,
-        statut_attendu=401, nom="verrouillage")
+        bruit=bruit_lock, tours_start=tours_lock,
+        status_expected=401, name="verrouillage")
     assert locked_probe.status_code == missing_probe.status_code == 401
     assert locked_probe.json() == missing_probe.json()
     # A LOCKED account and a NONEXISTENT account must be indistinguishable:
     # telling them apart, even through response time, would teach an attacker
     # which addresses exist.
-    ecart_corrige = ecart_verrou - bruit_verrou
-    tolerance = _tolerance_ecart(bruit_verrou)
-    assert abs(ecart_corrige) < tolerance, (
-        f"median gap {ecart_verrou*1000:.2f} ms, witness "
-        f"{bruit_verrou*1000:.2f} ms, for a call of "
-        f"{duree_verrou*1000:.2f} ms — beyond "
-        f"{tolerance*1000:.2f} ms ({tours_verrou_reel} rounds)")
+    gap_fixed = gap_lock - bruit_lock
+    tolerance = _tolerance_gap(bruit_lock)
+    assert abs(gap_fixed) < tolerance, (
+        f"median gap {gap_lock*1000:.2f} ms, witness "
+        f"{bruit_lock*1000:.2f} ms, for a call of "
+        f"{duration_lock*1000:.2f} ms — beyond "
+        f"{tolerance*1000:.2f} ms ({tours_lock_reel} rounds)")
     # 2. Reset really delivered by the message brick, with no response
     # difference between a known address and a missing one.
-    bruit_reset, _, tours_reset, reset_control_a, reset_control_b = _mesurer_bruit(
+    bruit_reset, _, tours_reset, reset_control_a, reset_control_b = _measure_bruit(
         lambda tour: _call("POST", base, "/password-reset/request",
                            body={"username": f"reset-noise-a-{tour}@example.invalid"},
                            ip=f"reset-noise-a-{tour}"),
         lambda tour: _call("POST", base, "/password-reset/request",
                            body={"username": f"reset-noise-b-{tour}@example.invalid"},
                            ip=f"reset-noise-b-{tour}"),
-        nom="réinitialisation")
+        name="réinitialisation")
     assert reset_control_a.status_code == reset_control_b.status_code == 200
     assert reset_control_a.json() == reset_control_b.json()
-    (ecart_reset, duree_reset, known, unknown,
-     tours_reset_reel, reset_known_count) = _mesurer_ecart_corrige(
+    (gap_reset, duration_reset, known, unknown,
+     tours_reset_reel, reset_known_count) = _measure_gap_fixed(
         lambda tour: _call("POST", base, "/password-reset/request",
                            body={"username": alice}, ip=f"reset-known-{tour}"),
         lambda tour: _call("POST", base, "/password-reset/request",
                            body={"username": "nobody-b4@example.invalid"},
                            ip=f"reset-unknown-{tour}"),
-        bruit=bruit_reset, tours_depart=tours_reset,
-        statut_attendu=200, nom="réinitialisation")
+        bruit=bruit_reset, tours_start=tours_reset,
+        status_expected=200, name="réinitialisation")
     assert known.status_code == unknown.status_code == 200
     assert known.json() == unknown.json()
-    ecart_corrige = ecart_reset - bruit_reset
-    tolerance = _tolerance_ecart(bruit_reset)
-    assert abs(ecart_corrige) < tolerance, (
-        f"median gap {ecart_reset*1000:.2f} ms, witness "
+    gap_fixed = gap_reset - bruit_reset
+    tolerance = _tolerance_gap(bruit_reset)
+    assert abs(gap_fixed) < tolerance, (
+        f"median gap {gap_reset*1000:.2f} ms, witness "
         f"{bruit_reset*1000:.2f} ms, for a call of "
-        f"{duree_reset*1000:.2f} ms — beyond "
+        f"{duration_reset*1000:.2f} ms — beyond "
         f"{tolerance*1000:.2f} ms ({tours_reset_reel} rounds)")
     # The "known address" path sent one email per round: the usable token is
     # the LAST one's, the previous ones possibly having been invalidated.
@@ -655,21 +655,21 @@ def test_full_b4_authentication_on_both_engines(b4_application):
     # The step is fixed BEFORE login: `_stable_totp_step` may wait for the start
     # of the next window, and that wait would make the access token stale if it
     # happened after its issuance.
-    pas_activation = _stable_totp_step()
+    not_activation = _stable_totp_step()
     # FRESH token: 'setup' and 'enable' are two calls, and the access token is
     # deliberately short. Reusing it would make the test sensitive to the first
     # call's duration rather than to the measured behavior.
     enabled = _call("POST", base, "/totp/enable",
                     token=_token(_login(base, bob, "motdepasse8",
                                         ip="totp-enable-session")),
-                    body={"code": _totp_code(secret, pas_activation), "password": "motdepasse8"},
+                    body={"code": _totp_code(secret, not_activation), "password": "motdepasse8"},
                     ip="totp-enable")
     assert enabled.status_code == 200, enabled.text
     # The step is fixed ONCE: the three logins that follow therefore all fall
     # in the same window, and the "previous" window is indeed the one right
     # before the accepted code.
     pas = _stable_totp_step()
-    code_courant = _totp_code(secret, pas)
+    code_current = _totp_code(secret, pas)
     # The PREVIOUS window is tested BEFORE the valid login. After it, the
     # current step is consumed and replay protection refuses this code whatever
     # happens: the assertion would stay green while measuring nothing. Checked
@@ -677,13 +677,13 @@ def test_full_b4_authentication_on_both_engines(b4_application):
     # placed here, it turns red.
     assert _login(base, bob, "motdepasse8", ip="totp-other-window",
                   code=_totp_code(secret, pas - 1)).status_code == 401
-    valid = _login(base, bob, "motdepasse8", ip="totp-valid", code=code_courant)
+    valid = _login(base, bob, "motdepasse8", ip="totp-valid", code=code_current)
     assert valid.status_code == 200, valid.text
     # The SAME code, replayed: recomputing here would prove nothing as soon as
     # the window flipped between the two calls — the variable, and only it,
     # makes this line a replay assertion.
     assert _login(base, bob, "motdepasse8", ip="totp-replay",
-                  code=code_courant).status_code == 401
+                  code=code_current).status_code == 401
     assert _login(base, bob, "motdepasse8", ip="totp-missing").status_code == 401
 
     contract = (directory / "frontend_contract.json").read_text(encoding="utf-8")
@@ -782,9 +782,9 @@ def test_b4_activation_requires_the_password(b4_application):
     pas = _stable_totp_step()
     setup = _call("POST", base, "/totp/setup", token=session["access_token"])
     code = _totp_code(setup.json()["secret"], pas)
-    absent = _call("POST", base, "/totp/enable", token=session["access_token"],
+    missing = _call("POST", base, "/totp/enable", token=session["access_token"],
                    body={"code": code})
-    assert absent.status_code >= 400, "TOTP activation accepted without password"
+    assert missing.status_code >= 400, "TOTP activation accepted without password"
     wrong = _call("POST", base, "/totp/enable", token=session["access_token"],
                   body={"code": code, "password": "incorrect"})
     assert wrong.status_code == 401, "TOTP activation accepted with a wrong password"
@@ -795,40 +795,40 @@ def test_b4_activation_requires_the_password(b4_application):
     assert _login(base, username, "motdepasse8", ip="victime-intacte").status_code == 200
 
 
-@pytest.mark.parametrize("jeton", ["refresh", "access"])
-def test_b4_activation_revokes_the_tokens(b4_application, jeton):
+@pytest.mark.parametrize("token", ["refresh", "access"])
+def test_b4_activation_revokes_the_tokens(b4_application, token):
     base, _, _, _, _ = b4_application
     username = "activation@example.invalid"
     session = _session_b4(base, username)
-    temoin = _session_b4(base, "temoin@example.invalid")
+    witness = _session_b4(base, "temoin@example.invalid")
     secret, pas = _activation_b4(base, session)
-    if jeton == "refresh":
+    if token == "refresh":
         response = _call("POST", base, "/refresh",
                          body={"refresh_token": session["refresh_token"]})
     else:
         response = _call("GET", base, "/note", token=session["access_token"])
-    assert response.status_code == 401, f"Old token {jeton} accepted after TOTP activation"
-    assert _call("GET", base, "/note", token=temoin["access_token"]).status_code == 200
+    assert response.status_code == 401, f"Old token {token} accepted after TOTP activation"
+    assert _call("GET", base, "/note", token=witness["access_token"]).status_code == 200
     assert _login(base, username, "motdepasse8", ip="activation-sans-code").status_code == 401
     fresh = _login(base, username, "motdepasse8", ip="activation-legitime",
                    code=_totp_code(secret, pas))
     assert _call("GET", base, "/note", token=_token(fresh)).status_code == 200
 
 
-@pytest.mark.parametrize("changement", ["reset", "passwd", "totp-reset"])
-def test_b4_change_revokes_the_sessions(b4_application, changement):
+@pytest.mark.parametrize("change", ["reset", "passwd", "totp-reset"])
+def test_b4_change_revokes_the_sessions(b4_application, change):
     base, directory, dsn, smtp, _ = b4_application
     username = "recuperation@example.invalid"
     session = _session_b4(base, username)
-    temoin = _session_b4(base, "intact@example.invalid")
+    witness = _session_b4(base, "intact@example.invalid")
     password = "nouveau-motdepasse8"
-    if changement == "totp-reset":
+    if change == "totp-reset":
         secret, pas = _activation_b4(base, session)
         session = _login(base, username, "motdepasse8", ip="avant-recuperation",
                          code=_totp_code(secret, pas)).json()
         _manage_b4(directory, dsn, "totp-reset", username)
         password = "motdepasse8"
-    elif changement == "passwd":
+    elif change == "passwd":
         _manage_b4(directory, dsn, "passwd", username, password)
     else:
         _call("POST", base, "/password-reset/request", body={"username": username})
@@ -837,17 +837,17 @@ def test_b4_change_revokes_the_sessions(b4_application, changement):
                          body={"username": username, "token": reset, "password": password})
         assert response.status_code == 200, response.text
     assert _call("GET", base, "/note", token=session["access_token"]).status_code == 401, (
-        f"Old access accepted after {changement}")
+        f"Old access accepted after {change}")
     assert _call("POST", base, "/refresh", body={"refresh_token": session["refresh_token"]}).status_code == 401, (
-        f"Old refresh accepted after {changement}")
-    assert _call("GET", base, "/note", token=temoin["access_token"]).status_code == 200
+        f"Old refresh accepted after {change}")
+    assert _call("GET", base, "/note", token=witness["access_token"]).status_code == 200
     fresh = _login(base, username, password, ip="apres-recuperation")
     assert fresh.status_code == 200, (
-        f"Legitimate login refused after {changement}: {fresh.text}")
+        f"Legitimate login refused after {change}: {fresh.text}")
     assert _call("GET", base, "/note", token=_token(fresh)).status_code == 200
     assert _call("POST", base, "/refresh", body={
         "refresh_token": fresh.json()["refresh_token"]}).status_code == 200, (
-        f"Legitimate refresh refused after {changement}")
+        f"Legitimate refresh refused after {change}")
 
 
 def test_b4_email_reset_preserves_totp_and_signature(b4_application):

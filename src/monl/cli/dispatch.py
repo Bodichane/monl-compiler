@@ -73,8 +73,8 @@ def build_parser():
     p_front.add_argument("dir", nargs="?", default=".")
     from ..frontend_ai import CLI_AGENTS, GENERIC_PROVIDER, OPENAI_COMPATIBLE
     from ..image_ai import IMAGE_PROVIDERS
-    _voies = sorted({"claude", GENERIC_PROVIDER} | set(OPENAI_COMPATIBLE) | set(CLI_AGENTS))
-    p_front.add_argument("--provider", default="claude", choices=_voies,
+    _paths = sorted({"claude", GENERIC_PROVIDER} | set(OPENAI_COMPATIBLE) | set(CLI_AGENTS))
+    p_front.add_argument("--provider", default="claude", choices=_paths,
                          help="API key: 'claude' (ANTHROPIC_API_KEY); "
                               + ", ".join(f"'{n}' ({v})" for n, (_u, v) in
                                           sorted(OPENAI_COMPATIBLE.items()))
@@ -121,7 +121,7 @@ def build_parser():
                                        "the screen and element: \"images in the "
                                        "Trends section are poorly framed\".")
     p_ret.add_argument("dir", nargs="?", default=".")
-    p_ret.add_argument("--provider", default="claude", choices=_voies,
+    p_ret.add_argument("--provider", default="claude", choices=_paths,
                        help="Same options as 'monl frontend'.")
     p_ret.add_argument("--model", default=None, help="Provider model.")
     p_ret.add_argument("--agent-command", default=None,
@@ -220,31 +220,31 @@ def _dispatch(argv=None):
     elif args.command == "migrate":
         construction.cmd_migrate(args.dir, name=args.name, down=args.down, list_only=args.list)
     elif args.command == "assets":
-        _commande_assets(parser, args)
+        _command_assets(parser, args)
     elif args.command == "content":
-        _commande_content(parser, args)
+        _command_content(parser, args)
     elif args.command == "frontend":
-        retouch._lancer_ia(args, update_mode=args.update)
+        retouch._launch_ia(args, update_mode=args.update)
     elif args.command == "retouche":
-        _commande_retouche(args)
+        _command_retouch(args)
     elif args.command == "import":
-        _commande_import(args)
+        _command_import(args)
 
 
 # The four functions below are extracted from `_dispatch` (complexity
 # ceiling): same calls, same messages, same exit codes. They still reach
 # the commands through their MODULE objects, so tests that monkeypatch
 # them keep working.
-def _commande_assets(parser, args):
+def _command_assets(parser, args):
     """`monl assets add|list`."""
     if args.assets_command == "add":
         if args.logo and args.favicon:
             print(" ❌ --logo and --favicon declare two different "
                   "things; set them in separate commands.")
             sys.exit(1)
-        cible = "logo" if args.logo else ("favicon" if args.favicon else None)
-        editorial_content.cmd_assets_add(args.dir, args.fichier, pour=args.pour, cible=cible,
-                       entity=args.entity, field=args.field, nom=args.nom,
+        target = "logo" if args.logo else ("favicon" if args.favicon else None)
+        editorial_content.cmd_assets_add(args.dir, args.fichier, pour=args.pour, target=target,
+                       entity=args.entity, field=args.field, name=args.nom,
                        force=args.force)
     elif args.assets_command == "list":
         editorial_content.cmd_assets_list(args.dir)
@@ -253,7 +253,7 @@ def _commande_assets(parser, args):
         sys.exit(1)
 
 
-def _commande_content(parser, args):
+def _command_content(parser, args):
     """`monl content export|import`."""
     if args.content_command == "export":
         editorial_content.cmd_content_export(args.dir)
@@ -264,17 +264,17 @@ def _commande_content(parser, args):
         sys.exit(1)
 
 
-def _commande_retouche(args):
+def _command_retouch(args):
     """`monl retouche`."""
-    retouch.cmd_retouche(args.dir, args.demande)
+    retouch.cmd_retouch(args.dir, args.demande)
     if args.consigne_seule:
         print("  → Give this file to an AI, then install the result "
               "with 'monl import'.")
     else:
-        retouch._lancer_ia(args, retouche_mode=True)
+        retouch._launch_ia(args, retouch_mode=True)
 
 
-def _commande_import(args):
+def _command_import(args):
     """`monl import`."""
     from ..frontend_ai import FrontendAIError, import_and_verify
     try:

@@ -13,13 +13,13 @@ import tempfile
 import time
 
 from ..frontend_contract import CONTRACT_FILENAME
-from ..serving import rendre_wrapper
+from ..serving import render_wrapper
 from . import foundations, steps
-from .foundations import _identifiant_smoke
+from .foundations import _identifier_smoke
 from .probes import _sample_value
 
 
-def _wrapper_necessaire(has_frontend, has_assets):
+def _wrapper_needed(has_frontend, has_assets):
     """The smoke test mounts the project the way `monl run` will (point 83).
 
     Declared assets without a frontend — the normal state just after
@@ -58,9 +58,9 @@ def run_smoke_test(project_dir, say=print):
         if has_assets:
             shutil.copytree(assets_src, os.path.join(workdir, assets_dir))
         module = "app:app"
-        if _wrapper_necessaire(has_frontend, has_assets):
+        if _wrapper_needed(has_frontend, has_assets):
             with open(os.path.join(workdir, "serve.py"), "w", encoding="utf-8") as fh:
-                fh.write(rendre_wrapper(assets_dir if has_assets else None))
+                fh.write(render_wrapper(assets_dir if has_assets else None))
             module = "serve:app"
 
         port = foundations._free_port()
@@ -81,17 +81,17 @@ def run_smoke_test(project_dir, say=print):
             else:
                 raise foundations.SmokeFailure("the temporary server never responded on /docs")
 
-            actor, token = steps._compte_de_test(base, contract, errors, warnings)
+            actor, token = steps._account_of_test(base, contract, errors, warnings)
 
-            steps._eprouver_les_routes(actor, base, contract, errors, token)
+            steps._try_the_routes(actor, base, contract, errors, token)
 
-            steps._eprouver_une_creation(actor, base, contract, errors, token, warnings)
+            steps._try_a_creation(actor, base, contract, errors, token, warnings)
 
-            steps._assets_reellement_servis(assets_dir, assets_src, base, contract, errors, has_assets)
+            steps._assets_really_served(assets_dir, assets_src, base, contract, errors, has_assets)
 
-            steps._fichiers_reclames_servis(base, errors, has_frontend, workdir)
+            steps._files_claimed_served(base, errors, has_frontend, workdir)
 
-            steps._frontend_dans_jsdom(base, contract, errors, has_frontend, say, warnings, workdir)
+            steps._frontend_in_jsdom(base, contract, errors, has_frontend, say, warnings, workdir)
         finally:
             server.terminate()
             try:
@@ -109,7 +109,7 @@ def run_smoke_test(project_dir, say=print):
     return (not errors), errors, warnings
 
 __all__ = [
-    "_identifiant_smoke",
+    "_identifier_smoke",
     "_sample_value",
     "run_smoke_test",
 ]

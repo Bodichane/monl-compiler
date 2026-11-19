@@ -24,43 +24,43 @@ def test_booking_takes_precedence_over_price():
     """A bookable service carries a price: by archetype alone it looks like a
     shop. The booking signal must win, otherwise a cart is drawn where a
     calendar is needed."""
-    profil = infer_design_profile(_contract(
+    profile = infer_design_profile(_contract(
         entities={"Creneau": {"archetype": "shop"}},
         sections=[{"title": "Réserver un créneau", "body": "Prenez rendez-vous."}]))
-    assert profil["kind"] == "service"
-    assert "availability" in profil["pattern"]
+    assert profile["kind"] == "service"
+    assert "availability" in profile["pattern"]
 
 
 def test_a_payment_action_is_enough_to_make_commerce():
-    profil = infer_design_profile(_contract(routes=[{"action": "Pay"}]))
-    assert profil["kind"] == "commerce"
-    assert "Catalog" in profil["pages"]
-    assert "Cart or summary" in profil["pages"]
+    profile = infer_design_profile(_contract(routes=[{"action": "Pay"}]))
+    assert profile["kind"] == "commerce"
+    assert "Catalog" in profile["pages"]
+    assert "Cart or summary" in profile["pages"]
 
 
 def test_the_operations_skill_gives_a_workspace():
-    profil = infer_design_profile(_contract(design_skills=["monl-operations"]))
-    assert profil["kind"] == "operations"
-    assert "Workspace per role" in profil["pages"]
+    profile = infer_design_profile(_contract(design_skills=["monl-operations"]))
+    assert profile["kind"] == "operations"
+    assert "Workspace per role" in profile["pages"]
 
 
 def test_sections_without_other_signal_give_an_editorial_site():
-    profil = infer_design_profile(_contract(
+    profile = infer_design_profile(_contract(
         sections=[{"title": "Notre atelier", "body": "Depuis 2019."}]))
-    assert profil["kind"] == "editorial"
-    assert "Narrative hero" in profil["pattern"]
+    assert profile["kind"] == "editorial"
+    assert "Narrative hero" in profile["pattern"]
 
 
 def test_without_any_signal_the_profile_stays_generic():
     """The witness: a classification that put everything somewhere would
     classify nothing."""
-    profil = infer_design_profile(_contract())
-    assert profil["kind"] == "generic"
+    profile = infer_design_profile(_contract())
+    assert profile["kind"] == "generic"
 
 
 def test_a_faq_adds_its_screen():
-    profil = infer_design_profile(_contract(faq=[{"question": "Où ?", "answer": "Ici."}]))
-    assert "Structured FAQ" in profil["pages"]
+    profile = infer_design_profile(_contract(faq=[{"question": "Où ?", "answer": "Ici."}]))
+    assert "Structured FAQ" in profile["pages"]
 
 
 def test_the_word_service_is_enough_when_nothing_else_speaks():
@@ -70,8 +70,8 @@ def test_the_word_service_is_enough_when_nothing_else_speaks():
     # The analyzed text comes from the NAME and the brief, not the routes: a
     # classification reading route summaries would change its verdict at the
     # slightest API rewording.
-    profil = infer_design_profile(_contract(app="Service de dépannage à domicile"))
-    assert profil["kind"] == "service"
+    profile = infer_design_profile(_contract(app="Service de dépannage à domicile"))
+    assert profile["kind"] == "service"
 
 
 def test_two_homonymous_sections_do_not_share_their_anchor():
@@ -79,21 +79,21 @@ def test_two_homonymous_sections_do_not_share_their_anchor():
     nowhere — and nothing reports it. The case only happens with HOMONYMOUS
     titles, which no spec of the repository carries: so it is tested here, and
     nowhere else."""
-    marqueurs = _declared_section_markers({"sections": [
+    markers = _declared_section_markers({"sections": [
         {"title": "Nos ateliers"},
         {"title": "Nos ateliers"},
         {"title": "Nos ateliers"},
     ]})
-    assert len(marqueurs) == len(set(marqueurs)) == 3
-    assert marqueurs[0] != marqueurs[1] != marqueurs[2]
+    assert len(markers) == len(set(markers)) == 3
+    assert markers[0] != markers[1] != markers[2]
 
 
 def test_a_section_without_title_stays_anchorable():
     """The title is optional in the grammar; an empty anchor would break
     navigation silently."""
-    marqueurs = _declared_section_markers({"sections": [{}, {}]})
-    assert len(marqueurs) == len(set(marqueurs)) == 2
-    assert all('data-monl-section="' in m for m in marqueurs)
+    markers = _declared_section_markers({"sections": [{}, {}]})
+    assert len(markers) == len(set(markers)) == 2
+    assert all('data-monl-section="' in m for m in markers)
 
 
 def test_a_title_already_like_a_derived_anchor_does_not_steal_it():
@@ -105,9 +105,9 @@ def test_a_title_already_like_a_derived_anchor_does_not_steal_it():
     the rank, two different sections share an anchor — and the link leads to
     the wrong one.
     """
-    marqueurs = _declared_section_markers({"sections": [
+    markers = _declared_section_markers({"sections": [
         {"title": "Nos ateliers"},
         {"title": "Nos ateliers 2"},
         {"title": "Nos ateliers"},
     ]})
-    assert len(marqueurs) == len(set(marqueurs)) == 3
+    assert len(markers) == len(set(markers)) == 3

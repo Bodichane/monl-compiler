@@ -19,7 +19,7 @@ from .names import (
 from .profile import _guarantees, infer_design_profile
 
 
-def _lignes_de_substance(contract, profile):
+def _lines_of_substance(contract, profile):
     """The "what each section must carry" list. Extracted from
     `render_design_system` (complexity ceiling); text byte-identical."""
     return "\n".join(
@@ -27,15 +27,15 @@ def _lignes_de_substance(contract, profile):
             marker.partition("=")[2].strip('"'),
             ", ".join(
                 part for part in (
-                    "a heading" if regle.get("heading") else "",
-                    "a form" if regle.get("form") else "",
-                    "an action button or link" if regle.get("action") else "",
-                    (f"at least {regle['text']} characters of readable text"
-                     if regle.get("text") else ""),
+                    "a heading" if rule.get("heading") else "",
+                    "a form" if rule.get("form") else "",
+                    "an action button or link" if rule.get("action") else "",
+                    (f"at least {rule['text']} characters of readable text"
+                     if rule.get("text") else ""),
                 ) if part
             ),
         )
-        for marker, regle in _section_substance(contract, profile).items()
+        for marker, rule in _section_substance(contract, profile).items()
     ) or "- No required section for this project."
 
 
@@ -64,15 +64,15 @@ def render_design_system(contract: dict, generate_images=False) -> str:
         "generic": "empty screen after the hero, uniform grid, fake content, navigation with no clear way out",
     }[profile["kind"]]
     markers = "\n".join(f"- `{marker}`" for marker in _required_markers(contract, profile))
-    liens = "\n".join(
-        f"- **{lien['label']}** → `{lien['url']}`"
-        for lien in (contract.get("links") or [])
+    links = "\n".join(
+        f"- **{link['label']}** → `{link['url']}`"
+        for link in (contract.get("links") or [])
     ) or ("- No link declared. Do not invent any: a guessed social network "
           "address leads to someone else.")
-    garanties = "\n".join(f"- {phrase}" for phrase in _guarantees(contract)) or (
+    guarantees = "\n".join(f"- {phrase}" for phrase in _guarantees(contract)) or (
         "- No guarantee derivable from the contract: claim nothing rather "
         "than invent a proof.")
-    substance = _lignes_de_substance(contract, profile)
+    substance = _lines_of_substance(contract, profile)
     return f"""{GENERATED_MARKER}
 # {contract.get('app', 'Monl')} — initial design system
 
@@ -208,7 +208,7 @@ does not exist.
 
 ### Declared links — to render as is
 
-{liens}
+{links}
 
 ## Genuinely verifiable guarantees — material for the reassurance section
 
@@ -217,7 +217,7 @@ must be built from them, reworded in the site's register. Any other claim —
 customer review, partner logo, number of users, award, undeclared delay — is
 **forbidden**: monl cannot verify it, so the site cannot promise it.
 
-{garanties}
+{guarantees}
 """
 
 def _write_generated(path: Path, content: str, marker: str = GENERATED_MARKER) -> bool:

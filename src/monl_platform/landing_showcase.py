@@ -69,47 +69,47 @@ workflow Buy for Customer
 #: spec. The cut is made by what the lines CONCERN and not by position bounds —
 #: a line number shifts at the first added rule, silently, and the excerpt
 #: would then show something else.
-ENTITE_MONTREE = "Product"
+ENTITY_SHOWN = "Product"
 
 
-def extrait_affiche() -> str:
+def excerpt_displayed() -> str:
     """The entity block and its rules, taken from `SPEC_VITRINE`.
 
     FAILS rather than returning an empty string: an excerpt that cannot be
     found would show an empty frame, which looks like a styling defect and
     not like a spec that changed shape."""
-    lignes = SPEC_VITRINE.splitlines()
-    bloc, dans_entite = [], False
-    for ligne in lignes:
-        if ligne.startswith(f"entity {ENTITE_MONTREE}"):
-            dans_entite = True
-            bloc.append(ligne)
-        elif dans_entite and ligne.startswith((" ", "\t")):
-            bloc.append(ligne)
-        elif dans_entite and not ligne.strip():
-            dans_entite = False
-        elif ligne.startswith(f"rule {ENTITE_MONTREE}."):
-            bloc.append(ligne)
-    regles = [ligne for ligne in bloc if ligne.startswith("rule ")]
-    if not regles or len(bloc) == len(regles):
+    lines = SPEC_VITRINE.splitlines()
+    block, in_entity = [], False
+    for line in lines:
+        if line.startswith(f"entity {ENTITY_SHOWN}"):
+            in_entity = True
+            block.append(line)
+        elif in_entity and line.startswith((" ", "\t")):
+            block.append(line)
+        elif in_entity and not line.strip():
+            in_entity = False
+        elif line.startswith(f"rule {ENTITY_SHOWN}."):
+            block.append(line)
+    rules = [line for line in block if line.startswith("rule ")]
+    if not rules or len(block) == len(rules):
         raise AssertionError(
-            f"empty excerpt or no rule for {ENTITE_MONTREE}: the spec has "
+            f"empty excerpt or no rule for {ENTITY_SHOWN}: the spec has "
             "changed shape, the card would show an empty frame")
-    champs = [ligne for ligne in bloc if ligne not in regles]
-    return "\n".join(champs) + "\n\n" + "\n".join(regles)
+    fields = [line for line in block if line not in rules]
+    return "\n".join(fields) + "\n\n" + "\n".join(rules)
 
 
 #: The figures the card announces. They are here to be COMPARED: the witness
 #: compiles `SPEC_VITRINE` and requires equality, so correcting them by hand
 #: without recompiling turns the suite red.
-ENTITES = 3
+ENTITIES = 3
 ROUTES = 14
-FICHIERS = 15
+FILES = 15
 
 #: The tree shown. Each name must exist in the produced archive — that is what
 #: the witness checks, and it is the whole point of this module. The list stays
 #: a readable EXCERPT: fifteen lines are not shown in a card.
-ARBRE = (
+TREE = (
     ("app.py", "API FastAPI"),
     ("schema.sql", "database"),
     ("frontend_contract.json", "permissions and routes"),

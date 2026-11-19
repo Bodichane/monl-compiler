@@ -25,7 +25,7 @@ from . import drafting, foundations, images, providers, response, stages
 # ─────────────────────────────────────────────────────────────────────
 
 def generate_and_verify(project_dir, provider, update_mode=False, say=print,
-                        retouche_mode=False, model_routes=None,
+                        retouch_mode=False, model_routes=None,
                         provider_factory=None, generate_images=False,
                         image_provider=None):
     """The complete point 4 loop: generate → write → RE-CHECK (consistency +
@@ -34,26 +34,26 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
     project_dir = os.path.abspath(project_dir)
     model_routes = model_routes or {}
     stages._validate_model_routing(project_dir, model_routes)
-    _exiger_fournisseur_dimages(generate_images, image_provider)
-    _signaler_routage_ignore(provider, model_routes, say)
+    _require_provider_images(generate_images, image_provider)
+    _signaler_routing_ignore(provider, model_routes, say)
     run_id = uuid.uuid4().hex
-    operation = _nom_de_loperation(update_mode, retouche_mode)
-    image_failures = _generer_les_images(
+    operation = _name_of_operation(update_mode, retouch_mode)
+    image_failures = _generate_the_images(
         project_dir, generate_images, image_provider, operation, run_id, say)
-    prompt = drafting.build_generation_prompt(project_dir, update_mode, retouche_mode)
+    prompt = drafting.build_generation_prompt(project_dir, update_mode, retouch_mode)
 
     last_errors = []
     # Automatic correction can REGRESS: measured on a real build, a pass tasked
     # with repairing two lines rewrote the whole site and lost fourteen routes
     # out of fifteen. monl kept the LAST attempt; it now keeps the BEST.
-    meilleure = None
+    best = None
     for attempt in (1, 2):
         if attempt == 2:
             say(" -> Automatic correction: errors sent back to the model (once only)…")
-            prompt = _prompt_de_correction(prompt, last_errors)
+            prompt = _prompt_of_correction(prompt, last_errors)
         say(f" -> Frontend generation by the AI (attempt {attempt}/2)…")
         try:
-            files = _generer_les_fichiers(
+            files = _generate_the_files(
                 project_dir, provider, prompt, operation, attempt, say,
                 run_id, model_routes, provider_factory)
         except (foundations._ChunkOutputLimitError,
@@ -75,7 +75,7 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
             f"({', '.join(sorted(files))})")
 
         say(" -> Automatic recheck (consistency + smoke test)…")
-        ok, errors, warnings = _reverifier(project_dir, say)
+        ok, errors, warnings = _recheck(project_dir, say)
         # check_coherence() already collects these completeness errors when the
         # frontend exists; gathering them here a second time would duplicate
         # every asset refusal in the correction and in the report.
@@ -92,33 +92,33 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
         # measurement. It settles the case that gave birth to it — the same
         # number of errors, but two whole journeys reported on top.
         score = (len(errors), len(warnings))
-        meilleure = _retenir_la_meilleure(project_dir, meilleure, score, attempt, errors)
+        best = _keep_the_best(project_dir, best, score, attempt, errors)
         if image_failures:
             say(" ❌ Delivery refused: the manifest remains the authority for the "
                 "planned images; run again once the provider is available.")
             return False, last_errors
 
-    if meilleure is not None and meilleure[2] != attempt:
-        last_errors = _restaurer_la_meilleure(project_dir, meilleure, score, say)
+    if best is not None and best[2] != attempt:
+        last_errors = _restore_the_best(project_dir, best, score, say)
     say(" ❌ The generated frontend still fails after correction — the files "
         "are kept in frontend/ for inspection, but 'monl run' "
         "will refuse to start while the smoke test fails.")
     return False, last_errors
 
-def _exiger_fournisseur_dimages(generate_images, image_provider):
+def _require_provider_images(generate_images, image_provider):
     """Images are generated only through an injected provider."""
     if generate_images and image_provider is None:
         raise foundations.FrontendAIError(
             "--generate-images requires an injectable image provider.")
 
 
-def _nom_de_loperation(update_mode, retouche_mode):
+def _name_of_operation(update_mode, retouch_mode):
     """The operation name recorded with usage and generated images."""
-    return ("retouche" if retouche_mode else
+    return ("retouche" if retouch_mode else
             ("update" if update_mode else "construction"))
 
 
-def _generer_les_images(project_dir, generate_images, image_provider, operation,
+def _generate_the_images(project_dir, generate_images, image_provider, operation,
                         run_id, say):
     """Generates the planned images first; returns the failures."""
     if not generate_images:
@@ -128,15 +128,15 @@ def _generer_les_images(project_dir, generate_images, image_provider, operation,
     return image_failures
 
 
-def _retenir_la_meilleure(project_dir, meilleure, score, attempt, errors):
+def _keep_the_best(project_dir, best, score, attempt, errors):
     """Keeps the attempt with the lower (errors, warnings) score."""
-    if meilleure is None or score < meilleure[0]:
+    if best is None or score < best[0]:
         return (score, response._read_existing_frontend(project_dir), attempt,
                 list(errors))
-    return meilleure
+    return best
 
 
-def _signaler_routage_ignore(provider, model_routes, say):
+def _signaler_routing_ignore(provider, model_routes, say):
     """The monolithic path makes one call: per-stage routing cannot apply."""
     if model_routes and not getattr(provider, "chunked_generation", False):
         declared = ", ".join(
@@ -145,7 +145,7 @@ def _signaler_routage_ignore(provider, model_routes, say):
             f"one call (declared mappings: {declared}).")
 
 
-def _prompt_de_correction(prompt, last_errors):
+def _prompt_of_correction(prompt, last_errors):
     """The prompt of the single correction pass: the errors, then the ask."""
     return (prompt + "\n\n## CHECK FAILED — TO FIX\n"
             "Your previous response failed the monl check:\n"
@@ -153,7 +153,7 @@ def _prompt_de_correction(prompt, last_errors):
             + "\nReturn a corrected version, same response format.")
 
 
-def _generer_les_fichiers(project_dir, provider, prompt, operation, attempt, say,
+def _generate_the_files(project_dir, provider, prompt, operation, attempt, say,
                           run_id, model_routes, provider_factory):
     """One generation attempt: chunked stages, or a single monolithic call
     whose usage is recorded even when it fails."""
@@ -175,7 +175,7 @@ def _generer_les_fichiers(project_dir, provider, prompt, operation, attempt, say
     return response.parse_files_payload(raw)
 
 
-def _reverifier(project_dir, say):
+def _recheck(project_dir, say):
     """Consistency first; the smoke test only runs on a consistent frontend."""
     from ..cli import check_coherence
     from ..smoke_test import run_smoke_test
@@ -188,16 +188,16 @@ def _reverifier(project_dir, say):
     return ok, errors, warnings
 
 
-def _restaurer_la_meilleure(project_dir, meilleure, score, say):
+def _restore_the_best(project_dir, best, score, say):
     """Puts the better earlier attempt back on disk and returns ITS errors."""
-    response._restaurer_frontend(project_dir, meilleure[1])
+    response._restore_frontend(project_dir, best[1])
     # The errors reported must be those of the KEPT files: reporting those
     # of the discarded attempt would describe a frontend that is no longer
     # on disk.
-    last_errors = meilleure[3]
-    say(f" ↩  Attempt {meilleure[2]} restored: the correction produced a "
+    last_errors = best[3]
+    say(f" ↩  Attempt {best[2]} restored: the correction produced a "
         f"more degraded frontend ({score[0]} error(s) and {score[1]} "
-        f"warning(s), against {meilleure[0][0]} and {meilleure[0][1]}). "
+        f"warning(s), against {best[0][0]} and {best[0][1]}). "
         "What is kept is the less bad of the two, not the last one.")
     for e in last_errors:
         say(f" ❌ {e}")

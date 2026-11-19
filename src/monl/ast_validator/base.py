@@ -45,7 +45,7 @@ DEVISES = {
     "MAD": 2, "NGN": 2, "GHS": 2, "KES": 2, "ZAR": 2,
 }
 
-DEVISE_PAR_DEFAUT = "EUR"
+CURRENCY_DEFAULT = "EUR"
 
 # ---------------------------------------------------------------------------
 # PAYMENT PROVIDERS (brick 2b). Stripe does not operate in West Africa; money
@@ -61,13 +61,13 @@ DEVISE_PAR_DEFAUT = "EUR"
 # it would be a security hole in the only place in the generated backend where
 # an unauthenticated third party writes to the database. It is therefore
 # refused and the refusal SAYS so, rather than implemented roughly.
-PRESTATAIRES = {"stripe", "fedapay"}
-PRESTATAIRE_PAR_DEFAUT = "stripe"
+PROVIDERS = {"stripe", "fedapay"}
+PROVIDER_DEFAULT = "stripe"
 
 # Providers known but deliberately not implemented, with the reason — the
 # message is better than "unknown provider", which would send people looking
 # for a typo in a perfectly correct name.
-PRESTATAIRES_ECARTES = {
+PROVIDERS_DISCARDED = {
     "kkiapay": ("its public documentation gives neither the algorithm nor the "
                 "signed data of its webhook; monl will not guess a signature "
                 "check"),
@@ -87,7 +87,7 @@ PRESTATAIRES_ECARTES = {
 # it at the first real charge, as a 502, in front of a customer who wanted to
 # pay. It is point 85 applied to the outside world — refuse a configuration
 # with no effect rather than let it through.
-DEVISES_PAR_PRESTATAIRE = {
+CURRENCIES_BY_PROVIDER = {
     "fedapay": {"XOF"},
     "stripe": None,
 }

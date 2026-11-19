@@ -25,31 +25,31 @@ SECRET = "mot-de-passe-temoin-92"
 def test_the_server_refuses_unsigned_or_differently_signed_tokens(tmp_path):
     spec = tmp_path / "spec.ml"
     spec.write_text(SPEC, encoding="utf-8")
-    projet = tmp_path / "projet"
-    compile_project(str(spec), str(projet))
-    with uvicorn_server(str(projet)) as base:
+    project = tmp_path / "projet"
+    compile_project(str(spec), str(project))
+    with uvicorn_server(str(project)) as base:
         session = requests.Session()
-        inscrit = session.post(base + "/register", json={
+        registered = session.post(base + "/register", json={
             "username": "cliente@example.test", "password": SECRET, "actor": "Client",
         }, timeout=20)
-        assert inscrit.status_code == 200, inscrit.text
-        connecte = requests.post(base + "/login", json={
+        assert registered.status_code == 200, registered.text
+        connected = requests.post(base + "/login", json={
             "username": "cliente@example.test", "password": SECRET,
         }, timeout=20)
-        assert connecte.status_code == 200, connecte.text
-        token = connecte.json()["access_token"]
+        assert connected.status_code == 200, connected.text
+        token = connected.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
-        valide = requests.get(base + "/note", headers=headers, timeout=10)
-        assert valide.status_code == 200, valide.text
+        valid = requests.get(base + "/note", headers=headers, timeout=10)
+        assert valid.status_code == 200, valid.text
 
-        contenu = jwt.decode(token, options={"verify_signature": False})
-        mal_signe = jwt.encode(contenu, "secret-different-du-projet-92-32-octets", algorithm="HS256")
+        content = jwt.decode(token, options={"verify_signature": False})
+        mal_signe = jwt.encode(content, "secret-different-du-projet-92-32-octets", algorithm="HS256")
         refuse = requests.get(base + "/note", headers={
             "Authorization": f"Bearer {mal_signe}"
         }, timeout=10)
         assert refuse.status_code == 401, refuse.text
 
-        sans_signature = jwt.encode(contenu, key="", algorithm="none")
+        sans_signature = jwt.encode(content, key="", algorithm="none")
         refuse = requests.get(base + "/note", headers={
             "Authorization": f"Bearer {sans_signature}"
         }, timeout=10)

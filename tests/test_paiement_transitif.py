@@ -94,27 +94,27 @@ workflow Acheter for Client
     Read Article
 """
 
-CLE_SECRETE = "sk_test_banc_transitif"
-CLE_WEBHOOK = "whsec_banc_transitif"
-PRIX = 42.5
-QUANTITE = 3
+KEY_SECRETE = "sk_test_banc_transitif"
+KEY_WEBHOOK = "whsec_banc_transitif"
+PRICE = 42.5
+QUANTITY = 3
 
 
-class _PrestataireFactice(BaseHTTPRequestHandler):
+class _ProviderFake(BaseHTTPRequestHandler):
     """It DECODES the received body: it is the only way to state which amount was
     really requested. Reading the database would only tell what monl believes."""
 
     def do_POST(self):  # name imposed by BaseHTTPRequestHandler
         brut = self.rfile.read(int(self.headers.get("Content-Length", 0)))
-        self.server.recu.append(
+        self.server.received.append(
             {c: v[0] for c, v in urllib.parse.parse_qs(brut.decode()).items()})
-        corps = json.dumps({"id": f"cs_{len(self.server.recu)}",
+        body = json.dumps({"id": f"cs_{len(self.server.received)}",
                             "url": "https://paiement.example/s"}).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(corps)))
+        self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(corps)
+        self.wfile.write(body)
 
     def log_message(self, *_args):
         pass
@@ -122,80 +122,80 @@ class _PrestataireFactice(BaseHTTPRequestHandler):
 
 @pytest.fixture(scope="module")
 def faux_stripe():
-    serveur = ThreadingHTTPServer(("127.0.0.1", 0), _PrestataireFactice)
-    serveur.recu = []
-    fil = threading.Thread(target=serveur.serve_forever, daemon=True)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _ProviderFake)
+    server.received = []
+    fil = threading.Thread(target=server.serve_forever, daemon=True)
     fil.start()
     try:
-        yield serveur
+        yield server
     finally:
-        serveur.shutdown()
-        serveur.server_close()
+        server.shutdown()
+        server.server_close()
         fil.join(timeout=5)
 
 
 @contextlib.contextmanager
-def _base_spec(dossier):
-    cnx = sqlite3.connect(os.path.join(dossier, "app.db"))
+def _base_spec(folder):
+    conn = sqlite3.connect(os.path.join(folder, "app.db"))
     try:
-        with cnx:
-            yield cnx
+        with conn:
+            yield conn
     finally:
-        cnx.close()
+        conn.close()
 
 
 @pytest.fixture(scope="module")
 def application(faux_stripe):
     hote, port_stripe = faux_stripe.server_address[:2]
-    with tempfile.TemporaryDirectory() as dossier:
+    with tempfile.TemporaryDirectory() as folder:
         ast = MonlAST(parse_monl_string(SPEC)).validate_and_audit()
-        MonlSecureGenerator(ast, output_dir=dossier).generate_all()
-        env = {**os.environ, "STRIPE_SECRET_KEY": CLE_SECRETE,
-               "STRIPE_WEBHOOK_SECRET": CLE_WEBHOOK,
+        MonlSecureGenerator(ast, output_dir=folder).generate_all()
+        env = {**os.environ, "STRIPE_SECRET_KEY": KEY_SECRETE,
+               "STRIPE_WEBHOOK_SECRET": KEY_WEBHOOK,
                "MONL_STRIPE_BASE_URL": f"http://{hote}:{port_stripe}"}
-        with uvicorn_server(dossier, env=env) as base:
-            with _base_spec(dossier) as cnx:
-                cnx.execute('INSERT INTO article (nom, prix) VALUES (?, ?)',
-                            ("Article", PRIX))
-            yield base, dossier
+        with uvicorn_server(folder, env=env) as base:
+            with _base_spec(folder) as conn:
+                conn.execute('INSERT INTO article (nom, prix) VALUES (?, ?)',
+                            ("Article", PRICE))
+            yield base, folder
 
 
-def _compte(application, identifiant):
-    base, dossier = application
-    with _base_spec(dossier) as cnx:
-        cnx.execute("DELETE FROM _monl_rate_limit")
-    requests.post(f"{base}/register", json={"username": identifiant,
+def _account(application, identifier):
+    base, folder = application
+    with _base_spec(folder) as conn:
+        conn.execute("DELETE FROM _monl_rate_limit")
+    requests.post(f"{base}/register", json={"username": identifier,
                                             "password": "motdepasse1",
                                             "actor": "Client"}, timeout=10)
-    reponse = requests.post(f"{base}/login", json={"username": identifiant,
+    response = requests.post(f"{base}/login", json={"username": identifier,
                                                    "password": "motdepasse1"},
                             timeout=10)
-    entetes = {"Authorization": f"Bearer {reponse.json()['access_token']}"}
-    requests.post(f"{base}/client", json={"nom": identifiant},
-                  headers=entetes, timeout=10)
-    return entetes
+    headers = {"Authorization": f"Bearer {response.json()['access_token']}"}
+    requests.post(f"{base}/client", json={"nom": identifier},
+                  headers=headers, timeout=10)
+    return headers
 
 
 @pytest.fixture(scope="module")
 def alice(application):
-    return _compte(application, "alice")
+    return _account(application, "alice")
 
 
 @pytest.fixture(scope="module")
 def bob(application):
-    return _compte(application, "bob")
+    return _account(application, "bob")
 
 
-def _line_of(base, entetes, libelle):
+def _line_of(base, headers, label):
     """An order and its line, and the identifier of both."""
-    commande = requests.post(f"{base}/commande", json={"libelle": libelle},
-                             headers=entetes, timeout=10).json()["id"]
+    order = requests.post(f"{base}/commande", json={"libelle": label},
+                             headers=headers, timeout=10).json()["id"]
     article = requests.get(f"{base}/article?limit=1", timeout=10).json()["data"][0]["id"]
-    ligne = requests.post(f"{base}/ligne",
-                          json={"quantite": QUANTITE, "commande_id": commande,
+    line = requests.post(f"{base}/ligne",
+                          json={"quantite": QUANTITY, "commande_id": order,
                                 "article_id": article},
-                          headers=entetes, timeout=10).json()["id"]
-    return commande, ligne
+                          headers=headers, timeout=10).json()["id"]
+    return order, line
 
 
 # --------------------------------------------------------------------------
@@ -203,20 +203,20 @@ def _line_of(base, entetes, libelle):
 def test_the_transitive_owner_can_pay(application, alice, faux_stripe):
     """What point 81 forbade. The amount is checked on what the PROVIDER
     receives — not on what the database holds."""
-    base, _dossier = application
-    _commande, ligne = _line_of(base, alice, "panier alice")
+    base, _folder = application
+    _order, line = _line_of(base, alice, "panier alice")
 
-    avant = len(faux_stripe.recu)
-    reponse = requests.post(f"{base}/ligne/{ligne}/paiement", headers=alice, timeout=15)
-    assert reponse.status_code == 200, reponse.text
-    assert len(faux_stripe.recu) == avant + 1
+    before = len(faux_stripe.received)
+    response = requests.post(f"{base}/ligne/{line}/paiement", headers=alice, timeout=15)
+    assert response.status_code == 200, response.text
+    assert len(faux_stripe.received) == before + 1
 
-    demande = faux_stripe.recu[-1]
-    attendu = str(round(PRIX * QUANTITE * 100))
-    assert demande["line_items[0][price_data][unit_amount]"] == attendu, demande
+    request = faux_stripe.received[-1]
+    expected = str(round(PRICE * QUANTITY * 100))
+    assert request["line_items[0][price_data][unit_amount]"] == expected, request
     # The reference is qualified by the entity name (point 75): otherwise the
     # webhook would confuse the ids of two payable tables.
-    assert demande.get("client_reference_id") == f"Ligne:{ligne}"
+    assert request.get("client_reference_id") == f"Ligne:{line}"
 
 
 def test_a_third_party_cannot_pay(application, alice, bob):
@@ -225,32 +225,32 @@ def test_a_third_party_cannot_pay(application, alice, bob):
     If the route still compared `current_user_id` with the intermediate's
     foreign key — an ORDER id — the verdict would be a coin toss. The identifiers
     are deliberately divergent so that the confusion shows."""
-    base, dossier = application
-    commande, ligne = _line_of(base, alice, "panier privé")
+    base, folder = application
+    order, line = _line_of(base, alice, "panier privé")
 
-    with _base_spec(dossier) as cnx:
-        compte_alice = cnx.execute(
+    with _base_spec(folder) as conn:
+        account_alice = conn.execute(
             "SELECT id FROM _monl_users WHERE username = 'alice'").fetchone()[0]
-    assert commande != compte_alice, "ids conflated: the test proves nothing"
-    assert ligne != compte_alice, "ids conflated: the test proves nothing"
+    assert order != account_alice, "ids conflated: the test proves nothing"
+    assert line != account_alice, "ids conflated: the test proves nothing"
 
-    refuse = requests.post(f"{base}/ligne/{ligne}/paiement", headers=bob, timeout=15)
+    refuse = requests.post(f"{base}/ligne/{line}/paiement", headers=bob, timeout=15)
     assert refuse.status_code == 403, refuse.text
     # And the owner does get through: a 403 for everyone would "pass" this test
     # while proving nothing.
-    assert requests.post(f"{base}/ligne/{ligne}/paiement",
+    assert requests.post(f"{base}/ligne/{line}/paiement",
                          headers=alice, timeout=15).status_code == 200
 
 
 def test_an_orphan_line_is_not_found(application, alice):
     """The join returns no result: the line belongs to nobody. 404 — certainly
     not "payable by anyone"."""
-    base, dossier = application
-    _commande, ligne = _line_of(base, alice, "panier à orpheliner")
-    with _base_spec(dossier) as cnx:
-        cnx.execute('UPDATE "ligne" SET "commande_id" = 999999 WHERE id = ?', (ligne,))
-    reponse = requests.post(f"{base}/ligne/{ligne}/paiement", headers=alice, timeout=15)
-    assert reponse.status_code == 404, reponse.text
+    base, folder = application
+    _order, line = _line_of(base, alice, "panier à orpheliner")
+    with _base_spec(folder) as conn:
+        conn.execute('UPDATE "ligne" SET "commande_id" = 999999 WHERE id = ?', (line,))
+    response = requests.post(f"{base}/ligne/{line}/paiement", headers=alice, timeout=15)
+    assert response.status_code == 404, response.text
 
 
 def test_the_webhook_marks_the_line_paid(application, alice, faux_stripe):
@@ -259,29 +259,29 @@ def test_the_webhook_marks_the_line_paid(application, alice, faux_stripe):
     import hashlib
     import hmac
 
-    base, dossier = application
-    _commande, ligne = _line_of(base, alice, "panier réglé")
-    requests.post(f"{base}/ligne/{ligne}/paiement", headers=alice, timeout=15)
+    base, folder = application
+    _order, line = _line_of(base, alice, "panier réglé")
+    requests.post(f"{base}/ligne/{line}/paiement", headers=alice, timeout=15)
 
-    corps = json.dumps({"type": "checkout.session.completed",
-                        "data": {"object": {"client_reference_id": f"Ligne:{ligne}",
+    body = json.dumps({"type": "checkout.session.completed",
+                        "data": {"object": {"client_reference_id": f"Ligne:{line}",
                                             "id": "cs_x"}}}).encode()
     # POINT 91: the CURRENT time, like the real provider — the signature is now
     # dated, and a frozen timestamp would be refused as a replay.
-    horodatage = str(int(time.time()))
-    signature = hmac.new(CLE_WEBHOOK.encode(),
-                         (horodatage + ".").encode() + corps,
+    timestamp = str(int(time.time()))
+    signature = hmac.new(KEY_WEBHOOK.encode(),
+                         (timestamp + ".").encode() + body,
                          hashlib.sha256).hexdigest()
-    reponse = requests.post(
-        f"{base}/paiement/webhook", data=corps,
+    response = requests.post(
+        f"{base}/paiement/webhook", data=body,
         headers={"Content-Type": "application/json",
-                 "stripe-signature": f"t={horodatage},v1={signature}"}, timeout=10)
-    assert reponse.status_code == 200, reponse.text
+                 "stripe-signature": f"t={timestamp},v1={signature}"}, timeout=10)
+    assert response.status_code == 200, response.text
 
-    with _base_spec(dossier) as cnx:
-        etat = cnx.execute('SELECT payment_status FROM "ligne" WHERE id = ?',
-                           (ligne,)).fetchone()[0]
-    assert etat == "payee"
+    with _base_spec(folder) as conn:
+        state = conn.execute('SELECT payment_status FROM "ligne" WHERE id = ?',
+                           (line,)).fetchone()[0]
+    assert state == "payee"
 
 
 def test_the_check_and_the_amount_come_from_the_same_read(tmp_path):
@@ -290,10 +290,10 @@ def test_the_check_and_the_amount_come_from_the_same_read(tmp_path):
     The route must therefore contain only ONE execute."""
     ast = MonlAST(parse_monl_string(SPEC)).validate_and_audit()
     MonlSecureGenerator(ast, output_dir=str(tmp_path)).generate_all()
-    genere = (tmp_path / "app.py").read_text(encoding="utf-8")
+    generated = (tmp_path / "app.py").read_text(encoding="utf-8")
     # Cut at the next decorator: "\ndef" would also catch the webhook, whose
     # execute is legitimate and would skew the count.
-    corps = genere.split("def payer_ligne(")[1].split("@app.post")[0]
-    assert corps.count("cursor.execute(") == 1, corps
+    body = generated.split("def payer_ligne(")[1].split("@app.post")[0]
+    assert body.count("cursor.execute(") == 1, body
     # The join is indeed IN this single SELECT.
-    assert "JOIN" in corps and "commande" in corps
+    assert "JOIN" in body and "commande" in body

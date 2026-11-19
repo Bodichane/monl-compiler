@@ -26,7 +26,7 @@ def _event(run_id="run-opaque", model="modele-test", **extra):
     return event
 
 
-def _write_journal(project, events):
+def _write_log(project, events):
     path = project / frontend_ai.USAGE_FILENAME
     path.write_text("".join(json.dumps(event) + "\n" for event in events), encoding="utf-8")
     return path
@@ -64,11 +64,11 @@ def test_two_successive_runs_stay_separate(monkeypatch, tmp_path):
             }
             return '{"files": {"index.html": "<html></html>"}}'
 
-    monkeypatch.setattr(frontend_ai.redaction, "build_generation_prompt",
+    monkeypatch.setattr(frontend_ai.drafting, "build_generation_prompt",
                         lambda *args: "brief")
-    monkeypatch.setattr(frontend_ai.reponse, "parse_files_payload",
+    monkeypatch.setattr(frontend_ai.response, "parse_files_payload",
                         lambda _raw: {"index.html": "<html></html>"})
-    monkeypatch.setattr(frontend_ai.reponse, "_write_files", lambda *_args: None)
+    monkeypatch.setattr(frontend_ai.response, "_write_files", lambda *_args: None)
     monkeypatch.setattr(frontend_ai.orchestration, "activate_asset_manifest", lambda *_args: None)
     monkeypatch.setattr(frontend_ai, "_design_completeness_errors", lambda *_args: [])
     monkeypatch.setattr(cli, "check_coherence", lambda _project: (True, [], []))
@@ -91,7 +91,7 @@ def test_two_successive_runs_stay_separate(monkeypatch, tmp_path):
 def test_model_without_price_reports_tokens_without_inventing_a_figure(tmp_path):
     project = tmp_path / "projet"
     project.mkdir()
-    _write_journal(project, [_event()])
+    _write_log(project, [_event()])
     prices = tmp_path / "prices.json"
     _write_prices(prices, model="autre-modele")
 
@@ -107,7 +107,7 @@ def test_model_without_price_reports_tokens_without_inventing_a_figure(tmp_path)
 def test_events_without_run_id_form_an_unknown_batch(tmp_path):
     project = tmp_path / "projet"
     project.mkdir()
-    _write_journal(project, [_event(None, stage="index.html"),
+    _write_log(project, [_event(None, stage="index.html"),
                              _event(None, stage="styles.css")])
 
     report = build_usage_report(str(project))
@@ -123,8 +123,8 @@ def test_json_is_usable_and_reports_unreadable_lines(tmp_path, capsys):
     project = tmp_path / "projet"
     project.mkdir()
     (project / "monl.json").write_text("{}", encoding="utf-8")
-    journal = _write_journal(project, [_event()])
-    with journal.open("a", encoding="utf-8") as fh:
+    log = _write_log(project, [_event()])
+    with log.open("a", encoding="utf-8") as fh:
         fh.write("pas du json\n")
     prices = tmp_path / "prices.json"
     _write_prices(prices)
@@ -154,13 +154,13 @@ def test_log_adds_neither_prompt_nor_key(tmp_path):
     })()
     frontend_ai._record_provider_usage(str(project), provider, "construction", 1,
                                        run_id="opaque")
-    contenu = (project / frontend_ai.USAGE_FILENAME).read_text(encoding="utf-8")
-    assert "prompt-client" not in contenu
-    assert "reponse-client" not in contenu
-    assert "cle-secrete" not in contenu
-    assert '"prompt"' not in contenu
-    assert '"response"' not in contenu
-    assert '"api_key"' not in contenu
+    content = (project / frontend_ai.USAGE_FILENAME).read_text(encoding="utf-8")
+    assert "prompt-client" not in content
+    assert "reponse-client" not in content
+    assert "cle-secrete" not in content
+    assert '"prompt"' not in content
+    assert '"response"' not in content
+    assert '"api_key"' not in content
 
 
 @pytest.mark.parametrize(
@@ -217,7 +217,7 @@ def test_log_reports_empty_line_and_non_object_json_value(tmp_path):
 def test_an_invalid_counter_is_named_and_gives_no_cost(tmp_path):
     project = tmp_path / "projet"
     project.mkdir()
-    _write_journal(project, [_event(input_tokens=-1, output_tokens="inconnu")])
+    _write_log(project, [_event(input_tokens=-1, output_tokens="inconnu")])
     prices = tmp_path / "prices.json"
     _write_prices(prices)
 
@@ -232,7 +232,7 @@ def test_an_invalid_counter_is_named_and_gives_no_cost(tmp_path):
 def test_image_requests_require_a_counter_and_a_rate(tmp_path):
     project = tmp_path / "projet"
     project.mkdir()
-    _write_journal(project, [{
+    _write_log(project, [{
         **_event(), "billing_unit": "request", "requests": None,
     }])
     prices = tmp_path / "prices.json"
@@ -251,7 +251,7 @@ def test_image_requests_require_a_counter_and_a_rate(tmp_path):
 def test_an_image_request_without_rate_is_honestly_unpriced(tmp_path):
     project = tmp_path / "projet"
     project.mkdir()
-    _write_journal(project, [{**_event(), "billing_unit": "request", "requests": 1}])
+    _write_log(project, [{**_event(), "billing_unit": "request", "requests": 1}])
     prices = tmp_path / "prices.json"
     _write_prices(prices)
 

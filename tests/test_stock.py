@@ -36,7 +36,7 @@ import pytest
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import compile_project
 from monl.parser import parse_monl_string
-from tests.support.server import free_port as _port_libre
+from tests.support.server import free_port as _port_free
 
 SPEC = """app BancStock
 
@@ -99,7 +99,7 @@ seed Produit
 """
 
 
-def _valide(spec):
+def _valid(spec):
     return MonlAST(parse_monl_string(spec)).validate_and_audit()
 
 
@@ -109,35 +109,35 @@ def _valide(spec):
 
 def test_the_bench_spec_compiles(capsys):
     """The witness of the refusals that follow."""
-    ast = _valide(SPEC)
-    regle = next(r for r in ast["security"]["reputation_rules"]
+    ast = _valid(SPEC)
+    rule = next(r for r in ast["security"]["reputation_rules"]
                  if r["target_field"] == "stock")
-    assert regle["amount_field"] == "quantite"
-    assert regle["amount"] is None
+    assert rule["amount_field"] == "quantite"
+    assert rule["amount"] is None
     capsys.readouterr()
 
 
 def test_a_quantity_that_is_not_a_field_is_refused(capsys):
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC.replace("by quantite", "by fantome"))
-    assert "field does not exist" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC.replace("by quantite", "by fantome"))
+    assert "field does not exist" in str(refusal.value)
     capsys.readouterr()
 
 
 def test_a_non_integer_quantity_is_refused(capsys):
     spec = SPEC.replace("    quantite: Integer", "    quantite: Integer\n    note: String")
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(spec.replace("by quantite", "by note"))
-    assert "Integer" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(spec.replace("by quantite", "by note"))
+    assert "Integer" in str(refusal.value)
     capsys.readouterr()
 
 
 def test_an_optional_quantity_is_refused(capsys):
     """Same requirement as `derivedFrom`'s multiplier (point 77), and for the
     same reason: a field the client can omit would count down on nothing."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC.replace("rule Ligne.quantite required\n", ""))
-    assert "required" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC.replace("rule Ligne.quantite required\n", ""))
+    assert "required" in str(refusal.value)
     capsys.readouterr()
 
 
@@ -157,10 +157,10 @@ def test_counting_targets_the_right_foreign_key(tmp_path, capsys):
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     capsys.readouterr()
-    genere = (tmp_path / "app.py").read_text(encoding="utf-8")
-    ligne = next(li for li in genere.splitlines() if '"stock" - ?' in li)
-    assert "data.produit_id" in ligne
-    assert "data.commande_id" not in ligne
+    generated = (tmp_path / "app.py").read_text(encoding="utf-8")
+    line = next(li for li in generated.splitlines() if '"stock" - ?' in li)
+    assert "data.produit_id" in line
+    assert "data.commande_id" not in line
 
 
 def test_without_declared_floor_counting_stays_free(tmp_path, capsys):
@@ -171,24 +171,24 @@ def test_without_declared_floor_counting_stays_free(tmp_path, capsys):
                                       encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     capsys.readouterr()
-    genere = (tmp_path / "app.py").read_text(encoding="utf-8")
-    assert "rowcount == 0" not in genere
-    assert "insufficient" not in genere
+    generated = (tmp_path / "app.py").read_text(encoding="utf-8")
+    assert "rowcount == 0" not in generated
+    assert "insufficient" not in generated
 
 
 # --------------------------------------------------------------------------
 # Le comportement, contre un vrai serveur
 # --------------------------------------------------------------------------
 
-def _appel(url, corps=None, jeton=None, methode=None):
-    donnees = json.dumps(corps).encode() if corps is not None else None
-    requete = urllib.request.Request(url, data=donnees, method=methode)
-    requete.add_header("Content-Type", "application/json")
-    if jeton:
-        requete.add_header("Authorization", f"Bearer {jeton}")
+def _call(url, body=None, token=None, method=None):
+    donnees = json.dumps(body).encode() if body is not None else None
+    query = urllib.request.Request(url, data=donnees, method=method)
+    query.add_header("Content-Type", "application/json")
+    if token:
+        query.add_header("Authorization", f"Bearer {token}")
     try:
-        with urllib.request.urlopen(requete, timeout=10) as reponse:
-            return reponse.status, json.loads(reponse.read() or b"{}")
+        with urllib.request.urlopen(query, timeout=10) as response:
+            return response.status, json.loads(response.read() or b"{}")
     except urllib.error.HTTPError as err:
         try:
             brut = err.read()
@@ -203,16 +203,16 @@ def _appel(url, corps=None, jeton=None, methode=None):
 def boutique(tmp_path):
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
-    port = _port_libre()
-    processus = subprocess.Popen(
+    port = _port_free()
+    process = subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "app:app", "--host", "127.0.0.1",
          "--port", str(port)],
         cwd=str(tmp_path), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     base = f"http://127.0.0.1:{port}"
     try:
         for _ in range(120):
-            if processus.poll() is not None:
-                pytest.fail(processus.stdout.read().decode("utf-8", "replace")[-2000:])
+            if process.poll() is not None:
+                pytest.fail(process.stdout.read().decode("utf-8", "replace")[-2000:])
             try:
                 with urllib.request.urlopen(base + "/docs", timeout=5):
                     pass
@@ -221,43 +221,43 @@ def boutique(tmp_path):
                 time.sleep(0.25)
         else:
             pytest.fail("the server never answered")
-        _appel(base + "/register", {"username": "zoe", "password": "motdepasse1",
+        _call(base + "/register", {"username": "zoe", "password": "motdepasse1",
                                     "actor": "Client"})
-        _, jeton = _appel(base + "/login", {"username": "zoe",
+        _, token = _call(base + "/login", {"username": "zoe",
                                             "password": "motdepasse1"})
-        jeton = jeton["access_token"]
-        _appel(base + "/client", {"nom": "Zoe"}, jeton)
+        token = token["access_token"]
+        _call(base + "/client", {"nom": "Zoe"}, token)
         # Three orders so that the kept id DIVERGES from the products': with
         # "order 1" and "product 1", a foreign key confusion would go unnoticed
         # — it is the lesson of point 81's probe.
         for _ in range(3):
-            _, commande = _appel(base + "/commande", {"statut": "panier"}, jeton)
-        _, catalogue = _appel(base + "/produit?limit=20")
-        produits = {p["nom"]: p for p in catalogue["data"]}
-        yield base, jeton, commande["id"], produits, tmp_path
+            _, order = _call(base + "/commande", {"statut": "panier"}, token)
+        _, catalogue = _call(base + "/produit?limit=20")
+        products = {p["nom"]: p for p in catalogue["data"]}
+        yield base, token, order["id"], products, tmp_path
     finally:
-        processus.terminate()
+        process.terminate()
         try:
-            processus.wait(timeout=10)
+            process.wait(timeout=10)
         except subprocess.TimeoutExpired:
-            processus.kill()
-            processus.wait(timeout=5)
-        if processus.stdout is not None:
-            processus.stdout.close()
+            process.kill()
+            process.wait(timeout=5)
+        if process.stdout is not None:
+            process.stdout.close()
 
 
-def _stock(base, produit_id):
-    _, reponse = _appel(f"{base}/produit/{produit_id}")
-    return reponse["data"]["stock"]
+def _stock(base, product_id):
+    _, response = _call(f"{base}/produit/{product_id}")
+    return response["data"]["stock"]
 
 
 def test_an_order_counts_down_the_stock(boutique):
-    base, jeton, commande, produits, _ = boutique
-    halo = produits["Halo RS"]["id"]
+    base, token, order, products, _ = boutique
+    halo = products["Halo RS"]["id"]
     assert _stock(base, halo) == 3
 
-    code, _ = _appel(base + "/ligne", {"quantite": 2, "commande_id": commande,
-                                       "produit_id": halo}, jeton)
+    code, _ = _call(base + "/ligne", {"quantite": 2, "commande_id": order,
+                                       "produit_id": halo}, token)
     assert code == 200
     assert _stock(base, halo) == 1, "the count must equal the QUANTITY, not 1"
 
@@ -265,16 +265,16 @@ def test_an_order_counts_down_the_stock(boutique):
 def test_ordering_more_than_the_stock_is_refused(boutique):
     """The hole the brick closes: before it, the shop charged for fifty pairs out
     of twelve."""
-    base, jeton, commande, produits, dossier = boutique
-    halo = produits["Halo RS"]["id"]
+    base, token, order, products, folder = boutique
+    halo = products["Halo RS"]["id"]
 
-    code, reponse = _appel(base + "/ligne", {"quantite": 4, "commande_id": commande,
-                                             "produit_id": halo}, jeton)
+    code, response = _call(base + "/ligne", {"quantite": 4, "commande_id": order,
+                                             "produit_id": halo}, token)
     assert code == 409
-    assert "insufficient" in reponse["detail"]
+    assert "insufficient" in response["detail"]
     assert _stock(base, halo) == 3, "a refusal must have counted nothing"
     # And the line must not exist: the refusal comes INSIDE the transaction.
-    base_donnees = sqlite3.connect(dossier / "app.db")
+    base_donnees = sqlite3.connect(folder / "app.db")
     try:
         assert base_donnees.execute("SELECT COUNT(*) FROM ligne").fetchone()[0] == 0
     finally:
@@ -282,21 +282,21 @@ def test_ordering_more_than_the_stock_is_refused(boutique):
 
 
 def test_a_sold_out_product_refuses_any_line(boutique):
-    base, jeton, commande, produits, _ = boutique
-    deck = produits["Deck Low"]["id"]
+    base, token, order, products, _ = boutique
+    deck = products["Deck Low"]["id"]
     assert _stock(base, deck) == 0
-    code, _ = _appel(base + "/ligne", {"quantite": 1, "commande_id": commande,
-                                       "produit_id": deck}, jeton)
+    code, _ = _call(base + "/ligne", {"quantite": 1, "commande_id": order,
+                                       "produit_id": deck}, token)
     assert code == 409
 
 
 def test_stock_never_goes_below_zero_even_over_several_orders(boutique):
     """Three orders of 1 on a stock of 3: all three pass. The fourth does not.
     The cumulative total counts, not each request taken alone."""
-    base, jeton, commande, produits, _ = boutique
-    halo = produits["Halo RS"]["id"]
-    codes = [_appel(base + "/ligne", {"quantite": 1, "commande_id": commande,
-                                      "produit_id": halo}, jeton)[0]
+    base, token, order, products, _ = boutique
+    halo = products["Halo RS"]["id"]
+    codes = [_call(base + "/ligne", {"quantite": 1, "commande_id": order,
+                                      "produit_id": halo}, token)[0]
              for _ in range(4)]
     assert codes == [200, 200, 200, 409]
     assert _stock(base, halo) == 0
@@ -305,12 +305,12 @@ def test_stock_never_goes_below_zero_even_over_several_orders(boutique):
 def test_counting_targets_the_requested_product_and_no_other(boutique):
     """The foreign key bug's counter-proof: with deliberately DIVERGENT ids,
     counting down the wrong row would show."""
-    base, jeton, commande, produits, _ = boutique
-    halo, deck = produits["Halo RS"]["id"], produits["Deck Low"]["id"]
-    assert halo != commande, "ids conflated: the test proves nothing"
+    base, token, order, products, _ = boutique
+    halo, deck = products["Halo RS"]["id"], products["Deck Low"]["id"]
+    assert halo != order, "ids conflated: the test proves nothing"
 
-    _appel(base + "/ligne", {"quantite": 1, "commande_id": commande,
-                             "produit_id": halo}, jeton)
+    _call(base + "/ligne", {"quantite": 1, "commande_id": order,
+                             "produit_id": halo}, token)
     assert _stock(base, halo) == 2
     assert _stock(base, deck) == 0, "no other product must have moved"
 
@@ -321,25 +321,25 @@ def test_counting_targets_the_requested_product_and_no_other(boutique):
 # point 78's defect moved from money to goods, and it had lived in the brick
 # since point 86.
 
-def _line_of(base, jeton, commande, produit, quantite):
-    code, reponse = _appel(base + "/ligne", {"quantite": quantite,
-                                             "commande_id": commande,
-                                             "produit_id": produit}, jeton)
-    assert code == 200, reponse
-    return reponse["id"]
+def _line_of(base, token, order, product, quantity):
+    code, response = _call(base + "/ligne", {"quantite": quantity,
+                                             "commande_id": order,
+                                             "produit_id": product}, token)
+    assert code == 200, response
+    return response["id"]
 
 
 def test_increasing_the_quantity_counts_the_difference(boutique):
-    base, jeton, commande, produits, _ = boutique
-    halo = produits["Halo RS"]["id"]
-    ligne = _line_of(base, jeton, commande, halo, 1)
+    base, token, order, products, _ = boutique
+    halo = products["Halo RS"]["id"]
+    line = _line_of(base, token, order, halo, 1)
     assert _stock(base, halo) == 2
 
-    code, reponse = _appel(f"{base}/ligne/{ligne}",
-                           {"quantite": 3, "commande_id": commande,
-                            "produit_id": halo}, jeton, methode="PUT")
+    code, response = _call(f"{base}/ligne/{line}",
+                           {"quantite": 3, "commande_id": order,
+                            "produit_id": halo}, token, method="PUT")
 
-    assert code == 200, reponse
+    assert code == 200, response
     # 3 at the start, 3 ordered: the DELTA of 2 is added to the 1 already
     # counted.
     assert _stock(base, halo) == 0, "the PUT must count the difference"
@@ -348,34 +348,34 @@ def test_increasing_the_quantity_counts_the_difference(boutique):
 def test_reducing_the_quantity_gives_stock_back(boutique):
     """The delta works both ways, without separate code: `stock - (-2)` goes back
     above the floor, so the same statement is enough."""
-    base, jeton, commande, produits, _ = boutique
-    halo = produits["Halo RS"]["id"]
-    ligne = _line_of(base, jeton, commande, halo, 3)
+    base, token, order, products, _ = boutique
+    halo = products["Halo RS"]["id"]
+    line = _line_of(base, token, order, halo, 3)
     assert _stock(base, halo) == 0
 
-    code, reponse = _appel(f"{base}/ligne/{ligne}",
-                           {"quantite": 1, "commande_id": commande,
-                            "produit_id": halo}, jeton, methode="PUT")
+    code, response = _call(f"{base}/ligne/{line}",
+                           {"quantite": 1, "commande_id": order,
+                            "produit_id": halo}, token, method="PUT")
 
-    assert code == 200, reponse
+    assert code == 200, response
     assert _stock(base, halo) == 2
 
 
 def test_a_quantity_exceeding_the_stock_is_refused_on_put(boutique):
     """The hole as measured on a real shop: four pairs billed, only one counted."""
-    base, jeton, commande, produits, _ = boutique
-    halo = produits["Halo RS"]["id"]
-    ligne = _line_of(base, jeton, commande, halo, 1)
+    base, token, order, products, _ = boutique
+    halo = products["Halo RS"]["id"]
+    line = _line_of(base, token, order, halo, 1)
 
-    code, reponse = _appel(f"{base}/ligne/{ligne}",
-                           {"quantite": 9, "commande_id": commande,
-                            "produit_id": halo}, jeton, methode="PUT")
+    code, response = _call(f"{base}/ligne/{line}",
+                           {"quantite": 9, "commande_id": order,
+                            "produit_id": halo}, token, method="PUT")
 
-    assert code == 409, reponse
-    assert "insufficient" in reponse["detail"]
+    assert code == 409, response
+    assert "insufficient" in response["detail"]
     assert _stock(base, halo) == 2, "a refusal must have counted nothing"
-    _, relue = _appel(f"{base}/ligne/{ligne}", jeton=jeton)
-    assert relue["data"]["quantite"] == 1, (
+    _, reread = _call(f"{base}/ligne/{line}", token=token)
+    assert reread["data"]["quantite"] == 1, (
         "the line must not be written when the stock refuses")
 
 
@@ -391,33 +391,33 @@ def test_deleting_a_line_gives_the_stock_back(boutique):
     deletion. The parent total, meanwhile, did go back to zero since point 82 —
     hence a database contradicting itself, and a catalog running out without a
     pair being sold."""
-    base, jeton, commande, produits, _ = boutique
-    halo = produits["Halo RS"]["id"]
-    depart = _stock(base, halo)
-    ligne = _line_of(base, jeton, commande, halo, 2)
-    assert _stock(base, halo) == depart - 2
+    base, token, order, products, _ = boutique
+    halo = products["Halo RS"]["id"]
+    start = _stock(base, halo)
+    line = _line_of(base, token, order, halo, 2)
+    assert _stock(base, halo) == start - 2
 
-    code, reponse = _appel(f"{base}/ligne/{ligne}", jeton=jeton, methode="DELETE")
+    code, response = _call(f"{base}/ligne/{line}", token=token, method="DELETE")
 
-    assert code == 200, reponse
-    assert _stock(base, halo) == depart, "the deleted line did not give its stock back"
+    assert code == 200, response
+    assert _stock(base, halo) == start, "the deleted line did not give its stock back"
 
 
 def test_restitution_gives_back_the_CURRENT_quantity_not_the_creation_one(boutique):
     """Created at 1 then set to 3, the line consumed 3: it must give back 3. The
     quantity is reread FROM THE DATABASE at deletion time — reading it elsewhere
     would give back the original value and leave two pairs evaporated."""
-    base, jeton, commande, produits, _ = boutique
-    halo = produits["Halo RS"]["id"]
-    depart = _stock(base, halo)
-    ligne = _line_of(base, jeton, commande, halo, 1)
-    _appel(f"{base}/ligne/{ligne}", {"quantite": 3, "commande_id": commande,
-                                     "produit_id": halo}, jeton, methode="PUT")
-    assert _stock(base, halo) == depart - 3
+    base, token, order, products, _ = boutique
+    halo = products["Halo RS"]["id"]
+    start = _stock(base, halo)
+    line = _line_of(base, token, order, halo, 1)
+    _call(f"{base}/ligne/{line}", {"quantite": 3, "commande_id": order,
+                                     "produit_id": halo}, token, method="PUT")
+    assert _stock(base, halo) == start - 3
 
-    _appel(f"{base}/ligne/{ligne}", jeton=jeton, methode="DELETE")
+    _call(f"{base}/ligne/{line}", token=token, method="DELETE")
 
-    assert _stock(base, halo) == depart
+    assert _stock(base, halo) == start
 
 
 def test_restitution_targets_the_lines_product_and_no_other(boutique):
@@ -425,28 +425,28 @@ def test_restitution_targets_the_lines_product_and_no_other(boutique):
     relations, and giving the stock back to the product carrying the ORDER's id
     would be invisible as long as the two ids coincide. The bench makes the ids
     diverge on purpose."""
-    base, jeton, commande, produits, _ = boutique
-    halo, deck = produits["Halo RS"]["id"], produits["Deck Low"]["id"]
-    depart_halo, depart_deck = _stock(base, halo), _stock(base, deck)
-    ligne = _line_of(base, jeton, commande, halo, 2)
+    base, token, order, products, _ = boutique
+    halo, deck = products["Halo RS"]["id"], products["Deck Low"]["id"]
+    start_halo, start_deck = _stock(base, halo), _stock(base, deck)
+    line = _line_of(base, token, order, halo, 2)
 
-    _appel(f"{base}/ligne/{ligne}", jeton=jeton, methode="DELETE")
+    _call(f"{base}/ligne/{line}", token=token, method="DELETE")
 
-    assert _stock(base, halo) == depart_halo
-    assert _stock(base, deck) == depart_deck, "another product's stock moved"
+    assert _stock(base, halo) == start_halo
+    assert _stock(base, deck) == start_deck, "another product's stock moved"
 
 
 def test_emptying_then_reordering_loses_no_unit(boutique):
     """The full cycle's counter-proof: three round trips must not nibble away at
     the catalog. It is the form in which the defect showed in production — a
     stock that only goes one way."""
-    base, jeton, commande, produits, _ = boutique
-    halo = produits["Halo RS"]["id"]
-    depart = _stock(base, halo)
+    base, token, order, products, _ = boutique
+    halo = products["Halo RS"]["id"]
+    start = _stock(base, halo)
     for _ in range(3):
-        ligne = _line_of(base, jeton, commande, halo, 3)
-        _appel(f"{base}/ligne/{ligne}", jeton=jeton, methode="DELETE")
-    assert _stock(base, halo) == depart
+        line = _line_of(base, token, order, halo, 3)
+        _call(f"{base}/ligne/{line}", token=token, method="DELETE")
+    assert _stock(base, halo) == start
 
 
 def test_restitution_carries_no_floor(tmp_path, capsys):
@@ -457,13 +457,13 @@ def test_restitution_carries_no_floor(tmp_path, capsys):
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     capsys.readouterr()
-    genere = (tmp_path / "app.py").read_text(encoding="utf-8")
-    bloc = genere.split("def delete_ligne(")[1].split("\n@app.")[0]
-    rendu = next(li for li in bloc.splitlines() if '"stock" + ?' in li)
-    assert ">= ?" not in rendu, "restitution must carry no condition"
+    generated = (tmp_path / "app.py").read_text(encoding="utf-8")
+    block = generated.split("def delete_ligne(")[1].split("\n@app.")[0]
+    rendered = next(li for li in block.splitlines() if '"stock" + ?' in li)
+    assert ">= ?" not in rendered, "restitution must carry no condition"
     # And it gives back to the line's product: the column is named in the
     # preceding read, restitution reuses its value.
-    assert 'SELECT "quantite", "produit_id"' in bloc
+    assert 'SELECT "quantite", "produit_id"' in block
 
 
 def test_restitution_reads_the_line_before_deleting_it(tmp_path, capsys):
@@ -473,11 +473,11 @@ def test_restitution_reads_the_line_before_deleting_it(tmp_path, capsys):
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     capsys.readouterr()
-    bloc = ((tmp_path / "app.py").read_text(encoding="utf-8")
+    block = ((tmp_path / "app.py").read_text(encoding="utf-8")
             .split("def delete_ligne(")[1].split("\n@app.")[0])
-    lecture = bloc.index('SELECT "quantite", "produit_id"')
-    suppression = bloc.index('DELETE FROM "ligne"')
-    assert lecture < suppression, "the quantity is read after the deletion"
+    lecture = block.index('SELECT "quantite", "produit_id"')
+    deletion = block.index('DELETE FROM "ligne"')
+    assert lecture < deletion, "the quantity is read after the deletion"
 
 
 # --------------------------------------------------------------------------
@@ -513,7 +513,7 @@ def test_an_update_without_any_create_compiles(tmp_path, capsys):
     assert "def update_fiche(" in (tmp_path / "app.py").read_text(encoding="utf-8")
 
 
-SPEC_FUITE = """app Fuite
+SPEC_LEAK = """app Fuite
 
 entity Produit
     nom: String
@@ -557,10 +557,10 @@ def test_counting_rules_do_not_leak_from_one_entity_to_another(tmp_path, capsys)
     The coincidence that hid the defect: when `Create X` immediately precedes
     `Update X`, the variable contains the right rules. Another entity slipping in
     between is enough for that to no longer hold."""
-    (tmp_path / "spec.ml").write_text(SPEC_FUITE, encoding="utf-8")
+    (tmp_path / "spec.ml").write_text(SPEC_LEAK, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     capsys.readouterr()
-    bloc = ((tmp_path / "app.py").read_text(encoding="utf-8")
+    block = ((tmp_path / "app.py").read_text(encoding="utf-8")
             .split("def update_avis(")[1].split("\n@app.")[0])
-    assert '"stock"' not in bloc, "l'Update d'Avis touche au stock d'un Produit"
-    assert "_delta" not in bloc
+    assert '"stock"' not in block, "l'Update d'Avis touche au stock d'un Produit"
+    assert "_delta" not in block

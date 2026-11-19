@@ -27,7 +27,7 @@ from tests.support.cases import check_each_case
 
 RACINE = Path(__file__).resolve().parent.parent
 
-SOCLE = """app Vitrine
+BASE = """app Vitrine
 
 entity Realisation
     titre: String
@@ -47,16 +47,16 @@ landing
 """
 
 
-def _spec(champs="", regles="rule Realisation.Read public", relation="", seed=""):
-    return SOCLE.format(champs=champs, regles=regles, relation=relation, seed=seed)
+def _spec(fields="", rules="rule Realisation.Read public", relation="", seed=""):
+    return BASE.format(champs=fields, regles=rules, relation=relation, seed=seed)
 
 
-def _compile(spec, dossier):
+def _compile(spec, folder):
     """The PLATFORM path: `base_dir` is the project folder, so the existence of
     declared files is really checked (point 83)."""
     with contextlib.redirect_stdout(io.StringIO()):
         return MonlAST(parse_monl_string(spec),
-                       base_dir=str(dossier)).validate_and_audit()
+                       base_dir=str(folder)).validate_and_audit()
 
 
 # --- what the compiler REALLY does -------------------------------------------
@@ -64,9 +64,9 @@ def _compile(spec, dossier):
 def test_an_upload_field_compiles(tmp_path):
     """The file sent at RUNTIME: that is what the table denied."""
     spec = _spec(
-        champs="    piece: Upload\n",
+        fields="    piece: Upload\n",
         relation="\nrelation Admin hasMany Realisation\n",
-        regles=('rule Realisation.piece upload max 5242880 types "image/png"\n'
+        rules=('rule Realisation.piece upload max 5242880 types "image/png"\n'
                 "rule Realisation.Read ownedBy Admin\n"
                 "rule Realisation.Update ownedBy Admin"))
     assert _compile(spec, tmp_path)["meta"]["appName"] == "Vitrine"
@@ -75,7 +75,7 @@ def test_an_upload_field_compiles(tmp_path):
 def test_an_image_field_without_value_compiles(tmp_path):
     """An `Image` field declares a TYPE, not a path — there is nothing to check
     as long as no value designates a file."""
-    assert _compile(_spec(champs="    photo: Image\n"), tmp_path)
+    assert _compile(_spec(fields="    photo: Image\n"), tmp_path)
 
 
 def test_a_declared_but_missing_asset_is_refused(tmp_path):
@@ -87,7 +87,7 @@ def test_a_declared_but_missing_asset_is_refused(tmp_path):
 
 
 def test_an_image_value_pointing_to_a_missing_file_is_refused(tmp_path):
-    spec = _spec(champs="    photo: Image\n",
+    spec = _spec(fields="    photo: Image\n",
                  seed='\nseed Realisation\n    titre: "Halo"\n'
                       '    photo: "absente.jpg"\n')
     with pytest.raises(ASTValidationError, match=re.escape("absente.jpg")):
@@ -103,28 +103,28 @@ def test_no_limit_denies_upload_at_runtime(tmp_path):
     line of the table may say that no file can be sent. Copying the expected
     sentence would only measure my own copy."""
     spec = _spec(
-        champs="    piece: Upload\n",
+        fields="    piece: Upload\n",
         relation="\nrelation Admin hasMany Realisation\n",
-        regles=('rule Realisation.piece upload max 5242880 types "image/png"\n'
+        rules=('rule Realisation.piece upload max 5242880 types "image/png"\n'
                 "rule Realisation.Read ownedBy Admin\n"
                 "rule Realisation.Update ownedBy Admin"))
     _compile(spec, tmp_path)                      # fails here if it no longer compiles
 
-    for titre, texte in LIMITES:
-        entier = f"{titre} {texte}".lower()
-        assert "no upload" not in entier, (
+    for title, text in LIMITES:
+        whole = f"{title} {text}".lower()
+        assert "no upload" not in whole, (
             f"the table denies upload while an `Upload` spec "
-            f"compiles: \"{titre}\"")
+            f"compiles: \"{title}\"")
 
 
 def test_the_file_limit_names_both_moments():
     """A limit that does not say WHEN the file arrives suggests the platform
     accepts none — that is the reading that went stale."""
-    ligne = next((f"{t} {x}" for t, x in LIMITES
+    line = next((f"{t} {x}" for t, x in LIMITES
                   if "compile" in t.lower()), None)
-    assert ligne, f"no line on the compilation files: {LIMITES}"
-    assert "Upload" in ligne
-    assert "assets" in ligne
+    assert line, f"no line on the compilation files: {LIMITES}"
+    assert "Upload" in line
+    assert "assets" in line
 
 
 # --- what the reader is told to install --------------------------------------
@@ -144,7 +144,7 @@ def _distribution_name():
         return tomllib.load(f)["project"]["name"]
 
 
-def _names_installed_from_an_index(texte):
+def _names_installed_from_an_index(text):
     """The names `pip install` / `pipx install` commands will LOOK UP on an index,
     as opposed to a local path or a requirements file.
 
@@ -152,22 +152,22 @@ def _names_installed_from_an_index(texte):
     dash; the argument following `-r`, `-c` or `--requirement` is a FILE. The
     extra (`[ai]`) and a version constraint (`==0.9.0b9`) are removed: the NAME
     decides what is installed."""
-    noms = []
-    for commande in re.findall(r"pipx? install ([^<\n`]*)", texte):
-        suivant_est_un_fichier = False
-        for brut in commande.split():
+    names = []
+    for command in re.findall(r"pipx? install ([^<\n`]*)", text):
+        next_is_a_file = False
+        for brut in command.split():
             argument = brut.strip("\"'")
-            if suivant_est_un_fichier:
-                suivant_est_un_fichier = False
+            if next_is_a_file:
+                next_is_a_file = False
                 continue
             if argument in {"-r", "-c", "--requirement", "--constraint"}:
-                suivant_est_un_fichier = True
+                next_is_a_file = True
                 continue
             if (not argument or argument.startswith(("-", ".", "/", "~"))
                     or "/" in argument):
                 continue
-            noms.append(re.split(r"[\[=<>!~;]", argument)[0])
-    return noms
+            names.append(re.split(r"[\[=<>!~;]", argument)[0])
+    return names
 
 
 def test_the_extractor_tells_a_name_from_a_path():
@@ -199,13 +199,13 @@ def test_an_installation_from_an_index_names_the_real_distribution():
     step."""
     table = ["README.md", "QUICKSTART.md"]
 
-    def cas(chemin):
-        nom = _distribution_name()
-        etrangers = [n for n in _names_installed_from_an_index(
-            (RACINE / chemin).read_text(encoding="utf-8")) if n != nom]
-        assert not etrangers, (
-            f"{chemin} installs from an index something other than {nom}: "
-        f"{etrangers}")
+    def cas(path):
+        name = _distribution_name()
+        foreign = [n for n in _names_installed_from_an_index(
+            (RACINE / path).read_text(encoding="utf-8")) if n != name]
+        assert not foreign, (
+            f"{path} installs from an index something other than {name}: "
+        f"{foreign}")
 
     check_each_case([(valeur,) for valeur in table], cas)
 
@@ -213,8 +213,8 @@ def test_an_installation_from_an_index_names_the_real_distribution():
 def test_the_guide_only_installs_the_real_distribution():
     """Same rule on the SERVED page, not on the module constant: point 163 saw a
     page break between the two."""
-    nom = _distribution_name()
-    etrangers = [n for n in _names_installed_from_an_index(guide_html())
-                 if n != nom]
-    assert not etrangers, (
-        f"the served guide installs something other than {nom}: {etrangers}")
+    name = _distribution_name()
+    foreign = [n for n in _names_installed_from_an_index(guide_html())
+                 if n != name]
+    assert not foreign, (
+        f"the served guide installs something other than {name}: {foreign}")

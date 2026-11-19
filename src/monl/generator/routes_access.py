@@ -8,7 +8,7 @@ from string import Template
 from . import sql
 
 
-class AccesRoutesMixin:
+class AccessRoutesMixin:
     """The access context of a route: who may, and on which rows."""
 
     def _route_access_context(self, plan):

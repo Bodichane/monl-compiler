@@ -21,20 +21,20 @@ import monl
 RACINE = Path(__file__).resolve().parents[1]
 
 
-def _initialize(espace):
-    requete = {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+def _initialize(space):
+    query = {"jsonrpc": "2.0", "id": 1, "method": "initialize",
                "params": {"protocolVersion": "2025-06-18", "capabilities": {},
                           "clientInfo": {"name": "temoin", "version": "0"}}}
-    env = dict(os.environ, MONL_PLATFORM_WORKSPACE=str(espace))
-    sortie = subprocess.run(
+    env = dict(os.environ, MONL_PLATFORM_WORKSPACE=str(space))
+    output = subprocess.run(
         [sys.executable, "-m", "monl_platform.mcp_server"],
-        input=json.dumps(requete) + "\n", capture_output=True, text=True,
+        input=json.dumps(query) + "\n", capture_output=True, text=True,
         timeout=30, env=env, check=True)
-    lignes = [json.loads(ligne) for ligne in sortie.stdout.splitlines() if ligne.strip()]
+    lines = [json.loads(line) for line in output.stdout.splitlines() if line.strip()]
     # Non-emptiness: without an answer, the comparisons below would bear on
     # nothing (point 161).
-    assert lignes, sortie.stderr
-    return lignes[0]["result"]["serverInfo"]
+    assert lines, output.stderr
+    return lines[0]["result"]["serverInfo"]
 
 
 def test_the_mcp_server_announces_the_package_version(tmp_path):
@@ -46,7 +46,7 @@ def test_the_mcp_server_announces_the_package_version(tmp_path):
         import tomllib
     except ModuleNotFoundError:      # 3.10 : `tomllib` n'arrive qu'en 3.11
         import tomli as tomllib      # noqa: I001  (declared in the `dev` extra)
-    projet = tomllib.loads((RACINE / "pyproject.toml").read_text(encoding="utf-8"))
+    project = tomllib.loads((RACINE / "pyproject.toml").read_text(encoding="utf-8"))
     # Through `Version` and never as strings: `0.9.0-beta.10` and `0.9.0b10`
     # are the same version (point 169).
-    assert Version(info["version"]) == Version(projet["project"]["version"])
+    assert Version(info["version"]) == Version(project["project"]["version"])

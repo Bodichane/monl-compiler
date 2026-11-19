@@ -10,10 +10,10 @@ import re
 from .base import ASTValidationError
 
 
-class ChampsServeurMixin:
+class FieldsServerMixin:
     """The fields the SERVER fills, which the client cannot write."""
 
-    def _valider_champs_generes(self):
+    def _validate_fields_generated(self):
         """Validates the pseudonyms generated on the server side."""
         self.generated_fields = []
         seen_fields = set()
@@ -51,7 +51,7 @@ class ChampsServeurMixin:
                 )
             self.generated_fields.append({"entity": entity, "field": field})
 
-    def _valider_champs_horodates(self):
+    def _validate_fields_timestamped(self):
         """Validates the creation moments assigned by the server."""
         self.timestamp_fields = []
         seen_fields = set()
@@ -69,13 +69,13 @@ class ChampsServeurMixin:
                 )
             field_type = self.entities.get(entity, {}).get(field)
             if field_type != "DateTime":
-                indice = (
+                index = (
                     " -- 'Date' would truncate the time known by the server, and two records from the same day "
                     "could no longer be ordered" if field_type == "Date" else ""
                 )
                 raise ASTValidationError(
                     f"Structure: 'timestamp' targets field '{entity}.{field}', which must be "
-                    f"a declared DateTime attribute (got: {field_type or 'field does not exist'}){indice}."
+                    f"a declared DateTime attribute (got: {field_type or 'field does not exist'}){index}."
                 )
             if (entity, field) in self.masked_fields:
                 raise ASTValidationError(
@@ -101,33 +101,33 @@ class ChampsServeurMixin:
     # mandatory one: without it, every record would carry the same number — a
     # rule that produces nothing (point 85), plus a unique index that would
     # refuse the second creation.
-    JALONS_DATE = ("YYYY", "MM", "DD")
+    MILESTONES_DATE = ("YYYY", "MM", "DD")
 
-    def _periode_du_gabarit(self, gabarit):
+    def _period_of_template(self, template):
         """What the sequence RESETS on: '' (never), 'YYYY', 'YYYY-MM' or
         'YYYY-MM-DD'.
 
         Deduced from the date milestones present, never declared separately: two
         ways of saying the same thing would end up contradicting each other."""
-        milestones = [j for j in self.JALONS_DATE if "{" + j + "}" in gabarit]
+        milestones = [j for j in self.MILESTONES_DATE if "{" + j + "}" in template]
         return "-".join(milestones)
 
-    def _valider_gabarit_de_numero(self, entity, field, gabarit):
+    def _validate_template_of_number(self, entity, field, template):
         """Five refusals on the shape of the template itself."""
-        jalons = re.findall(r"\{([^{}]*)\}", gabarit)
+        milestones = re.findall(r"\{([^{}]*)\}", template)
         # An orphan brace would not be seen by the search above: count it
         # separately, otherwise 'CMD-{YYYY' would pass for text.
-        if gabarit.count("{") != len(jalons) or gabarit.count("}") != len(jalons):
+        if template.count("{") != len(milestones) or template.count("}") != len(milestones):
             raise ASTValidationError(
                 f"Structure: the 'numbered' format for '{entity}.{field}' has an "
-                f"unmatched brace: {gabarit!r}.")
-        sequences = [j for j in jalons if set(j) == {"N"}]
-        inconnus = [j for j in jalons
-                    if j not in self.JALONS_DATE and set(j) != {"N"}]
-        if inconnus:
+                f"unmatched brace: {template!r}.")
+        sequences = [j for j in milestones if set(j) == {"N"}]
+        unknown = [j for j in milestones
+                    if j not in self.MILESTONES_DATE and set(j) != {"N"}]
+        if unknown:
             raise ASTValidationError(
                 f"Structure: the 'numbered' format for '{entity}.{field}' uses "
-                f"{', '.join(repr('{' + j + '}') for j in inconnus)}, which has no "
+                f"{', '.join(repr('{' + j + '}') for j in unknown)}, which has no "
                 f"meaning. Accepted tokens: '{{YYYY}}', '{{MM}}', '{{DD}}', and a sequence "
                 f"of Ns ('{{NNNN}}' = four digits).")
         if not sequences:
@@ -145,16 +145,16 @@ class ChampsServeurMixin:
         #
         # strict=False on purpose: each milestone is paired with the NEXT one,
         # so the two sequences deliberately do not have the same length.
-        for previous, suivant in zip(self.JALONS_DATE, self.JALONS_DATE[1:],
+        for previous, next_ in zip(self.MILESTONES_DATE, self.MILESTONES_DATE[1:],
                                      strict=False):
-            if "{" + suivant + "}" in gabarit and "{" + previous + "}" not in gabarit:
+            if "{" + next_ + "}" in template and "{" + previous + "}" not in template:
                 raise ASTValidationError(
                     f"Structure: the 'numbered' format for '{entity}.{field}' uses "
-                    f"'{{{suivant}}}' without '{{{previous}}}' -- the sequence would reset "
+                    f"'{{{next_}}}' without '{{{previous}}}' -- the sequence would reset "
                     f"without the number identifying the period, and "
                     f"two records would eventually have the same number.")
 
-    def _valider_champs_numerotes(self):
+    def _validate_fields_numbered(self):
         """Validates the readable numbers generated on the server side."""
         self.numbered_fields = []
         for rule in self.rules:
@@ -171,13 +171,13 @@ class ChampsServeurMixin:
                 )
             field_type = self.entities.get(entity, {}).get(field)
             if field_type != "String":
-                indice = (
+                index = (
                     " -- a 'UUID' validates its format as of point 101, and a readable number does not have that format"
                     if field_type == "UUID" else ""
                 )
                 raise ASTValidationError(
                     f"Structure: 'numbered' targets field '{entity}.{field}', which must "
-                    f"be a declared String attribute (got: {field_type or 'field does not exist'}){indice}."
+                    f"be a declared String attribute (got: {field_type or 'field does not exist'}){index}."
                 )
             if (entity, field) in self.masked_fields:
                 raise ASTValidationError(
@@ -189,8 +189,8 @@ class ChampsServeurMixin:
                 raise ASTValidationError(
                     f"Structure: multiple 'numbered' rules declared for '{entity}.{field}' -- only one is allowed."
                 )
-            self._valider_gabarit_de_numero(entity, field, rule["value"])
+            self._validate_template_of_number(entity, field, rule["value"])
             self.numbered_fields.append({
                 "entity": entity, "field": field, "format": rule["value"],
-                "periode": self._periode_du_gabarit(rule["value"]),
+                "periode": self._period_of_template(rule["value"]),
             })

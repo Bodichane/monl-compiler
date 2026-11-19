@@ -31,33 +31,33 @@ SOURCE = pathlib.Path(coloration.__file__).read_text(encoding="utf-8")
 # The code backgrounds, one per theme. The LIGHT one is the hardest: the
 # thresholds are held on it.
 FOND_CLAIR = "#2e2b25"
-FOND_SOMBRE = "#0f0e0c"
+FOND_DARK = "#0f0e0c"
 
-SEUIL_TEXTE = 4.5       # WCAG 1.4.3 — code is read, it is not a graphic
-ECART_TEINTE = 35       # degrees
-ECART_CLARTE = 1.35     # rapport de contraste entre deux jetons
-ECART_CHROMA = 40       # out of 255 — what separates a gray from a clear color
-CHROMA_COLORE = 30      # below this, hue carries nothing any more
-
-
-def _rvb(couleur):
-    return [int(couleur[i:i + 2], 16) for i in (1, 3, 5)]
+THRESHOLD_TEXT = 4.5       # WCAG 1.4.3 — code is read, it is not a graphic
+GAP_HUE = 35       # degrees
+GAP_CLARITY = 1.35     # rapport de contraste entre deux jetons
+GAP_CHROMA = 40       # out of 255 — what separates a gray from a clear color
+CHROMA_COLORED = 30      # below this, hue carries nothing any more
 
 
-def _chroma(couleur):
-    canaux = _rvb(couleur)
-    return max(canaux) - min(canaux)
+def _rgb(color):
+    return [int(color[i:i + 2], 16) for i in (1, 3, 5)]
 
 
-def _teinte(couleur):
-    return colorsys.rgb_to_hsv(*[v / 255 for v in _rvb(couleur)])[0] * 360
+def _chroma(color):
+    channels = _rgb(color)
+    return max(channels) - min(channels)
 
 
-def _luminance(couleur):
-    def lineaire(v):
+def _hue(color):
+    return colorsys.rgb_to_hsv(*[v / 255 for v in _rgb(color)])[0] * 360
+
+
+def _luminance(color):
+    def linear(v):
         return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
-    r, v, b = (c / 255 for c in _rvb(couleur))
-    return 0.2126 * lineaire(r) + 0.7152 * lineaire(v) + 0.0722 * lineaire(b)
+    r, v, b = (c / 255 for c in _rgb(color))
+    return 0.2126 * linear(r) + 0.7152 * linear(v) + 0.0722 * linear(b)
 
 
 def _contraste(a, b):
@@ -73,10 +73,10 @@ def _palette():
     """
     css = "\n".join(re.findall(r"<style[^>]*>(.*?)</style>", LANDING_HTML, re.S | re.I))
     palette = dict(re.findall(r"--(s-\w+):\s*(#[0-9a-fA-F]{6})", css))
-    encre = re.search(r"--code-ink:\s*(#[0-9a-fA-F]{6})", css)
+    ink = re.search(r"--code-ink:\s*(#[0-9a-fA-F]{6})", css)
     assert palette, "no --s-* color in the stylesheet: the test no longer guards anything"
-    assert encre, "--code-ink introuvable"
-    return palette, encre.group(1)
+    assert ink, "--code-ink introuvable"
+    return palette, ink.group(1)
 
 
 def test_keywords_are_derived_from_the_grammar():
@@ -86,36 +86,36 @@ def test_keywords_are_derived_from_the_grammar():
     116). If they are colored WITHOUT appearing in the source, the derivation
     holds. Copying a list would make the names appear: the test fails.
     """
-    tardifs = ("publicWhen", "oncePer", "numbered", "releases",
+    late = ("publicWhen", "oncePer", "numbered", "releases",
                "writableAfterPayment", "requiresOwn", "derivedFrom", "sumOf")
 
-    for mot in tardifs:
-        assert coloration._classe_du_mot(mot) == "s-kw", f"{mot} is no longer highlighted"
-        assert mot not in SOURCE, (
-            f"{mot} is WRITTEN in coloration.py: the list became a copy again")
+    for word in late:
+        assert coloration._class_of_word(word) == "s-kw", f"{word} is no longer highlighted"
+        assert word not in SOURCE, (
+            f"{word} is WRITTEN in coloration.py: the list became a copy again")
 
 
-def test_a_word_absent_from_the_grammar_takes_no_color():
+def test_a_word_missing_from_the_grammar_takes_no_color():
     """The counter-proof of the derivation.
 
     Without it, a function coloring EVERYTHING would make the previous test
     green without deriving anything at all.
     """
-    assert coloration._classe_du_mot("entity") == "s-kw"
-    assert coloration._classe_du_mot("courriel") is None
-    assert coloration._classe_du_mot("libelle") is None
-    assert coloration._classe_du_mot("Commande") == "s-nom", "a declared name"
+    assert coloration._class_of_word("entity") == "s-kw"
+    assert coloration._class_of_word("courriel") is None
+    assert coloration._class_of_word("libelle") is None
+    assert coloration._class_of_word("Commande") == "s-nom", "a declared name"
 
 
 def test_each_token_color_reads_on_both_code_backgrounds():
-    palette, encre = _palette()
+    palette, ink = _palette()
 
-    for nom, couleur in sorted(palette.items()):
-        for fond in (FOND_CLAIR, FOND_SOMBRE):
-            mesure = _contraste(couleur, fond)
-            assert mesure >= SEUIL_TEXTE, (
-                f"--{nom} ({couleur}) drops to {mesure:.2f}:1 on {fond} — "
-                f"below the text threshold ({SEUIL_TEXTE}:1)")
+    for name, color in sorted(palette.items()):
+        for fond in (FOND_CLAIR, FOND_DARK):
+            measure = _contraste(color, fond)
+            assert measure >= THRESHOLD_TEXT, (
+                f"--{name} ({color}) drops to {measure:.2f}:1 on {fond} — "
+                f"below the text threshold ({THRESHOLD_TEXT}:1)")
 
 
 def test_no_color_pair_is_indistinguishable():
@@ -128,21 +128,21 @@ def test_no_color_pair_is_indistinguishable():
     measured at 1.1:1 with 12 chroma apart. The ink enters the comparison: a
     token resembling bare text colors nothing.
     """
-    palette, encre = _palette()
-    toutes = dict(palette, encre=encre)
+    palette, ink = _palette()
+    all_ = dict(palette, encre=ink)
     confuses = []
 
-    for (a, ca), (b, cb) in itertools.combinations(sorted(toutes.items()), 2):
-        ecart_teinte = min(abs(_teinte(ca) - _teinte(cb)),
-                           360 - abs(_teinte(ca) - _teinte(cb)))
-        colorees = _chroma(ca) >= CHROMA_COLORE and _chroma(cb) >= CHROMA_COLORE
-        distincts = (
-            (colorees and ecart_teinte >= ECART_TEINTE)
-            or _contraste(ca, cb) >= ECART_CLARTE
-            or abs(_chroma(ca) - _chroma(cb)) >= ECART_CHROMA
+    for (a, ca), (b, cb) in itertools.combinations(sorted(all_.items()), 2):
+        gap_hue = min(abs(_hue(ca) - _hue(cb)),
+                           360 - abs(_hue(ca) - _hue(cb)))
+        colored = _chroma(ca) >= CHROMA_COLORED and _chroma(cb) >= CHROMA_COLORED
+        distinct = (
+            (colored and gap_hue >= GAP_HUE)
+            or _contraste(ca, cb) >= GAP_CLARITY
+            or abs(_chroma(ca) - _chroma(cb)) >= GAP_CHROMA
         )
-        if not distincts:
-            confuses.append(f"{a}/{b} : {ecart_teinte:.0f}°, "
+        if not distinct:
+            confuses.append(f"{a}/{b} : {gap_hue:.0f}°, "
                             f"{_contraste(ca, cb):.2f}:1, "
                             f"Δchroma {abs(_chroma(ca) - _chroma(cb))}")
 
@@ -155,18 +155,18 @@ def test_the_home_page_spec_really_uses_several_families():
     Without this count, replacing the highlighting with a `<span class="s-kw">`
     put on everything would leave the page "colored" and the site monochrome.
     """
-    familles = set(re.findall(r'class="(s-\w+)"', LANDING_HTML))
-    jetons = len(re.findall(r'class="s-\w+"', LANDING_HTML))
+    families = set(re.findall(r'class="(s-\w+)"', LANDING_HTML))
+    tokens = len(re.findall(r'class="s-\w+"', LANDING_HTML))
 
-    assert len(familles) >= 5, f"only {sorted(familles)} on the home page"
-    assert jetons >= 40, f"{jetons} colored tokens: the spec is no longer highlighted"
+    assert len(families) >= 5, f"only {sorted(families)} on the home page"
+    assert tokens >= 40, f"{tokens} colored tokens: the spec is no longer highlighted"
 
 
 # The classes that put a phrase BEFORE a title. Two and not one: the first pass
 # had only removed `.eyebrow`, and the three positioning cards carried their
 # overline under another name (`01 · INFRASTRUCTURE`). Looking for a single
 # name kept half of the rule.
-SURTITRES = ("eyebrow", "stage-no")
+OVERLINES = ("eyebrow", "stage-no")
 
 
 def test_no_section_carries_an_overline_any_more():
@@ -179,12 +179,12 @@ def test_no_section_carries_an_overline_any_more():
              "sécurité": SECURITY_HTML, "connexion": AUTH_HTML,
              "compte": ACCOUNT_HTML}
 
-    for nom, page in pages.items():
+    for name, page in pages.items():
         assert "<section" in page or "<main" in page, (
-            f"the {nom} page no longer has a section: the test no longer guards anything")
-        for classe in SURTITRES:
-            assert f'class="{classe}"' not in page, (
-                f"an .{classe} overline came back on the {nom} page")
+            f"the {name} page no longer has a section: the test no longer guards anything")
+        for class_ in OVERLINES:
+            assert f'class="{class_}"' not in page, (
+                f"an .{class_} overline came back on the {name} page")
 
 
 def test_no_rule_dresses_a_vanished_overline():
@@ -194,8 +194,8 @@ def test_no_rule_dresses_a_vanished_overline():
     no noise. `.flow-stage .stage-no` left with the markup it dressed; the
     deliberate exception is `.eyebrow`, still used by the error page.
     """
-    feuille = "\n".join(re.findall(r"<style[^>]*>(.*?)</style>",
+    sheet = "\n".join(re.findall(r"<style[^>]*>(.*?)</style>",
                                    LANDING_HTML, re.S | re.I))
-    assert feuille, "the stylesheet is no longer inlined"
-    assert "stage-no" not in feuille, (
+    assert sheet, "the stylesheet is no longer inlined"
+    assert "stage-no" not in sheet, (
         "a rule still styles an overline that no longer exists")

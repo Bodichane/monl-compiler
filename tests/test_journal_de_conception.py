@@ -17,10 +17,10 @@ import re
 import unicodedata
 from pathlib import Path
 
-JOURNAL = Path(__file__).resolve().parent.parent / "docs" / "design_decisions.md"
+LOG = Path(__file__).resolve().parent.parent / "docs" / "design_decisions.md"
 
 
-def ancre_github(titre):
+def anchor_github(title):
     """The anchor GitHub makes for a section heading.
 
     Lowercase, punctuation removed, spaces turned into dashes — accented letters
@@ -28,25 +28,25 @@ def ancre_github(titre):
     by spaces ("Brique 29 : le site") leaves two spaces, hence TWO dashes: the
     detail is not cosmetic, it separates a right link from a dead one.
     """
-    texte = titre.strip().lower()
-    texte = "".join(c for c in texte
+    text = title.strip().lower()
+    text = "".join(c for c in text
                     if c.isalnum() or c in " -_"
                     or unicodedata.category(c).startswith("M"))
-    return texte.replace(" ", "-")
+    return text.replace(" ", "-")
 
 
 def _titles_and_links():
-    contenu = JOURNAL.read_text(encoding="utf-8")
-    titres = [(m.group(1), m.group(0)[3:])
-              for m in re.finditer(r"^## (\d+)\. .+$", contenu, re.M)]
-    liens = re.findall(r"\[(\d+)\]\(#([^)]+)\)", contenu)
-    return titres, liens
+    content = LOG.read_text(encoding="utf-8")
+    titles = [(m.group(1), m.group(0)[3:])
+              for m in re.finditer(r"^## (\d+)\. .+$", content, re.M)]
+    links = re.findall(r"\[(\d+)\]\(#([^)]+)\)", content)
+    return titles, links
 
 
 def test_each_contents_link_reaches_a_heading():
-    titres, liens = _titles_and_links()
-    ancres = {ancre_github(titre) for _, titre in titres}
-    pendants = [f"[{num}](#{lien})" for num, lien in liens if lien not in ancres]
+    titles, links = _titles_and_links()
+    anchors = {anchor_github(title) for _, title in titles}
+    pendants = [f"[{num}](#{link})" for num, link in links if link not in anchors]
     assert not pendants, (
         f"{len(pendants)} contents link(s) lead nowhere: {pendants}")
 
@@ -56,30 +56,30 @@ def test_each_contents_link_reaches_a_heading():
 # in code comments. Its absence from the contents list is deliberate: it has no
 # content to reach. The exception is WRITTEN here rather than guessed,
 # otherwise the test would merely observe it.
-SANS_CONTENU = {"6"}
+WITHOUT_CONTENT = {"6"}
 
 
-def test_each_journal_point_is_in_the_contents():
+def test_each_log_point_is_in_the_contents():
     """The counterpart: a point written and never listed is a point nobody
     finds. Both directions are guarded, because both mistakes exist — the
     contents list citing a vanished heading, and the heading the list forgets."""
-    titres, liens = _titles_and_links()
-    listes = {num for num, _ in liens}
-    absents = sorted({num for num, _ in titres} - listes - SANS_CONTENU, key=int)
-    assert not absents, f"points missing from the contents: {absents}"
+    titles, links = _titles_and_links()
+    lists = {num for num, _ in links}
+    missing = sorted({num for num, _ in titles} - lists - WITHOUT_CONTENT, key=int)
+    assert not missing, f"points missing from the contents: {missing}"
 
 
 def test_the_anchor_rule_is_githubs():
     """The witness. Without it, a WRONG anchor algorithm would make both tests
     above green by comparing two errors with each other."""
-    assert (ancre_github("137. Brique 29 : le site réclamait six fichiers")
+    assert (anchor_github("137. Brique 29 : le site réclamait six fichiers")
             == "137-brique-29--le-site-réclamait-six-fichiers")
-    assert (ancre_github("110. Rust évalué par un spike mesuré, et écarté")
+    assert (anchor_github("110. Rust évalué par un spike mesuré, et écarté")
             == "110-rust-évalué-par-un-spike-mesuré-et-écarté")
-    assert ancre_github("42. L'apostrophe disparaît") == "42-lapostrophe-disparaît"
+    assert anchor_github("42. L'apostrophe disparaît") == "42-lapostrophe-disparaît"
 
 
-RESUME = JOURNAL.parent / "DESIGN_DECISIONS_SUMMARY.md"
+RESUME = LOG.parent / "DESIGN_DECISIONS_SUMMARY.md"
 
 
 def _summary_links():
@@ -87,7 +87,7 @@ def _summary_links():
                       RESUME.read_text(encoding="utf-8"))
 
 
-def test_the_english_summary_follows_the_journal_contents():
+def test_the_english_summary_follows_the_log_contents():
     """The journal stays in French; its English summary is its map.
 
     A map that forgets a point does not show: it simply gives a shorter page.
@@ -96,10 +96,10 @@ def test_the_english_summary_follows_the_journal_contents():
     summary link that no longer targets anything (the contents list's links
     being themselves guarded by the test above).
     """
-    _, liens = _titles_and_links()
+    _, links = _titles_and_links()
     resume = _summary_links()
-    assert liens, "no link read in the contents: the extractor no longer looks at anything"
-    manquants = sorted(set(liens) - set(resume), key=lambda lien: int(lien[0]))
-    orphelins = sorted(set(resume) - set(liens), key=lambda lien: int(lien[0]))
-    assert not manquants, f"journal points missing from the English summary: {manquants}"
-    assert not orphelins, f"English summary links outside the contents: {orphelins}"
+    assert links, "no link read in the contents: the extractor no longer looks at anything"
+    missing = sorted(set(links) - set(resume), key=lambda link: int(link[0]))
+    orphans = sorted(set(resume) - set(links), key=lambda link: int(link[0]))
+    assert not missing, f"journal points missing from the English summary: {missing}"
+    assert not orphans, f"English summary links outside the contents: {orphans}"

@@ -4,7 +4,7 @@ import os
 import posixpath
 import re
 
-_FETCH_CHEMIN = re.compile(
+_FETCH_PATH = re.compile(
     r"\bfetch\s*\(\s*(?P<quote>['\"`])(?P<path>.*?)(?P=quote)"
     r"(?=\s*(?:,|\)))",
     re.IGNORECASE | re.DOTALL,
@@ -63,7 +63,7 @@ def _add_fetch_call(calls, path, suffix, dynamic_suffix=False, suffix_text=""):
 
 def _direct_fetch_calls(source):
     calls = set()
-    for match in _FETCH_CHEMIN.finditer(source):
+    for match in _FETCH_PATH.finditer(source):
         _add_fetch_call(calls, match.group("path"), source[match.end():])
     return calls
 

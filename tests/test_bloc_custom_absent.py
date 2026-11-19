@@ -40,7 +40,7 @@ workflow Ecrire for Auteur
     Read Note
 """
 
-AVEC_CUSTOM = SANS_CUSTOM + textwrap.dedent("""
+WITH_CUSTOM = SANS_CUSTOM + textwrap.dedent("""
     custom Publier
         description: "Publie une note"
         input: titre: String
@@ -48,18 +48,18 @@ AVEC_CUSTOM = SANS_CUSTOM + textwrap.dedent("""
     """)
 
 
-def _compiler(source, dossier):
+def _compiler(source, folder):
     ast = MonlAST(parse_monl_string(source)).validate_and_audit()
-    MonlSecureGenerator(ast, output_dir=str(dossier)).generate_all()
-    return dossier
+    MonlSecureGenerator(ast, output_dir=str(folder)).generate_all()
+    return folder
 
 
 def test_without_custom_block_the_module_is_neither_written_nor_imported(tmp_path):
     """Neither the file nor the import: nothing that serves no purpose."""
-    dossier = _compiler(SANS_CUSTOM, tmp_path / "sans")
-    app = (dossier / "app.py").read_text(encoding="utf-8")
+    folder = _compiler(SANS_CUSTOM, tmp_path / "sans")
+    app = (folder / "app.py").read_text(encoding="utf-8")
 
-    assert not (dossier / "sandbox_ai.py").exists(), (
+    assert not (folder / "sandbox_ai.py").exists(), (
         "an empty module is still shipped while the spec has no 'custom' block")
     assert "import sandbox_ai" not in app, (
         "app.py imports a module that does not exist — the server would not start")
@@ -72,23 +72,23 @@ def test_without_custom_block_the_backend_really_starts(tmp_path):
     is really imported, in a separate interpreter so as not to pollute the
     suite's.
     """
-    dossier = _compiler(SANS_CUSTOM, tmp_path / "demarre")
-    resultat = subprocess.run(
+    folder = _compiler(SANS_CUSTOM, tmp_path / "demarre")
+    result = subprocess.run(
         [sys.executable, "-c", "import app; assert app.app is not None; print('ok')"],
-        cwd=str(dossier), capture_output=True, text=True, timeout=120,
-        env={**os.environ, "PYTHONPATH": str(dossier)},
+        cwd=str(folder), capture_output=True, text=True, timeout=120,
+        env={**os.environ, "PYTHONPATH": str(folder)},
     )
-    assert resultat.returncode == 0, (
-        f"the application does not load:\n{resultat.stderr[-1500:]}")
-    assert "ok" in resultat.stdout
+    assert result.returncode == 0, (
+        f"the application does not load:\n{result.stderr[-1500:]}")
+    assert "ok" in result.stdout
 
 
 def test_with_a_custom_block_the_module_comes_back(tmp_path):
     """THE COUNTER-PROOF. Without it, never emitting the module again would make
     this test file green while killing the `custom` brick."""
-    dossier = _compiler(AVEC_CUSTOM, tmp_path / "avec")
-    app = (dossier / "app.py").read_text(encoding="utf-8")
-    sandbox = (dossier / "sandbox_ai.py").read_text(encoding="utf-8")
+    folder = _compiler(WITH_CUSTOM, tmp_path / "avec")
+    app = (folder / "app.py").read_text(encoding="utf-8")
+    sandbox = (folder / "sandbox_ai.py").read_text(encoding="utf-8")
 
     assert "import sandbox_ai" in app, "the 'custom' brick lost its module"
     assert "def publier" in sandbox.lower(), (
@@ -102,5 +102,5 @@ def test_the_two_compilations_do_not_give_the_same_app(tmp_path):
     nothing — exactly what the original defect is blamed for.
     """
     sans = _compiler(SANS_CUSTOM, tmp_path / "a") / "app.py"
-    avec = _compiler(AVEC_CUSTOM, tmp_path / "b") / "app.py"
-    assert sans.read_text(encoding="utf-8") != avec.read_text(encoding="utf-8")
+    with_ = _compiler(WITH_CUSTOM, tmp_path / "b") / "app.py"
+    assert sans.read_text(encoding="utf-8") != with_.read_text(encoding="utf-8")

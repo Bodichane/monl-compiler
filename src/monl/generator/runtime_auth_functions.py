@@ -5,7 +5,7 @@ A historical spec gains neither a route nor a byte by default."""
 from string import Template
 
 
-class FonctionsAuthRuntimeMixin:
+class FunctionsAuthRuntimeMixin:
     """The declared authentication flows (brick B4)."""
 
     def _generate_auth_feature_helpers(self):

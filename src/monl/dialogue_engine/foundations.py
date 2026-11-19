@@ -68,7 +68,7 @@ DESIGN_IMAGERY = [
 class DialogueError(Exception):
     """Repeated invalid answer or inconsistency — the engine never guesses."""
 
-def adresse_de_lien(saisie):
+def address_of_link(input_):
     """Returns the address as a browser will be able to open it, or None.
 
     SINGLE SOURCE, shared by the guided dialogue and by the platform's web
@@ -80,22 +80,22 @@ def adresse_de_lien(saisie):
     page on the site itself. Completing is not guessing as long as there is
     only ONE reading — and the caller SAYS what it completed, which is the
     whole difference from correcting automatically (point 105)."""
-    saisie = saisie.strip()
-    if not saisie:
+    input_ = input_.strip()
+    if not input_:
         return None
-    if saisie.lower().startswith(("https://", "http://", "mailto:", "tel:")):
-        return saisie
+    if input_.lower().startswith(("https://", "http://", "mailto:", "tel:")):
+        return input_
     # The phone BEFORE refusing spaces: "+33 6 12 34 56 78" is how everyone
     # writes a number, and it is the only value in this list that legitimately
     # contains them.
-    compact = saisie.replace(" ", "")
+    compact = input_.replace(" ", "")
     if re.fullmatch(r"\+?[0-9.\-]{6,20}", compact):
         return "tel:" + compact
-    if " " in saisie:
+    if " " in input_:
         return None
-    if "@" in saisie and "." in saisie.split("@")[-1]:
-        return "mailto:" + saisie
-    domaine = saisie.split("/")[0]
-    if "." in domaine and not domaine.startswith("."):
-        return "https://" + saisie
+    if "@" in input_ and "." in input_.split("@")[-1]:
+        return "mailto:" + input_
+    domain = input_.split("/")[0]
+    if "." in domain and not domain.startswith("."):
+        return "https://" + input_
     return None

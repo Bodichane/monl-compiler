@@ -11,7 +11,7 @@ from lark import Transformer, v_args
 
 
 @v_args(inline=True)
-class ReglesMixin(Transformer):
+class RulesMixin(Transformer):
     """The `rule`s — one NAMED production per rule.
 
     INHERITS FROM ``Transformer`` ON PURPOSE, and carries its OWN
@@ -27,13 +27,13 @@ class ReglesMixin(Transformer):
             data["value"] = str(value)
         return {"rule": data}
 
-    def oneof_rule(self, reference, *valeurs):
+    def oneof_rule(self, reference, *values):
         return {"rule": {"reference": str(reference), "type": "oneOf",
-                         "value": [str(v).strip('"') for v in valeurs]}}
+                         "value": [str(v).strip('"') for v in values]}}
 
-    def release_rule(self, reference, valeur, entite):
+    def release_rule(self, reference, valeur, entity):
         return {"rule": {"reference": str(reference), "type": "releases",
-                         "value": str(valeur).strip('"'), "entity": str(entite)}}
+                         "value": str(valeur).strip('"'), "entity": str(entity)}}
 
     def upload_rule(self, reference, maximum, *types):
         return {"rule": {
@@ -97,7 +97,7 @@ class ReglesMixin(Transformer):
     def masking_rule(self, reference):
         return {"rule": {"reference": str(reference), "type": "hidden"}}
 
-    def _quantite(self, amount):
+    def _quantity(self, amount):
         """"by 3" or "by quantity" — one is a constant, the other a field of the
         triggering entity (brick 14, point 86). The Lark token's type tells them
         apart: do not lose it here, the validator needs it."""
@@ -110,13 +110,13 @@ class ReglesMixin(Transformer):
     def decrement_rule(self, trigger_ref, target_ref, amount=None):
         return {"rule": {
             "reference": str(trigger_ref), "type": "decrements",
-            "value": str(target_ref), **self._quantite(amount),
+            "value": str(target_ref), **self._quantity(amount),
         }}
 
     def increment_rule(self, trigger_ref, target_ref, amount=None):
         return {"rule": {
             "reference": str(trigger_ref), "type": "increments",
-            "value": str(target_ref), **self._quantite(amount),
+            "value": str(target_ref), **self._quantity(amount),
         }}
 
     def category_below(self, label, threshold):
@@ -152,8 +152,8 @@ class ReglesMixin(Transformer):
     def timestamp_rule(self, reference):
         return {"rule": {"reference": str(reference), "type": "timestamp"}}
 
-    def numbering_rule(self, reference, gabarit):
-        token = str(gabarit)
+    def numbering_rule(self, reference, template):
+        token = str(template)
         return {"rule": {"reference": str(reference), "type": "numbered",
                          "value": token[1:-1].replace('\\"', '"')
                                              .replace('\\\\', '\\')}}

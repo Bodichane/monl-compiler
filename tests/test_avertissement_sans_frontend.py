@@ -16,29 +16,29 @@ from monl.cli import check_coherence, compile_project
 from tests.support.server import uvicorn_server
 
 
-class _SansRedirection(urllib.request.HTTPRedirectHandler):
+class _WithoutRedirection(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *args, **kwargs):
         return None
 
 
-_OUVREUR = urllib.request.build_opener(_SansRedirection)
+_OPENER = urllib.request.build_opener(_WithoutRedirection)
 
 
-def _statut(url):
+def _status(url):
     try:
-        with _OUVREUR.open(url, timeout=5) as r:
+        with _OPENER.open(url, timeout=5) as r:
             return r.status, r.headers.get("Location")
     except urllib.error.HTTPError as e:
         with e:
             return e.code, e.headers.get("Location")
 
 
-def _warning_without_frontend(projet):
-    ok, erreurs, avertissements = check_coherence(str(projet))
-    assert ok, erreurs
-    trouves = [a for a in avertissements if "frontend/" in a]
-    assert len(trouves) == 1, avertissements
-    return trouves[0]
+def _warning_without_frontend(project):
+    ok, errors, warnings = check_coherence(str(project))
+    assert ok, errors
+    found = [a for a in warnings if "frontend/" in a]
+    assert len(found) == 1, warnings
+    return found[0]
 
 
 def _cited_paths(message):
@@ -55,26 +55,26 @@ def test_each_path_announced_without_frontend_answers_as_announced(tmp_path, cap
     assert not (tmp_path / "frontend").exists()
 
     message = _warning_without_frontend(tmp_path)
-    chemins = _cited_paths(message)
+    paths = _cited_paths(message)
     # Non-emptiness: without an extracted path, the loop below would check
     # nothing and return green (point 161). We do NOT require a precise list:
     # the server, not a sentence copied here, judges each path.
-    assert chemins, message
+    assert paths, message
 
     with uvicorn_server(str(tmp_path), module="serve:app") as base:
-        for chemin in chemins:
-            statut, destination = _statut(base + chemin)
-            if chemin == "/site/":
+        for path in paths:
+            status, destination = _status(base + path)
+            if path == "/site/":
                 # The message says /site/ answers 404 without an interface: it
                 # must be TRUE, otherwise it promises a failure that does not
                 # happen.
-                assert statut == 404, (chemin, statut)
-            elif chemin == "/":
-                assert statut in (302, 307) and destination == "/docs", (
-                    chemin, statut, destination)
+                assert status == 404, (path, status)
+            elif path == "/":
+                assert status in (302, 307) and destination == "/docs", (
+                    path, status, destination)
             else:
-                assert statut == 200, (
-                    f"the warning cites {chemin}, which answers {statut}: "
+                assert status == 200, (
+                    f"the warning cites {path}, which answers {status}: "
                     f"a user opening it believes their deployment is broken")
 
 
@@ -90,7 +90,7 @@ def test_a_frontend_calling_app_is_reported(tmp_path, capsys):
         "<script>fetch('/app/tableau').then(r => r.json())</script>",
         encoding="utf-8")
 
-    _ok, _erreurs, avertissements = check_coherence(str(tmp_path))
-    absents = [a for a in avertissements
+    _ok, _errors, warnings = check_coherence(str(tmp_path))
+    missing = [a for a in warnings
                if "paths missing from the contract" in a]
-    assert absents and "/app" in absents[0], avertissements
+    assert missing and "/app" in missing[0], warnings

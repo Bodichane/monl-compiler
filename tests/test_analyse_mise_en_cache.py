@@ -13,24 +13,24 @@ from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
 
 
-def _spec_a_effets(n_familles):
+def _spec_a_effects(n_families):
     """A spec where each family carries a counter, a composite uniqueness and
     masking: that combination makes the same analyses queried from several
     nested loops."""
-    lignes = ["app BancCache", "", "entity Membre", "    pseudo: String",
+    lines = ["app BancCache", "", "entity Membre", "    pseudo: String",
               "    reputation: Integer", ""]
-    for i in range(n_familles):
-        lignes += [f"entity Publication{i}", "    auteur: String",
+    for i in range(n_families):
+        lines += [f"entity Publication{i}", "    auteur: String",
                    "    titre: String", "    mentions: Integer", "",
                    f"entity Appreciation{i}", "    note: Integer", ""]
-    lignes += ["actor Membre selfRegister", ""]
-    for i in range(n_familles):
-        lignes += [f"relation Membre hasMany Publication{i}",
+    lines += ["actor Membre selfRegister", ""]
+    for i in range(n_families):
+        lines += [f"relation Membre hasMany Publication{i}",
                    f"relation Membre hasMany Appreciation{i}",
                    f"relation Publication{i} hasMany Appreciation{i}"]
-    lignes.append("")
-    for i in range(n_familles):
-        lignes += [
+    lines.append("")
+    for i in range(n_families):
+        lines += [
             f"rule Publication{i}.titre required",
             f"rule Publication{i}.auteur generated",
             f"rule Publication{i}.Update ownedBy Membre",
@@ -38,40 +38,40 @@ def _spec_a_effets(n_familles):
             f"rule Appreciation{i}.Create oncePer Membre, Publication{i}",
             f"rule Appreciation{i}.Read ownedBy Membre",
         ]
-    lignes += ["", "workflow Participer for Membre"]
-    for i in range(n_familles):
+    lines += ["", "workflow Participer for Membre"]
+    for i in range(n_families):
         for action in ("Create", "Read", "Update"):
-            lignes.append(f"    {action} Publication{i}")
-        lignes += [f"    Create Appreciation{i}", f"    Read Appreciation{i}"]
-    return "\n".join(lignes) + "\n"
+            lines.append(f"    {action} Publication{i}")
+        lines += [f"    Create Appreciation{i}", f"    Read Appreciation{i}"]
+    return "\n".join(lines) + "\n"
 
 
-def _compiler(monkeypatch, n_familles):
+def _compiler(monkeypatch, n_families):
     """Compiles while counting the foreign key index rebuilds."""
-    appels = []
-    vrai = planning.plan_foreign_keys
+    calls = []
+    true = planning.plan_foreign_keys
 
     def account(relations):
-        appels.append(1)
-        return vrai(relations)
+        calls.append(1)
+        return true(relations)
 
     # The replacement targets the module where the name is LOOKED UP (point
     # 153): `model.py` imports the function, so that is where it is resolved.
     from monl.generator import model
     monkeypatch.setattr(model, "plan_foreign_keys", account)
 
-    ir = MonlAST(parse_monl_string(_spec_a_effets(n_familles))).validate_and_audit()
-    generateur = MonlSecureGenerator(ir)
-    generateur.emitters.render()
-    return len(appels)
+    ir = MonlAST(parse_monl_string(_spec_a_effects(n_families))).validate_and_audit()
+    generator = MonlSecureGenerator(ir)
+    generator.emitters.render()
+    return len(calls)
 
 
 def test_the_foreign_key_index_is_built_only_once(monkeypatch, capsys):
     """A single build, whatever the spec's size."""
-    petit = _compiler(monkeypatch, 3)
+    small = _compiler(monkeypatch, 3)
     capsys.readouterr()
-    assert petit == 1, (
-        f"{petit} index rebuilds for 3 families: the "
+    assert small == 1, (
+        f"{small} index rebuilds for 3 families: the "
         "`_compute_fk_placements` cache no longer holds.")
 
 
@@ -82,12 +82,12 @@ def test_analysis_cost_does_not_follow_spec_size(monkeypatch, capsys):
     if the cost became proportional (or worse) to the number of entities again,
     this witness would say so on any machine.
     """
-    petit = _compiler(monkeypatch, 3)
+    small = _compiler(monkeypatch, 3)
     capsys.readouterr()
     grand = _compiler(monkeypatch, 24)
     capsys.readouterr()
-    assert petit == grand == 1, (
-        f"the index is rebuilt {petit} times for 3 families and {grand} times "
+    assert small == grand == 1, (
+        f"the index is rebuilt {small} times for 3 families and {grand} times "
         "for 24: the analysis becomes proportional to the spec size again.")
 
 
@@ -97,17 +97,17 @@ def test_identity_columns_are_deduced_only_once(capsys):
     The content must stay identical between two queries — a cache returning
     something else on the second call would be worse than no cache.
     """
-    ir = MonlAST(parse_monl_string(_spec_a_effets(4))).validate_and_audit()
-    generateur = MonlSecureGenerator(ir)
+    ir = MonlAST(parse_monl_string(_spec_a_effects(4))).validate_and_audit()
+    generator = MonlSecureGenerator(ir)
     capsys.readouterr()
 
-    premier = generateur._identity_fk_columns()
-    second = generateur._identity_fk_columns()
+    first = generator._identity_fk_columns()
+    second = generator._identity_fk_columns()
 
-    assert premier is second, "each query redoes the deduction"
+    assert first is second, "each query redoes the deduction"
     # Every entity created by the member carries ITS account column, the
     # appreciation included — whose second incoming relation targets the
     # counted post, excluded because the client designates it (point 99).
-    attendu = {f"{prefixe}{i}": {"membre_id"}
-               for prefixe in ("Publication", "Appreciation") for i in range(4)}
-    assert premier == attendu, premier
+    expected = {f"{prefix}{i}": {"membre_id"}
+               for prefix in ("Publication", "Appreciation") for i in range(4)}
+    assert first == expected, first

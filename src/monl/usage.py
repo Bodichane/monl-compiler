@@ -30,7 +30,7 @@ def _decimal(value, label):
     return result
 
 
-def _tarif_du_modele(provider, model, rates):
+def _price_of_template(provider, model, rates):
     """One model's rates, checked then converted. Extracted from
     `_load_prices` (complexity ceiling); same checks, same messages."""
     if not isinstance(model, str) or not isinstance(rates, dict):
@@ -81,7 +81,7 @@ def _load_prices(path):
             raise UsagePriceError("each provider must contain a model object")
         prices[provider] = {}
         for model, rates in models.items():
-            prices[provider][model] = _tarif_du_modele(provider, model, rates)
+            prices[provider][model] = _price_of_template(provider, model, rates)
     return {"currency": currency.strip() if isinstance(currency, str) else None,
             "prices": prices, "path": os.path.abspath(path)}
 
@@ -129,7 +129,7 @@ def _price_label(provider, model):
     return f"{provider or 'unknown provider'}/{model or 'unknown model'}"
 
 
-def _cout_d_un_evenement(event, price_table):
+def _cost_of_a_event(event, price_table):
     """(cost, missing price label or None, missing counter) of an event.
     Extracted from `_aggregate` (complexity ceiling): an event without a price
     or without a counter costs zero and SAYS so, never silently."""
@@ -177,11 +177,11 @@ def _aggregate(events, price_table):
     missing_prices = []
     missing_counters = False
     for event in events:
-        cout, prix_absent, compteur_absent = _cout_d_un_evenement(event, price_table)
-        priced_cost += cout
-        if prix_absent is not None:
-            missing_prices.append(prix_absent)
-        missing_counters = missing_counters or compteur_absent
+        cost_value, price_missing, counter_missing = _cost_of_a_event(event, price_table)
+        priced_cost += cost_value
+        if price_missing is not None:
+            missing_prices.append(price_missing)
+        missing_counters = missing_counters or counter_missing
 
     if not events:
         cost = Decimal("0")
@@ -242,13 +242,13 @@ def build_usage_report(project_dir, prices_path=None):
     """Builds a JSON-serializable report without grouping by intuition."""
     resolved_prices = prices_path or os.environ.get(PRICES_ENVIRONMENT)
     price_table = _load_prices(resolved_prices)
-    journal_path = os.path.join(project_dir, USAGE_FILENAME)
+    log_path = os.path.join(project_dir, USAGE_FILENAME)
     malformed_lines = []
     events = []
-    journal_exists = os.path.exists(journal_path)
-    if journal_exists:
+    log_exists = os.path.exists(log_path)
+    if log_exists:
         try:
-            with open(journal_path, encoding="utf-8") as fh:
+            with open(log_path, encoding="utf-8") as fh:
                 for line_number, line in enumerate(fh, 1):
                     if not line.strip():
                         malformed_lines.append({"line": line_number, "error": "empty line"})
@@ -265,7 +265,7 @@ def build_usage_report(project_dir, prices_path=None):
                         continue
                     events.append(event)
         except OSError as exc:
-            raise UsagePriceError(f"usage journal is unreadable: {journal_path} — {exc}") from exc
+            raise UsagePriceError(f"usage journal is unreadable: {log_path} — {exc}") from exc
 
     groups = {}
     for event in events:
@@ -290,8 +290,8 @@ def build_usage_report(project_dir, prices_path=None):
     project_total = _aggregate(events, price_table)
     return {
         "project_dir": os.path.abspath(project_dir),
-        "journal": journal_path,
-        "journal_exists": journal_exists,
+        "journal": log_path,
+        "journal_exists": log_exists,
         "price_table": {
             "declared": bool(price_table["path"]),
             "path": price_table["path"],

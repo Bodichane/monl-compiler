@@ -8,7 +8,7 @@ only protects hand-written specs."""
 from .foundations import PHONE_PREFIX_RE
 
 
-class ComptesMixin:
+class AccountsMixin:
     """Who registers, and with which form of identifier."""
 
     def _ask_self_register(self, actors, managers, owned):
@@ -27,26 +27,26 @@ class ComptesMixin:
         # does. Without this distinction, a template where each role manages
         # something would offer the administrator first — exactly the
         # privilege-escalation flaw fixed elsewhere.
-        privilegies = set()
-        for entite, gestionnaires in managers.items():
-            for acteur in gestionnaires:
-                if owned.get(entite) == acteur or entite == acteur:
+        privileged = set()
+        for entity, handlers in managers.items():
+            for actor in handlers:
+                if owned.get(entity) == actor or entity == actor:
                     continue
-                privilegies.add(acteur)
-        consommateurs = [a for a in actors if a not in privilegies]
-        ordonnes = consommateurs + [a for a in actors if a in privilegies]
+                privileged.add(actor)
+        consumers = [a for a in actors if a not in privileged]
+        ordered = consumers + [a for a in actors if a in privileged]
         aides = {a: ("recommended — writes only to their own data"
-                     if a in consommateurs else
+                     if a in consumers else
                      "manages shared data: enable with care")
-                 for a in ordonnes}
-        choisi = self._ask_choice(
+                 for a in ordered}
+        chosen = self._ask_choice(
             "Which role can create an account on the site?",
-            ordonnes, allow_none=True, hints=aides)
-        if choisi is None:
+            ordered, allow_none=True, hints=aides)
+        if chosen is None:
             self._show(self.ui.note(
                 "No online registration: accounts will be created on the "
                 "server with 'python3 manage.py adduser'."))
-        return choisi
+        return chosen
 
     def _ask_account_identifier(self, self_register):
         """What do accounts log in with? (brick 1, point 95)
@@ -71,7 +71,7 @@ class ComptesMixin:
         that a spec written before this question compiles identically."""
         if not self_register:
             return None
-        choix = self._ask_choice(
+        choice = self._ask_choice(
             "How will users sign in?",
             ["Phone number", "Email address", "Phone or email, user's choice"],
             allow_none=True,
@@ -80,36 +80,36 @@ class ComptesMixin:
                 "Email address": "if you communicate in writing",
                 "Phone or email, user's choice": "each person signs up as they prefer",
             })
-        if choix is None:
+        if choice is None:
             self._show(self.ui.note(
                 "Unrestricted identifier: any text can be used for an account, "
                 "and you will have no way to contact the person again."))
             return None
         formes = {"Phone number": ["phone"],
                   "Email address": ["email"],
-                  "Phone or email, user's choice": ["email", "phone"]}[choix]
+                  "Phone or email, user's choice": ["email", "phone"]}[choice]
 
-        prefixe = None
+        prefix = None
         if "phone" in formes:
             # POINT 95: without a calling code, "97…" and "+22997…" are TWO
             # accounts for one person. monl makes people DECLARE what it cannot
             # guess — it does not know the application's country.
-            def valide(a):
+            def valid(a):
                 if a == "":
                     return True, None
                 if PHONE_PREFIX_RE.match(a):
                     return True, a
                 return False, None
-            prefixe = self._ask(
+            prefix = self._ask(
                 self.ui.field("Country calling code for phone numbers "
                               "(e.g. +229 for Benin, leave blank for none) > "),
-                valide, "A calling code starts with + followed by 1 to 4 digits.",
+                valid, "A calling code starts with + followed by 1 to 4 digits.",
                 kind="free_text")
-            if prefixe is None:
+            if prefix is None:
                 self._show(self.ui.note(
                     "Without a calling code, '97…' and '+22997…' will be "
                     "different accounts for the same person."))
-        configuration = {"formes": formes, "prefixe": prefixe}
+        configuration = {"formes": formes, "prefixe": prefix}
         if formes == ["email"]:
             configuration.update(self._ask_email_verification())
         return configuration
@@ -118,15 +118,15 @@ class ComptesMixin:
         """The brick's producer: only an email registration."""
         if not self._ask_yes_no("Require email address confirmation before sign-in?"):
             return {}
-        duree = self._ask_positive_seconds("Confirmation link validity, in seconds")
+        duration = self._ask_positive_seconds("Confirmation link validity, in seconds")
         maximum = self._ask_positive_seconds("Maximum resends in the window")
-        fenetre = self._ask_positive_seconds("Resend window, in seconds")
-        return {"verify_email": duree, "verify_resend": (maximum, fenetre)}
+        window = self._ask_positive_seconds("Resend window, in seconds")
+        return {"verify_email": duration, "verify_resend": (maximum, window)}
 
-    def _ask_positive_seconds(self, titre):
-        def valide(value):
+    def _ask_positive_seconds(self, title):
+        def valid(value):
             if value.isdecimal() and int(value) > 0:
                 return True, int(value)
             return False, None
-        return self._ask(self.ui.field(titre + " > "), valide,
+        return self._ask(self.ui.field(title + " > "), valid,
                          "Enter a strictly positive integer.", kind="free_text")

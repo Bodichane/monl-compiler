@@ -13,7 +13,7 @@ from .foundations import AssetsToolError
 
 
 # -------------------------------------------------- reading the spec --
-def _valider(texte, spec_path):
+def _validate(text, spec_path):
     """The real parser and the real validator, WITHOUT base_dir. On purpose.
 
     It is the exact scope the tool needs, and it comes from layer 1's
@@ -32,7 +32,7 @@ def _valider(texte, spec_path):
     it is simply stated correctly. The validator prints its security audit —
     already seen at compile time: it is muted."""
     with contextlib.redirect_stdout(io.StringIO()):
-        raw = parse_monl_string(texte, file_path=spec_path)
+        raw = parse_monl_string(text, file_path=spec_path)
         return MonlAST(raw).validate_and_audit()
 
 def _charger(spec_path):
@@ -40,23 +40,23 @@ def _charger(spec_path):
     excessive zeal: without this check, the failure of the post-edit
     revalidation would blame the tool for a defect that existed before it."""
     with open(spec_path, encoding="utf-8") as fh:
-        texte = fh.read()
+        text = fh.read()
     try:
-        return _valider(texte, spec_path)
+        return _validate(text, spec_path)
     except Exception as err:
         raise AssetsToolError(
             f"The spec does not compile as it stands: {err}\n"
             f"   The tool will not write to it while it is broken — otherwise "
             f"the next failure could appear to come from the tool.") from None
 
-def _revalider(texte, spec_path):
+def _revalidate(text, spec_path):
     """THE check that makes this tool safe: is the resulting spec valid?
 
     Reparsed by the real parser, revalidated by the real validator — all of
     the compiler's refusals therefore apply to what the tool has just written.
     That is what ensures layer 2 cannot produce what layer 1 refuses."""
     try:
-        return _valider(texte, spec_path)
+        return _validate(text, spec_path)
     except Exception as err:
         raise AssetsToolError(
             f"Write CANCELLED — the resulting spec would not compile: {err}\n"

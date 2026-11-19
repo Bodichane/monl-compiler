@@ -90,12 +90,12 @@ def _print_usage_report(report):
 def cmd_usage(project_dir, prices_path=None, json_output=False):
     """Read a consumption log without estimating the unpriced lines."""
     project_dir = os.path.abspath(project_dir)
-    souci = location._erreur_de_chemin(project_dir)
-    if souci:
+    issue = location._error_of_path(project_dir)
+    if issue:
         if json_output:
-            print(json.dumps({"error": souci}, ensure_ascii=False))
+            print(json.dumps({"error": issue}, ensure_ascii=False))
         else:
-            print(souci)
+            print(issue)
         raise SystemExit(1)
     if not os.path.exists(os.path.join(project_dir, nomenclature.STATE_FILENAME)):
         message = (f" ❌ {nomenclature.STATE_FILENAME} not found — this directory is not a "

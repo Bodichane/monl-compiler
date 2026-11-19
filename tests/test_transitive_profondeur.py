@@ -81,11 +81,11 @@ workflow W for Client
     Delete Ligne
 """
     ast = _validate(spec)
-    transitif = ast["security"]["transitive_ownership"]
+    transitive = ast["security"]["transitive_ownership"]
     # La brique 11 (un saut) reste LA MÊME forme.
-    assert transitif["Bloc"] == {"chain": ["Commande"], "actor": "Client"}
+    assert transitive["Bloc"] == {"chain": ["Commande"], "actor": "Client"}
     # Brick 24 walks the whole depth up to the actor.
-    assert transitif["Ligne"] == {"chain": ["Bloc", "Commande"], "actor": "Client"}
+    assert transitive["Ligne"] == {"chain": ["Bloc", "Commande"], "actor": "Client"}
 
 
 def test_a_three_link_chain_is_resolved():
@@ -124,8 +124,8 @@ workflow W for Client
     Read Ligne
 """
     ast = _validate(spec)
-    transitif = ast["security"]["transitive_ownership"]
-    assert transitif["Ligne"] == {"chain": ["Bloc", "Carton", "Palette", "Commande"],
+    transitive = ast["security"]["transitive_ownership"]
+    assert transitive["Ligne"] == {"chain": ["Bloc", "Carton", "Palette", "Commande"],
                                   "actor": "Client"}
 
 
@@ -250,100 +250,100 @@ workflow Acheter for Client
     Delete Ligne
 """
 
-MOT_DE_PASSE = "motdepasse123"
-PRIX = 42.5
+PASSWORD = "motdepasse123"
+PRICE = 42.5
 
 
 @contextlib.contextmanager
-def _base_spec(dossier):
-    cnx = sqlite3.connect(os.path.join(dossier, "app.db"))
+def _base_spec(folder):
+    conn = sqlite3.connect(os.path.join(folder, "app.db"))
     try:
-        with cnx:
-            yield cnx
+        with conn:
+            yield conn
     finally:
-        cnx.close()
+        conn.close()
 
 
 @pytest.fixture(scope="module")
 def application():
-    with tempfile.TemporaryDirectory() as dossier:
+    with tempfile.TemporaryDirectory() as folder:
         ast = MonlAST(parse_monl_string(SPEC)).validate_and_audit()
-        MonlSecureGenerator(ast, output_dir=dossier).generate_all()
-        with uvicorn_server(dossier) as base:
-            with _base_spec(dossier) as cnx:
-                cnx.execute('INSERT INTO article (nom, prix) VALUES (?, ?)',
-                            ("Article test", PRIX))
-            yield base, dossier
+        MonlSecureGenerator(ast, output_dir=folder).generate_all()
+        with uvicorn_server(folder) as base:
+            with _base_spec(folder) as conn:
+                conn.execute('INSERT INTO article (nom, prix) VALUES (?, ?)',
+                            ("Article test", PRICE))
+            yield base, folder
 
 
-def _vider_quota(dossier):
-    with _base_spec(dossier) as cnx:
-        cnx.execute("DELETE FROM _monl_rate_limit")
+def _empty_quota(folder):
+    with _base_spec(folder) as conn:
+        conn.execute("DELETE FROM _monl_rate_limit")
 
 
-def _entetes(application, identifiant):
-    base, dossier = application
-    _vider_quota(dossier)
+def _headers(application, identifier):
+    base, folder = application
+    _empty_quota(folder)
     requests.post(f"{base}/register",
-                  json={"username": identifiant, "password": MOT_DE_PASSE,
+                  json={"username": identifier, "password": PASSWORD,
                         "actor": "Client"})
-    jeton = requests.post(f"{base}/login",
-                          json={"username": identifiant,
-                                "password": MOT_DE_PASSE}).json()
-    assert "access_token" in jeton, jeton
-    return {"Authorization": "Bearer " + jeton["access_token"]}
+    token = requests.post(f"{base}/login",
+                          json={"username": identifier,
+                                "password": PASSWORD}).json()
+    assert "access_token" in token, token
+    return {"Authorization": "Bearer " + token["access_token"]}
 
 
 @pytest.fixture(scope="module")
 def alice(application):
-    entetes = _entetes(application, "alice_prof")
+    headers = _headers(application, "alice_prof")
     base, _ = application
     # Several orders AND blocks BEFORE any assertion: neither order ids nor
     # block ids then coincide with account ids (point 80's lesson — a link
     # confused with an account would hide the bug we try to settle at depth 2).
-    dernier = None
-    for libelle in ("brouillon", "abandonnée", "en cours"):
-        dernier = _order(base, entetes, libelle)
+    last = None
+    for label in ("brouillon", "abandonnée", "en cours"):
+        last = _order(base, headers, label)
     for _ in range(3):
-        _bloc(base, entetes, dernier)
-    return entetes
+        _block(base, headers, last)
+    return headers
 
 
 @pytest.fixture(scope="module")
 def bob(application):
-    return _entetes(application, "bob_prof")
+    return _headers(application, "bob_prof")
 
 
-def _order(base, entetes, libelle):
-    r = requests.post(f"{base}/commande", headers=entetes,
-                      json={"libelle": libelle})
+def _order(base, headers, label):
+    r = requests.post(f"{base}/commande", headers=headers,
+                      json={"libelle": label})
     assert r.status_code in (200, 201), r.text
     return r.json()["id"]
 
 
-def _bloc(base, entetes, commande_id):
-    r = requests.post(f"{base}/bloc", headers=entetes,
-                      json={"note": "bloc", "commande_id": commande_id})
+def _block(base, headers, order_id):
+    r = requests.post(f"{base}/bloc", headers=headers,
+                      json={"note": "bloc", "commande_id": order_id})
     assert r.status_code in (200, 201), r.text
     return r.json()["id"]
 
 
-def _line(base, entetes, bloc_id, article_id, quantite):
-    return requests.post(f"{base}/ligne", headers=entetes,
-                         json={"bloc_id": bloc_id, "article_id": article_id,
-                               "quantite": quantite})
+def _line(base, headers, block_id, article_id, quantity):
+    return requests.post(f"{base}/ligne", headers=headers,
+                         json={"bloc_id": block_id, "article_id": article_id,
+                               "quantite": quantity})
 
 
-def _id_article(dossier):
-    with _base_spec(dossier) as cnx:
-        return cnx.execute('SELECT id FROM article WHERE prix = ?',
-                           (PRIX,)).fetchone()[0]
+def _id_article(folder):
+    with _base_spec(folder) as conn:
+        return conn.execute('SELECT id FROM article WHERE prix = ?',
+                           (PRICE,)).fetchone()[0]
 
 
-def _account_id(dossier, identifiant):
-    with _base_spec(dossier) as cnx:
-        return cnx.execute("SELECT id FROM _monl_users WHERE username = ?",
-                           (identifiant,)).fetchone()[0]
+def _account_id(folder, identifier):
+    with _base_spec(folder) as conn:
+        return conn.execute("SELECT id FROM _monl_users WHERE username = ?",
+                           (identifier,)).fetchone()[0]
 
 
 # -----------------------------------------------------------------------------
@@ -353,11 +353,11 @@ def _account_id(dossier, identifiant):
 def test_the_chain_foreign_keys_are_in_the_schema(application):
     base, _ = application
     schema = requests.get(f"{base}/openapi.json").json()
-    bloc = schema["components"]["schemas"]["BlocSchema"]["properties"]
-    ligne = schema["components"]["schemas"]["LigneSchema"]["properties"]
-    assert "commande_id" in bloc       # Bloc -> Commande
-    assert "bloc_id" in ligne          # Ligne -> Bloc (the owning parent)
-    assert "article_id" in ligne       # the plain relation, too
+    block = schema["components"]["schemas"]["BlocSchema"]["properties"]
+    line = schema["components"]["schemas"]["LigneSchema"]["properties"]
+    assert "commande_id" in block       # Bloc -> Commande
+    assert "bloc_id" in line          # Ligne -> Bloc (the owning parent)
+    assert "article_id" in line       # the plain relation, too
 
 
 # -----------------------------------------------------------------------------
@@ -365,20 +365,20 @@ def test_the_chain_foreign_keys_are_in_the_schema(application):
 # -----------------------------------------------------------------------------
 
 def test_the_stored_link_is_the_one_requested(application, alice):
-    base, dossier = application
-    commande = _order(base, alice, "panier profond")
-    bloc = _bloc(base, alice, commande)
-    article = _id_article(dossier)
-    reponse = _line(base, alice, bloc, article, 2)
-    assert reponse.status_code in (200, 201), reponse.text
-    ligne_id = reponse.json()["id"]
+    base, folder = application
+    order = _order(base, alice, "panier profond")
+    block = _block(base, alice, order)
+    article = _id_article(folder)
+    response = _line(base, alice, block, article, 2)
+    assert response.status_code in (200, 201), response.text
+    line_id = response.json()["id"]
 
-    with _base_spec(dossier) as cnx:
-        stocke = cnx.execute('SELECT bloc_id FROM ligne WHERE id = ?',
-                             (ligne_id,)).fetchone()[0]
-    compte = _account_id(dossier, "alice_prof")
-    assert stocke == bloc, "the designated link was not recorded"
-    assert bloc != compte and stocke != compte, "maillon et compte confondus"
+    with _base_spec(folder) as conn:
+        stored = conn.execute('SELECT bloc_id FROM ligne WHERE id = ?',
+                             (line_id,)).fetchone()[0]
+    account = _account_id(folder, "alice_prof")
+    assert stored == block, "the designated link was not recorded"
+    assert block != account and stored != account, "maillon et compte confondus"
 
 
 # -----------------------------------------------------------------------------
@@ -386,84 +386,84 @@ def test_the_stored_link_is_the_one_requested(application, alice):
 # -----------------------------------------------------------------------------
 
 def test_reading_someone_elses_line_answers_404(application, alice, bob):
-    base, dossier = application
-    commande = _order(base, alice, "lire")
-    bloc = _bloc(base, alice, commande)
-    ligne_id = _line(base, alice, bloc, _id_article(dossier), 1).json()["id"]
-    assert requests.get(f"{base}/ligne/{ligne_id}",
+    base, folder = application
+    order = _order(base, alice, "lire")
+    block = _block(base, alice, order)
+    line_id = _line(base, alice, block, _id_article(folder), 1).json()["id"]
+    assert requests.get(f"{base}/ligne/{line_id}",
                         headers=bob).status_code == 404
 
 
 def test_creating_in_someone_elses_block_is_refused(application, alice, bob):
-    base, dossier = application
-    commande = _order(base, alice, "créer")
-    bloc = _bloc(base, alice, commande)
-    reponse = _line(base, bob, bloc, _id_article(dossier), 1)
-    assert reponse.status_code == 403, reponse.text
+    base, folder = application
+    order = _order(base, alice, "créer")
+    block = _block(base, alice, order)
+    response = _line(base, bob, block, _id_article(folder), 1)
+    assert response.status_code == 403, response.text
 
 
 def test_updating_someone_elses_line_is_refused(application, alice, bob):
-    base, dossier = application
-    commande = _order(base, alice, "modifier")
-    bloc = _bloc(base, alice, commande)
-    ligne_id = _line(base, alice, bloc, _id_article(dossier), 1).json()["id"]
-    refuse = requests.put(f"{base}/ligne/{ligne_id}", headers=bob,
-                          json={"quantite": 50, "bloc_id": bloc,
-                                "article_id": _id_article(dossier)})
+    base, folder = application
+    order = _order(base, alice, "modifier")
+    block = _block(base, alice, order)
+    line_id = _line(base, alice, block, _id_article(folder), 1).json()["id"]
+    refuse = requests.put(f"{base}/ligne/{line_id}", headers=bob,
+                          json={"quantite": 50, "bloc_id": block,
+                                "article_id": _id_article(folder)})
     assert refuse.status_code == 403, refuse.text
-    with _base_spec(dossier) as cnx:
-        quantite = cnx.execute('SELECT quantite FROM ligne WHERE id = ?',
-                               (ligne_id,)).fetchone()[0]
-    assert quantite == 1, "the line was modified despite the refusal"
+    with _base_spec(folder) as conn:
+        quantity = conn.execute('SELECT quantite FROM ligne WHERE id = ?',
+                               (line_id,)).fetchone()[0]
+    assert quantity == 1, "the line was modified despite the refusal"
 
 
 def test_deleting_someone_elses_line_is_refused(application, alice, bob):
-    base, dossier = application
-    commande = _order(base, alice, "supprimer")
-    bloc = _bloc(base, alice, commande)
-    ligne_id = _line(base, alice, bloc, _id_article(dossier), 1).json()["id"]
-    refuse = requests.delete(f"{base}/ligne/{ligne_id}", headers=bob)
+    base, folder = application
+    order = _order(base, alice, "supprimer")
+    block = _block(base, alice, order)
+    line_id = _line(base, alice, block, _id_article(folder), 1).json()["id"]
+    refuse = requests.delete(f"{base}/ligne/{line_id}", headers=bob)
     assert refuse.status_code == 403, refuse.text
-    with _base_spec(dossier) as cnx:
-        reste = cnx.execute('SELECT COUNT(*) FROM ligne WHERE id = ?',
-                            (ligne_id,)).fetchone()[0]
+    with _base_spec(folder) as conn:
+        reste = conn.execute('SELECT COUNT(*) FROM ligne WHERE id = ?',
+                            (line_id,)).fetchone()[0]
     assert reste == 1, "the line was deleted despite the refusal"
 
 
 def test_the_owner_updates_and_deletes_their_line(application, alice):
-    base, dossier = application
-    commande = _order(base, alice, "à moi")
-    bloc = _bloc(base, alice, commande)
-    ligne_id = _line(base, alice, bloc, _id_article(dossier), 1).json()["id"]
+    base, folder = application
+    order = _order(base, alice, "à moi")
+    block = _block(base, alice, order)
+    line_id = _line(base, alice, block, _id_article(folder), 1).json()["id"]
 
-    modifie = requests.put(f"{base}/ligne/{ligne_id}", headers=alice,
-                           json={"quantite": 4, "bloc_id": bloc,
-                                 "article_id": _id_article(dossier)})
-    assert modifie.status_code == 200, modifie.text
-    detail = requests.get(f"{base}/ligne/{ligne_id}", headers=alice).json()
+    modified = requests.put(f"{base}/ligne/{line_id}", headers=alice,
+                           json={"quantite": 4, "bloc_id": block,
+                                 "article_id": _id_article(folder)})
+    assert modified.status_code == 200, modified.text
+    detail = requests.get(f"{base}/ligne/{line_id}", headers=alice).json()
     assert detail["data"]["quantite"] == 4
 
-    assert requests.delete(f"{base}/ligne/{ligne_id}",
+    assert requests.delete(f"{base}/ligne/{line_id}",
                            headers=alice).status_code == 200
-    with _base_spec(dossier) as cnx:
-        reste = cnx.execute('SELECT COUNT(*) FROM ligne WHERE id = ?',
-                            (ligne_id,)).fetchone()[0]
+    with _base_spec(folder) as conn:
+        reste = conn.execute('SELECT COUNT(*) FROM ligne WHERE id = ?',
+                            (line_id,)).fetchone()[0]
     assert reste == 0
 
 
 def test_the_list_only_shows_the_customers_lines(application, alice, bob):
-    base, dossier = application
-    commande = _order(base, alice, "liste")
-    bloc = _bloc(base, alice, commande)
-    article = _id_article(dossier)
-    ids_alice = {_line(base, alice, bloc, article, 1).json()["id"] for _ in range(2)}
+    base, folder = application
+    order = _order(base, alice, "liste")
+    block = _block(base, alice, order)
+    article = _id_article(folder)
+    ids_alice = {_line(base, alice, block, article, 1).json()["id"] for _ in range(2)}
 
-    commande_bob = _order(base, bob, "liste bob")
-    bloc_bob = _bloc(base, bob, commande_bob)
-    _line(base, bob, bloc_bob, article, 1)
+    order_bob = _order(base, bob, "liste bob")
+    block_bob = _block(base, bob, order_bob)
+    _line(base, bob, block_bob, article, 1)
 
-    liste = requests.get(f"{base}/ligne", headers=alice).json()
-    vus = {ligne["id"] for ligne in liste["data"]}
-    assert ids_alice.issubset(vus)
-    assert all(ligne["id"] not in vus
-               for ligne in requests.get(f"{base}/ligne", headers=bob).json()["data"])
+    list_ = requests.get(f"{base}/ligne", headers=alice).json()
+    seen = {line["id"] for line in list_["data"]}
+    assert ids_alice.issubset(seen)
+    assert all(line["id"] not in seen
+               for line in requests.get(f"{base}/ligne", headers=bob).json()["data"])

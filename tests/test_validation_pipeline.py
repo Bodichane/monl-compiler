@@ -63,132 +63,132 @@ class FakeContext:
         self.fail_migrations = fail_migrations
         self.fail_post_payment_writes = fail_post_payment_writes
 
-    def _valider_contraintes_de_champ(self):
+    def _validate_constraints_of_field(self):
         self.calls.append("field_constraints")
         if self.fail_constraints:
             raise ValueError("contraintes de champ invalides")
 
-    def _valider_controle_dacces(self):
+    def _validate_control_access(self):
         self.calls.append("access_control")
         if self.fail_access:
             raise ValueError("invalid access control")
 
-    def _valider_regle_public(self):
+    def _validate_rule_public(self):
         self.calls.append("public_visibility")
         if self.fail_public_visibility:
             raise ValueError("invalid public visibility")
 
-    def _valider_regles_once_per(self):
+    def _validate_rules_once_per(self):
         self.calls.append("once_per")
         if self.fail_once_per:
             raise ValueError("invalid business uniqueness")
 
-    def _valider_regle_restrictedTo(self):
+    def _validate_rule_restrictedto(self):
         self.calls.append("restricted_fields")
         if self.fail_restricted_fields:
             raise ValueError("restriction de champ invalide")
 
-    def _valider_champs_masques(self):
+    def _validate_fields_masques(self):
         self.calls.append("hidden_fields")
         if self.fail_hidden_fields:
             raise ValueError("invalid hidden field")
 
-    def _valider_champs_categorises(self):
+    def _validate_fields_categorized(self):
         self.calls.append("categorized_fields")
         if self.fail_categorized_fields:
             raise ValueError("invalid categorized field")
 
-    def _valider_champs_generes(self):
+    def _validate_fields_generated(self):
         self.calls.append("generated_fields")
         if self.fail_generated_fields:
             raise ValueError("invalid generated field")
 
-    def _valider_champs_horodates(self):
+    def _validate_fields_timestamped(self):
         self.calls.append("timestamp_fields")
         if self.fail_timestamp_fields:
             raise ValueError("invalid timestamped field")
 
-    def _valider_champs_numerotes(self):
+    def _validate_fields_numbered(self):
         self.calls.append("numbered_fields")
         if self.fail_numbered_fields:
             raise ValueError("invalid numbered field")
 
-    def _valider_champs_enumeres(self):
+    def _validate_fields_enumerated(self):
         self.calls.append("enumerated_fields")
         if self.fail_enumerated_fields:
             raise ValueError("invalid enumerated field")
 
-    def _valider_requires_own_et_payable(self):
+    def _validate_requires_own_and_payable(self):
         self.calls.append("creation_payment_prerequisites")
         if self.fail_creation_payment_prerequisites:
             raise ValueError("invalid creation/payment prerequisite")
 
-    def _valider_champs_derives(self):
+    def _validate_fields_derives(self):
         self.calls.append("derived_fields")
         if self.fail_derived_fields:
             raise ValueError("invalid derived field")
 
-    def _valider_champs_agreges(self):
+    def _validate_fields_aggregated(self):
         self.calls.append("aggregated_fields")
         if self.fail_aggregated_fields:
             raise ValueError("invalid aggregated field")
 
-    def _valider_securite_calculs_paiement(self):
+    def _validate_security_calculations_payment(self):
         self.calls.append("calculation_payment_safety")
         if self.fail_calculation_payment_safety:
             raise ValueError("invalid calculation/payment security")
 
-    def _valider_effets_compteurs(self):
+    def _validate_effects_counters(self):
         self.calls.append("counter_effects")
         if self.fail_counter_effects:
             raise ValueError("effet compteur invalide")
 
-    def _valider_proprietaire_paiement(self):
+    def _validate_owner_payment(self):
         self.calls.append("payable_owner")
         if self.fail_payable_owner:
             raise ValueError("invalid payable owner")
 
-    def _valider_regles_liberation(self):
+    def _validate_rules_release(self):
         self.calls.append("release_rules")
         if self.fail_release_rules:
             raise ValueError("invalid release rule")
 
-    def _valider_workflows_et_collisions(self):
+    def _validate_workflows_and_collisions(self):
         self.calls.append("workflow_collisions")
         if self.fail_workflow_collisions:
             raise ValueError("workflow/collision invalide")
 
-    def _valider_ui_overrides(self):
+    def _validate_ui_overrides(self):
         self.calls.append("ui_overrides")
         if self.fail_ui_overrides:
             raise ValueError("invalid UI preference")
 
-    def _valider_landing(self):
+    def _validate_landing(self):
         self.calls.append("landing")
         if self.fail_landing:
             raise ValueError("landing invalide")
 
-    def _valider_capacites(self):
+    def _validate_capabilities(self):
         self.calls.append("capabilities")
         if self.fail_capabilities:
             raise ValueError("invalid capability")
 
-    def _valider_regles_message(self):
+    def _validate_rules_message(self):
         self.calls.append("message_rules")
         if self.fail_message_rules:
             raise ValueError("invalid message rules")
 
-    def _valider_assets_et_seeds(self):
+    def _validate_assets_and_seeds(self):
         self.calls.append("assets_seeds")
         if self.fail_assets_seeds:
             raise ValueError("assets/seeds invalides")
 
-    def _valider_migrations(self):
+    def _validate_migrations(self):
         self.calls.append("migrations")
         if self.fail_migrations:
             raise ValueError("migrations invalides")
 
-    def _valider_regle_apres_paiement(self):
+    def _validate_rule_after_payment(self):
         self.calls.append("post_payment_writes")
         if self.fail_post_payment_writes:
             raise ValueError("invalid post-payment write")

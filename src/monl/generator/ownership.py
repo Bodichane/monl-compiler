@@ -9,7 +9,7 @@ designates the ACCOUNTS registry and one that designates a business table
 from . import sql
 
 
-class ProprietaireMixin:
+class OwnerMixin:
     """WHO owns a row — directly, or through a chain."""
 
     def _fk_to(self, child, parent):
@@ -43,7 +43,7 @@ class ProprietaireMixin:
         if not chaine:
             return None
         hops_raw = chaine["chain"]
-        acteur = chaine["actor"]
+        actor = chaine["actor"]
         if not hops_raw:
             raise ValueError(
                 f"Generation: '{entity}' has transitive ownership but its chain "
@@ -57,9 +57,9 @@ class ProprietaireMixin:
         for i in range(1, len(hops_raw)):
             hops.append({"table": hops_raw[i].lower(),
                          "ref": self._fk_to(hops_raw[i - 1], hops_raw[i])})
-        actor_fk = self._fk_to(hops_raw[-1], acteur)
+        actor_fk = self._fk_to(hops_raw[-1], actor)
         return {"via": hops_raw[0], "via_fk": hop_bas["ref"],
-                "via_table": hop_bas["table"], "actor": acteur,
+                "via_table": hop_bas["table"], "actor": actor,
                 "actor_fk": actor_fk, "hops": hops, "len": len(hops)}
 
     def _chain_read_where(self, entity, actor_frag):
@@ -105,9 +105,9 @@ class ProprietaireMixin:
             expr = sql.cat(sql.kw('(SELECT '), sql.ident(h["ref"]),
                            sql.kw(' FROM '), sql.ident(prev["table"]),
                            sql.kw(' WHERE id = '), expr, sql.kw(')'))
-        dernier = hops[-1]
+        last = hops[-1]
         return sql.cat(sql.kw('(SELECT '), sql.ident(chaine["actor_fk"]),
-                       sql.kw(' FROM '), sql.ident(dernier["table"]),
+                       sql.kw(' FROM '), sql.ident(last["table"]),
                        sql.kw(' WHERE id = '), expr, sql.kw(')'))
 
     def _chain_owner_from_row(self, entity, id_frag=None):
@@ -137,15 +137,15 @@ class ProprietaireMixin:
         aliases."""
         chaine = self._transitive_chain(entity)
         # (called only when the chain is not None; otherwise a clear error)
-        depuis = sql.cat(sql.ident(entity.lower()), sql.kw(f" {alias_root}"))
+        from_ = sql.cat(sql.ident(entity.lower()), sql.kw(f" {alias_root}"))
         cur = alias_root
         for i, h in enumerate(chaine["hops"]):
             alias = f"m{i + 1}"
-            depuis = sql.cat(depuis, sql.kw(" JOIN "), sql.ident(h["table"]),
+            from_ = sql.cat(from_, sql.kw(" JOIN "), sql.ident(h["table"]),
                              sql.kw(f" {alias} ON {alias}.id = {cur}."),
                              sql.ident(h["ref"]))
             cur = alias
-        return depuis.text, cur, chaine["actor_fk"]
+        return from_.text, cur, chaine["actor_fk"]
 
     def _owner_lookup_sql(self, entity, owner_entity):
         """Query that returns the ACCOUNT id of a record's owner, and the actor to
@@ -211,7 +211,7 @@ class ProprietaireMixin:
         placements = self._compute_fk_placements().get(entity, [])
         if not placements:
             return []
-        exclues = set(self._identity_fk_columns().get(entity, set()))
+        excluded = set(self._identity_fk_columns().get(entity, set()))
         # POINT 92: a counter target's column is the one the counter plan
         # designates for EACH rule, not the one of the first incoming relation.
         # With two relations (Post and Member), `_get_incoming_relation` may
@@ -219,14 +219,14 @@ class ProprietaireMixin:
         # then excluded post_id from the INSERT and created an orphan row. The
         # `is_reputation_fk` branch of routes.py already writes each target: it
         # is excluded here so it is written exactly once.
-        exclues.update(self._counter_fk_columns(entity))
+        excluded.update(self._counter_fk_columns(entity))
         # Brick 11 (point 81): under transitive ownership, the "owner" parent
         # is precisely the one the CLIENT must designate ("I attach this line
         # to THIS order") -- it is no longer deduced from the token. It
         # therefore joins the other parents (no identity column exists then),
         # and the Create route then checks that the designated record really
         # belongs to the caller.
-        return [p["fk_column"] for p in placements if p["fk_column"] not in exclues]
+        return [p["fk_column"] for p in placements if p["fk_column"] not in excluded]
 
     def _identity_fk_columns(self):
         """Foreign key columns filled from the caller's JWT identity.
@@ -265,13 +265,13 @@ class ProprietaireMixin:
         placements = self._compute_fk_placements()
         identity_cols = {}
         for entity in self.entities:
-            colonne = self._colonne_d_identite(entity, creatable, placements)
-            if colonne is not None:
-                identity_cols.setdefault(entity, set()).add(colonne)
+            column = self._column_d_identity(entity, creatable, placements)
+            if column is not None:
+                identity_cols.setdefault(entity, set()).add(column)
         self._identity_fk_caches = identity_cols
         return identity_cols
 
-    def _colonne_d_identite(self, entity, creatable, placements):
+    def _column_d_identity(self, entity, creatable, placements):
         """The column an entity fills from the token, or None.
 
         Extracted from `_identity_fk_columns` to stay under the complexity
@@ -285,16 +285,16 @@ class ProprietaireMixin:
             # account id -- it therefore references the real business table,
             # not '_monl_users'.
             return None
-        cibles_compteur = {r.target_entity
+        targets_counter = {r.target_entity
                            for r in self.reputation_rules_by_trigger.get(entity, [])}
-        candidats = [p for p in placements.get(entity, [])
+        candidates = [p for p in placements.get(entity, [])
                      if p["owner_entity"] in self.actors
                      # target chosen by the client: a real business reference
-                     and p["owner_entity"] not in cibles_compteur]
-        if not candidats:
+                     and p["owner_entity"] not in targets_counter]
+        if not candidates:
             return None
-        proprietaires = {v for k, v in self.ownership.items()
+        owners = {v for k, v in self.ownership.items()
                          if k.split(".", 1)[0] == entity}
-        choisi = next((p for p in candidats if p["owner_entity"] in proprietaires),
-                      candidats[0])
-        return choisi["fk_column"]
+        chosen = next((p for p in candidates if p["owner_entity"] in owners),
+                      candidates[0])
+        return chosen["fk_column"]

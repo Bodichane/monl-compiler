@@ -6,7 +6,7 @@ import tempfile
 
 import pytest
 
-from monl.content_tool import ContentToolError, exporter_contenu, importer_contenu
+from monl.content_tool import ContentToolError, exporter_content, importer_content
 
 SPEC = """app Contenu
 entity Produit
@@ -32,83 +32,83 @@ seed Produit
 
 
 def _project(spec=SPEC):
-    temporaire = tempfile.TemporaryDirectory()
-    racine = temporaire.name
-    chemin = os.path.join(racine, "spec.ml")
-    with open(chemin, "w", encoding="utf-8") as fh:
+    temporary = tempfile.TemporaryDirectory()
+    racine = temporary.name
+    path = os.path.join(racine, "spec.ml")
+    with open(path, "w", encoding="utf-8") as fh:
         fh.write(spec)
-    return temporaire, chemin
+    return temporary, path
 
 
-def _rows(racine, entite="Produit"):
-    chemin = os.path.join(racine, "content", f"{entite}.csv")
-    with open(chemin, encoding="utf-8", newline="") as fh:
+def _rows(racine, entity="Produit"):
+    path = os.path.join(racine, "content", f"{entity}.csv")
+    with open(path, encoding="utf-8", newline="") as fh:
         reader = csv.DictReader(fh)
         return reader.fieldnames, list(reader)
 
 
-def _write_rows(racine, champs, rows, entite="Produit"):
-    chemin = os.path.join(racine, "content", f"{entite}.csv")
-    with open(chemin, "w", encoding="utf-8", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=champs)
+def _write_rows(racine, fields, rows, entity="Produit"):
+    path = os.path.join(racine, "content", f"{entity}.csv")
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=fields)
         writer.writeheader()
         writer.writerows(rows)
 
 
 def test_round_trip_without_change_is_byte_stable():
-    temporaire, spec = _project()
-    with temporaire:
-        avant = pathlib.Path(spec).read_text(encoding="utf-8")
-        exporter_contenu(spec, temporaire.name)
-        rapport = importer_contenu(spec, temporaire.name)
-        assert pathlib.Path(spec).read_text(encoding="utf-8") == avant
+    temporary, spec = _project()
+    with temporary:
+        before = pathlib.Path(spec).read_text(encoding="utf-8")
+        exporter_content(spec, temporary.name)
+        rapport = importer_content(spec, temporary.name)
+        assert pathlib.Path(spec).read_text(encoding="utf-8") == before
         assert rapport["spec_changee"] is False
 
 
 def test_changing_a_value_does_not_touch_the_rest_of_the_spec():
-    temporaire, spec = _project()
-    with temporaire:
-        exporter_contenu(spec, temporaire.name)
-        champs, rows = _rows(temporaire.name)
+    temporary, spec = _project()
+    with temporary:
+        exporter_content(spec, temporary.name)
+        fields, rows = _rows(temporary.name)
         rows[1]["nom"] = "Grande table"
-        _write_rows(temporaire.name, champs, rows)
-        importer_contenu(spec, temporaire.name)
-        texte = pathlib.Path(spec).read_text(encoding="utf-8")
-        assert 'nom: "Grande table", prix: 20, etat: "occasion"' in texte
-        assert "entity Page\n    titre: String" in texte
+        _write_rows(temporary.name, fields, rows)
+        importer_content(spec, temporary.name)
+        text = pathlib.Path(spec).read_text(encoding="utf-8")
+        assert 'nom: "Grande table", prix: 20, etat: "occasion"' in text
+        assert "entity Page\n    titre: String" in text
 
 
 def test_missing_image_names_the_file_and_csv_row():
-    temporaire, spec = _project()
-    with temporaire:
-        exporter_contenu(spec, temporaire.name)
-        champs, rows = _rows(temporaire.name)
+    temporary, spec = _project()
+    with temporary:
+        exporter_content(spec, temporary.name)
+        fields, rows = _rows(temporary.name)
         rows[0]["photo"] = "absente.jpg"
-        _write_rows(temporaire.name, champs, rows)
+        _write_rows(temporary.name, fields, rows)
         with pytest.raises(ContentToolError, match=r"row 2.*absente\.jpg.*not found"):
-            importer_contenu(spec, temporaire.name)
+            importer_content(spec, temporary.name)
 
 
 def test_image_refuses_a_path_with_the_csv_row():
-    temporaire, spec = _project()
-    with temporaire:
-        exporter_contenu(spec, temporaire.name)
-        champs, rows = _rows(temporaire.name)
+    temporary, spec = _project()
+    with temporary:
+        exporter_content(spec, temporary.name)
+        fields, rows = _rows(temporary.name)
         rows[0]["photo"] = "sous-dossier/photo.jpg"
-        _write_rows(temporaire.name, champs, rows)
+        _write_rows(temporary.name, fields, rows)
         with pytest.raises(ContentToolError, match=r"row 2.*filename"):
-            importer_contenu(spec, temporaire.name)
+            importer_content(spec, temporary.name)
 
 
 def test_invalid_number_is_refused_with_the_csv_row():
-    temporaire, spec = _project()
-    with temporaire:
-        exporter_contenu(spec, temporaire.name)
-        champs, rows = _rows(temporaire.name)
+    temporary, spec = _project()
+    with temporary:
+        exporter_content(spec, temporary.name)
+        fields, rows = _rows(temporary.name)
         rows[0]["prix"] = "douze"
-        _write_rows(temporaire.name, champs, rows)
+        _write_rows(temporary.name, fields, rows)
         with pytest.raises(ContentToolError, match=r"row 2.*douze"):
-            importer_contenu(spec, temporaire.name)
+            importer_content(spec, temporary.name)
 
 
 def test_non_contiguous_blocks_of_one_entity_are_refused():
@@ -116,14 +116,14 @@ def test_non_contiguous_blocks_of_one_entity_are_refused():
         '    nom: "Table", prix: 20, etat: "occasion"',
         'seed Page\n    titre: "Accueil"\n\nseed Produit\n'
         '    nom: "Table", prix: 20, etat: "occasion"')
-    temporaire, spec = _project(spec_)
-    with temporaire:
-        exporter_contenu(spec, temporaire.name)
-        champs, rows = _rows(temporaire.name)
+    temporary, spec = _project(spec_)
+    with temporary:
+        exporter_content(spec, temporary.name)
+        fields, rows = _rows(temporary.name)
         rows[0]["nom"] = "Fauteuil"
-        _write_rows(temporaire.name, champs, rows)
+        _write_rows(temporary.name, fields, rows)
         with pytest.raises(ContentToolError, match="are not contiguous"):
-            importer_contenu(spec, temporaire.name)
+            importer_content(spec, temporary.name)
 
 
 def test_parent_is_exported_and_grouped_in_the_headers():
@@ -147,34 +147,34 @@ seed Variante for Produit.nom "Chaise"
 seed Variante for Produit.nom "Table"
     nom: "Noir"
 """
-    temporaire, spec = _project(spec_)
-    with temporaire:
-        exporter_contenu(spec, temporaire.name)
-        champs, rows = _rows(temporaire.name, "Variante")
-        assert champs[0] == "_parent"
+    temporary, spec = _project(spec_)
+    with temporary:
+        exporter_content(spec, temporary.name)
+        fields, rows = _rows(temporary.name, "Variante")
+        assert fields[0] == "_parent"
         rows.append({"_parent": "Table", "nom": "Blanc"})
-        _write_rows(temporaire.name, champs, rows, "Variante")
-        importer_contenu(spec, temporaire.name)
-        texte = pathlib.Path(spec).read_text(encoding="utf-8")
-        assert texte.count('seed Variante for Produit.nom "Table"') == 1
-        assert '    nom: "Noir"\n    nom: "Blanc"' in texte
+        _write_rows(temporary.name, fields, rows, "Variante")
+        importer_content(spec, temporary.name)
+        text = pathlib.Path(spec).read_text(encoding="utf-8")
+        assert text.count('seed Variante for Produit.nom "Table"') == 1
+        assert '    nom: "Noir"\n    nom: "Blanc"' in text
 
 
 def test_entity_without_seed_is_reported_without_blocking_others():
-    temporaire, spec = _project()
-    with temporaire:
-        rapport = exporter_contenu(spec, temporaire.name)
+    temporary, spec = _project()
+    with temporary:
+        rapport = exporter_content(spec, temporary.name)
         assert "Produit" in rapport["entites"]
         assert "Page" in rapport["ignorees"]
-        assert not os.path.exists(os.path.join(temporaire.name, "content", "Page.csv"))
+        assert not os.path.exists(os.path.join(temporary.name, "content", "Page.csv"))
 
 
 def test_readme_lists_the_oneof_values():
-    temporaire, spec = _project()
-    with temporaire:
-        exporter_contenu(spec, temporaire.name)
-        texte = pathlib.Path(os.path.join(temporaire.name, "content", "LISEZMOI.txt")).read_text(encoding="utf-8")
-        assert "allowed values: neuf, occasion" in texte
+    temporary, spec = _project()
+    with temporary:
+        exporter_content(spec, temporary.name)
+        text = pathlib.Path(os.path.join(temporary.name, "content", "LISEZMOI.txt")).read_text(encoding="utf-8")
+        assert "allowed values: neuf, occasion" in text
 
 
 def test_export_excludes_server_fields_and_booleans():
@@ -185,12 +185,12 @@ def test_export_excludes_server_fields_and_booleans():
         "rule Produit.nom required",
         "rule Produit.nom required\nrule Produit.cree timestamp",
     )
-    temporaire, spec = _project(spec_)
-    with temporaire:
-        exporter_contenu(spec, temporaire.name)
-        champs, _rows_ = _rows(temporaire.name)
-        assert "cree" not in champs
-        assert "publie" not in champs
-        texte = pathlib.Path(os.path.join(temporaire.name, "content", "LISEZMOI.txt")).read_text(encoding="utf-8")
-        assert "publie" in texte
-        assert "true/false literal" in texte
+    temporary, spec = _project(spec_)
+    with temporary:
+        exporter_content(spec, temporary.name)
+        fields, _rows_ = _rows(temporary.name)
+        assert "cree" not in fields
+        assert "publie" not in fields
+        text = pathlib.Path(os.path.join(temporary.name, "content", "LISEZMOI.txt")).read_text(encoding="utf-8")
+        assert "publie" in text
+        assert "true/false literal" in text

@@ -57,7 +57,7 @@ You may READ the repository to learn; you only EXECUTE the installed package.
 Help that omits a command is a defect: it is the only way the user has to
 discover their tools (issue #84 — `admin` and `sauvegarde` missing from
 `monl-platform --help`). Compare each top-level help with the verbs
-actually served (`monl <verb> --help` that responds, `VERBES` table in
+actually served (`monl <verb> --help` that responds, `VERBS` table in
 `monl_platform/__main__.py` read from the repository).
 
 **B. Compile.** For each `exemples/*.ml` from the same version (read from the

@@ -29,7 +29,7 @@ from tests.test_platform_service import SPEC
 SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src")
 
 
-def _plateforme(tmp_path):
+def _platform(tmp_path):
     """Mounts the platform on a free port, with an isolated workspace."""
     env = os.environ.copy()
     env["MONL_PLATFORM_WORKSPACE"] = str(tmp_path / "espace")
@@ -38,7 +38,7 @@ def _plateforme(tmp_path):
                           module="monl_platform.app:app", ready_path="/health")
 
 
-def _compte(base, email="test@example.com"):
+def _account(base, email="test@example.com"):
     session = requests.Session()
     response = session.post(base + "/api/auth/register", json={
         "email": email, "password": "mot-de-passe-test-123",
@@ -48,8 +48,8 @@ def _compte(base, email="test@example.com"):
 
 
 def test_page_explains_compile_and_mcp(tmp_path):
-    with _plateforme(tmp_path) as base:
-        session = _compte(base)
+    with _platform(tmp_path) as base:
+        session = _account(base)
         page = requests.get(base + "/", timeout=30)
         assert page.status_code == 200
         assert "Describe your business" in page.text
@@ -138,8 +138,8 @@ def test_page_explains_compile_and_mcp(tmp_path):
 
 
 def test_web_errors_stay_actionable(tmp_path):
-    with _plateforme(tmp_path) as base:
-        session = _compte(base)
+    with _platform(tmp_path) as base:
+        session = _account(base)
         empty = requests.post(base + "/api/validate", json={"spec": ""}, timeout=30)
         assert empty.status_code == 422
         assert "empty" in empty.json()["detail"]
@@ -147,7 +147,7 @@ def test_web_errors_stay_actionable(tmp_path):
 
 
 def test_login_is_limited_and_announces_the_delay(tmp_path):
-    with _plateforme(tmp_path) as base:
+    with _platform(tmp_path) as base:
         for _ in range(5):
             response = requests.post(base + "/api/auth/login", json={
                 "email": "absent@example.com", "password": "mauvais-secret",
@@ -161,9 +161,9 @@ def test_login_is_limited_and_announces_the_delay(tmp_path):
 
 
 def test_accounts_isolate_projects_and_mcp_keys(tmp_path):
-    with _plateforme(tmp_path) as base:
-        alice = _compte(base, "alice@example.com")
-        bob = _compte(base, "bob@example.com")
+    with _platform(tmp_path) as base:
+        alice = _account(base, "alice@example.com")
+        bob = _account(base, "bob@example.com")
 
         anonymous = requests.post(base + "/api/compile", json={"spec": SPEC}, timeout=30)
         assert anonymous.status_code == 401
@@ -218,41 +218,41 @@ def test_the_platform_module_is_shipped_by_the_repository(tmp_path):
     """
     from monl_platform.app import create_app
 
-    chemins = {getattr(route, "path", None) for route in create_app(workspace=tmp_path).routes}
+    paths = {getattr(route, "path", None) for route in create_app(workspace=tmp_path).routes}
     assert {"/", "/console", "/login", "/account", "/docs", "/api-docs", "/security", "/health", "/api/templates", "/api/validate", "/api/compile",
-            "/mcp"} <= chemins
+            "/mcp"} <= paths
 
 
 def test_the_guide_is_served_and_covers_its_sections(tmp_path):
     """A platform that accepts a specification must say how to write one. The
     guide is therefore a route like any other, tested as such — not a file one
     hopes is present."""
-    with _plateforme(tmp_path) as base:
+    with _platform(tmp_path) as base:
         page = requests.get(base + "/guide", timeout=30)
         assert page.status_code == 200
         assert "text/html" in page.headers["content-type"]
-        for ancre in ('id="frontiere"', 'id="demarrer"', 'id="dsl"',
+        for anchor in ('id="frontiere"', 'id="demarrer"', 'id="dsl"',
                       'id="api"', 'id="mcp"', 'id="limites"'):
-            assert ancre in page.text, ancre
+            assert anchor in page.text, anchor
         # The limits must be STATED, not discovered by pasting a spec that
         # declares a logo. The labels are READ from the table and never copied
         # here: the frozen sentence that lived on this line survived the brick
         # that had made it false (point 180).
-        for titre, _texte in LIMITES:
-            assert titre in page.text, titre
+        for title, _text in LIMITES:
+            assert title in page.text, title
 
 
 def test_the_examples_are_served_and_compile_through_the_api(tmp_path):
     """The catalog is not decorative: what it serves must go through the whole
     journey, from the gallery to the archive."""
-    with _plateforme(tmp_path) as base:
-        session = _compte(base, "examples@example.com")
+    with _platform(tmp_path) as base:
+        session = _account(base, "examples@example.com")
         catalogue = requests.get(base + "/api/examples", timeout=30).json()["examples"]
         assert len(catalogue) >= 4
-        assert all("spec" not in entree for entree in catalogue)
+        assert all("spec" not in entry for entry in catalogue)
 
-        premier = catalogue[0]["id"]
-        spec = requests.get(f"{base}/api/examples/{premier}", timeout=30).json()["spec"]
+        first = catalogue[0]["id"]
+        spec = requests.get(f"{base}/api/examples/{first}", timeout=30).json()["spec"]
         assert "app " in spec
 
         compile = session.post(base + "/api/compile", json={"spec": spec}, timeout=180)
@@ -266,8 +266,8 @@ def test_the_examples_are_served_and_compile_through_the_api(tmp_path):
 
 
 def test_version_favicon_and_not_found_page(tmp_path):
-    with _plateforme(tmp_path) as base:
-        session = _compte(base, "errors@example.com")
+    with _platform(tmp_path) as base:
+        session = _account(base, "errors@example.com")
         version = requests.get(base + "/api/version", timeout=30).json()
         assert version["compiler"] and version["contract"]
 
@@ -292,10 +292,10 @@ def test_version_favicon_and_not_found_page(tmp_path):
 
         # A visitor gets a page, an API client gets JSON: serving HTML to curl
         # would make the error unreadable where it is read.
-        navigateur = requests.get(base + "/inexistant",
+        browser = requests.get(base + "/inexistant",
                                   headers={"Accept": "text/html"}, timeout=30)
-        assert navigateur.status_code == 404
-        assert "This page does not exist" in navigateur.text
+        assert browser.status_code == 404
+        assert "This page does not exist" in browser.text
 
         client = session.get(base + "/api/projects/inexistant", timeout=30)
         assert client.status_code == 404

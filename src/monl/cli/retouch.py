@@ -11,7 +11,7 @@ NAMED — never corrected automatically."""
 import os
 import sys
 
-from ..frontend_ai import RETOUCHE_PROMPT_FILENAME
+from ..frontend_ai import RETOUCH_PROMPT_FILENAME
 from . import location, nomenclature
 
 
@@ -33,13 +33,13 @@ from . import location, nomenclature
 # contract, never that the framing improved. Same honesty as point 83 — monl
 # checks completeness, not taste. Hence the systematic backup: the only
 # guarantee one can offer on a matter of taste is being able to go back.
-def _write_retouche_brief(project_dir, demande):
+def _write_retouch_brief(project_dir, request):
     body = f"""# Requested touch-up (instruction written by 'monl retouche')
 
 The site works and follows the contract. A defect was OBSERVED on it, by a
 human who looked at it:
 
-> {demande.strip()}
+> {request.strip()}
 
 ## What to do
 
@@ -71,12 +71,12 @@ available MEANS, not an instruction: nothing requires using any.
 After the change, `monl run` will revalidate everything (static consistency
 + behavioral smoke test) before any start.
 """
-    path = os.path.join(project_dir, RETOUCHE_PROMPT_FILENAME)
+    path = os.path.join(project_dir, RETOUCH_PROMPT_FILENAME)
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(body)
     return path
 
-def sauvegarder_frontend(project_dir, say=print):
+def back_up_frontend(project_dir, say=print):
     """Copies frontend/ into frontend.precedent/ before a touch-up.
 
     `monl import` has always backed up ("nothing is lost"); the touch-up needs
@@ -93,7 +93,7 @@ def sauvegarder_frontend(project_dir, say=print):
     say(" -> Current frontend copied to frontend.precedent/ (you can restore it later).")
     return backup
 
-def _lancer_ia(args, update_mode=False, retouche_mode=False):
+def _launch_ia(args, update_mode=False, retouch_mode=False):
     """The path to the AI, shared by 'frontend' and 'retouche' (point 93).
 
     It was written inline in the dispatch; copying it for the touch-up would
@@ -128,7 +128,7 @@ def _lancer_ia(args, update_mode=False, retouche_mode=False):
                 print(" -> Per-stage routing not applied: the agent workflow does not "
                       f"use split calls (declared mappings: {declared}).")
             ok, _errors = generate_with_cli_agent(
-                args.dir, update_mode=update_mode, retouche_mode=retouche_mode,
+                args.dir, update_mode=update_mode, retouch_mode=retouch_mode,
                 max_turns=args.max_turns or DEFAULT_MAX_TURNS,
                 agent=args.provider, agent_command=args.agent_command,
                 generate_images=getattr(args, "generate_images", False),
@@ -136,14 +136,14 @@ def _lancer_ia(args, update_mode=False, retouche_mode=False):
         else:
             # The default model exists ONLY for the Anthropic path; elsewhere,
             # openai_provider requires --model and says so.
-            defaut = DEFAULT_MODEL if args.provider == "claude" else None
+            default = DEFAULT_MODEL if args.provider == "claude" else None
             def provider_factory(model):
                 return PROVIDERS[args.provider](model=model)
 
-            provider = provider_factory(args.model or defaut)
+            provider = provider_factory(args.model or default)
             ok, _errors = generate_and_verify(args.dir, provider,
                                               update_mode=update_mode,
-                                              retouche_mode=retouche_mode,
+                                              retouch_mode=retouch_mode,
                                               model_routes=model_routes,
                                               provider_factory=provider_factory,
                                               generate_images=getattr(
@@ -155,7 +155,7 @@ def _lancer_ia(args, update_mode=False, retouche_mode=False):
     if not ok:
         sys.exit(1)
 
-def _arguments_inverses(demande, dossier):
+def _arguments_inverses(request, folder):
     """`monl retouche <folder> "<what looks wrong>"` — the expected error.
 
     POINT 105: `retouche` is the ONLY command whose first argument is not the
@@ -167,34 +167,34 @@ def _arguments_inverses(demande, dossier):
     arguments back in place for the author would be guessing — and getting it
     wrong the day a request looks like a path. Same trade-off as everywhere
     else in this repository."""
-    demande, dossier = demande or "", dossier or ""
-    ressemble_a_un_chemin = " " not in demande and (
-        os.sep in demande or os.path.isdir(demande))
-    return ressemble_a_un_chemin and " " in dossier
+    request, folder = request or "", folder or ""
+    resembles_a_a_path = " " not in request and (
+        os.sep in request or os.path.isdir(request))
+    return resembles_a_a_path and " " in folder
 
-def cmd_retouche(project_dir, demande, say=print):
+def cmd_retouch(project_dir, request, say=print):
     """Writes the instruction and prepares the ground. The AI call is made by
     the caller (main), which already carries the provider choice — the
     touch-up opens NO new path to the model."""
-    if _arguments_inverses(demande, project_dir):
+    if _arguments_inverses(request, project_dir):
         say(" ❌ The two arguments appear to be reversed.")
-        say(f"    ‘{demande}’ looks like a directory, and ‘{project_dir[:50]}"
+        say(f"    ‘{request}’ looks like a directory, and ‘{project_dir[:50]}"
             f"{'…' if len(project_dir) > 50 else ''}’ like a description of the issue.")
         say("    'retouche' expects the REQUEST first (it is the only command "
             "that works this way):")
         # The suggested command must WORK as is: copying a path already known
         # to be wrong would make the author stumble a second time, on another
         # message.
-        cible = demande
-        if not os.path.isdir(cible) and cible.startswith(os.sep) \
-                and os.path.isdir(cible.lstrip(os.sep)):
-            cible = cible.lstrip(os.sep)
-        say(f'      monl retouche "{project_dir}" {cible}')
+        target = request
+        if not os.path.isdir(target) and target.startswith(os.sep) \
+                and os.path.isdir(target.lstrip(os.sep)):
+            target = target.lstrip(os.sep)
+        say(f'      monl retouche "{project_dir}" {target}')
         sys.exit(1)
     project_dir = os.path.abspath(project_dir)
-    souci = location._erreur_de_chemin(project_dir)
-    if souci:
-        say(souci)
+    issue = location._error_of_path(project_dir)
+    if issue:
+        say(issue)
         sys.exit(1)
     if location._load_state(project_dir) is None:
         say(f" ❌ {nomenclature.STATE_FILENAME} not found — this directory is not a monl project.")
@@ -203,11 +203,11 @@ def cmd_retouche(project_dir, demande, say=print):
         say(" ❌ No frontend to touch up (frontend/index.html is missing) — "
             "build one first with 'monl frontend' or 'monl import'.")
         sys.exit(1)
-    if not demande or not demande.strip():
+    if not request or not request.strip():
         say(" ❌ The request is empty — describe the issue, naming the screen "
             "and the element.")
         sys.exit(1)
-    sauvegarder_frontend(project_dir, say=say)
-    chemin = _write_retouche_brief(project_dir, demande)
-    say(f" -> Instructions written: {os.path.basename(chemin)}")
-    return chemin
+    back_up_frontend(project_dir, say=say)
+    path = _write_retouch_brief(project_dir, request)
+    say(f" -> Instructions written: {os.path.basename(path)}")
+    return path

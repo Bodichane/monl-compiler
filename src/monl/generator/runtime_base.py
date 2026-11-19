@@ -6,10 +6,10 @@ DB_POOL_MIN_ENV = "MONL_DB_POOL_MIN"
 DB_POOL_MAX_ENV = "MONL_DB_POOL_MAX"
 
 
-class SocleRuntimeMixin:
+class BaseRuntimeMixin:
     """The top of app.py: imports, application, secret, quota, SQLite wrapper,"""
 
-    def _socle_et_schemas(self):
+    def _base_and_schemas(self):
         """Imports, FastAPI application, secret, quota, Pydantic schemas."""
         actors_literal = ", ".join(Template(r'''"${actor}"''').substitute(actor=actor) for actor in self.actors)
         self_register_literal = ", ".join(Template(r'''"${actor}"''').substitute(actor=actor) for actor in self.self_register_actors)
@@ -21,10 +21,10 @@ from email.message import EmailMessage''').substitute().split("\n"),
         totp_imports = ([*Template(r'''import base64
 import struct''').substitute().split("\n")]
                         if self.auth_features.get("totp") else [])
-        api_lines = ([*self._socle_imports_et_connexion(message_imports, totp_imports), *self._socle_outils_generes(actors_literal, self_register_literal), *self._socle_jetons()])
+        api_lines = ([*self._base_imports_and_login(message_imports, totp_imports), *self._base_tools_generated(actors_literal, self_register_literal), *self._base_tokens()])
         return api_lines
 
-    def _socle_imports_et_connexion(self, message_imports, totp_imports):
+    def _base_imports_and_login(self, message_imports, totp_imports):
         """Imports, FastAPI application, secret, quota, and the SQLite wrapper."""
         return [
             *Template(r'''# Deterministic API, secure by default - Do not edit by hand
@@ -196,7 +196,7 @@ class _DatabaseConnection:
 ''').substitute().split("\n"),
         ]
 
-    def _socle_outils_generes(self, actors_literal, self_register_literal):
+    def _base_tools_generated(self, actors_literal, self_register_literal):
         """What the generated server can do on its own: schema, timestamp, number."""
         return [
             *self._pool_runtime_lines(),

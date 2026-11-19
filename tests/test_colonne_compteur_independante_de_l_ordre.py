@@ -13,7 +13,7 @@ import requests
 from monl.cli import compile_project
 from tests.support.server import uvicorn_server
 
-MOT_DE_PASSE = "MotDePasse123!"
+PASSWORD = "MotDePasse123!"
 
 
 def _spec(relations):
@@ -58,41 +58,41 @@ def test_the_counter_target_key_is_written_in_both_orders(
     with uvicorn_server(str(tmp_path)) as base_url:
         inscription = requests.post(
             f"{base_url}/register", timeout=10,
-            json={"username": "membre@x.co", "password": MOT_DE_PASSE,
+            json={"username": "membre@x.co", "password": PASSWORD,
                   "actor": "Member"},
         )
         assert inscription.status_code == 200, inscription.text
-        connexion = requests.post(
+        login = requests.post(
             f"{base_url}/login", timeout=10,
-            json={"username": "membre@x.co", "password": MOT_DE_PASSE},
+            json={"username": "membre@x.co", "password": PASSWORD},
         )
-        assert connexion.status_code == 200, connexion.text
-        en_tete = {"Authorization": "Bearer " + connexion.json()["access_token"]}
+        assert login.status_code == 200, login.text
+        in_tete = {"Authorization": "Bearer " + login.json()["access_token"]}
 
         post = requests.post(
-            f"{base_url}/post", timeout=10, headers=en_tete,
+            f"{base_url}/post", timeout=10, headers=in_tete,
             json={"content": "Un post"},
         )
         assert post.status_code == 200, post.text
         post_id = post.json()["id"]
 
         like = requests.post(
-            f"{base_url}/like", timeout=10, headers=en_tete,
+            f"{base_url}/like", timeout=10, headers=in_tete,
             json={"note": "bravo", "post_id": post_id},
         )
         assert like.status_code == 200, like.text
 
-        connexion_sqlite = sqlite3.connect(tmp_path / "app.db")
+        login_sqlite = sqlite3.connect(tmp_path / "app.db")
         try:
-            ligne = connexion_sqlite.execute(
+            line = login_sqlite.execute(
                 "SELECT post_id, member_id FROM like WHERE id = ?",
                 (like.json()["id"],),
             ).fetchone()
-            compteur = connexion_sqlite.execute(
+            counter = login_sqlite.execute(
                 "SELECT likes FROM post WHERE id = ?", (post_id,)
             ).fetchone()
         finally:
-            connexion_sqlite.close()
+            login_sqlite.close()
 
-    assert ligne == (post_id, 1), ligne
-    assert compteur == (1,), compteur
+    assert line == (post_id, 1), line
+    assert counter == (1,), counter

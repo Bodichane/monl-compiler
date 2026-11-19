@@ -14,8 +14,8 @@ import subprocess
 
 import pytest
 
-from monl.dialogue_engine import adresse_de_lien
-from monl_platform.app import _liens_de_pied
+from monl.dialogue_engine import address_of_link
+from monl_platform.app import _links_of_footer
 from monl_platform.app_templates import materialize_template
 from monl_platform.console import CONSOLE_HTML
 
@@ -43,15 +43,15 @@ CAS = [
 
 
 def test_an_incomplete_address_is_completed_never_guessed():
-    for saisie, attendu in CAS:
-        assert adresse_de_lien(saisie) == attendu, saisie
+    for input_, expected in CAS:
+        assert address_of_link(input_) == expected, input_
 
 
-def _fonction_js(nom):
+def _function_js(name):
     """Extracts a function from the console script, as served."""
-    debut = CONSOLE_HTML.index(f"function {nom}(")
-    marqueur = "\n}\n"
-    fin = CONSOLE_HTML.index(marqueur, debut) + len(marqueur)
+    debut = CONSOLE_HTML.index(f"function {name}(")
+    marker = "\n}\n"
+    fin = CONSOLE_HTML.index(marker, debut) + len(marker)
     return CONSOLE_HTML[debut:fin]
 
 
@@ -67,21 +67,21 @@ def test_console_and_server_complete_identically():
         pytest.skip("node missing: the two layers cannot be compared")
 
     script = (
-        _fonction_js("adresseDeLien")
-        + "\nconst cas = " + json.dumps([saisie for saisie, _ in CAS]) + ";"
+        _function_js("adresseDeLien")
+        + "\nconst cas = " + json.dumps([input_ for input_, _ in CAS]) + ";"
         + "\nconsole.log(JSON.stringify(cas.map(function (s) {"
         + " return adresseDeLien(s); })));"
     )
     fini = subprocess.run([node, "-e", script], capture_output=True, text=True,
                           timeout=60)
     assert fini.returncode == 0, fini.stderr
-    cote_navigateur = json.loads(fini.stdout.strip())
+    cote_browser = json.loads(fini.stdout.strip())
 
-    assert cote_navigateur == [attendu for _, attendu in CAS]
+    assert cote_browser == [expected for _, expected in CAS]
 
 
 def test_the_server_discards_what_it_does_not_understand():
-    liens = _liens_de_pied([
+    links = _links_of_footer([
         {"label": "Instagram", "url": "instagram.com/atelier"},
         {"label": "Bruit", "url": "pas une adresse"},
         {"label": "", "url": "https://exemple.fr"},
@@ -90,14 +90,14 @@ def test_the_server_discards_what_it_does_not_understand():
         "pas un objet",
     ])
 
-    assert liens == [{"label": "Instagram", "url": "https://instagram.com/atelier"}]
+    assert links == [{"label": "Instagram", "url": "https://instagram.com/atelier"}]
 
 
 def test_a_platform_project_carries_its_links_to_the_spec():
     """End to end: what the console sends must reach the DSL."""
     spec = materialize_template(
         1, app_name="AtelierTest", description="Un atelier de céramique.",
-        links=_liens_de_pied([
+        links=_links_of_footer([
             {"label": "Courriel", "url": "contact@atelier.fr"},
             {"label": "Instagram", "url": "instagram.com/atelier"},
         ]),

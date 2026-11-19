@@ -24,9 +24,9 @@ import requests
 
 from monl.app_templates import TEMPLATES
 from monl.ast_validator import MonlAST
-from monl.ast_validator.fields import ChampsMixin
+from monl.ast_validator.fields import FieldsMixin
 from monl.cli.signature import _contract_signature
-from monl.dialogue_engine.emission_parts import TYPES_TEXTE, emit_base_rules
+from monl.dialogue_engine.emission_parts import TYPES_TEXT, emit_base_rules
 from monl.frontend_contract import build_contract
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
@@ -41,53 +41,53 @@ BOUTIQUE = next(i for i, t in enumerate(TEMPLATES, 1)
                 if t["name"] == "Online shop")
 
 
-def _spec(index, reponse="n", seed=False):
+def _spec(index, response="n", seed=False):
     with contextlib.redirect_stdout(io.StringIO()):
-        return _run_template(index, reponse, want_seed=seed)
+        return _run_template(index, response, want_seed=seed)
 
 
-def _first_fields(index, reponse, seed):
+def _first_fields(index, response, seed):
     """The FIRST field of each entity, with its type — that is the one the
     dialogue makes required (`emit_base_rules`)."""
     with contextlib.redirect_stdout(io.StringIO()):
-        spec = _run_template(index, reponse, want_seed=seed)
+        spec = _run_template(index, response, want_seed=seed)
         ast = MonlAST(parse_monl_string(spec)).validate_and_audit()
-    regles = {ligne.strip() for ligne in spec.splitlines()}
-    premiers = {}
-    for nom, champs in ast["schema"]["entities"].items():
-        if champs:
-            premier = next(iter(champs))
-            premiers[(nom, premier)] = champs[premier]
-    return spec, regles, premiers
+    rules = {line.strip() for line in spec.splitlines()}
+    first_ones = {}
+    for name, fields in ast["schema"]["entities"].items():
+        if fields:
+            first = next(iter(fields))
+            first_ones[(name, first)] = fields[first]
+    return spec, rules, first_ones
 
 
 @pytest.fixture(scope="module")
 def boutique():
     """Compiles what the dialogue produces for the shop, and runs it."""
     spec = _spec(BOUTIQUE)
-    with TemporaryDirectory(prefix="monl-texte-non-vide-") as dossier:
+    with TemporaryDirectory(prefix="monl-texte-non-vide-") as folder:
         with contextlib.redirect_stdout(io.StringIO()):
             ast = MonlAST(parse_monl_string(spec)).validate_and_audit()
-            MonlSecureGenerator(ast, output_dir=dossier).generate_all()
+            MonlSecureGenerator(ast, output_dir=folder).generate_all()
         env = os.environ.copy()
         env.pop("MONL_DATABASE_URL", None)
         env["MONL_JWT_SECRET"] = "texte-non-vide-secret-de-32-octets-au-moins"
-        with uvicorn_server(dossier, env=env) as base:
+        with uvicorn_server(folder, env=env) as base:
             yield base
 
 
 @pytest.fixture(scope="module")
-def entete(boutique):
+def header(boutique):
     inscription = requests.post(
         f"{boutique}/register",
         json={"username": "acheteuse", "password": "motdepasse8",
               "actor": "Customer"}, timeout=10)
     assert inscription.status_code == 200, inscription.text
-    connexion = requests.post(
+    login = requests.post(
         f"{boutique}/login",
         json={"username": "acheteuse", "password": "motdepasse8"}, timeout=10)
-    assert connexion.status_code == 200, connexion.text
-    return {"Authorization": f"Bearer {connexion.json()['access_token']}"}
+    assert login.status_code == 200, login.text
+    return {"Authorization": f"Bearer {login.json()['access_token']}"}
 
 
 # --- what the dialogue WRITES ------------------------------------------------
@@ -95,19 +95,19 @@ def entete(boutique):
 def test_every_required_text_field_is_also_bounded():
     """On the ten templates, in both directions: a first TEXT field made required
     carries `min 1`. That is the rule, swept where it applies."""
-    manquants = []
-    for index, modele in enumerate(TEMPLATES, 1):
-        for reponse, seed in (("n", False), ("o", True)):
-            _spec_, regles, premiers = _first_fields(index, reponse, seed)
-            for (entite, champ), type_ in premiers.items():
-                obligatoire = f"rule {entite}.{champ} required" in regles
-                borne = f"rule {entite}.{champ} min 1" in regles
-                if obligatoire and type_ in TYPES_TEXTE and not borne:
-                    manquants.append(f"{modele['name']} ({reponse}) : "
-                                     f"{entite}.{champ} ({type_})")
-    assert not manquants, (
+    missing = []
+    for index, template in enumerate(TEMPLATES, 1):
+        for response, seed in (("n", False), ("o", True)):
+            _spec_, rules, first_ones = _first_fields(index, response, seed)
+            for (entity, field), type_ in first_ones.items():
+                required = f"rule {entity}.{field} required" in rules
+                bound = f"rule {entity}.{field} min 1" in rules
+                if required and type_ in TYPES_TEXT and not bound:
+                    missing.append(f"{template['name']} ({response}) : "
+                                     f"{entity}.{field} ({type_})")
+    assert not missing, (
         "a required text field without a floor accepts the empty string:\n  "
-        + "\n  ".join(manquants))
+        + "\n  ".join(missing))
 
 
 def test_a_first_numeric_field_gets_no_floor():
@@ -119,105 +119,105 @@ def test_a_first_numeric_field_gets_no_floor():
     confuse the two producers; `emit_base_rules` carries the rule, so it is the
     one queried."""
     for type_ in ("Integer", "Float", "Money"):
-        lignes = []
-        emit_base_rules(lignes, {"Commande": [("total", type_)]},
+        lines = []
+        emit_base_rules(lines, {"Commande": [("total", type_)]},
                         extra_rules=[], public_read=set(), public_create=set(),
                         owned={}, managers={"Commande": ["Admin"]},
                         calculated=set())
-        assert "rule Commande.total required" in lignes, type_
-        assert "rule Commande.total min 1" not in lignes, (
-            f"a floor on {type_} would forbid the value zero: {lignes}")
+        assert "rule Commande.total required" in lines, type_
+        assert "rule Commande.total min 1" not in lines, (
+            f"a floor on {type_} would forbid the value zero: {lines}")
 
 
 def test_a_first_text_field_gets_its_floor():
     """The counter-proof of the witness above: without it, a function that never
     emitted a floor again would make both green."""
-    for type_ in TYPES_TEXTE:
-        lignes = []
-        emit_base_rules(lignes, {"Fiche": [("titre", type_)]},
+    for type_ in TYPES_TEXT:
+        lines = []
+        emit_base_rules(lines, {"Fiche": [("titre", type_)]},
                         extra_rules=[], public_read=set(), public_create=set(),
                         owned={}, managers={"Fiche": ["Admin"]},
                         calculated=set())
-        assert "rule Fiche.titre min 1" in lignes, (type_, lignes)
+        assert "rule Fiche.titre min 1" in lines, (type_, lines)
 
 
 def test_the_shop_bounds_its_name_not_its_total():
     """Both cases side by side in a REAL spec, the one running this file's
     server."""
-    regles = {ligne.strip() for ligne in _spec(BOUTIQUE).splitlines()}
-    assert "rule Customer.displayName min 1" in regles
-    assert "rule Order.total required" in regles
-    assert "rule Order.total min 1" not in regles
+    rules = {line.strip() for line in _spec(BOUTIQUE).splitlines()}
+    assert "rule Customer.displayName min 1" in rules
+    assert "rule Order.total required" in rules
+    assert "rule Order.total min 1" not in rules
 
 
 def test_the_text_type_list_comes_from_the_compiler():
     """It is not copied: a second list would end up diverging, and the dialogue
     would emit a rule the compiler refuses — the worst outcome for someone being
     guided (point 173)."""
-    assert TYPES_TEXTE is ChampsMixin.BORNES_TEXTE
+    assert TYPES_TEXT is FieldsMixin.BOUNDS_TEXT
 
 
 # --- what the SERVER does ----------------------------------------------------
 
-def test_the_server_refuses_an_empty_text_field(boutique, entete):
+def test_the_server_refuses_an_empty_text_field(boutique, header):
     """The defect measured on the maintainer's archive, at its source."""
-    reponse = requests.post(f"{boutique}/customer", headers=entete,
+    response = requests.post(f"{boutique}/customer", headers=header,
                             json={"displayName": ""}, timeout=10)
-    assert reponse.status_code == 422, reponse.text
+    assert response.status_code == 422, response.text
 
 
 def test_the_server_also_refuses_a_whitespace_only_field(
-        boutique, entete):
+        boutique, header):
     """Empty after strip is refused before insertion."""
-    reponse = requests.post(f"{boutique}/customer", headers=entete,
+    response = requests.post(f"{boutique}/customer", headers=header,
                             json={"displayName": "   "}, timeout=10)
-    assert reponse.status_code == 422, reponse.text
+    assert response.status_code == 422, response.text
 
 
-def test_the_server_still_accepts_a_named_record(boutique, entete):
+def test_the_server_still_accepts_a_named_record(boutique, header):
     """The counter-proof telling a right floor from a floor that refuses
     everything."""
-    reponse = requests.post(f"{boutique}/customer", headers=entete,
+    response = requests.post(f"{boutique}/customer", headers=header,
                             json={"displayName": " a "}, timeout=10)
-    assert reponse.status_code == 200, reponse.text
+    assert response.status_code == 200, response.text
     # Reread IN THE DATABASE: a status code says the route answered, never that
     # the value arrived.
-    fiche = requests.get(f"{boutique}/customer/{reponse.json()['id']}",
-                         headers=entete, timeout=10)
+    fiche = requests.get(f"{boutique}/customer/{response.json()['id']}",
+                         headers=header, timeout=10)
     assert fiche.status_code == 200, fiche.text
     assert fiche.json()["data"]["displayName"] == " a "
 
 
-def test_a_zero_total_stays_accepted(boutique, entete):
+def test_a_zero_total_stays_accepted(boutique, header):
     """The limit, tested against the server and not only in the spec: an empty
     cart is worth zero, and refusing it would break the shop."""
-    reponse = requests.post(f"{boutique}/order", headers=entete,
+    response = requests.post(f"{boutique}/order", headers=header,
                             json={"total": 0, "status": "nouvelle"}, timeout=10)
-    assert reponse.status_code == 200, reponse.text
+    assert response.status_code == 200, response.text
 
 
-def test_update_refuses_empty_without_changing_the_value(boutique, entete):
-    creation = requests.post(f"{boutique}/customer", headers=entete,
+def test_update_refuses_empty_without_changing_the_value(boutique, header):
+    creation = requests.post(f"{boutique}/customer", headers=header,
                              json={"displayName": " a "}, timeout=10)
     assert creation.status_code == 200, creation.text
     url = f"{boutique}/customer/{creation.json()['id']}"
-    refus = requests.put(url, headers=entete, json={"displayName": "   "}, timeout=10)
-    assert refus.status_code == 422, refus.text
-    assert requests.get(url, headers=entete, timeout=10).json()["data"]["displayName"] == " a "
-    accepte = requests.put(url, headers=entete, json={"displayName": " a "}, timeout=10)
-    assert accepte.status_code == 200, accepte.text
-    assert requests.get(url, headers=entete, timeout=10).json()["data"]["displayName"] == " a "
+    refusal = requests.put(url, headers=header, json={"displayName": "   "}, timeout=10)
+    assert refusal.status_code == 422, refusal.text
+    assert requests.get(url, headers=header, timeout=10).json()["data"]["displayName"] == " a "
+    accepted = requests.put(url, headers=header, json={"displayName": " a "}, timeout=10)
+    assert accepted.status_code == 200, accepted.text
+    assert requests.get(url, headers=header, timeout=10).json()["data"]["displayName"] == " a "
 
 
-def test_non_required_text_stays_accepted(boutique, entete):
-    creation = requests.post(f"{boutique}/order", headers=entete,
+def test_non_required_text_stays_accepted(boutique, header):
+    creation = requests.post(f"{boutique}/order", headers=header,
                              json={"total": 0, "status": "   "}, timeout=10)
     assert creation.status_code == 200, creation.text
     url = f"{boutique}/order/{creation.json()['id']}"
-    assert requests.get(url, headers=entete, timeout=10).json()["data"]["status"] == "   "
-    update = requests.put(url, headers=entete, json={"total": 0, "status": "   "}, timeout=10)
+    assert requests.get(url, headers=header, timeout=10).json()["data"]["status"] == "   "
+    update = requests.put(url, headers=header, json={"total": 0, "status": "   "}, timeout=10)
     assert update.status_code == 200, update.text
-    assert requests.get(url, headers=entete, timeout=10).json()["data"]["status"] == "   "
+    assert requests.get(url, headers=header, timeout=10).json()["data"]["status"] == "   "
 
 
 def test_contract_announces_non_blank_and_the_signature_sees_it(tmp_path):

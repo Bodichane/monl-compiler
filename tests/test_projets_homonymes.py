@@ -32,31 +32,31 @@ from monl_platform.store import PlatformStore
 
 
 @pytest.fixture
-def plateforme(tmp_path):
+def platform(tmp_path):
     store = PlatformStore(tmp_path)
-    identites = IdentityStore(store.workspace)
+    identities = IdentityStore(store.workspace)
     sites = SiteManager(store, tmp_path / "projets", "localhost")
-    return store, identites, sites
+    return store, identities, sites
 
 
-def _project(store, identites, user_id, nom):
+def _project(store, identities, user_id, name):
     """Creates a project the way the platform does, and returns the slug kept."""
     project_id = uuid.uuid4().hex
-    identites.add_project(user_id, project_id, nom)
-    slug = store.create_project(user_id, project_id, nom.lower())
+    identities.add_project(user_id, project_id, name)
+    slug = store.create_project(user_id, project_id, name.lower())
     return project_id, slug
 
 
-def test_one_account_can_name_two_projects_alike(plateforme):
+def test_one_account_can_name_two_projects_alike(platform):
     """(a) The second must no longer make the write fail.
 
     Three passes through the dialogue with the same name is the REAL case that
     brought the defect up: three "AtelierVitrine" rows in the console.
     """
-    store, identites, _ = plateforme
-    compte = identites.register("un@monl.test", "MotDePasse-123")
+    store, identities, _ = platform
+    account = identities.register("un@monl.test", "MotDePasse-123")
 
-    slugs = [_project(store, identites, compte["id"], "AtelierVitrine")[1]
+    slugs = [_project(store, identities, account["id"], "AtelierVitrine")[1]
              for _ in range(3)]
 
     assert len(set(slugs)) == 3, f"two projects share an address: {slugs}"
@@ -64,62 +64,62 @@ def test_one_account_can_name_two_projects_alike(plateforme):
         "the FIRST must keep the address its name announces")
 
 
-def test_two_accounts_do_not_steal_an_address(plateforme):
+def test_two_accounts_do_not_steal_an_address(platform):
     """(b) The most serious defect: it comes from someone else."""
-    store, identites, sites = plateforme
-    a = identites.register("a@monl.test", "MotDePasse-123")
-    b = identites.register("b@monl.test", "MotDePasse-123")
+    store, identities, sites = platform
+    a = identities.register("a@monl.test", "MotDePasse-123")
+    b = identities.register("b@monl.test", "MotDePasse-123")
 
-    _, slug_a = _project(store, identites, a["id"], "AtelierVitrine")
-    _, slug_b = _project(store, identites, b["id"], "AtelierVitrine")
+    _, slug_a = _project(store, identities, a["id"], "AtelierVitrine")
+    _, slug_b = _project(store, identities, b["id"], "AtelierVitrine")
 
     assert slug_a != slug_b, "a stranger took the first one's address"
     for slug in (slug_a, slug_b):
-        projet = sites.project_for_host(f"{slug}.localhost")
-        assert projet is not None, f"{slug} designates no project"
+        project = sites.project_for_host(f"{slug}.localhost")
+        assert project is not None, f"{slug} designates no project"
 
 
-def test_hosting_stays_unambiguous(plateforme):
+def test_hosting_stays_unambiguous(platform):
     """Each address designates ONE project, and the right one.
 
     Without this check we would know the slugs differ, never that they lead to
     the right place — two distinct addresses pointing to the same row would pass
     the previous witness.
     """
-    store, identites, sites = plateforme
-    compte = identites.register("route@monl.test", "MotDePasse-123")
+    store, identities, sites = platform
+    account = identities.register("route@monl.test", "MotDePasse-123")
 
-    attendu = {}
+    expected = {}
     for _ in range(3):
-        project_id, slug = _project(store, identites, compte["id"], "Boutique")
-        attendu[slug] = project_id
+        project_id, slug = _project(store, identities, account["id"], "Boutique")
+        expected[slug] = project_id
 
-    for slug, project_id in attendu.items():
-        projet = sites.project_for_host(f"{slug}.localhost")
-        assert projet["project_id"] == project_id, (
+    for slug, project_id in expected.items():
+        project = sites.project_for_host(f"{slug}.localhost")
+        assert project["project_id"] == project_id, (
             f"{slug}.localhost leads to the wrong project")
 
 
-def test_global_uniqueness_holds_even_with_two_concurrent_writes(plateforme):
+def test_global_uniqueness_holds_even_with_two_concurrent_writes(platform):
     """The guarantee lives in an INDEX, never in a prior check.
 
     A check "is this slug free?" followed by a write lets through two
     simultaneous calls that both read "free". We therefore force the direct
     write a race would produce, and the database must refuse it by itself.
     """
-    store, identites, _ = plateforme
-    a = identites.register("c1@monl.test", "MotDePasse-123")
-    b = identites.register("c2@monl.test", "MotDePasse-123")
-    _, slug = _project(store, identites, a["id"], "Course")
+    store, identities, _ = platform
+    a = identities.register("c1@monl.test", "MotDePasse-123")
+    b = identities.register("c2@monl.test", "MotDePasse-123")
+    _, slug = _project(store, identities, a["id"], "Course")
 
-    autre = uuid.uuid4().hex
-    identites.add_project(b["id"], autre, "Course")
+    other = uuid.uuid4().hex
+    identities.add_project(b["id"], other, "Course")
     with pytest.raises(sqlite3.IntegrityError), store._connect() as db:
         db.execute(
             "INSERT INTO builder_projects(project_id, user_id, slug, "
             "created_at, model_routes, generate_images) "
             "VALUES (?, ?, ?, datetime('now'), '{}', 0)",
-            (autre, b["id"], slug),
+            (other, b["id"], slug),
         )
 
 
@@ -132,26 +132,26 @@ def test_a_database_already_with_duplicates_does_not_block_startup(tmp_path, cap
     change the address of a site already online.
     """
     store = PlatformStore(tmp_path)
-    identites = IdentityStore(store.workspace)
-    a = identites.register("v1@monl.test", "MotDePasse-123")
-    b = identites.register("v2@monl.test", "MotDePasse-123")
+    identities = IdentityStore(store.workspace)
+    a = identities.register("v1@monl.test", "MotDePasse-123")
+    b = identities.register("v2@monl.test", "MotDePasse-123")
 
     # We build the BEFORE state: two accounts, one slug.
-    for compte in (a, b):
+    for account in (a, b):
         project_id = uuid.uuid4().hex
-        identites.add_project(compte["id"], project_id, "Ancien")
+        identities.add_project(account["id"], project_id, "Ancien")
         with store._connect() as db:
             db.execute("DROP INDEX IF EXISTS idx_builder_projects_slug")
             db.execute(
                 "INSERT INTO builder_projects(project_id, user_id, slug, "
                 "created_at, model_routes, generate_images) "
                 "VALUES (?, ?, 'ancien', datetime('now'), '{}', 0)",
-                (project_id, compte["id"]),
+                (project_id, account["id"]),
             )
 
     capsys.readouterr()
-    rouvert = PlatformStore(tmp_path)
-    sortie = capsys.readouterr().out
-    assert rouvert.list_all_projects(), "the platform refuses to start"
-    assert "ancien" in sortie.lower(), (
-        f"the duplicate is not NAMED at startup:\n{sortie}")
+    reopened = PlatformStore(tmp_path)
+    output = capsys.readouterr().out
+    assert reopened.list_all_projects(), "the platform refuses to start"
+    assert "ancien" in output.lower(), (
+        f"the duplicate is not NAMED at startup:\n{output}")

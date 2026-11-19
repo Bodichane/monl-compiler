@@ -85,7 +85,7 @@
   that stopped their `uvicorn` without closing its `stdout` pipe, eight
   start-up probes reading `urlopen(...)` without closing it, eight unclosed
   `HTTPError` responses and eight `open(...).read()` in tests. Stopping goes
-  through `tests.support.processus.arreter_processus` (terminate, bounded wait,
+  through `tests.support.process.arreter_processus` (terminate, bounded wait,
   kill and wait, close pipes). An AST guard refuses `open(...)` and
   `urlopen(...)` outside a `with` in `src/` and `tests/`, even on paths no test
   runs; it has a counter-proof and was seen failing on the original leak.

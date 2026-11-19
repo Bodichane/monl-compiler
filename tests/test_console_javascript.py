@@ -34,19 +34,19 @@ from monl_platform.app import create_app
 #: The pages that carry a script. A page added without entering here would not
 #: be checked — the witness below therefore requires them all to carry
 #: JavaScript, otherwise the name is stale.
-PAGES_AVEC_SCRIPT = ("/console", "/", "/guide", "/mcp", "/login", "/account")
+PAGES_WITH_SCRIPT = ("/console", "/", "/guide", "/mcp", "/login", "/account")
 
-BLOC_SCRIPT = re.compile(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", re.S | re.I)
+BLOCK_SCRIPT = re.compile(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", re.S | re.I)
 
 
 def _node():
-    chemin = shutil.which("node")
-    if chemin is None:
+    path = shutil.which("node")
+    if path is None:
         # No `skip`: a skip would say "nothing to check here", while it would
         # mean "I did not check" (point 140). Node is declared in
         # .github/workflows/ci.yml for that reason.
         pytest.fail("node is required to analyze the served JavaScript")
-    return chemin
+    return path
 
 
 @pytest.fixture(scope="module")
@@ -62,10 +62,10 @@ def client(tmp_path_factory):
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
-    serveur = uvicorn.Server(
+    server = uvicorn.Server(
         uvicorn.Config(application, host="127.0.0.1", port=port, log_level="error")
     )
-    fil = threading.Thread(target=serveur.run, daemon=True)
+    fil = threading.Thread(target=server.run, daemon=True)
     fil.start()
     base = f"http://127.0.0.1:{port}"
     session = requests.Session()
@@ -86,43 +86,43 @@ def client(tmp_path_factory):
         assert inscription.status_code == 201, inscription.text
         yield base, session
     finally:
-        serveur.should_exit = True
+        server.should_exit = True
         fil.join(timeout=10)
 
 
-def _scripts_of(client, chemin):
+def _scripts_of(client, path):
     base, session = client
-    reponse = session.get(f"{base}{chemin}", timeout=10)
-    assert reponse.status_code == 200, f"{chemin} : {reponse.status_code}"
-    return BLOC_SCRIPT.findall(reponse.text)
+    response = session.get(f"{base}{path}", timeout=10)
+    assert response.status_code == 200, f"{path} : {response.status_code}"
+    return BLOCK_SCRIPT.findall(response.text)
 
 
-@pytest.mark.parametrize("chemin", PAGES_AVEC_SCRIPT)
-def test_the_served_javascript_parses_without_error(client, chemin, tmp_path):
+@pytest.mark.parametrize("path", PAGES_WITH_SCRIPT)
+def test_the_served_javascript_parses_without_error(client, path, tmp_path):
     node = _node()
-    blocs = _scripts_of(client, chemin)
-    assert blocs, f"{chemin} serves no script: this entry is stale"
-    for index, bloc in enumerate(blocs):
-        fichier = tmp_path / f"{chemin.strip('/') or 'racine'}-{index}.js"
-        fichier.write_text(bloc, encoding="utf-8")
-        resultat = subprocess.run(
-            [node, "--check", str(fichier)],
+    blocks = _scripts_of(client, path)
+    assert blocks, f"{path} serves no script: this entry is stale"
+    for index, block in enumerate(blocks):
+        file = tmp_path / f"{path.strip('/') or 'racine'}-{index}.js"
+        file.write_text(block, encoding="utf-8")
+        result = subprocess.run(
+            [node, "--check", str(file)],
             capture_output=True, text=True, check=False,
         )
-        assert resultat.returncode == 0, (
-            f"{chemin}, script #{index}: invalid JavaScript — the page is "
-            f"dead in a browser.\n{resultat.stderr}"
+        assert result.returncode == 0, (
+            f"{path}, script #{index}: invalid JavaScript — the page is "
+            f"dead in a browser.\n{result.stderr}"
         )
 
 
 def test_the_console_serves_the_start_button_with_its_apostrophe(client):
     """The named counter-proof: THIS string had broken the page."""
     node = _node()
-    blocs = _scripts_of(client, "/console")
-    entier = "\n".join(blocs)
-    assert "Start the project" in entier, "the button disappeared from the served script"
+    blocks = _scripts_of(client, "/console")
+    whole = "\n".join(blocks)
+    assert "Start the project" in whole, "the button disappeared from the served script"
     # The apostrophe must be ESCAPED in the literal, not bare.
-    assert "Start the project\\'s API" in entier, (
+    assert "Start the project\\'s API" in whole, (
         "the apostrophe is bare in the served JavaScript literal: "
         "a Python templating layer ate the backslash"
     )

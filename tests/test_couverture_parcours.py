@@ -40,7 +40,7 @@ workflow Backoffice for Admin
     Delete Product
 """
 
-SPEC_VISUELLE = """app BoutiqueVisuelle
+SPEC_VISUAL = """app BoutiqueVisuelle
 
 entity Product
     title: String
@@ -73,7 +73,7 @@ def _visual_project(tmp_path):
     project = tmp_path / "boutique-visuelle"
     project.mkdir()
     spec = project / "spec.ml"
-    spec.write_text(SPEC_VISUELLE, encoding="utf-8")
+    spec.write_text(SPEC_VISUAL, encoding="utf-8")
     contract = compile_project(str(spec), str(project))
     return project, contract
 
@@ -274,7 +274,7 @@ def test_a_project_without_markers_does_not_trigger_an_empty_visual_list(tmp_pat
 
 # ---- The parameter must REACH the fetch, whatever the spelling (point 150) ----
 
-FONCTION_DIRECTE = """
+FUNCTION_DIRECT = """
 async function api(endpoint, options) {
   const response = await fetch(endpoint, options);
   return response.json();
@@ -283,7 +283,7 @@ api('/product?limit=100');
 api('/order', {method: 'POST'});
 """
 
-FONCTION_GABARIT = """
+FUNCTION_TEMPLATE = """
 const API_BASE = '';
 async function api(endpoint, options) {
   const response = await fetch(`${API_BASE}${endpoint}`, options);
@@ -295,7 +295,7 @@ api('/order', {method: 'POST'});
 
 # The spelling REALLY produced by the model, and the one that led to "0 routes
 # called" on a frontend that called five.
-FONCTION_PAR_VARIABLE = """
+FUNCTION_BY_VARIABLE = """
 const API_BASE = '';
 async function api(endpoint, options = {}) {
   const config = { headers: {} , ...options };
@@ -308,13 +308,13 @@ api('/order', {method: 'POST'});
 """
 
 
-def _appels(tmp_path, source, nom="ecriture"):
+def _calls(tmp_path, source, name="ecriture"):
     from monl.cli import _frontend_fetch_calls
 
-    dossier = tmp_path / nom / "frontend"
-    dossier.mkdir(parents=True)
-    (dossier / "app.js").write_text(source, encoding="utf-8")
-    return _frontend_fetch_calls(str(dossier))
+    folder = tmp_path / name / "frontend"
+    folder.mkdir(parents=True)
+    (folder / "app.js").write_text(source, encoding="utf-8")
+    return _frontend_fetch_calls(str(folder))
 
 
 def test_the_three_spellings_of_an_access_function_are_seen(tmp_path):
@@ -324,12 +324,12 @@ def test_the_three_spellings_of_an_access_function_are_seen(tmp_path):
     call invisible to the check. Measured with real spend: 12.8 KB of JavaScript
     calling five routes, counted as zero.
     """
-    for nom, source in (("directe", FONCTION_DIRECTE),
-                        ("gabarit", FONCTION_GABARIT),
-                        ("variable", FONCTION_PAR_VARIABLE)):
-        appels = _appels(tmp_path, source, nom)
-        assert ("GET", "/product") in appels, (nom, appels)
-        assert ("POST", "/order") in appels, (nom, appels)
+    for name, source in (("directe", FUNCTION_DIRECT),
+                        ("gabarit", FUNCTION_TEMPLATE),
+                        ("variable", FUNCTION_BY_VARIABLE)):
+        calls = _calls(tmp_path, source, name)
+        assert ("GET", "/product") in calls, (name, calls)
+        assert ("POST", "/order") in calls, (name, calls)
 
 
 def test_a_function_not_passing_its_parameter_is_not_an_api(tmp_path):
@@ -346,7 +346,7 @@ def test_a_function_not_passing_its_parameter_is_not_an_api(tmp_path):
     journaliser('/product', {method: 'GET'});
     """
 
-    appels = _appels(tmp_path, source, "sans-flux")
+    calls = _calls(tmp_path, source, "sans-flux")
 
-    assert ("GET", "/product") not in appels, (
+    assert ("GET", "/product") not in calls, (
         "an ordinary function argument was taken for a called route")

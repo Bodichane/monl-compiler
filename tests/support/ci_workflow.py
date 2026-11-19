@@ -23,8 +23,8 @@ PYPROJECT = RACINE / "pyproject.toml"
 # command. "--cov=..." also starts with a dash: it is the dash FOLLOWED BY A
 # SPACE that makes the list, and the distinction is not cosmetic — without it,
 # a folded command would be cut in the middle.
-NOUVEL_ELEMENT = re.compile(r"^\s*-\s")
-NOUVELLE_CLE = re.compile(r"^\s*[A-Za-z_][\w -]*:(\s|$)")
+NEW_ELEMENT = re.compile(r"^\s*-\s")
+NOUVELLE_KEY = re.compile(r"^\s*[A-Za-z_][\w -]*:(\s|$)")
 
 
 def _charger_pyproject():
@@ -61,7 +61,7 @@ def project_coverage_threshold():
     return _charger_pyproject()["tool"]["coverage"]["report"]["fail_under"]
 
 
-def _orders(texte, marqueur):
+def _orders(text, marker):
     """The workflow commands containing `marqueur`, joined back on one line.
 
     The workflow uses both forms: "run: <command>" on one line, and a folded
@@ -69,59 +69,59 @@ def _orders(texte, marqueur):
     A single implementation for all markers: two readings of the same folding
     would diverge (point 146).
     """
-    commandes, courante = [], None
-    for ligne in texte.splitlines():
-        if not ligne.strip() or ligne.strip().startswith("#"):
+    commands, current = [], None
+    for line in text.splitlines():
+        if not line.strip() or line.strip().startswith("#"):
             continue
-        if courante is not None:
-            suite = (not NOUVEL_ELEMENT.match(ligne)
-                     and not NOUVELLE_CLE.match(ligne))
+        if current is not None:
+            suite = (not NEW_ELEMENT.match(line)
+                     and not NOUVELLE_KEY.match(line))
             # A literal block "run: |" carries SEVERAL commands, one per line:
             # a line repeating the marker opens a new one instead of extending
             # the previous one. Without this distinction, two successive
             # coverage gates would be glued into one, and a rule about "each
             # command" would see only one.
-            if suite and marqueur not in ligne:
-                courante += " " + ligne.strip()
+            if suite and marker not in line:
+                current += " " + line.strip()
                 continue
-            commandes.append(courante)
-            courante = None
+            commands.append(current)
+            current = None
             if suite:
-                courante = ligne.strip()
+                current = line.strip()
                 continue
-        if marqueur in ligne:
-            courante = ligne.strip()
-    if courante is not None:
-        commandes.append(courante)
-    return commandes
+        if marker in line:
+            current = line.strip()
+    if current is not None:
+        commands.append(current)
+    return commands
 
 
-def pytest_commands(texte):
+def pytest_commands(text):
     """The workflow's pytest invocations."""
-    return _orders(texte, "python -m pytest")
+    return _orders(text, "python -m pytest")
 
 
-def coverage_commands(texte):
+def coverage_commands(text):
     """The workflow's coverage reports — where the gates live."""
-    return _orders(texte, "coverage report")
+    return _orders(text, "coverage report")
 
 
-def test_files_of(racine=RACINE):
+def collect_test_files(racine=RACINE):
     """The test files present on DISK, never a written list.
 
     That is the whole point of point 169: a hand-kept list stops guarding the
     day someone files a test under another name.
     """
-    dossiers = [racine / chemin for chemin in project_testpaths()]
-    trouves = {f.relative_to(racine) for d in dossiers for f in d.rglob("test_*.py")}
-    if not trouves:
+    dossiers = [racine / path for path in project_testpaths()]
+    found = {f.relative_to(racine) for d in dossiers for f in d.rglob("test_*.py")}
+    if not found:
         raise AssertionError(
             f"no test file found under {dossiers}: the extractor "
             "would make guarantees green while looking at nothing.")
-    return trouves
+    return found
 
 
-def order_selection(commande, racine=RACINE):
+def command_selection(command, racine=RACINE):
     """The test files a pytest command really selects.
 
     Patterns (`tests/test_platform_*.py`) are expanded, a folder is walked the
@@ -129,32 +129,32 @@ def order_selection(commande, racine=RACINE):
     `testpaths`. A target designating NO existing file raises: it is the only way
     to tell "this command selects nothing" from "I could not read this command".
     """
-    jetons = commande.split()
-    if "pytest" not in jetons:
-        raise AssertionError(f"command without `pytest`: {commande!r}")
-    cibles = [j for j in jetons[jetons.index("pytest") + 1:] if not j.startswith("-")]
-    if not cibles:
-        cibles = project_testpaths()
+    tokens = command.split()
+    if "pytest" not in tokens:
+        raise AssertionError(f"command without `pytest`: {command!r}")
+    targets = [j for j in tokens[tokens.index("pytest") + 1:] if not j.startswith("-")]
+    if not targets:
+        targets = project_testpaths()
 
     selection = set()
-    for cible in cibles:
-        chemins = sorted(racine.glob(cible)) if "*" in cible else [racine / cible]
-        atteints = set()
-        for chemin in chemins:
-            if chemin.is_dir():
-                atteints |= {f.relative_to(racine) for f in chemin.rglob("test_*.py")}
-            elif chemin.is_file():
-                atteints.add(chemin.relative_to(racine))
-        if not atteints:
+    for target in targets:
+        paths = sorted(racine.glob(target)) if "*" in target else [racine / target]
+        reached = set()
+        for path in paths:
+            if path.is_dir():
+                reached |= {f.relative_to(racine) for f in path.rglob("test_*.py")}
+            elif path.is_file():
+                reached.add(path.relative_to(racine))
+        if not reached:
             raise AssertionError(
-                f"target {cible!r} of command {commande!r} designates "
+                f"target {target!r} of command {command!r} designates "
                 "no existing file: the extractor cannot read it, and "
                 "ignoring it would make a command look wider than it "
                 "is.")
-        selection |= atteints
+        selection |= reached
     return selection
 
 
-def coverage_options(commande):
+def coverage_options(command):
     """The `--cov…` options a command carries."""
-    return [j for j in commande.split() if j.startswith("--cov")]
+    return [j for j in command.split() if j.startswith("--cov")]

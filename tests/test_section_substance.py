@@ -39,95 +39,95 @@ workflow Gerer for Visitor
 """
 
 
-def _rendre(slug, corps):
-    return f'<section data-monl-section="{slug}">{corps}</section>'
+def _render(slug, body):
+    return f'<section data-monl-section="{slug}">{body}</section>'
 
 
 # ----------------------------------------------- the substance of a section --
 def test_an_empty_section_is_refused_naming_what_is_missing():
-    regles = {'data-monl-section="hero"': rule_for("hero")}
+    rules = {'data-monl-section="hero"': rule_for("hero")}
 
-    fautes = substance_errors(_rendre("hero", ""), regles)
+    faults = substance_errors(_render("hero", ""), rules)
 
-    assert len(fautes) == 1
-    assert "hero" in fautes[0]
-    assert "a heading" in fautes[0]
-    assert "an action" in fautes[0]
-    assert "readable text" in fautes[0]
+    assert len(faults) == 1
+    assert "hero" in faults[0]
+    assert "a heading" in faults[0]
+    assert "an action" in faults[0]
+    assert "readable text" in faults[0]
 
 
 def test_a_title_alone_does_not_make_a_section():
     """It is the most frequent shell: the skeleton without the content."""
-    regles = {'data-monl-section="trust"': rule_for("trust")}
+    rules = {'data-monl-section="trust"': rule_for("trust")}
 
-    fautes = substance_errors(_rendre("trust", "<h2>Confiance</h2>"), regles)
+    faults = substance_errors(_render("trust", "<h2>Confiance</h2>"), rules)
 
-    assert fautes and "readable text" in fautes[0]
+    assert faults and "readable text" in faults[0]
 
 
 def test_a_filled_section_is_accepted():
-    regles = {'data-monl-section="trust"': rule_for("trust")}
-    corps = ("<h2>Comment nous travaillons</h2><p>"
+    rules = {'data-monl-section="trust"': rule_for("trust")}
+    body = ("<h2>Comment nous travaillons</h2><p>"
              + "Chaque pièce part sous cinq jours et le montant est calculé "
                "par le serveur, jamais par le navigateur. " * 2
              + "</p>")
 
-    assert substance_errors(_rendre("trust", corps), regles) == []
+    assert substance_errors(_render("trust", body), rules) == []
 
 
 def test_a_scripts_text_does_not_count():
     """A `<script>` is not read by a human: counting it would let one pass the
     barrier with a well-filled JavaScript variable."""
-    regles = {'data-monl-section="trust"': rule_for("trust")}
-    corps = "<h2>T</h2><script>var t = \"" + "x" * 400 + "\";</script>"
+    rules = {'data-monl-section="trust"': rule_for("trust")}
+    body = "<h2>T</h2><script>var t = \"" + "x" * 400 + "\";</script>"
 
-    fautes = substance_errors(_rendre("trust", corps), regles)
+    faults = substance_errors(_render("trust", body), rules)
 
-    assert fautes and "readable text" in fautes[0]
+    assert faults and "readable text" in faults[0]
 
 
 def test_a_section_does_not_borrow_its_neighbors_text():
     """A never-closed `<p>` is legal HTML5. If depth leaks, the section swallows
     everything after it and the barrier refuses nothing any more."""
-    regles = {'data-monl-section="hero"': rule_for("hero")}
+    rules = {'data-monl-section="hero"': rule_for("hero")}
     html = ('<section data-monl-section="hero"><h1>Bonjour</h1>'
             '<a href="#a">Voir</a><p></section>'
             "<div>" + "beaucoup de texte ailleurs " * 20 + "</div>")
 
-    fautes = substance_errors(html, regles)
+    faults = substance_errors(html, rules)
 
-    assert fautes and "readable text" in fautes[0]
+    assert faults and "readable text" in faults[0]
 
 
 def test_a_form_is_required_where_writing_is_needed():
-    regles = {'data-monl-section="contact"': rule_for("contact")}
-    sans = _rendre("contact", "<h2>Nous écrire</h2><p>Par courriel.</p>")
-    avec = _rendre("contact", "<h2>Nous écrire</h2>"
+    rules = {'data-monl-section="contact"': rule_for("contact")}
+    sans = _render("contact", "<h2>Nous écrire</h2><p>Par courriel.</p>")
+    with_ = _render("contact", "<h2>Nous écrire</h2>"
                               "<form><input><button>Envoyer</button></form>")
 
-    assert substance_errors(sans, regles) and "<form>" in substance_errors(sans, regles)[0]
-    assert substance_errors(avec, regles) == []
+    assert substance_errors(sans, rules) and "<form>" in substance_errors(sans, rules)[0]
+    assert substance_errors(with_, rules) == []
 
 
 def test_a_declared_section_never_requires_more_than_its_own_text():
     """Requiring a hundred characters from a section whose author wrote thirty
     would fail an honest spec: the threshold is capped by what is declared."""
-    court = rule_for("a-propos", declared_body_length=30)
+    short = rule_for("a-propos", declared_body_length=30)
     long = rule_for("a-propos", declared_body_length=5000)
 
-    assert court["text"] == 30
+    assert short["text"] == 30
     assert long["text"] == 100
 
 
 def test_a_missing_section_is_not_reported_twice():
     """Absence is already the presence check's job."""
-    regles = {'data-monl-section="faq"': rule_for("faq")}
+    rules = {'data-monl-section="faq"': rule_for("faq")}
 
-    assert substance_errors("<main></main>", regles) == []
+    assert substance_errors("<main></main>", rules) == []
 
 
 # ---------------------------------------------------------------- the floor --
-def _profil(contract, kind):
+def _profile(contract, kind):
     return [p["name"] for p in select_ui_patterns(contract, kind)]
 
 
@@ -137,18 +137,18 @@ def test_every_application_carries_a_section_for_its_own_substance():
     contract = {"brief": "Un classement", "entities": {"Entry": {"archetype": "post"}},
                 "routes": [{"action": "Read", "entity": "Entry", "path": "/entry"}]}
 
-    noms = _profil(contract, "generic")
+    names = _profile(contract, "generic")
 
-    assert "catalogue" in noms
+    assert "catalogue" in names
 
 
 def test_the_floor_is_at_least_four_sections():
     contract = {"brief": "x", "entities": {"Entry": {}}, "routes": []}
 
-    noms = _profil(contract, "generic")
+    names = _profile(contract, "generic")
 
-    assert {"hero", "trust", "closing-cta"} <= set(noms)
-    assert len(noms) >= 4
+    assert {"hero", "trust", "closing-cta"} <= set(names)
+    assert len(names) >= 4
 
 
 def test_a_booking_keeps_its_journey_and_gains_no_catalog():
@@ -157,10 +157,10 @@ def test_a_booking_keeps_its_journey_and_gains_no_catalog():
                 "routes": [{"action": "Create", "entity": "Booking",
                             "path": "/booking"}]}
 
-    noms = _profil(contract, "service")
+    names = _profile(contract, "service")
 
-    assert "booking" in noms
-    assert "catalogue" not in noms
+    assert "booking" in names
+    assert "catalogue" not in names
 
 
 # ------------------------------------------------- end to end, on a project --
@@ -169,9 +169,9 @@ def _compiler(tmp_path):
     spec.write_text(SPEC, encoding="utf-8")
     with contextlib.redirect_stdout(io.StringIO()):
         compile_project(str(spec), str(tmp_path))
-    lignes = (tmp_path / ASSET_MANIFEST_FILENAME).read_text(encoding="utf-8").splitlines()
-    corps = lignes[1:] if lignes and lignes[0].lstrip().startswith("<!--") else lignes
-    return json.loads("\n".join(corps))
+    lines = (tmp_path / ASSET_MANIFEST_FILENAME).read_text(encoding="utf-8").splitlines()
+    body = lines[1:] if lines and lines[0].lstrip().startswith("<!--") else lines
+    return json.loads("\n".join(body))
 
 
 @pytest.fixture()
@@ -179,53 +179,53 @@ def project(tmp_path):
     manifest = _compiler(tmp_path)
     (tmp_path / "frontend").mkdir()
 
-    def livrer(remplie):
-        blocs = []
+    def deliver(filled):
+        blocks = []
         for marker in manifest["required_markers"]["index.html"]:
-            regle = manifest["section_substance"]["index.html"].get(marker, {})
-            if not remplie:
-                blocs.append(f"<div {marker}></div>")
+            rule = manifest["section_substance"]["index.html"].get(marker, {})
+            if not filled:
+                blocks.append(f"<div {marker}></div>")
                 continue
-            corps = ["<h2>Un titre</h2>",
+            body = ["<h2>Un titre</h2>",
                      "<p>" + "Du texte réellement lisible sur la page. " * 8 + "</p>",
                      '<a href="#s">Agir</a>']
-            if regle.get("form"):
-                corps.append("<form><input><button>Envoyer</button></form>")
-            blocs.append(f"<div {marker}>" + "".join(corps) + "</div>")
+            if rule.get("form"):
+                body.append("<form><input><button>Envoyer</button></form>")
+            blocks.append(f"<div {marker}>" + "".join(body) + "</div>")
         (tmp_path / "frontend" / "index.html").write_text(
-            "\n".join(blocs), encoding="utf-8")
+            "\n".join(blocks), encoding="utf-8")
         assert activate_asset_manifest(str(tmp_path))
         return _design_completeness_errors(str(tmp_path))
 
-    return livrer, manifest
+    return deliver, manifest
 
 
 def test_a_project_delivered_as_an_empty_shell_is_refused(project):
-    livrer, manifest = project
+    deliver, manifest = project
 
-    fautes = livrer(remplie=False)
+    faults = deliver(filled=False)
 
-    assert fautes, "a page of empty sections must be refused"
-    vides = [f for f in fautes if f.startswith("empty or incomplete section")]
-    assert len(vides) == len(manifest["section_substance"]["index.html"])
+    assert faults, "a page of empty sections must be refused"
+    empty = [f for f in faults if f.startswith("empty or incomplete section")]
+    assert len(empty) == len(manifest["section_substance"]["index.html"])
 
 
 def test_the_same_project_really_filled_is_accepted(project):
     """Counter-proof: without it, a barrier refusing everything would pass."""
-    livrer, _ = project
+    deliver, _ = project
 
-    assert livrer(remplie=True) == []
+    assert deliver(filled=True) == []
 
 
 def test_the_manifest_carries_each_sections_rule(project):
-    _livrer, manifest = project
-    regles = manifest["section_substance"]["index.html"]
+    _deliver, manifest = project
+    rules = manifest["section_substance"]["index.html"]
 
-    assert set(regles) <= set(manifest["required_markers"]["index.html"])
+    assert set(rules) <= set(manifest["required_markers"]["index.html"])
     # The invariant is NOT "a title everywhere": the footer has none, and
     # imposing one would make "Footer" written in large type, which no real
     # site does. What counts is that no rule is empty — a rule requiring
     # nothing is a rule producing nothing, exactly what point 85 forbids.
-    assert all(any(r.values()) for r in regles.values())
-    assert 'data-monl-section="trust"' in regles
-    assert 'data-monl-section="footer"' in regles
+    assert all(any(r.values()) for r in rules.values())
+    assert 'data-monl-section="trust"' in rules
+    assert 'data-monl-section="footer"' in rules

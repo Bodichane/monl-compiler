@@ -17,7 +17,7 @@ from . import (
 )
 
 
-def _contenu_et_regles(devise, entity_specs, normalized_ast, plans, prestataire, public_conditions, routes):
+def _content_and_rules(devise, entity_specs, normalized_ast, plans, provider, public_conditions, routes):
     """Editorial content, messages and business rules announced to the
     frontend."""
     routes.sort(key=lambda r: (r["entity"], r["path"], r["method"]))
@@ -35,7 +35,7 @@ def _contenu_et_regles(devise, entity_specs, normalized_ast, plans, prestataire,
             "trigger": f"{rule['trigger_entity']}.{rule['trigger_action']}",
             "recipient": "the authenticated account, through its email identifier",
             "subject": rule["subject"],
-            "body": foundations.paragraphes(rule["body"]),
+            "body": foundations.paragraphs(rule["body"]),
             "delivery": "asynchronous attempt after commit, with no retry and no delivery guarantee",
             "note": ("After the creation succeeds, tell the user that a "
                      "message attempt was started. Do not promise delivery; "
@@ -60,7 +60,7 @@ def _contenu_et_regles(devise, entity_specs, normalized_ast, plans, prestataire,
     # projects that do not use it.
     if plans.payable_by_entity:
         business_rules["payment"] = {
-            "provider": prestataire,
+            "provider": provider,
             "currency": devise["code"],
             # The exponent is GIVEN, not left to deduce: it is what says
             # whether `montant_centimes` is divided by a hundred or not, and an
@@ -91,19 +91,19 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
     # generation — _compute_route_map, never parallel logic.
     route_map = plans.route_map
     public_conditions = plans.public_conditions
-    lisibles = {plan.base_target for (act, _t), plan in route_map.items()
+    readable = {plan.base_target for (act, _t), plan in route_map.items()
                 if act == "Read"}
 
-    entity_specs = entities_contract._specs_des_entites(entities, fk_placements, lisibles, plans)
+    entity_specs = entities_contract._specs_of_entities(entities, fk_placements, readable, plans)
 
-    routes = routes_contract._routes_du_contrat(entity_specs, plans, route_map)
+    routes = routes_contract._routes_of_contract(entity_specs, plans, route_map)
 
-    devise, payables, prestataire = payment_contract._paiement_du_contrat(plans, routes)
+    devise, payables, provider = payment_contract._payment_of_contract(plans, routes)
 
-    auth_features = auth_module._fonctions_dauth(plans, routes)
+    auth_features = auth_module._functions_auth(plans, routes)
 
-    business_rules, design_skills, landing = _contenu_et_regles(devise, entity_specs, normalized_ast, plans, prestataire, public_conditions, routes)
-    auth_contract, b4_contract = auth_module._auth_du_contrat(auth_features, plans)
+    business_rules, design_skills, landing = _content_and_rules(devise, entity_specs, normalized_ast, plans, provider, public_conditions, routes)
+    auth_contract, b4_contract = auth_module._auth_of_contract(auth_features, plans)
     contract = {
         # A spec without B4 keeps the historical version and shape byte for
         # byte; a B4 spec makes its delta visible to the frontend.
@@ -113,19 +113,19 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
         "design_skills": design_skills,
         # Static editorial content (point 55): no entity, no route can carry it
         # — it is the only material in the contract that is not data.
-        "sections": [{"title": s["title"], "body": foundations.paragraphes(s["body"])}
+        "sections": [{"title": s["title"], "body": foundations.paragraphs(s["body"])}
                      for s in (landing.get("sections") or [])],
         # POINT 94: the FAQ is a LIST, and the contract must say so. Rendered
         # as a section, it becomes the block of prose it used to be again — the
         # interface cannot guess a structure it is not given.
-        "faq": [{"question": q["question"], "answer": foundations.paragraphes(q["answer"])}
+        "faq": [{"question": q["question"], "answer": foundations.paragraphs(q["answer"])}
                 for q in (landing.get("faq") or [])],
         # BRICK 30: the OUTGOING addresses, in declared order. The contract
         # carries them because the footer is an interface promise just like a
         # route: an AI that does not see them draws an empty footer, and that
         # is exactly what is being fixed.
-        "links": [{"label": lien["label"], "url": lien["url"]}
-                  for lien in (landing.get("links") or [])],
+        "links": [{"label": link["label"], "url": link["url"]}
+                  for link in (landing.get("links") or [])],
         "source_of_truth": "monl spec (.ml) — never modify the backend by hand",
         # ADDED (brick 13, point 83): the assets SUPPLIED BY THE HUMAN. The
         # contract said nothing about them, so an interface AI could not know a

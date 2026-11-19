@@ -8,7 +8,7 @@ from ..ir import PAYMENT_STATUS_COLUMN
 from . import fields as contract_fields
 
 
-def _paiement_du_contrat(plans, routes):
+def _payment_of_contract(plans, routes):
     """Payment: the two routes, the currency, the provider, and what stays
     editable AFTER payment (point 113)."""
     # PAYMENT BRICK (point 74). These two routes do NOT come out of route_map —
@@ -28,25 +28,25 @@ def _paiement_du_contrat(plans, routes):
     # BRICK 2b: the provider is part of the interface. "Pay by card" and "Pay
     # by Mobile Money" are not drawn the same way, and the AI would write "bank
     # card" by default for lack of knowing.
-    prestataire = plans.payment_provider or "stripe"
-    for entite, champ in sorted(payables.items()):
+    provider = plans.payment_provider or "stripe"
+    for entity, field in sorted(payables.items()):
         # POINT 87: under transitive ownership, "belongs" is read through the
         # intermediate, and a record whose intermediate has disappeared answers
         # 404. The interface must know both, otherwise it treats a 404 as a
         # technical error where it is a business answer.
-        chaine = plans.transitive_ownership.get(entite)
-        premier = chaine["chain"][0] if chaine else None
-        via = (f"This {entite} belongs to whoever owns its "
-               f"{premier}: this chain (of depth "
+        chaine = plans.transitive_ownership.get(entity)
+        first = chaine["chain"][0] if chaine else None
+        via = (f"This {entity} belongs to whoever owns its "
+               f"{first}: this chain (of depth "
                f"{len(chaine['chain'])} link(s)) is what the 403 checks, and "
-               f"a {entite} whose {premier} no longer exists answers "
-               f"404. " if premier else "")
+               f"a {entity} whose {first} no longer exists answers "
+               f"404. " if first else "")
         routes.append(contract_fields._route(
-            "POST", f"/{entite.lower()}/{{id}}/paiement", "Pay", entite,
+            "POST", f"/{entity.lower()}/{{id}}/paiement", "Pay", entity,
             False, sorted(plans.actors),
             note=(via + "Opens a payment session for this record. "
                   "NO body: the amount is read from the database in "
-                  f"`{champ}`, never received from the client. Response: {{status, url, "
+                  f"`{field}`, never received from the client. Response: {{status, url, "
                   "session_id, montant_centimes, devise, montant} — redirect "
                   "the browser to `url`. "
                   # The name `montant_centimes` is kept (point 95: renaming it
@@ -55,11 +55,11 @@ def _paiement_du_contrat(plans, routes):
                   # currency's minor unit. Saying so is the only way to stop an
                   # interface from dividing an amount in CFA francs by a
                   # hundred.
-                  + (f"Payment goes through **{prestataire}**: "
+                  + (f"Payment goes through **{provider}**: "
                      + ("the payer chooses their MOBILE MONEY operator "
                         "(MTN MoMo, Moov, Wave) on the provider's page — "
                         "do not write \"credit card\". "
-                        if prestataire == "fedapay"
+                        if provider == "fedapay"
                         else "the payer pays by card on the provider's "
                              "page. "))
                   + f"Amounts are in **{devise['code']}**: show "
@@ -75,7 +75,7 @@ def _paiement_du_contrat(plans, routes):
                   # does not say how to show its outcome; the tracking field
                   # carries it, and it is NOT up to date on return from the
                   # provider (its webhook writes it, later).
-                  f"The outcome is read in the {entite}'s "
+                  f"The outcome is read in the {entity}'s "
                   f"`{PAYMENT_STATUS_COLUMN}` ('en_attente' / 'payee'): do not "
                   "announce it paid when the user comes back, the provider's "
                   "webhook may not have arrived yet.")))
@@ -92,15 +92,15 @@ def _paiement_du_contrat(plans, routes):
     # explicitly. Otherwise the fields are marked `postpayment_only`, but the
     # interface has no allowed path to change them.
     postpayment = plans.postpayment_writable_by_entity
-    for entite, config in sorted(postpayment.items()):
+    for entity, config in sorted(postpayment.items()):
         fields = list(config["fields"])
         routes.append(contract_fields._route(
-            "PUT", f"/{entite.lower()}/{{id}}/apres-paiement",
-            "UpdateAfterPayment", entite, False, [config["actor"]],
+            "PUT", f"/{entity.lower()}/{{id}}/apres-paiement",
+            "UpdateAfterPayment", entity, False, [config["actor"]],
             request_fields=fields,
             note=("Write reserved to the supervisor role after payment: "
                   f"lets it fill {', '.join(f'`{f}`' for f in fields)}. "
                   "Every field is optional in the body; send only those "
                   "that change. 404 if the record does not exist, 403 for "
                   "any other role.")))
-    return devise, payables, prestataire
+    return devise, payables, provider

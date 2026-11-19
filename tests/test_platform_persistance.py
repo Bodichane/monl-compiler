@@ -10,24 +10,24 @@ from monl_platform.identity import IdentityStore
 from monl_platform.store import PlatformStore
 
 
-def _descriptors_on(chemin):
-    dossier = "/proc/self/fd"
-    if not os.path.isdir(dossier):
+def _descriptors_on(path):
+    folder = "/proc/self/fd"
+    if not os.path.isdir(folder):
         pytest.skip("descriptor counting requires /proc")
-    chemin = str(chemin)
-    ouverts = 0
-    with os.scandir(dossier) as entrees:
-        for entree in entrees:
+    path = str(path)
+    open_ = 0
+    with os.scandir(folder) as entrees:
+        for entry in entrees:
             try:
-                if chemin in os.readlink(entree.path):
-                    ouverts += 1
+                if path in os.readlink(entry.path):
+                    open_ += 1
             except OSError:
                 continue
-    return ouverts
+    return open_
 
 
-def _fermer(connexion):
-    connexion.close()
+def _close(login):
+    login.close()
 
 
 def test_the_backup_covers_identity_and_builder(tmp_path):
@@ -39,15 +39,15 @@ def test_the_backup_covers_identity_and_builder(tmp_path):
     identities.add_project(user["id"], project, "Atelier")
     platform.create_project(user["id"], project, "atelier")
 
-    copie = identities.sauvegarder(tmp_path / "sauvegardes" / "base.sqlite3")
-    connexion = sqlite3.connect(copie)
+    copy = identities.back_up(tmp_path / "sauvegardes" / "base.sqlite3")
+    login = sqlite3.connect(copy)
     try:
-        assert connexion.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 1
-        assert connexion.execute(
+        assert login.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 1
+        assert login.execute(
             "SELECT COUNT(*) FROM builder_projects WHERE project_id = ?", (project,)
         ).fetchone()[0] == 1
     finally:
-        _fermer(connexion)
+        _close(login)
 
 
 @pytest.mark.skipif(not os.path.isdir("/proc/self/fd"), reason="/proc requis")
@@ -58,14 +58,14 @@ def test_the_builder_reads_close_their_connections(tmp_path):
     project = uuid.uuid4().hex
     identities.add_project(user["id"], project, "Atelier")
     platform.create_project(user["id"], project, "atelier")
-    avant = _descriptors_on(platform.database)
+    before = _descriptors_on(platform.database)
 
     for _ in range(500):
         assert platform.get_project(project)["project_id"] == project
 
     apres = _descriptors_on(platform.database)
-    assert apres - avant == 0, (
-        f"{apres - avant} descriptor(s) stay open after 500 reads"
+    assert apres - before == 0, (
+        f"{apres - before} descriptor(s) stay open after 500 reads"
     )
 
 
@@ -73,27 +73,27 @@ def test_identity_and_builder_share_the_same_database(tmp_path):
     identities = IdentityStore(tmp_path)
     platform = PlatformStore(tmp_path)
 
-    for numero in range(3):
-        email = f"compte-{numero}@example.test"
+    for number in range(3):
+        email = f"compte-{number}@example.test"
         user = identities.register(email, "MotDePasse-123")
-        project = f"{numero:032x}"
-        identities.add_project(user["id"], project, f"Site {numero}")
-        platform.create_project(user["id"], project, f"site-{numero}")
+        project = f"{number:032x}"
+        identities.add_project(user["id"], project, f"Site {number}")
+        platform.create_project(user["id"], project, f"site-{number}")
 
-        assert identities.projects(user["id"])[0]["name"] == f"Site {numero}"
+        assert identities.projects(user["id"])[0]["name"] == f"Site {number}"
         assert platform.get_project(project)["project_id"] == project
 
-    connexion = sqlite3.connect(platform.database)
+    login = sqlite3.connect(platform.database)
     try:
         tables = {
             row[0]
-            for row in connexion.execute(
+            for row in login.execute(
                 "SELECT name FROM sqlite_master WHERE type = 'table'"
             )
         }
     finally:
-        _fermer(connexion)
+        _close(login)
 
     assert {"users", "projects", "accounts", "builder_projects", "builds"} <= tables
     assert len(platform.list_all_projects()) == 3
-    assert len(identities.tous_les_projets()) == 3
+    assert len(identities.all_the_projects()) == 3

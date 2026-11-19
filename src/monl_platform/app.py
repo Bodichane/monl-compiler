@@ -12,15 +12,15 @@ import threading
 from fastapi import FastAPI
 
 from .app_api_routes import mount_api_routes
-from .app_http import _liens_de_pied, mount_error_handler
-from .app_lifecycle import _purger, create_lifespan
+from .app_http import _links_of_footer, mount_error_handler
+from .app_lifecycle import _purge, create_lifespan
 from .app_pages import mount_page_routes
 from .builder_routes import create_runtime, mount_builder_routes
 from .identity import IdentityStore
-from .journal import anomalie, configurer, evenement
+from .log import anomaly, configure, event
 from .mcp_server import MCPDispatcher
 from .service import CompilationService
-from .session import verifier_configuration_cookie
+from .session import check_configuration_cookie
 
 
 def create_app(*, workspace=None, domain=None, downloads_dir=None) -> FastAPI:
@@ -30,25 +30,25 @@ def create_app(*, workspace=None, domain=None, downloads_dir=None) -> FastAPI:
     prices_path, poll_interval, start_worker, and the two for images) all
     served the frontend builder. The platform no longer builds interfaces and
     no longer calls any model: what it does, it does offline."""
-    verifier_configuration_cookie()
-    configurer()
+    check_configuration_cookie()
+    configure()
     service = CompilationService(workspace)
     identities = IdentityStore(service.workspace)
-    sans_codes = identities.comptes_sans_codes()
-    comptes_herites = identities.comptes_herites()
+    sans_codes = identities.accounts_without_codes()
+    accounts_inherited = identities.accounts_inherited()
     if sans_codes:
-        anomalie("comptes_sans_codes_de_secours", nombre=sans_codes)
-    if comptes_herites:
-        anomalie(
+        anomaly("comptes_sans_codes_de_secours", nombre=sans_codes)
+    if accounts_inherited:
+        anomaly(
             "comptes_heritages_non_convertibles",
-            nombre=comptes_herites,
+            nombre=accounts_inherited,
             raison="legacy registry hashes and identifiers are incompatible",
         )
     builder_runtime = create_runtime(
         service, identities, domain=domain, downloads_dir=downloads_dir
     )
-    evenement("demarrage", workspace=str(service.workspace),
-              purges=_purger(service, identities, builder_runtime))
+    event("demarrage", workspace=str(service.workspace),
+              purges=_purge(service, identities, builder_runtime))
     dispatcher = MCPDispatcher(service, identities)
     compile_slots = threading.BoundedSemaphore(
         max(1, int(os.environ.get("MONL_MAX_CONCURRENT_COMPILES", "2")))
@@ -75,4 +75,4 @@ def create_app(*, workspace=None, domain=None, downloads_dir=None) -> FastAPI:
 
 app = create_app(workspace=os.environ.get("MONL_PLATFORM_WORKSPACE"))
 
-__all__ = ["_liens_de_pied", "app", "create_app"]
+__all__ = ["_links_of_footer", "app", "create_app"]

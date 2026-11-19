@@ -9,33 +9,33 @@ from typing import Any
 
 from ..ir import CompilationIR
 from ..validation_pipeline import DEFAULT_VALIDATION_PIPELINE, ValidationPipeline
-from .access import AccesMixin
+from .access import AccessMixin
 from .assets import AssetsMixin
 from .audit import AuditMixin
-from .capabilities import CapacitesMixin
+from .capabilities import CapabilitiesMixin
 from .collisions import CollisionsMixin
 from .commerce import CommerceMixin
-from .computed_fields import ChampsCalculesMixin
-from .fields import ChampsMixin
-from .lifecycle import CycleDeVieMixin
-from .list_capabilities import CapacitesDeListeMixin
+from .computed_fields import FieldsComputedMixin
+from .fields import FieldsMixin
+from .lifecycle import CycleOfVieMixin
+from .list_capabilities import CapabilitiesOfListMixin
 from .migrations import MigrationsMixin
 from .presentation import PresentationMixin
-from .server_fields import ChampsServeurMixin
+from .server_fields import FieldsServerMixin
 from .uploads import UploadsMixin
 
 
 class MonlAST(
-        AccesMixin,
+        AccessMixin,
         CollisionsMixin,
-        ChampsMixin,
+        FieldsMixin,
         UploadsMixin,
-        ChampsServeurMixin,
-        ChampsCalculesMixin,
+        FieldsServerMixin,
+        FieldsComputedMixin,
         CommerceMixin,
-        CycleDeVieMixin,
-        CapacitesMixin,
-        CapacitesDeListeMixin,
+        CycleOfVieMixin,
+        CapabilitiesMixin,
+        CapabilitiesOfListMixin,
         PresentationMixin,
         MigrationsMixin,
         AssetsMixin,

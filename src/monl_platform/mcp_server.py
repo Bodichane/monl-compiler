@@ -7,7 +7,7 @@ from typing import Any
 
 from monl import __version__ as VERSION_DU_PAQUET
 
-from .evolution import contrat_dune_spec, delta_de_contrat, recompiler
+from .evolution import contract_dune_spec, delta_of_contract, recompile
 from .identity import IdentityStore
 from .service import (
     CompilationService,
@@ -19,7 +19,7 @@ from .service import (
 PROTOCOL_VERSION = "2025-06-18"
 
 
-def _adresse_de_telechargement(project_id: str) -> str:
+def _address_of_download(project_id: str) -> str:
     """The address at which an agent fetches the archive, with its MCP key.
 
     POINT 162: absolute when ``MONL_PLATFORM_PUBLIC_URL`` is declared,
@@ -27,9 +27,9 @@ def _adresse_de_telechargement(project_id: str) -> str:
     third party controls — the same boundary as point 145 for the OAuth return
     address. A wrong absolute address would send an account's archive to a
     server someone else named."""
-    chemin = f"/api/projects/{project_id}/download"
+    path = f"/api/projects/{project_id}/download"
     base = (os.environ.get("MONL_PLATFORM_PUBLIC_URL") or "").rstrip("/")
-    return base + chemin if base else chemin
+    return base + path if base else path
 
 TOOLS = [
     {
@@ -172,7 +172,7 @@ class MCPDispatcher:
                 "project_id": manifest["id"],
                 "summary": manifest["summary"],
                 "download_path": f"/api/projects/{manifest['id']}/download",
-                "download_url": _adresse_de_telechargement(manifest["id"]),
+                "download_url": _address_of_download(manifest["id"]),
                 "download_auth": (
                     "GET with the 'Authorization: Bearer <your MCP key>' header — "
                     "the same key as for this call, no browser required."
@@ -184,42 +184,42 @@ class MCPDispatcher:
                 raise PlatformNotFoundError("No account is associated with this key.")
             return _text_result({"projects": [
                 {
-                    "project_id": projet["project_id"],
-                    "name": projet["name"],
-                    "created_at": projet["created_at"],
-                    "expires_at": projet["expires_at"],
-                    "download_url": _adresse_de_telechargement(projet["project_id"]),
+                    "project_id": project["project_id"],
+                    "name": project["name"],
+                    "created_at": project["created_at"],
+                    "expires_at": project["expires_at"],
+                    "download_url": _address_of_download(project["project_id"]),
                 }
-                for projet in self.identities.projects(user_id)
+                for project in self.identities.projects(user_id)
             ]})
         if name == "monl_diff_spec":
-            project_id = self._projet_du_compte(arguments["project_id"], user_id)
+            project_id = self._project_of_account(arguments["project_id"], user_id)
             return _text_result({
                 "project_id": project_id,
-                "delta": delta_de_contrat(
+                "delta": delta_of_contract(
                     self.service.contract(project_id),
-                    contrat_dune_spec(self.service, arguments["spec"]),
+                    contract_dune_spec(self.service, arguments["spec"]),
                 ),
                 "ecrit": False,
             })
         if name == "monl_update_backend":
-            project_id = self._projet_du_compte(arguments["project_id"], user_id)
-            delta = recompiler(self.service, project_id, arguments["spec"])
+            project_id = self._project_of_account(arguments["project_id"], user_id)
+            delta = recompile(self.service, project_id, arguments["spec"])
             return _text_result({
                 "project_id": project_id,
                 "delta": delta,
-                "download_url": _adresse_de_telechargement(project_id),
+                "download_url": _address_of_download(project_id),
                 "ecrit": True,
             })
         if name == "monl_inspect_contract":
-            project_id = self._projet_du_compte(arguments["project_id"], user_id)
+            project_id = self._project_of_account(arguments["project_id"], user_id)
             return _text_result({
                 "project": self.service.inspect(project_id),
                 "contract": self.service.contract(project_id),
             })
         raise PlatformInputError(f"Unknown tool: {name}")
 
-    def _projet_du_compte(self, project_id: str, user_id: str | None) -> str:
+    def _project_of_account(self, project_id: str, user_id: str | None) -> str:
         """The same response for "does not exist" and "not yours".
 
         The opaque identifier does not become an existence oracle — it is the

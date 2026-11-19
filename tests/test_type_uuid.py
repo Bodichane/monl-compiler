@@ -38,8 +38,8 @@ import pytest
 from monl.cli import compile_project
 from monl.smoke_test import _sample_value, run_smoke_test
 from tests.support.cases import check_each_case
-from tests.support.processus import arreter_processus
-from tests.support.server import free_port as _port_libre
+from tests.support.process import stop_process
+from tests.support.server import free_port as _port_free
 
 SPEC = """app BancUUID
 
@@ -58,7 +58,7 @@ workflow Acheter for Client
     Read Commande
 """
 
-MAL_FORMES = [
+MAL_SHAPES = [
     "smoke-reference",                        # what the smoke test sent
     "CMD-1",                                  # a "business" reference
     "3f2504e0-4f89-41d3-9a0c",                # truncated
@@ -68,7 +68,7 @@ MAL_FORMES = [
     "",
 ]
 
-BIEN_FORMES = [
+BIEN_SHAPES = [
     "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
     # The nil UUID is well FORMED: refusing it would require judging the value,
     # not its form — and monl only checks the form.
@@ -86,10 +86,10 @@ def test_the_pattern_is_written_for_a_uuid_field(tmp_path, capsys):
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     capsys.readouterr()
-    genere = (tmp_path / "app.py").read_text(encoding="utf-8")
-    ligne = next(li for li in genere.splitlines() if li.strip().startswith("reference:"))
-    assert "pattern=" in ligne
-    assert "max_length=36" in ligne
+    generated = (tmp_path / "app.py").read_text(encoding="utf-8")
+    line = next(li for li in generated.splitlines() if li.strip().startswith("reference:"))
+    assert "pattern=" in line
+    assert "max_length=36" in line
 
 
 def test_an_ordinary_text_field_gains_no_pattern(tmp_path, capsys):
@@ -98,9 +98,9 @@ def test_an_ordinary_text_field_gains_no_pattern(tmp_path, capsys):
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     capsys.readouterr()
-    genere = (tmp_path / "app.py").read_text(encoding="utf-8")
-    ligne = next(li for li in genere.splitlines() if li.strip().startswith("libelle:"))
-    assert "pattern=" not in ligne
+    generated = (tmp_path / "app.py").read_text(encoding="utf-8")
+    line = next(li for li in generated.splitlines() if li.strip().startswith("libelle:"))
+    assert "pattern=" not in line
 
 
 def test_the_output_differs_from_a_string_field(tmp_path, capsys):
@@ -136,25 +136,25 @@ def test_the_smoke_test_passes_on_a_uuid_spec(tmp_path, capsys):
     declares a `UUID` field."""
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
-    ok, erreurs, _avertissements = run_smoke_test(str(tmp_path), say=lambda *a, **k: None)
+    ok, errors, _warnings = run_smoke_test(str(tmp_path), say=lambda *a, **k: None)
     capsys.readouterr()
-    assert ok, erreurs
-    assert erreurs == []
+    assert ok, errors
+    assert errors == []
 
 
 # --------------------------------------------------------------------------
 # Le comportement, contre un vrai serveur
 # --------------------------------------------------------------------------
 
-def _appel(url, corps=None, jeton=None):
-    donnees = json.dumps(corps).encode() if corps is not None else None
-    requete = urllib.request.Request(url, data=donnees)
-    requete.add_header("Content-Type", "application/json")
-    if jeton:
-        requete.add_header("Authorization", f"Bearer {jeton}")
+def _call(url, body=None, token=None):
+    donnees = json.dumps(body).encode() if body is not None else None
+    query = urllib.request.Request(url, data=donnees)
+    query.add_header("Content-Type", "application/json")
+    if token:
+        query.add_header("Authorization", f"Bearer {token}")
     try:
-        with urllib.request.urlopen(requete, timeout=10) as reponse:
-            return reponse.status, json.loads(reponse.read() or b"{}")
+        with urllib.request.urlopen(query, timeout=10) as response:
+            return response.status, json.loads(response.read() or b"{}")
     except urllib.error.HTTPError as err:
         with err:
             return err.code, {}
@@ -162,43 +162,43 @@ def _appel(url, corps=None, jeton=None):
 
 @pytest.fixture(scope="module")
 def application(tmp_path_factory):
-    dossier = tmp_path_factory.mktemp("uuid")
-    (dossier / "spec.ml").write_text(SPEC, encoding="utf-8")
-    compile_project(str(dossier / "spec.ml"), str(dossier))
-    port = _port_libre()
-    processus = subprocess.Popen(
+    folder = tmp_path_factory.mktemp("uuid")
+    (folder / "spec.ml").write_text(SPEC, encoding="utf-8")
+    compile_project(str(folder / "spec.ml"), str(folder))
+    port = _port_free()
+    process = subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "app:app", "--host", "127.0.0.1",
          "--port", str(port)],
-        cwd=str(dossier), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        cwd=str(folder), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     base = f"http://127.0.0.1:{port}"
     try:
         for _ in range(120):
-            if processus.poll() is not None:
-                pytest.fail(processus.stdout.read().decode("utf-8", "replace")[-2000:])
+            if process.poll() is not None:
+                pytest.fail(process.stdout.read().decode("utf-8", "replace")[-2000:])
             try:
-                with urllib.request.urlopen(base + "/docs", timeout=5) as reponse:
-                    reponse.read()
+                with urllib.request.urlopen(base + "/docs", timeout=5) as response:
+                    response.read()
                 break
             except OSError:
                 time.sleep(0.25)
         else:
             pytest.fail("the server never answered")
-        _appel(base + "/register", {"username": "zoe", "password": "motdepasse1",
+        _call(base + "/register", {"username": "zoe", "password": "motdepasse1",
                                     "actor": "Client"})
-        _, jeton = _appel(base + "/login", {"username": "zoe",
+        _, token = _call(base + "/login", {"username": "zoe",
                                             "password": "motdepasse1"})
-        yield base, jeton["access_token"]
+        yield base, token["access_token"]
     finally:
-        arreter_processus(processus, delai=10)
+        stop_process(process, delay=10)
 
 
 def test_a_malformed_reference_is_refused(application):
-    table = MAL_FORMES
+    table = MAL_SHAPES
 
     def cas(valeur):
-        base, jeton = application
-        code, _ = _appel(base + "/commande",
-                         {"reference": valeur, "libelle": "essai"}, jeton)
+        base, token = application
+        code, _ = _call(base + "/commande",
+                         {"reference": valeur, "libelle": "essai"}, token)
         assert code == 422
 
     check_each_case([(valeur,) for valeur in table], cas)
@@ -207,12 +207,12 @@ def test_a_malformed_reference_is_refused(application):
 def test_a_well_formed_reference_stays_accepted(application):
     """The refusal's counter-proof: a too strict pattern would make the previous
     test pass while also rejecting real identifiers."""
-    table = BIEN_FORMES
+    table = BIEN_SHAPES
 
     def cas(valeur):
-        base, jeton = application
-        code, _ = _appel(base + "/commande",
-                         {"reference": valeur, "libelle": "essai"}, jeton)
+        base, token = application
+        code, _ = _call(base + "/commande",
+                         {"reference": valeur, "libelle": "essai"}, token)
         assert code == 200
 
     check_each_case([(valeur,) for valeur in table], cas)

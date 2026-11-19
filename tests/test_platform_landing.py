@@ -20,7 +20,7 @@ from monl_platform import brand, landing_showcase
 from monl_platform.app import create_app
 from monl_platform.landing import LANDING_HTML
 
-RESSOURCE_EXTERNE = re.compile(
+RESOURCE_EXTERNAL = re.compile(
     r"<(?:link|script|img|iframe)\b[^>]*(?:src|href)\s*=\s*['\"]https?://",
     re.IGNORECASE,
 )
@@ -69,20 +69,20 @@ def platform(tmp_path):
 
 
 def test_the_root_presents_the_product(platform):
-    reponse = requests.get(platform, timeout=10)
+    response = requests.get(platform, timeout=10)
 
-    assert reponse.status_code == 200
-    assert "text/html" in reponse.headers["content-type"]
-    assert '<html lang="en">' in reponse.text
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert '<html lang="en">' in response.text
     # What a product page must say: what it is, and how to get it.
-    assert "compiler" in reponse.text.lower()
-    assert "Try it in the console" in reponse.text
+    assert "compiler" in response.text.lower()
+    assert "Try it in the console" in response.text
 
 
 def test_the_page_leads_to_the_console(platform):
-    reponse = requests.get(platform, timeout=10)
+    response = requests.get(platform, timeout=10)
 
-    assert 'href="/console"' in reponse.text
+    assert 'href="/console"' in response.text
     console = requests.get(f"{platform}/console", timeout=10, allow_redirects=False)
     assert console.status_code == 303
     assert console.headers["location"].startswith("/login")
@@ -90,10 +90,10 @@ def test_the_page_leads_to_the_console(platform):
 
 def test_the_page_loads_no_remote_resource(platform):
     """Served locally, it must work without any network."""
-    reponse = requests.get(platform, timeout=10)
+    response = requests.get(platform, timeout=10)
 
-    faute = RESSOURCE_EXTERNE.search(reponse.text)
-    assert faute is None, f"remote resource in the page: {faute.group(0)}"
+    fault = RESOURCE_EXTERNAL.search(response.text)
+    assert fault is None, f"remote resource in the page: {fault.group(0)}"
 
 
 def test_every_outgoing_url_is_a_link_and_nothing_else(platform):
@@ -104,21 +104,21 @@ def test_every_outgoing_url_is_a_link_and_nothing_else(platform):
     font.
     """
     page = requests.get(platform, timeout=10).text
-    sans_commentaires = re.sub(r"/\*.*?\*/", "", page, flags=re.DOTALL)
-    sans_commentaires = re.sub(r"<!--.*?-->", "", sans_commentaires, flags=re.DOTALL)
+    without_comments = re.sub(r"/\*.*?\*/", "", page, flags=re.DOTALL)
+    without_comments = re.sub(r"<!--.*?-->", "", without_comments, flags=re.DOTALL)
 
-    for position in (m.start() for m in re.finditer(r"https?://", sans_commentaires)):
-        debut = sans_commentaires.rfind("<", 0, position)
-        balise = sans_commentaires[debut:position]
+    for position in (m.start() for m in re.finditer(r"https?://", without_comments)):
+        debut = without_comments.rfind("<", 0, position)
+        tag = without_comments[debut:position]
         # ONE exemption, and a narrow one: an inline SVG's `xmlns` is a
         # NAMESPACE, not an address — no browser fetches it. The exemption is
         # about the attribute, never the domain: writing "except w3.org" would
         # let a real request to w3.org through.
-        if re.search(r"\bxmlns(:\w+)?\s*=\s*['\"]$", balise):
+        if re.search(r"\bxmlns(:\w+)?\s*=\s*['\"]$", tag):
             continue
-        assert re.match(r"<a\b[^>]*\bhref\s*=\s*['\"]$", balise), (
+        assert re.match(r"<a\b[^>]*\bhref\s*=\s*['\"]$", tag), (
             "URL sortante hors d'un lien : "
-            + sans_commentaires[position:position + 60]
+            + without_comments[position:position + 60]
         )
 
 
@@ -131,10 +131,10 @@ def test_the_console_is_no_longer_at_the_root(platform):
     """The root and the console are two distinct pages, not the same one."""
     racine = requests.get(platform, timeout=10).text
     session = requests.Session()
-    inscrit = session.post(f"{platform}/api/auth/register", json={
+    registered = session.post(f"{platform}/api/auth/register", json={
         "email": "landing-console@example.test", "password": "MotDePasse-123"
     }, timeout=10)
-    assert inscrit.status_code == 201, inscrit.text
+    assert registered.status_code == 201, registered.text
     console = session.get(f"{platform}/console", timeout=10).text
 
     assert racine != console
@@ -156,17 +156,17 @@ def test_the_brand_badge_keeps_its_ink_color():
     assert "brand-wordmark" in LANDING_HTML
 
 
-def _bande_verticale(trace):
+def _bande_vertical(trace):
     """The top and bottom really drawn by a path.
 
     A path on TWO lines goes down to the bottom of its view; a single-line path,
     centered, leaves space above and below. It is the only way to check the
     presence of a second word without reading the drawing by eye.
     """
-    nombres = [float(n) for n in re.findall(r"-?\d+\.?\d*", trace)]
-    ordonnees = nombres[1::2]
-    assert ordonnees, "unreadable path: the measurement would be about nothing"
-    return min(ordonnees), max(ordonnees)
+    numbers = [float(n) for n in re.findall(r"-?\d+\.?\d*", trace)]
+    ordered = numbers[1::2]
+    assert ordered, "unreadable path: the measurement would be about nothing"
+    return min(ordered), max(ordered)
 
 
 def test_the_bar_carries_the_short_form_and_its_label_says_so(platform):
@@ -183,8 +183,8 @@ def test_the_bar_carries_the_short_form_and_its_label_says_so(platform):
     image, the brand files). Keeping it HERE would be wrong; keeping it NOWHERE
     would let it disappear silently, hence the witness's second half.
     """
-    reponse = requests.get(platform, timeout=10)
-    assert 'aria-label="MONL"' in reponse.text
+    response = requests.get(platform, timeout=10)
+    assert 'aria-label="MONL"' in response.text
     # We do NOT look for "COMPILER" in the page to prove the bar does not
     # announce it: the word legitimately appears there in full ("un réseau pour
     # compiler"), and the witness then measured the PROSE instead of the label.
@@ -192,9 +192,9 @@ def test_the_bar_carries_the_short_form_and_its_label_says_so(platform):
     # Checked by measuring it: the broad assertion turned red on a correct
     # page.
 
-    haut_court, bas_court = _bande_verticale(brand.NAV_TEXT_PATH)
-    haut_long, bas_long = _bande_verticale(brand.WORDMARK_PATH)
-    hauteur = brand.VUE[1]
+    haut_court, bas_court = _bande_vertical(brand.NAV_TEXT_PATH)
+    haut_long, bas_long = _bande_vertical(brand.WORDMARK_PATH)
+    hauteur = brand.VIEW[1]
 
     assert (bas_court - haut_court) < 0.5 * hauteur, (
         "the bar text takes two lines: it is no longer the short "
@@ -230,9 +230,9 @@ def test_the_demo_shows_real_compilation_outputs(platform):
 
     assert "verified specification" in page
     # The four examples really compiled by the platform tests.
-    for modele in ("Public showcase", "Appointment book",
+    for template in ("Public showcase", "Appointment book",
                    "Shop and payment", "Community feed"):
-        assert modele in page
+        assert template in page
     assert "frontend_contract.json" in page
 
 
@@ -250,11 +250,11 @@ def test_a_reveal_is_never_hidden_by_an_inline_style():
     """
     from monl_platform.console import CONSOLE_HTML
 
-    sans_commentaires = re.compile(r"/\*.*?\*/", re.DOTALL)
-    for nom, page in (("accueil", LANDING_HTML), ("console", CONSOLE_HTML)):
-        propre = sans_commentaires.sub("", page)
-        assert not re.search(r"\.style\.opacity\s*=", propre), (
-            f"the {nom} page hides a block with an inline style: a class "
+    without_comments = re.compile(r"/\*.*?\*/", re.DOTALL)
+    for name, page in (("accueil", LANDING_HTML), ("console", CONSOLE_HTML)):
+        own = without_comments.sub("", page)
+        assert not re.search(r"\.style\.opacity\s*=", own), (
+            f"the {name} page hides a block with an inline style: a class "
             "will not be able to undo it"
         )
 
@@ -277,21 +277,21 @@ def test_animated_content_stays_showable_if_the_observer_stays_silent():
 def test_the_visitors_three_questions_have_their_section():
     """The site said WHAT monl does without ever saying why this one, how it
     differs from what one knows, nor whether one must choose."""
-    for ancre in ("pourquoi-title", "compare-title", "ensemble-title"):
-        assert f'id="{ancre}"' in LANDING_HTML, f"section absente : {ancre}"
+    for anchor in ("pourquoi-title", "compare-title", "ensemble-title"):
+        assert f'id="{anchor}"' in LANDING_HTML, f"section absente : {anchor}"
 
 
 def test_the_comparison_also_says_what_monl_does_not_bring():
     """A comparison listing only its victories is a comparison one stops
     believing at the first check. The limits line is not politeness: it is what
     makes the rest readable."""
-    from monl_platform.landing_why import COMPARAISON
-    axes = [axe for axe, _eux, _nous in COMPARAISON]
+    from monl_platform.landing_why import COMPARISON
+    axes = [axe for axe, _eux, _nous in COMPARISON]
     assert "What it does not provide" in axes, axes
-    limites = next(nous for axe, _e, nous in COMPARAISON
+    limites = next(nous for axe, _e, nous in COMPARISON
                    if axe == "What it does not provide")
-    for absent in ("hosting", "real-time", "storage"):
-        assert absent in limites, f"limit not stated: {absent}"
+    for missing in ("hosting", "real-time", "storage"):
+        assert missing in limites, f"limit not stated: {missing}"
     assert limites in LANDING_HTML, "the limits line is not served"
 
 
@@ -299,12 +299,12 @@ def test_no_value_judgment_in_the_comparison():
     """Each line must be a FACT checkable on both sides. "Simpler", "more
     modern", "safer" cannot be checked and do not survive a reader who knows the
     other product."""
-    from monl_platform.landing_why import COMPARAISON
-    interdits = ("simpler", "more modern", "safer", "more secure", "faster",
+    from monl_platform.landing_why import COMPARISON
+    forbidden = ("simpler", "more modern", "safer", "more secure", "faster",
                  "better", "superior", "obsolete")
-    texte = " ".join(f"{a} {b} {c}".lower() for a, b, c in COMPARAISON)
-    fautifs = [mot for mot in interdits if mot in texte]
-    assert not fautifs, f"value judgment in the comparison: {fautifs}"
+    text = " ".join(f"{a} {b} {c}".lower() for a, b, c in COMPARISON)
+    offenders = [word for word in forbidden if word in text]
+    assert not offenders, f"value judgment in the comparison: {offenders}"
 
 
 def test_the_sites_postgresql_promise_is_covered_by_a_test():
@@ -316,9 +316,9 @@ def test_the_sites_postgresql_promise_is_covered_by_a_test():
                    and "MONL_DATABASE_URL" in m["texte"])
     assert "postgresql://" in "\n".join(montage["code"])
 
-    epreuve = pathlib.Path(__file__).with_name("test_postgresql.py")
-    assert epreuve.exists(), "the promise points to no test"
-    source = epreuve.read_text(encoding="utf-8")
+    test = pathlib.Path(__file__).with_name("test_postgresql.py")
+    assert test.exists(), "the promise points to no test"
+    source = test.read_text(encoding="utf-8")
     assert "MONL_DATABASE_URL" in source, (
         "the test does not start the artifacts with the announced variable")
 
@@ -329,19 +329,19 @@ def test_each_exploit_cites_the_point_documenting_it():
     proof."""
     import re as _re
 
-    from monl_platform.landing_why import REFUS
-    journal = (pathlib.Path(__file__).parents[1]
+    from monl_platform.landing_why import REFUSAL
+    log = (pathlib.Path(__file__).parents[1]
                / "docs" / "design_decisions.md").read_text(encoding="utf-8")
-    for refus in REFUS:
-        numeros = _re.findall(r"\d+", refus["point"])
-        assert numeros, refus["point"]
-        for numero in numeros:
-            assert f"\n## {numero}." in journal, (
-                f"point {numero} cited by \"{refus['titre']}\" missing from the journal")
-        assert refus["titre"] in LANDING_HTML
+    for refusal in REFUSAL:
+        numbers = _re.findall(r"\d+", refusal["point"])
+        assert numbers, refusal["point"]
+        for number in numbers:
+            assert f"\n## {number}." in log, (
+                f"point {number} cited by \"{refusal['titre']}\" missing from the journal")
+        assert refusal["titre"] in LANDING_HTML
 
 
-def _specificite(selecteur: str) -> tuple:
+def _specificity(selector: str) -> tuple:
     """Returns (id, class/attribute/pseudo-class, type) of a selector.
 
     Deliberately modest: it can only count sequences of classes, attributes and
@@ -349,14 +349,14 @@ def _specificite(selecteur: str) -> tuple:
     content, so their presence would miscount — the shape assertion refuses them
     rather than returning a wrong figure.
     """
-    for delegue in (":is(", ":not(", ":where(", ":has("):
-        assert delegue not in selecteur, f"delegated weight not computed: {delegue}"
-    reste, attributs = re.subn(r"\[[^\]]*\]", " ", selecteur)
-    identifiants = len(re.findall(r"#[-\w]+", reste))
+    for delegated in (":is(", ":not(", ":where(", ":has("):
+        assert delegated not in selector, f"delegated weight not computed: {delegated}"
+    reste, attributes = re.subn(r"\[[^\]]*\]", " ", selector)
+    identifiers = len(re.findall(r"#[-\w]+", reste))
     classes = len(re.findall(r"\.[-\w]+", reste))
     pseudo_classes = len(re.findall(r"(?<!:):[-\w]+", reste))
     types = len(re.findall(r"(?:^|[\s>+~])([a-zA-Z][-\w]*)", reste))
-    return (identifiants, classes + attributs + pseudo_classes, types)
+    return (identifiers, classes + attributes + pseudo_classes, types)
 
 
 def test_the_sliding_marker_takes_the_tab_background():
@@ -373,7 +373,7 @@ def test_the_sliding_marker_takes_the_tab_background():
     cede = '.case-tabs.glisse .case-tab[aria-selected="true"]'
 
     assert LANDING_HTML.count(cede) == 1, "the rule handing over the background disappeared"
-    assert _specificite(cede) > _specificite(pose), (
+    assert _specificity(cede) > _specificity(pose), (
         f"{cede} no longer beats {pose}")
     assert LANDING_HTML.index(cede) > LANDING_HTML.index(pose), (
         "the rule handing over the background moved BEFORE the one setting it")
@@ -390,11 +390,11 @@ def test_the_marker_is_never_served_in_the_html(platform):
     # Remove ALL scripts and ALL stylesheets, not stop at the first script: the
     # theme one lives in the <head>, so cutting there left the tab markup
     # entirely out of reach — the test stayed green while serving the marker.
-    balisage = re.sub(r"<(script|style)\b.*?</\1>", " ", page, flags=re.S | re.I)
+    markup = re.sub(r"<(script|style)\b.*?</\1>", " ", page, flags=re.S | re.I)
 
-    assert "case-explorer" in balisage, "the cutting took the tabs with it"
-    assert "case-repere" not in balisage, "the marker is served in the markup"
-    assert "glisse" not in balisage, "the class handing over the background is served"
+    assert "case-explorer" in markup, "the cutting took the tabs with it"
+    assert "case-repere" not in markup, "the marker is served in the markup"
+    assert "glisse" not in markup, "the class handing over the background is served"
     assert "case-repere" in page, "nobody sets the marker any more"
 
 
@@ -404,33 +404,33 @@ def test_the_theme_toggle_does_not_animate_for_reduced_motion():
     toggle must also stay functional where the API does not exist — otherwise the
     theme stops toggling.
     """
-    garde = re.search(
+    guard = re.search(
         r"if\s*\(\s*!document\.startViewTransition\s*\|\|\s*(\w+)\.matches\s*\)"
         r"\s*\{\s*basculer\(\)\s*;\s*return\s*;\s*\}",
         LANDING_HTML,
     )
-    assert garde, "the toggle animates without checking the API or reduced motion"
+    assert guard, "the toggle animates without checking the API or reduced motion"
 
-    nom = garde.group(1)
+    name = guard.group(1)
     assert re.search(
-        rf"var\s+{nom}\s*=\s*window\.matchMedia\(\s*'\(prefers-reduced-motion: reduce\)'\s*\)",
+        rf"var\s+{name}\s*=\s*window\.matchMedia\(\s*'\(prefers-reduced-motion: reduce\)'\s*\)",
         LANDING_HTML,
-    ), f"\"{nom}\" does not query reduced motion"
+    ), f"\"{name}\" does not query reduced motion"
 
 
-def _feuille(html: str) -> str:
+def _sheet(html: str) -> str:
     """Returns the page's inlined CSS, stylesheets concatenated."""
     return "\n".join(re.findall(r"<style[^>]*>(.*?)</style>", html, re.S | re.I))
 
 
-def _declarations(css: str, selecteur: str) -> list:
+def _declarations(css: str, selector: str) -> list:
     """Returns the blocks written for this selector alone, at rule start.
 
     Cannot read a grouped selector (".a, .band { … }"): the existence assertion
     below refuses silence rather than leaving the test green on a rule it could
     not find.
     """
-    motif = re.compile(r"(?:^|[};])\s*" + re.escape(selecteur) + r"\s*\{([^}]*)\}", re.M)
+    motif = re.compile(r"(?:^|[};])\s*" + re.escape(selector) + r"\s*\{([^}]*)\}", re.M)
     return [m.group(1) for m in motif.finditer(css)]
 
 
@@ -444,14 +444,14 @@ def test_the_site_holds_on_a_single_background():
     background stops being a card — and the final block is one, rounded and
     detached, not a band.
     """
-    css = _feuille(LANDING_HTML)
+    css = _sheet(LANDING_HTML)
     assert css, "the stylesheet is no longer inlined in the page"
 
     for bande in (".band", ".proof-rail", ".footer-wrap"):
-        blocs = _declarations(css, bande)
-        assert blocs, f"the {bande} rule cannot be found: the test no longer guards anything"
-        for bloc in blocs:
-            assert "background" not in bloc, (
+        blocks = _declarations(css, bande)
+        assert blocks, f"the {bande} rule cannot be found: the test no longer guards anything"
+        for block in blocks:
+            assert "background" not in block, (
                 f"{bande} repaints the background — the color alternation is back")
 
 
@@ -463,22 +463,22 @@ def test_favicon_ico_really_answers(platform):
     leave the suite entirely green while browsers again receive a 404 — and keep
     the old icon.
     """
-    reponse = requests.get(platform + "/favicon.ico", timeout=10)
+    response = requests.get(platform + "/favicon.ico", timeout=10)
 
-    assert reponse.status_code == 200, "/favicon.ico no longer answers"
-    assert reponse.content[:4] == b"\x00\x00\x01\x00", "it is not a real ICO"
-    assert reponse.headers["content-type"] == "image/x-icon"
+    assert response.status_code == 200, "/favicon.ico no longer answers"
+    assert response.content[:4] == b"\x00\x00\x01\x00", "it is not a real ICO"
+    assert response.headers["content-type"] == "image/x-icon"
 
     # And the ROUTE does read the fingerprint: without the `v` parameter,
     # theme.py's cache policy would stay right without ever being applied.
     from monl_platform.theme import VERSION_ICO
 
-    versionnee = requests.get(
+    versioned = requests.get(
         f"{platform}/favicon.ico?v={VERSION_ICO}", timeout=10)
-    assert "immutable" in versionnee.headers["cache-control"]
-    assert "immutable" not in reponse.headers["cache-control"], (
+    assert "immutable" in versioned.headers["cache-control"]
+    assert "immutable" not in response.headers["cache-control"], (
         "the bare address is cached like a versioned address")
-    assert versionnee.content == reponse.content, "two different icons"
+    assert versioned.content == response.content, "two different icons"
 
 
 def test_no_command_overflows_its_card():
@@ -498,14 +498,14 @@ def test_no_command_overflows_its_card():
     """
     from monl_platform.landing_why import SECTIONS
 
-    blocs = re.findall(r"<pre><code>(.*?)</code></pre>", SECTIONS, re.S)
-    assert blocs, "no command block any more: the test no longer guards anything"
+    blocks = re.findall(r"<pre><code>(.*?)</code></pre>", SECTIONS, re.S)
+    assert blocks, "no command block any more: the test no longer guards anything"
 
-    for bloc in blocs:
-        for ligne in bloc.split("\n"):
-            assert len(ligne) <= 41, (
-                f"{len(ligne)} characters — the card holds 41:\n  {ligne}")
-            assert " · " not in ligne, (
+    for block in blocks:
+        for line in block.split("\n"):
+            assert len(line) <= 41, (
+                f"{len(line)} characters — the card holds 41:\n  {line}")
+            assert " · " not in line, (
                 "two commands on one line, separated by a middle dot: "
                 "they cannot be copied")
 
@@ -518,9 +518,9 @@ def test_a_command_block_wraps_instead_of_being_cut():
     """
     from monl_platform.landing_why import EXTRA_CSS
 
-    regle = _declarations(EXTRA_CSS, ".montage pre")
-    assert regle, "the .montage pre rule cannot be found"
-    assert "pre-wrap" in regle[0], (
+    rule = _declarations(EXTRA_CSS, ".montage pre")
+    assert rule, "the .montage pre rule cannot be found"
+    assert "pre-wrap" in rule[0], (
         "a too long command would be cut instead of wrapped")
 
 
@@ -538,11 +538,11 @@ def test_the_three_position_cards_align_their_titles():
     """
     from monl_platform.landing import EXTRA_CSS
 
-    titre = _declarations(EXTRA_CSS, ".flow-stage h3")
+    title = _declarations(EXTRA_CSS, ".flow-stage h3")
     tags = _declarations(EXTRA_CSS, ".flow-stage .stage-tags")
-    assert titre and tags, "the card rules cannot be found"
+    assert title and tags, "the card rules cannot be found"
 
-    assert "auto" not in titre[0], (
+    assert "auto" not in title[0], (
         "the title still pushes: the three cards misalign")
     assert "margin-top:auto" in tags[0].replace(" ", ""), (
         "nothing pushes the labels down: they follow the paragraph")
@@ -560,43 +560,43 @@ def _css_rules(css: str) -> list:
     a naive extractor would read them as real rules.
     """
     css = re.sub(r"/\*.*?\*/", " ", css, flags=re.S)
-    regles, i, rang = [], 0, 0
-    fins_de_media = []
+    rules, i, rang = [], 0, 0
+    fins_of_media = []
     while i < len(css):
-        while fins_de_media and i >= fins_de_media[-1]:
-            fins_de_media.pop()
-        saut = re.compile(r"@(keyframes|font-face|supports)[^{]*\{").match(css, i)
-        if saut:
-            profondeur, j = 1, saut.end()
-            while j < len(css) and profondeur:
-                profondeur += (css[j] == "{") - (css[j] == "}")
+        while fins_of_media and i >= fins_of_media[-1]:
+            fins_of_media.pop()
+        skip = re.compile(r"@(keyframes|font-face|supports)[^{]*\{").match(css, i)
+        if skip:
+            depth, j = 1, skip.end()
+            while j < len(css) and depth:
+                depth += (css[j] == "{") - (css[j] == "}")
                 j += 1
             i = j
             continue
-        ouverture = re.compile(r"@media([^{]*)\{").match(css, i)
-        if ouverture:
-            profondeur, j = 1, ouverture.end()
-            while j < len(css) and profondeur:
-                profondeur += (css[j] == "{") - (css[j] == "}")
+        opening = re.compile(r"@media([^{]*)\{").match(css, i)
+        if opening:
+            depth, j = 1, opening.end()
+            while j < len(css) and depth:
+                depth += (css[j] == "{") - (css[j] == "}")
                 j += 1
-            fins_de_media.append(j - 1)
-            i = ouverture.end()
+            fins_of_media.append(j - 1)
+            i = opening.end()
             continue
-        regle = re.compile(r"([^{}@]+)\{([^{}]*)\}").match(css, i)
-        if regle:
-            proprietes = {
+        rule = re.compile(r"([^{}@]+)\{([^{}]*)\}").match(css, i)
+        if rule:
+            properties = {
                 declaration.split(":", 1)[0].strip()
-                for declaration in regle.group(2).split(";")
+                for declaration in rule.group(2).split(";")
                 if ":" in declaration
             }
-            for selecteur in regle.group(1).split(","):
-                regles.append(
-                    (rang, bool(fins_de_media), selecteur.strip(), proprietes))
+            for selector in rule.group(1).split(","):
+                rules.append(
+                    (rang, bool(fins_of_media), selector.strip(), properties))
                 rang += 1
-            i = regle.end()
+            i = rule.end()
             continue
         i += 1
-    return regles
+    return rules
 
 
 def test_no_responsive_rule_is_overridden_by_a_bare_rule(platform):
@@ -614,26 +614,26 @@ def test_no_responsive_rule_is_overridden_by_a_bare_rule(platform):
     concatenation plays out between the two.
     """
     page = requests.get(platform, timeout=10).text
-    feuilles = re.findall(r"<style[^>]*>(.*?)</style>", page, re.S)
-    assert feuilles, "no stylesheet in the served page"
-    regles = _css_rules("\n".join(feuilles))
-    assert len(regles) > 100, f"mute extractor: {len(regles)} rules read"
-    assert any(media for _, media, _, _ in regles), "no @media recognized"
+    sheets = re.findall(r"<style[^>]*>(.*?)</style>", page, re.S)
+    assert sheets, "no stylesheet in the served page"
+    rules = _css_rules("\n".join(sheets))
+    assert len(rules) > 100, f"mute extractor: {len(rules)} rules read"
+    assert any(media for _, media, _, _ in rules), "no @media recognized"
 
-    ecrasees = []
-    for rang, media, selecteur, proprietes in regles:
+    overridden = []
+    for rang, media, selector, properties in rules:
         if not media:
             continue
-        for rang2, media2, selecteur2, proprietes2 in regles:
-            if media2 or rang2 <= rang or selecteur2 != selecteur:
+        for rang2, media2, selecteur2, proprietes2 in rules:
+            if media2 or rang2 <= rang or selecteur2 != selector:
                 continue
-            communes = proprietes & proprietes2
-            if communes and _specificite(selecteur2) >= _specificite(selecteur):
-                ecrasees.append(f"{selecteur} → {sorted(communes)}")
+            communes = properties & proprietes2
+            if communes and _specificity(selecteur2) >= _specificity(selector):
+                overridden.append(f"{selector} → {sorted(communes)}")
 
-    assert not ecrasees, (
+    assert not overridden, (
         "responsive rule(s) overridden by a bare rule written later, "
-        "at equal or higher weight: " + " ; ".join(sorted(set(ecrasees))))
+        "at equal or higher weight: " + " ; ".join(sorted(set(overridden))))
 
 
 def test_each_site_page_carries_a_title_naming_it():
@@ -654,26 +654,26 @@ def test_each_site_page_carries_a_title_naming_it():
 
     import monl_platform
 
-    titres = {}
+    titles = {}
     for module in pkgutil.iter_modules(monl_platform.__path__):
         charge = importlib.import_module(f"monl_platform.{module.name}")
-        for nom in dir(charge):
-            valeur = getattr(charge, nom)
-            if not (isinstance(valeur, str) and nom.endswith("_HTML")):
+        for name in dir(charge):
+            valeur = getattr(charge, name)
+            if not (isinstance(valeur, str) and name.endswith("_HTML")):
                 continue
-            trouve = re.search(r"<title>(.*?)</title>", valeur, re.S)
-            if not trouve:
+            found = re.search(r"<title>(.*?)</title>", valeur, re.S)
+            if not found:
                 continue
-            titre = trouve.group(1).strip()
+            title = found.group(1).strip()
             # The same HTML re-exported by two modules (app_pages) is not a
             # duplicate: it is the SAME page. We therefore index by content.
-            titres.setdefault(titre, set()).add(valeur)
+            titles.setdefault(title, set()).add(valeur)
 
-    assert len(titres) > 5, f"extracteur muet : {len(titres)} titre(s) lu(s)"
-    partages = {titre: len(pages) for titre, pages in titres.items() if len(pages) > 1}
-    assert not partages, (
+    assert len(titles) > 5, f"extracteur muet : {len(titles)} titre(s) lu(s)"
+    shared = {title: len(pages) for title, pages in titles.items() if len(pages) > 1}
+    assert not shared, (
         "DIFFERENT pages share a title — a tab no longer says "
-        f"which one is open: {partages}")
+        f"which one is open: {shared}")
 
 
 def test_the_top_bar_is_opaque(platform):
@@ -689,21 +689,21 @@ def test_the_top_bar_is_opaque(platform):
     its presence would signal that translucency came back with it.
     """
     page = requests.get(platform, timeout=10).text
-    feuilles = re.findall(r"<style[^>]*>(.*?)</style>", page, re.S)
-    assert feuilles, "no stylesheet in the served page"
-    regles = _css_rules("\n".join(feuilles))
-    topbars = [(sel, props) for _, _, sel, props in regles
+    sheets = re.findall(r"<style[^>]*>(.*?)</style>", page, re.S)
+    assert sheets, "no stylesheet in the served page"
+    rules = _css_rules("\n".join(sheets))
+    topbars = [(sel, props) for _, _, sel, props in rules
                if sel.strip() == ".topbar"]
     assert topbars, ".topbar rule not found: the extractor looks at nothing"
-    css = "\n".join(feuilles)
-    bloc = re.search(r"\.topbar\s*\{([^}]*)\}", css, re.S)
-    assert bloc, "corps de .topbar illisible"
+    css = "\n".join(sheets)
+    block = re.search(r"\.topbar\s*\{([^}]*)\}", css, re.S)
+    assert block, "corps de .topbar illisible"
     # A CSS comment is CONTENT (point 156): left in place, the word
     # "backdrop-filter" written in an explanation would turn this witness red.
-    corps = re.sub(r"/\*.*?\*/", "", bloc.group(1), flags=re.S)
-    assert "transparent" not in corps, corps
-    assert "backdrop-filter" not in corps, corps
-    assert re.search(r"background:\s*var\(--bg\)", corps), corps
+    body = re.sub(r"/\*.*?\*/", "", block.group(1), flags=re.S)
+    assert "transparent" not in body, body
+    assert "backdrop-filter" not in body, body
+    assert re.search(r"background:\s*var\(--bg\)", body), body
 
 
 # ---------------------------------------------------------------------------
@@ -724,26 +724,26 @@ def test_the_top_bar_is_opaque(platform):
 #: secret is made at first startup, the database only exists at runtime. The
 #: rule is written here rather than guessed — without it, the announced figure
 #: would depend on the order in which the test was run.
-_HORS_ARCHIVE = {"spec.ml", ".jwt_secret"}
+_OUTSIDE_ARCHIVE = {"spec.ml", ".jwt_secret"}
 
 
-def _showcase_archive(dossier):
+def _showcase_archive(folder):
     """Compiles the home page's spec and returns what a user receives."""
     from monl.cli import compile_project
 
-    spec = dossier / "spec.ml"
+    spec = folder / "spec.ml"
     spec.write_text(landing_showcase.SPEC_VITRINE, encoding="utf-8")
-    compile_project(str(spec), str(dossier))
-    fichiers = {
-        chemin.relative_to(dossier).as_posix()
-        for chemin in dossier.rglob("*")
-        if chemin.is_file() and chemin.name not in _HORS_ARCHIVE
-        and not chemin.name.endswith(".db")
+    compile_project(str(spec), str(folder))
+    files = {
+        path.relative_to(folder).as_posix()
+        for path in folder.rglob("*")
+        if path.is_file() and path.name not in _OUTSIDE_ARCHIVE
+        and not path.name.endswith(".db")
     }
     routes = len(re.findall(r"^@app\.(?:get|post|put|delete|patch)\(",
-                            (dossier / "app.py").read_text(encoding="utf-8"), re.M))
-    contrat = json.loads((dossier / "frontend_contract.json").read_text(encoding="utf-8"))
-    return fichiers, routes, len(contrat["entities"])
+                            (folder / "app.py").read_text(encoding="utf-8"), re.M))
+    contract = json.loads((folder / "frontend_contract.json").read_text(encoding="utf-8"))
+    return files, routes, len(contract["entities"])
 
 
 def test_the_home_spec_really_compiles(tmp_path):
@@ -753,25 +753,25 @@ def test_the_home_spec_really_compiles(tmp_path):
     does not compile is the worst possible place for this defect — it is precisely
     what the product promises to refuse.
     """
-    fichiers, routes, entites = _showcase_archive(tmp_path)
+    files, routes, entities = _showcase_archive(tmp_path)
 
-    assert "app.py" in fichiers and "schema.sql" in fichiers
-    assert routes > 0 and entites > 0
+    assert "app.py" in files and "schema.sql" in files
+    assert routes > 0 and entities > 0
 
 
 def test_the_announced_figures_are_the_compilations(tmp_path):
     """The card's three numbers, confronted with the real result."""
-    fichiers, routes, entites = _showcase_archive(tmp_path)
+    files, routes, entities = _showcase_archive(tmp_path)
 
-    assert entites == landing_showcase.ENTITES, (
-        f"the card announces {landing_showcase.ENTITES} entities, compilation "
-        f"produces {entites}")
+    assert entities == landing_showcase.ENTITIES, (
+        f"the card announces {landing_showcase.ENTITIES} entities, compilation "
+        f"produces {entities}")
     assert routes == landing_showcase.ROUTES, (
         f"the card announces {landing_showcase.ROUTES} routes, app.py declares "
         f"{routes}")
-    assert len(fichiers) == landing_showcase.FICHIERS, (
-        f"the card announces {landing_showcase.FICHIERS} files, the archive "
-        f"contains {len(fichiers)}: {sorted(fichiers)}")
+    assert len(files) == landing_showcase.FILES, (
+        f"the card announces {landing_showcase.FILES} files, the archive "
+        f"contains {len(files)}: {sorted(files)}")
 
 
 def test_the_tree_names_no_missing_file(tmp_path):
@@ -781,14 +781,14 @@ def test_the_tree_names_no_missing_file(tmp_path):
     would make the witness pass without guaranteeing anything about readability,
     and above all the card would stop being a card.
     """
-    fichiers, _routes, _entites = _showcase_archive(tmp_path)
-    annonces = [nom for nom, _role in landing_showcase.ARBRE]
+    files, _routes, _entities = _showcase_archive(tmp_path)
+    announced = [name for name, _role in landing_showcase.TREE]
 
-    absents = [nom for nom in annonces if nom not in fichiers]
-    assert not absents, (
+    missing = [name for name in announced if name not in files]
+    assert not missing, (
         f"the card names files the compiler does not produce: "
-        f"{absents}")
-    assert 0 < len(annonces) < len(fichiers), (
+        f"{missing}")
+    assert 0 < len(announced) < len(files), (
         "the tree must stay a readable excerpt, not the whole archive")
 
 
@@ -800,14 +800,14 @@ def test_the_displayed_excerpt_is_taken_from_the_compiling_spec():
     that it carries at least one rule, otherwise the cutting could have returned
     the sole entity block without anyone seeing it.
     """
-    extrait = landing_showcase.extrait_affiche()
-    lignes = [ligne for ligne in extrait.splitlines() if ligne.strip()]
+    excerpt = landing_showcase.excerpt_displayed()
+    lines = [line for line in excerpt.splitlines() if line.strip()]
 
-    assert lignes, "the excerpt is empty"
-    for ligne in lignes:
-        assert ligne in landing_showcase.SPEC_VITRINE, (
-            f"the displayed excerpt contains a line absent from the spec: {ligne!r}")
-    assert any(ligne.startswith("rule ") for ligne in lignes), (
+    assert lines, "the excerpt is empty"
+    for line in lines:
+        assert line in landing_showcase.SPEC_VITRINE, (
+            f"the displayed excerpt contains a line absent from the spec: {line!r}")
+    assert any(line.startswith("rule ") for line in lines), (
         "the excerpt shows no rule: the page would only show fields")
 
 
@@ -824,23 +824,23 @@ def test_the_served_page_names_only_real_files(platform, tmp_path):
     right. We therefore read the REALLY served tree and confront it with the
     archive — a rule, not a list of forbidden names.
     """
-    texte = requests.get(platform, timeout=10).text
-    fichiers, _routes, _entites = _showcase_archive(tmp_path)
+    text = requests.get(platform, timeout=10).text
+    files, _routes, _entities = _showcase_archive(tmp_path)
 
-    assert f"<b>{landing_showcase.ROUTES}</b><span>API routes</span>" in texte
-    assert f"<b>{landing_showcase.FICHIERS}</b><span>files</span>" in texte
+    assert f"<b>{landing_showcase.ROUTES}</b><span>API routes</span>" in text
+    assert f"<b>{landing_showcase.FILES}</b><span>files</span>" in text
 
-    arbre = texte.split('class="tree"')[1].split("</div>")[0]
-    noms = re.findall(r"[├└]──\s*([^\s<]+)", arbre)
-    assert noms, "the served tree is empty or changed shape"
-    absents = [nom for nom in noms if nom not in fichiers]
-    assert not absents, (
+    tree = text.split('class="tree"')[1].split("</div>")[0]
+    names = re.findall(r"[├└]──\s*([^\s<]+)", tree)
+    assert names, "the served tree is empty or changed shape"
+    missing = [name for name in names if name not in files]
+    assert not missing, (
         f"the served page names files the archive does not contain: "
-        f"{absents}")
+        f"{missing}")
 
 
-def _lines(texte):
-    return {ligne.strip() for ligne in texte.splitlines() if ligne.strip()}
+def _lines(text):
+    return {line.strip() for line in text.splitlines() if line.strip()}
 
 
 def test_each_case_excerpt_appears_in_its_examples_spec():
@@ -850,15 +850,15 @@ def test_each_case_excerpt_appears_in_its_examples_spec():
     from monl_platform import examples, landing_cases
 
     assert set(landing_cases.CASE_SNIPPETS) == set(examples.BY_ID)
-    for ident, extrait in landing_cases.CASE_SNIPPETS.items():
-        absentes = _lines(extrait) - _lines(examples.spec_of(ident))
-        assert _lines(extrait), ident
-        assert not absentes, (ident, absentes)
+    for ident, excerpt in landing_cases.CASE_SNIPPETS.items():
+        missing = _lines(excerpt) - _lines(examples.spec_of(ident))
+        assert _lines(excerpt), ident
+        assert not missing, (ident, missing)
 
 
 def test_the_hero_demo_is_taken_from_the_compiling_spec():
     from monl_platform import landing
 
-    absentes = _lines(landing.DEMO_HERO_SOURCE) - _lines(landing_showcase.SPEC_VITRINE)
+    missing = _lines(landing.DEMO_HERO_SOURCE) - _lines(landing_showcase.SPEC_VITRINE)
     assert _lines(landing.DEMO_HERO_SOURCE)
-    assert not absentes, absentes
+    assert not missing, missing

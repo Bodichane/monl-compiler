@@ -69,26 +69,26 @@ landing
 
 
 @pytest.fixture()
-def plateforme(tmp_path):
+def platform(tmp_path):
     store = PlatformStore(tmp_path)
     identity = IdentityStore(store.workspace)
     user = identity.register("hote@monl.test", "MotDePasse-123")
     project_id = uuid.uuid4().hex
     identity.add_project(user["id"], project_id, "banc")
     store.create_project(user["id"], project_id, "banc")
-    projet = store.get_project(project_id)
+    project = store.get_project(project_id)
     sites = SiteManager(store, tmp_path / "projets", "localhost", startup_timeout=25)
-    yield store, projet, sites, tmp_path
+    yield store, project, sites, tmp_path
     sites.stop_all()
 
 
 @pytest.fixture()
-def application_hebergement(tmp_path, request):
+def application_hosting(tmp_path, request):
     """Builds an app after setting the environment and cleans up in finally."""
-    def construire():
+    def build():
         app = create_app(workspace=tmp_path / "projets", domain="localhost")
 
-        def arreter():
+        def stop():
             # Stops even if the test raises: the finalizer belongs to the
             # fixture.
             sites = app.state.sites
@@ -100,49 +100,49 @@ def application_hebergement(tmp_path, request):
                 with pytest.raises(ProcessLookupError):
                     os.kill(pid, 0)
 
-        request.addfinalizer(arreter)
+        request.addfinalizer(stop)
         return app
 
-    return construire
+    return build
 
 
-def test_the_fixture_stops_a_site_that_answered(tmp_path, application_hebergement):
-    app = application_hebergement()
-    projet = _compiled_project(
+def test_the_fixture_stops_a_site_that_answered(tmp_path, application_hosting):
+    app = application_hosting()
+    project = _compiled_project(
         app.state.store, app.state.identity_store, tmp_path / "projets",
         "temoin-nettoyage@monl.test", "temoin-nettoyage",
     )
-    running = app.state.sites.start_project(projet)
+    running = app.state.sites.start_project(project)
     assert _get(running.port, "/openapi.json")[0] == 200
 
 
-def _compiler(projet, racine, tmp_path):
+def _compiler(project, racine, tmp_path):
     """Compiles the spec IN the project's private folder, as the console will."""
-    dossier = project_directory(racine, projet["user_id"], projet["project_id"])
-    (dossier / "spec.ml").write_text(SPEC, encoding="utf-8")
-    compile_project(str(dossier / "spec.ml"), str(dossier))
-    return dossier
+    folder = project_directory(racine, project["user_id"], project["project_id"])
+    (folder / "spec.ml").write_text(SPEC, encoding="utf-8")
+    compile_project(str(folder / "spec.ml"), str(folder))
+    return folder
 
 
-def _get(port, chemin):
-    connexion = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+def _get(port, path):
+    login = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
     try:
-        connexion.request("GET", chemin)
-        reponse = connexion.getresponse()
-        return reponse.status, reponse.read()
+        login.request("GET", path)
+        response = login.getresponse()
+        return response.status, response.read()
     finally:
-        connexion.close()
+        login.close()
 
 
-def _attendre_marqueur(chemin, marqueur):
-    marqueurs = (marqueur,) if isinstance(marqueur, str) else tuple(marqueur)
+def _wait_marker(path, marker):
+    markers = (marker,) if isinstance(marker, str) else tuple(marker)
     for _ in range(100):
-        if chemin.is_file():
-            contenu = chemin.read_text(encoding="utf-8", errors="replace")
-            if all(attendu in contenu for attendu in marqueurs):
-                return contenu
+        if path.is_file():
+            content = path.read_text(encoding="utf-8", errors="replace")
+            if all(expected in content for expected in markers):
+                return content
         time.sleep(0.02)
-    return chemin.read_text(encoding="utf-8", errors="replace") if chemin.is_file() else ""
+    return path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
 
 
 @pytest.mark.parametrize("valeur", ["invalide", "0", "-1"])
@@ -179,43 +179,43 @@ def _compiled_project(store, identities, racine, email, slug):
     project_id = uuid.uuid4().hex
     identities.add_project(user["id"], project_id, slug)
     store.create_project(user["id"], project_id, slug)
-    projet = store.get_project(project_id)
-    _compiler(projet, racine, racine.parent)
-    return projet
+    project = store.get_project(project_id)
+    _compiler(project, racine, racine.parent)
+    return project
 
 
 def test_global_cap_refuses_without_creating_a_process_and_answers_503(
-        tmp_path, monkeypatch, capsys, application_hebergement):
+        tmp_path, monkeypatch, capsys, application_hosting):
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES", "2")
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES_PER_ACCOUNT", "10")
-    app = application_hebergement()
-    projets = [
+    app = application_hosting()
+    projects = [
         _compiled_project(app.state.store, app.state.identity_store,
                         tmp_path / "projets", f"global-{i}@monl.test", f"global-{i}")
         for i in range(3)
     ]
     capsys.readouterr()
     sites = app.state.sites
-    sites.start_project(projets[0])
-    sites.start_project(projets[1])
-    processus = {site.process.pid for site in sites._running.values()}
+    sites.start_project(projects[0])
+    sites.start_project(projects[1])
+    process = {site.process.pid for site in sites._running.values()}
 
     with _platform_server(app) as base:
-        refus = requests.get(
+        refusal = requests.get(
             base + "/openapi.json", headers={"Host": "global-2.localhost"}, timeout=10
         )
-        assert refus.status_code == 503, refus.text
-        assert refus.headers["Retry-After"] == "300"
-        assert set(sites._running) == {p["project_id"] for p in projets[:2]}
-        assert {site.process.pid for site in sites._running.values()} == processus
+        assert refusal.status_code == 503, refusal.text
+        assert refusal.headers["Retry-After"] == "300"
+        assert set(sites._running) == {p["project_id"] for p in projects[:2]}
+        assert {site.process.pid for site in sites._running.values()} == process
 
 
 def test_evicting_the_oldest_idle_and_refusing_when_all_are_recent(
-        tmp_path, monkeypatch, capsys, application_hebergement):
+        tmp_path, monkeypatch, capsys, application_hosting):
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES", "2")
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES_PER_ACCOUNT", "10")
-    app = application_hebergement()
-    projets = [
+    app = application_hosting()
+    projects = [
         _compiled_project(app.state.store, app.state.identity_store,
                         tmp_path / "projets", f"eviction-{i}@monl.test", f"eviction-{i}")
         for i in range(4)
@@ -224,51 +224,51 @@ def test_evicting_the_oldest_idle_and_refusing_when_all_are_recent(
     instant = [0.0]
     sites = app.state.sites
     sites._clock = lambda: instant[0]
-    ancien = sites.start_project(projets[0])
+    old = sites.start_project(projects[0])
     instant[0] = 301.0
-    recent = sites.start_project(projets[1])
+    recent = sites.start_project(projects[1])
     sites.forward(recent, "GET", "/openapi.json", {}, b"")
-    nouveau = sites.start_project(projets[2])
+    new = sites.start_project(projects[2])
 
-    assert ancien.process.poll() is not None
-    assert projets[0]["project_id"] not in sites._running
-    assert sites.is_running(projets[1]["project_id"])
-    assert sites.is_running(nouveau.project_id)
+    assert old.process.poll() is not None
+    assert projects[0]["project_id"] not in sites._running
+    assert sites.is_running(projects[1]["project_id"])
+    assert sites.is_running(new.project_id)
     with pytest.raises(SiteHostingError, match="active-site limit"):
-        sites.start_project(projets[3])
+        sites.start_project(projects[3])
     assert len(sites._running) == 2
 
 
 def test_per_account_cap_does_not_block_another_account(
-        tmp_path, monkeypatch, capsys, application_hebergement):
+        tmp_path, monkeypatch, capsys, application_hosting):
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES", "10")
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES_PER_ACCOUNT", "1")
-    app = application_hebergement()
+    app = application_hosting()
     identities, store = app.state.identity_store, app.state.store
     alice = identities.register("alice-plafond@monl.test", "MotDePasse-123")
-    projets = []
+    projects = []
     for i in range(2):
         project_id = uuid.uuid4().hex
         identities.add_project(alice["id"], project_id, f"alice-{i}")
         store.create_project(alice["id"], project_id, f"alice-{i}")
-        projet = store.get_project(project_id)
-        _compiler(projet, tmp_path / "projets", tmp_path)
-        projets.append(projet)
+        project = store.get_project(project_id)
+        _compiler(project, tmp_path / "projets", tmp_path)
+        projects.append(project)
     bob = _compiled_project(store, identities, tmp_path / "projets",
                           "bob-plafond@monl.test", "bob")
     capsys.readouterr()
     sites = app.state.sites
-    sites.start_project(projets[0])
+    sites.start_project(projects[0])
 
     with pytest.raises(SiteHostingError, match="active-site limit"):
-        sites.start_project(projets[1])
+        sites.start_project(projects[1])
     running_bob = sites.start_project(bob)
 
-    assert sites.is_running(projets[0]["project_id"])
+    assert sites.is_running(projects[0]["project_id"])
     assert _get(running_bob.port, "/openapi.json")[0] == 200
 
 
-def _announce_without_sending(base, hote, taille):
+def _announce_without_sending(base, hote, size):
     """Forges a lying `Content-Length`, and sends NO body byte.
 
     `requests` always recomputes the header from the body it is given: the
@@ -280,30 +280,30 @@ def _announce_without_sending(base, hote, taille):
     server that did not read the announcement would wait for the promised 40 MiB
     and the test would fail on a timeout, never by accident on a 200.
     """
-    connexion = http.client.HTTPConnection(base.removeprefix("http://"), timeout=10)
+    login = http.client.HTTPConnection(base.removeprefix("http://"), timeout=10)
     try:
-        connexion.putrequest("POST", "/echo", skip_host=True,
+        login.putrequest("POST", "/echo", skip_host=True,
                              skip_accept_encoding=True)
-        connexion.putheader("Host", hote)
-        connexion.putheader("Content-Length", str(taille))
-        connexion.endheaders()
-        return connexion.getresponse().status
+        login.putheader("Host", hote)
+        login.putheader("Content-Length", str(size))
+        login.endheaders()
+        return login.getresponse().status
     finally:
-        connexion.close()
+        login.close()
 
 
 def test_relay_bounds_the_body_and_forwards_a_legitimate_body_intact(
-        tmp_path, monkeypatch, capsys, application_hebergement):
+        tmp_path, monkeypatch, capsys, application_hosting):
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES", "2")
-    app = application_hebergement()
-    projet = _compiled_project(
+    app = application_hosting()
+    project = _compiled_project(
         app.state.store, app.state.identity_store, tmp_path / "projets",
         "relais@monl.test", "relais",
     )
-    dossier = project_directory(
-        tmp_path / "projets", projet["user_id"], projet["project_id"]
+    folder = project_directory(
+        tmp_path / "projets", project["user_id"], project["project_id"]
     )
-    (dossier / "serve.py").write_text(
+    (folder / "serve.py").write_text(
         """import hashlib
 from fastapi import FastAPI, Request
 
@@ -317,10 +317,10 @@ async def echo(request: Request):
         encoding="utf-8",
     )
     capsys.readouterr()
-    corps = b"monl" * (1024 * 1024 // 4)
+    body = b"monl" * (1024 * 1024 // 4)
     with _platform_server(app) as base:
-        accepte = requests.post(
-            base + "/echo", data=corps, headers={"Host": "relais.localhost"}, timeout=20
+        accepted = requests.post(
+            base + "/echo", data=body, headers={"Host": "relais.localhost"}, timeout=20
         )
         refuse = requests.post(
             base + "/echo",
@@ -328,68 +328,68 @@ async def echo(request: Request):
             headers={"Host": "relais.localhost"},
             timeout=30,
         )
-        refuse_annonce = _announce_without_sending(
+        refuse_announced = _announce_without_sending(
             base, "relais.localhost", SITE_MAX_BODY_BYTES + 1
         )
 
-    assert accepte.status_code == 200, accepte.text
-    assert accepte.json() == {
-        "taille": len(corps),
-        "sha256": hashlib.sha256(corps).hexdigest(),
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json() == {
+        "taille": len(body),
+        "sha256": hashlib.sha256(body).hexdigest(),
     }
     assert refuse.status_code == 413, refuse.text
-    assert refuse_annonce == 413, refuse_annonce
+    assert refuse_announced == 413, refuse_announced
 
 
-def test_a_compiled_project_starts_and_its_api_answers(plateforme, capsys):
-    store, projet, sites, tmp_path = plateforme
-    dossier = _compiler(projet, tmp_path / "projets", tmp_path)
+def test_a_compiled_project_starts_and_its_api_answers(platform, capsys):
+    store, project, sites, tmp_path = platform
+    folder = _compiler(project, tmp_path / "projets", tmp_path)
     capsys.readouterr()
     # The frontend is NOT built by the platform: that is the whole heading.
-    assert not (dossier / "frontend").exists()
+    assert not (folder / "frontend").exists()
 
-    running = sites.start_project(projet)
+    running = sites.start_project(project)
 
-    statut, corps = _get(running.port, "/openapi.json")
-    assert statut == 200, corps[:200]
-    assert b"/note" in corps.lower(), "the spec's routes must be served"
-    assert sites.is_running(projet["project_id"])
+    status, body = _get(running.port, "/openapi.json")
+    assert status == 200, body[:200]
+    assert b"/note" in body.lower(), "the spec's routes must be served"
+    assert sites.is_running(project["project_id"])
 
 
-def test_an_uncompiled_project_is_refused_naming_what_is_missing(plateforme):
+def test_an_uncompiled_project_is_refused_naming_what_is_missing(platform):
     """The counter-proof: without a compiled backend, starting must FAIL.
 
     Without it, a ``_require_site`` requiring nothing any more would let
     ``uvicorn`` die on an empty folder and the error would talk about startup,
     never compilation — one would look for the failure on the wrong side.
     """
-    store, projet, sites, tmp_path = plateforme
-    project_directory(tmp_path / "projets", projet["user_id"], projet["project_id"])
+    store, project, sites, tmp_path = platform
+    project_directory(tmp_path / "projets", project["user_id"], project["project_id"])
 
-    with pytest.raises(SiteNotCompiledError) as echec:
-        sites.start_project(projet)
+    with pytest.raises(SiteNotCompiledError) as failure:
+        sites.start_project(project)
 
-    assert "app.py" in str(echec.value)
+    assert "app.py" in str(failure.value)
 
 
-def test_the_frontend_stays_optional_and_the_site_says_so(plateforme, capsys):
+def test_the_frontend_stays_optional_and_the_site_says_so(platform, capsys):
     """/site returns 404 without a frontend, but the API does answer."""
-    store, projet, sites, tmp_path = plateforme
-    _compiler(projet, tmp_path / "projets", tmp_path)
+    store, project, sites, tmp_path = platform
+    _compiler(project, tmp_path / "projets", tmp_path)
     capsys.readouterr()
 
-    running = sites.start_project(projet)
+    running = sites.start_project(project)
 
     assert _get(running.port, "/site/")[0] == 404
     assert _get(running.port, "/openapi.json")[0] == 200
 
 
-def test_a_crashing_site_leaves_the_trace_of_its_error(plateforme, capsys):
+def test_a_crashing_site_leaves_the_trace_of_its_error(platform, capsys):
     """The file must explain a crash, not only prove its presence."""
-    _store, projet, sites, tmp_path = plateforme
-    dossier = _compiler(projet, tmp_path / "projets", tmp_path)
+    _store, project, sites, tmp_path = platform
+    folder = _compiler(project, tmp_path / "projets", tmp_path)
     capsys.readouterr()
-    (dossier / "serve.py").write_text(
+    (folder / "serve.py").write_text(
         """import sys
 from fastapi import FastAPI
 
@@ -403,24 +403,24 @@ def crash():
         encoding="utf-8",
     )
 
-    running = sites.start_project(projet)
+    running = sites.start_project(project)
     assert _get(running.port, "/crash")[0] == 500
 
-    journal = sites.site_log_path(projet)
-    contenu = _attendre_marqueur(
-        journal, ("SITE_CRASH_MARKER", "RuntimeError", "erreur volontaire du site")
+    log = sites.site_log_path(project)
+    content = _wait_marker(
+        log, ("SITE_CRASH_MARKER", "RuntimeError", "erreur volontaire du site")
     )
-    assert "SITE_CRASH_MARKER" in contenu
-    assert "RuntimeError" in contenu
-    assert "erreur volontaire du site" in contenu
+    assert "SITE_CRASH_MARKER" in content
+    assert "RuntimeError" in content
+    assert "erreur volontaire du site" in content
 
 
-def test_a_sites_output_stays_bounded(plateforme, capsys):
+def test_a_sites_output_stays_bounded(platform, capsys):
     """An output loop must not turn the log into a disk failure."""
-    _store, projet, sites, tmp_path = plateforme
-    dossier = _compiler(projet, tmp_path / "projets", tmp_path)
+    _store, project, sites, tmp_path = platform
+    folder = _compiler(project, tmp_path / "projets", tmp_path)
     capsys.readouterr()
-    (dossier / "serve.py").write_text(
+    (folder / "serve.py").write_text(
         f"""import sys
 from fastapi import FastAPI
 
@@ -434,14 +434,14 @@ def bruit():
         encoding="utf-8",
     )
 
-    running = sites.start_project(projet)
+    running = sites.start_project(project)
     assert _get(running.port, "/bruit")[0] == 200
-    journal = sites.site_log_path(projet)
-    _attendre_marqueur(journal, "SITE_OUTPUT")
+    log = sites.site_log_path(project)
+    _wait_marker(log, "SITE_OUTPUT")
     # The DISK bound is the compaction threshold, not the kept size: the log
     # grows up to double before being brought back to its end, because
     # compacting at every block would reread the whole file every 8 KiB.
-    assert journal.stat().st_size <= SITE_LOG_COMPACT_BYTES
+    assert log.stat().st_size <= SITE_LOG_COMPACT_BYTES
 
 
 def test_the_log_bound_holds_DURING_compaction(tmp_path, monkeypatch):
@@ -458,33 +458,33 @@ def test_the_log_bound_holds_DURING_compaction(tmp_path, monkeypatch):
     exists, by making compaction wait when it starts, and it photographs the disk
     meanwhile.
     """
-    journal = tmp_path / "site.log"
-    journal.touch()
+    log = tmp_path / "site.log"
+    log.touch()
 
     entre = threading.Event()
-    sortir = threading.Event()
-    vrai_compactage = SiteManager._compacter_journal
+    exit_ = threading.Event()
+    true_compaction = SiteManager._compact_log
 
-    def waiting_compaction(fichier):
+    def waiting_compaction(file):
         entre.set()
-        sortir.wait(10)
-        return vrai_compactage(fichier)
+        exit_.wait(10)
+        return true_compaction(file)
 
     monkeypatch.setattr(
-        SiteManager, "_compacter_journal", staticmethod(waiting_compaction)
+        SiteManager, "_compact_log", staticmethod(waiting_compaction)
     )
 
-    ligne = b"SITE_OUTPUT " + b"x" * (SITE_LOG_COMPACT_BYTES + 4096) + b"\n"
-    flux = io.BufferedReader(io.BytesIO(ligne))
+    line = b"SITE_OUTPUT " + b"x" * (SITE_LOG_COMPACT_BYTES + 4096) + b"\n"
+    flux = io.BufferedReader(io.BytesIO(line))
     fil = threading.Thread(
-        target=SiteManager._capture_output, args=(flux, journal), daemon=True
+        target=SiteManager._capture_output, args=(flux, log), daemon=True
     )
     fil.start()
     try:
         assert entre.wait(10), "no compaction: the witness would measure nothing"
-        pic = journal.stat().st_size
+        pic = log.stat().st_size
     finally:
-        sortir.set()
+        exit_.set()
         fil.join(10)
 
     assert pic <= SITE_LOG_COMPACT_BYTES, (
@@ -506,25 +506,25 @@ def test_the_bounded_log_keeps_the_END_never_the_beginning():
     and the first must be whole.
     """
     with tempfile.TemporaryDirectory() as base:
-        journal = Path(base) / "site.log"
-        bavardage = b"ligne de trafic ordinaire\n" * 400_000       # ~10 Mio
-        plantage = b"TRACE-DU-PLANTAGE: RuntimeError: base absente\n"
-        SiteManager._capture_output(io.BytesIO(bavardage + plantage), journal)
+        log = Path(base) / "site.log"
+        chatter = b"ligne de trafic ordinaire\n" * 400_000       # ~10 Mio
+        crash = b"TRACE-DU-PLANTAGE: RuntimeError: base absente\n"
+        SiteManager._capture_output(io.BytesIO(chatter + crash), log)
 
-        contenu = journal.read_bytes()
-        assert len(contenu) <= SITE_LOG_COMPACT_BYTES, len(contenu)
-        assert len(contenu) < len(bavardage), "no compaction happened"
-        assert b"TRACE-DU-PLANTAGE" in contenu, "the crash trace is lost"
-        assert contenu.rstrip(b"\n").split(b"\n")[-1].startswith(b"TRACE-DU-PLANTAGE")
+        content = log.read_bytes()
+        assert len(content) <= SITE_LOG_COMPACT_BYTES, len(content)
+        assert len(content) < len(chatter), "no compaction happened"
+        assert b"TRACE-DU-PLANTAGE" in content, "the crash trace is lost"
+        assert content.rstrip(b"\n").split(b"\n")[-1].startswith(b"TRACE-DU-PLANTAGE")
         # No fragment at the head: it would be taken for a message truncated by
         # the site itself rather than by the bound.
-        assert contenu.split(b"\n")[0] == b"ligne de trafic ordinaire"
+        assert content.split(b"\n")[0] == b"ligne de trafic ordinaire"
 
 
 @pytest.mark.parametrize("canal", ["api", "mcp"])
-def test_creation_compilee_demarre_directement(application_hebergement, canal):
+def test_creation_compiled_started_directly(application_hosting, canal):
     """Issue #115: no intermediate /compiler, on a real server."""
-    app = application_hebergement()
+    app = application_hosting()
     spec = (Path(__file__).parents[1] / "exemples/02_boutique.ml").read_text()
     try:
         with _platform_server(app) as base, requests.Session() as session:
@@ -536,19 +536,19 @@ def test_creation_compilee_demarre_directement(application_hebergement, canal):
                 assert compilation.status_code == 201, compilation.text
                 project_id = compilation.json()["id"]
             else:
-                from test_platform_mcp_boucle import _appel
+                from test_platform_mcp_boucle import _call
 
-                cle = session.post(base + "/api/keys", json={"name": "direct"},
+                key = session.post(base + "/api/keys", json={"name": "direct"},
                                    timeout=10).json()["key"]
-                project_id = _appel(base, cle, "monl_compile_backend", {"spec": spec})["project_id"]
-            demarrage = session.post(base + f"/api/projects/{project_id}/start", timeout=30)
-            assert demarrage.status_code == 200, demarrage.text
+                project_id = _call(base, key, "monl_compile_backend", {"spec": spec})["project_id"]
+            startup = session.post(base + f"/api/projects/{project_id}/start", timeout=30)
+            assert startup.status_code == 200, startup.text
             site = requests.get(base + "/openapi.json",
-                                headers={"Host": demarrage.json()["host"]}, timeout=10)
+                                headers={"Host": startup.json()["host"]}, timeout=10)
             assert site.status_code == 200, site.text
-            compte = inscription.json()["user"]["id"]
-            dossier = project_directory(app.state.builder_runtime.workspace_root, compte, project_id)
-            assert (dossier / "app.py").is_file()
+            account = inscription.json()["user"]["id"]
+            folder = project_directory(app.state.builder_runtime.workspace_root, account, project_id)
+            assert (folder / "app.py").is_file()
             assert not (app.state.compilation_service.workspace / project_id).exists()
     finally:
         app.state.sites.stop_all()

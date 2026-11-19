@@ -15,7 +15,7 @@ import pytest
 from monl.cli import (
     _contract_signature,
     _load_state,
-    _rapporter_delta,
+    _report_delta,
     check_coherence,
     compile_project,
 )
@@ -61,7 +61,7 @@ def _fresh_project(tmp_path):
 
 
 def test_delta_reports_a_changed_field_type(tmp_path, capsys):
-    ancienne = {
+    previous = {
         "routes": [],
         "entities": {"Note": {"fields": [{"name": "priority", "type": "String"}]}},
     }
@@ -70,11 +70,11 @@ def test_delta_reports_a_changed_field_type(tmp_path, capsys):
         "entities": {"Note": {"fields": [{"name": "priority", "type": "Integer"}]}},
     }
 
-    assert _rapporter_delta(
-        _contract_signature(ancienne),
+    assert _report_delta(
+        _contract_signature(previous),
         _contract_signature(nouvelle),
         str(tmp_path),
-        ecrire_brief=False,
+        write_brief=False,
     )
     assert "field type changed: Note.priority: String → Integer" in capsys.readouterr().out
 
@@ -125,8 +125,8 @@ def test_contract_imposes_same_origin_never_a_hard_coded_port(tmp_path):
     proj, _spec, contract = _fresh_project(tmp_path)
     assert contract["api"]["base_url"] == ""
     brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
-    absolue = re.findall(r"`https?://[^`]+`", brief)
-    assert not absolue, f"the brief still imposes an absolute URL: {absolue}"
+    absolute = re.findall(r"`https?://[^`]+`", brief)
+    assert not absolute, f"the brief still imposes an absolute URL: {absolute}"
     assert "RELATIVE" in brief
 
 
@@ -147,11 +147,11 @@ def test_contract_fields_mark_required(tmp_path):
     assert fields["label"]["required"] is True
     assert fields["price"]["required"] is True, "not declared, and yet required"
 
-    genere = (proj / "app.py").read_text(encoding="utf-8")
-    schema = genere.split("class ItemSchema(BaseModel):")[1].split("class ")[0]
-    for champ in ("label", "price"):
-        ligne = next(li for li in schema.splitlines() if li.strip().startswith(champ))
-        assert "Optional" not in ligne and "= None" not in ligne, ligne
+    generated = (proj / "app.py").read_text(encoding="utf-8")
+    schema = generated.split("class ItemSchema(BaseModel):")[1].split("class ")[0]
+    for field in ("label", "price"):
+        line = next(li for li in schema.splitlines() if li.strip().startswith(field))
+        assert "Optional" not in line and "= None" not in line, line
 
     # Item.Read is public, Note.Read is not.
     auth = {(r["path"], r["method"]): r["auth_required"] for r in contract["routes"]}
@@ -221,15 +221,15 @@ def test_run_check_reports_an_artifact_from_an_earlier_compiler(tmp_path):
     # application after any compiler change, including those not concerning it.
     # Same arbitration as for the state preceding the backend seal.
     assert ok, errors
-    perimes = [w for w in warnings
+    stale = [w for w in warnings
                if "Artifacts produced by an earlier compiler" in w]
-    assert perimes, warnings
+    assert stale, warnings
     # The warning must NAME the artifact and the resynchronizing command:
     # otherwise it would not be actionable.
-    assert "frontend_contract.json" in perimes[0]
-    assert "monl update" in perimes[0]
+    assert "frontend_contract.json" in stale[0]
+    assert "monl update" in stale[0]
     # ... and must not accuse the artifacts that are up to date.
-    assert "app.py" not in perimes[0]
+    assert "app.py" not in stale[0]
 
     # Resynchronization lifts the warning.
     compile_project(str(_spec), str(proj))
@@ -398,18 +398,18 @@ def test_the_brief_passes_on_the_advised_form(tmp_path):
 
 # ---- Editorial content goes through to the brief (point 55) ----
 
-SPEC_EDITORIALE = SPEC + """
+SPEC_EDITORIAL = SPEC + """
 landing
     brief: "vitrine de démonstration"
     section "À propos": "Atelier fondé en 2015, spécialisé dans la pièce unique."
 """
 
 
-def test_contenu_editorial_transmis_tel_quel(tmp_path):
+def test_content_editorial_passed_tel_quel(tmp_path):
     proj = tmp_path / "edito"
     proj.mkdir()
     spec = proj / "spec.ml"
-    spec.write_text(SPEC_EDITORIALE, encoding="utf-8")
+    spec.write_text(SPEC_EDITORIAL, encoding="utf-8")
     contract = compile_project(str(spec), str(proj))
 
     assert contract["sections"] == [
@@ -431,7 +431,7 @@ def test_without_section_no_editorial_block_in_the_brief(tmp_path):
 
 # ---- The announced body is what the backend requires (point 57) ----
 
-SPEC_DEUX_PARENTS = """app Blog
+SPEC_TWO_PARENTS = """app Blog
 
 entity Article
     title: String
@@ -515,12 +515,12 @@ def test_the_announced_body_is_the_one_the_backend_requires(tmp_path):
              Path(racine) / "demo/spec.ml"]
     specs.append(None)  # historical witness with two parents, independent of the examples
     total = 0
-    ecarts = []
+    gaps = []
     for index, source in enumerate(specs):
         proj = tmp_path / f"projet_{index}"
         proj.mkdir()
         spec = proj / "spec.ml"
-        spec.write_text(SPEC_DEUX_PARENTS if source is None else
+        spec.write_text(SPEC_TWO_PARENTS if source is None else
                         source.read_text(encoding="utf-8"), encoding="utf-8")
         if source is not None and (source.parent / "assets").is_dir():
             shutil.copytree(source.parent / "assets", proj / "assets")
@@ -531,21 +531,21 @@ def test_the_announced_body_is_the_one_the_backend_requires(tmp_path):
             if route["method"] not in ("POST", "PUT"):
                 continue
             total += 1
-            attendu = routes_app.get((route["method"], route["path"]))
-            annonces = route.get("request_fields")
+            expected = routes_app.get((route["method"], route["path"]))
+            announced = route.get("request_fields")
             ident = f"{route['method']} {route['path']} ({source or 'témoin blog'})"
-            if attendu is None:
-                ecarts.append(f"{ident}: aucune route POST/PUT AST correspondante")
+            if expected is None:
+                gaps.append(f"{ident}: aucune route POST/PUT AST correspondante")
                 continue
-            manquants = sorted(set(attendu) - set(annonces or []))
-            superflus = sorted(set(annonces or []) - set(attendu))
-            if manquants or superflus:
-                ecarts.append(f"{ident}: exigés non annoncés={manquants}, "
-                              f"annoncés non acceptés={superflus}")
+            missing = sorted(set(expected) - set(announced or []))
+            superfluous = sorted(set(announced or []) - set(expected))
+            if missing or superfluous:
+                gaps.append(f"{ident}: exigés non annoncés={missing}, "
+                              f"annoncés non acceptés={superfluous}")
     assert total >= 1, "non-vacuity: no POST/PUT route compared"
     assert total >= 39, f"non-vacuity: only {total} routes compared (39 measured)"
     assert schemas, "non-vacuity: no Pydantic schema extracted by AST"
-    assert not ecarts, "\n".join(ecarts)
+    assert not gaps, "\n".join(gaps)
 
     # The precise case that made the real generation fail: the NON-owner parent
     # must be asked of the client (the owner is filled from the JWT and must
@@ -561,7 +561,7 @@ def test_the_brief_announces_the_expected_body(tmp_path):
     not read the contract's JSON, it reads this document."""
     proj = tmp_path / "blog"
     proj.mkdir()
-    (proj / "spec.ml").write_text(SPEC_DEUX_PARENTS, encoding="utf-8")
+    (proj / "spec.ml").write_text(SPEC_TWO_PARENTS, encoding="utf-8")
     compile_project(str(proj / "spec.ml"), str(proj))
     brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "body: `{content, article_id}`" in brief
@@ -590,7 +590,7 @@ def test_editorial_content_is_required_on_the_home_page(tmp_path):
     in the contract said WHERE this text should live."""
     proj = tmp_path / "edito"
     proj.mkdir()
-    (proj / "spec.ml").write_text(SPEC_EDITORIALE, encoding="utf-8")
+    (proj / "spec.ml").write_text(SPEC_EDITORIAL, encoding="utf-8")
     compile_project(str(proj / "spec.ml"), str(proj))
     brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "home page, not only behind a link" in brief
@@ -715,9 +715,9 @@ def test_the_brief_says_how_to_pay_and_not_to_call_the_webhook(tmp_path):
     # And not only in the route inventory: payment is the only frontend journey
     # where an error costs money, it appears in the non-negotiable rules, which
     # the AI reads before the list.
-    regles = brief.split("## Entities")[0].split("## Non-negotiable rules")[1]
-    assert "with no body at all" in regles
-    assert "NEVER call `POST /paiement/webhook`" in regles
+    rules = brief.split("## Entities")[0].split("## Non-negotiable rules")[1]
+    assert "with no body at all" in rules
+    assert "NEVER call `POST /paiement/webhook`" in rules
 
 
 def test_without_payable_the_brief_never_mentions_payment(tmp_path):
@@ -757,12 +757,12 @@ def test_the_tracking_columns_are_declared_as_output(tmp_path):
     interface AI faithful to the contract therefore could not know they exist,
     nor show a payment's outcome: the button could be drawn, its result not."""
     _proj, contract = _payable_project(tmp_path)
-    champs = _order_fields(contract)
-    for colonne in ("payment_status", "payment_ref"):
-        assert colonne in champs, f"{colonne} missing from the contract"
-        assert champs[colonne]["server_generated"] is True
-        assert champs[colonne]["payment_tracking"] is True
-        assert champs[colonne]["hidden_in_reads"] is False
+    fields = _order_fields(contract)
+    for column in ("payment_status", "payment_ref"):
+        assert column in fields, f"{column} missing from the contract"
+        assert fields[column]["server_generated"] is True
+        assert fields[column]["payment_tracking"] is True
+        assert fields[column]["hidden_in_reads"] is False
 
 
 def test_the_tracking_columns_steal_no_layout_role(tmp_path):
@@ -771,12 +771,12 @@ def test_the_tracking_columns_steal_no_layout_role(tmp_path):
     them as any secondary information — evicting real spec fields. They have no
     role, and the declared fields keep theirs."""
     _proj, contract = _payable_project(tmp_path)
-    champs = _order_fields(contract)
-    assert champs["payment_status"]["role"] is None
-    assert champs["payment_ref"]["role"] is None
+    fields = _order_fields(contract)
+    assert fields["payment_status"]["role"] is None
+    assert fields["payment_ref"]["role"] is None
     # The spec's fields do not move, nor the form deduced from the entity.
-    assert champs["libelle"]["role"] == "title"
-    assert champs["total"]["role"] == "price"
+    assert fields["libelle"]["role"] == "title"
+    assert fields["total"]["role"] == "price"
     assert contract["entities"]["Commande"]["archetype"] == "list"
 
 
@@ -786,13 +786,13 @@ def test_the_brief_explains_each_tracking_column_distinctly(tmp_path):
     a session reference: a defect seen by rereading the produced brief, not the
     code. Each column says what it carries."""
     proj, contract = _payable_project(tmp_path)
-    champs = _order_fields(contract)
-    assert champs["payment_status"]["note"] != champs["payment_ref"]["note"]
+    fields = _order_fields(contract)
+    assert fields["payment_status"]["note"] != fields["payment_ref"]["note"]
     brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     # The values to compare are written: without them, the AI guesses 'paid'.
     assert "'en_attente'" in brief and "'payee'" in brief
-    for colonne in ("payment_status", "payment_ref"):
-        assert f"`{colonne}: String`" in brief
+    for column in ("payment_status", "payment_ref"):
+        assert f"`{column}: String`" in brief
     # The procedure is attached to the ROUTE too: knowing how to open a payment
     # does not say how to show its outcome.
     assert "payment_status" in next(
@@ -804,16 +804,16 @@ def test_without_payable_no_tracking_column_in_the_contract(tmp_path):
     """The witness: these fields do not exist in the database without `payable`.
     Declaring them anyway would send the AI reading an always absent field."""
     _proj, _spec, contract = _fresh_project(tmp_path)
-    for spec_entite in contract["entities"].values():
-        noms = {f["name"] for f in spec_entite["fields"]}
-        assert not (noms & {"payment_status", "payment_ref"})
+    for spec_entity in contract["entities"].values():
+        names = {f["name"] for f in spec_entity["fields"]}
+        assert not (names & {"payment_status", "payment_ref"})
 
 
 # --------------------------------------------------------------------------
 # POINT 88: foreign keys, confronted with the schema REALLY written
 # --------------------------------------------------------------------------
 
-SPEC_COMPTES = """app DeuxSortesDeCle
+SPEC_ACCOUNTS = """app DeuxSortesDeCle
 
 entity Commande
     statut: String
@@ -864,19 +864,19 @@ workflow Gerer for Patron
 """
 
 
-def _references_reelles(schema_sql):
+def _references_real(schema_sql):
     """{(table, column): referenced_table} read in the REAL schema.sql."""
-    trouve = {}
+    found = {}
     table = None
-    for ligne in schema_sql.splitlines():
-        entete = re.match(r'CREATE TABLE IF NOT EXISTS "?(\w+)"?', ligne.strip())
-        if entete:
-            table = entete.group(1)
-        contrainte = re.search(
-            r'FOREIGN KEY \("(\w+)"\) REFERENCES "?(\w+)"?\(id\)', ligne)
-        if contrainte and table:
-            trouve[(table, contrainte.group(1))] = contrainte.group(2)
-    return trouve
+    for line in schema_sql.splitlines():
+        header = re.match(r'CREATE TABLE IF NOT EXISTS "?(\w+)"?', line.strip())
+        if header:
+            table = header.group(1)
+        constraint = re.search(
+            r'FOREIGN KEY \("(\w+)"\) REFERENCES "?(\w+)"?\(id\)', line)
+        if constraint and table:
+            found[(table, constraint.group(1))] = constraint.group(2)
+    return found
 
 
 def test_the_contract_says_which_of_the_two_foreign_key_kinds(tmp_path):
@@ -893,29 +893,29 @@ def test_the_contract_says_which_of_the_two_foreign_key_kinds(tmp_path):
     following ones."""
     proj = tmp_path / "proj"
     proj.mkdir()
-    (proj / "spec.ml").write_text(SPEC_COMPTES, encoding="utf-8")
-    contrat = compile_project(str(proj / "spec.ml"), str(proj))
-    reelles = _references_reelles((proj / "schema.sql").read_text(encoding="utf-8"))
-    assert reelles, "no FOREIGN KEY constraint read: the test proves nothing"
+    (proj / "spec.ml").write_text(SPEC_ACCOUNTS, encoding="utf-8")
+    contract = compile_project(str(proj / "spec.ml"), str(proj))
+    real = _references_real((proj / "schema.sql").read_text(encoding="utf-8"))
+    assert real, "no FOREIGN KEY constraint read: the test proves nothing"
 
-    vues = 0
-    for entite, spec in contrat["entities"].items():
-        for lien in spec["foreign_keys"]:
-            cible = reelles.get((entite.lower(), lien["column"]))
-            assert cible is not None, f"{entite}.{lien['column']} missing from the schema"
-            vers_un_compte = cible == "_monl_users"
-            assert lien["references_account"] == vers_un_compte, (
-                f"{entite}.{lien['column']}: the contract says "
-                f"references_account={lien['references_account']}, "
-                f"schema.sql says REFERENCES {cible}")
-            vues += 1
-    assert vues >= 4, f"too few keys confronted ({vues})"
+    views = 0
+    for entity, spec in contract["entities"].items():
+        for link in spec["foreign_keys"]:
+            target = real.get((entity.lower(), link["column"]))
+            assert target is not None, f"{entity}.{link['column']} missing from the schema"
+            vers_a_account = target == "_monl_users"
+            assert link["references_account"] == vers_a_account, (
+                f"{entity}.{link['column']}: the contract says "
+                f"references_account={link['references_account']}, "
+                f"schema.sql says REFERENCES {target}")
+            views += 1
+    assert views >= 4, f"too few keys confronted ({views})"
 
     # BOTH kinds must be represented: a test set containing only one would let
     # through a contract always answering the same.
-    sortes = {lien["references_account"]
-              for spec in contrat["entities"].values()
-              for lien in spec["foreign_keys"]}
+    sortes = {link["references_account"]
+              for spec in contract["entities"].values()
+              for link in spec["foreign_keys"]}
     assert sortes == {True, False}, sortes
 
 
@@ -924,14 +924,14 @@ def test_an_account_key_says_how_to_find_the_record(tmp_path):
     to do instead. The note names the homonymous column."""
     proj = tmp_path / "proj"
     proj.mkdir()
-    (proj / "spec.ml").write_text(SPEC_COMPTES, encoding="utf-8")
-    contrat = compile_project(str(proj / "spec.ml"), str(proj))
-    lien = next(li for li in contrat["entities"]["Commande"]["foreign_keys"]
+    (proj / "spec.ml").write_text(SPEC_ACCOUNTS, encoding="utf-8")
+    contract = compile_project(str(proj / "spec.ml"), str(proj))
+    link = next(li for li in contract["entities"]["Commande"]["foreign_keys"]
                 if li["column"] == "client_id")
-    assert lien["references_account"] is True
-    assert "ACCOUNT" in lien["note"]
-    assert "`client_id` has this same value" in lien["note"]
-    assert "never the one whose `id`" in lien["note"]
+    assert link["references_account"] is True
+    assert "ACCOUNT" in link["note"]
+    assert "`client_id` has this same value" in link["note"]
+    assert "never the one whose `id`" in link["note"]
 
 
 def test_the_delta_reports_a_newly_allowed_role(tmp_path, capsys):
@@ -946,31 +946,31 @@ def test_the_delta_reports_a_newly_allowed_role(tmp_path, capsys):
     proj = tmp_path / "proj"
     proj.mkdir()
     spec = proj / "spec.ml"
-    spec.write_text(SPEC_COMPTES, encoding="utf-8")
+    spec.write_text(SPEC_ACCOUNTS, encoding="utf-8")
     compile_project(str(spec), str(proj))
     capsys.readouterr()
 
     # The boss gains the right to advance an order. No new route: PUT
     # /commande/{id} already existed for the customer.
-    evolue = SPEC_COMPTES.replace(
+    evolved = SPEC_ACCOUNTS.replace(
         "rule Commande.Update ownedBy Client",
         "rule Commande.Update ownedBy Client\n"
         "rule Commande.Update sharedBy Client, Patron").replace(
         "workflow Gerer for Patron\n    Read Commande",
         "workflow Gerer for Patron\n    Read Commande\n    Update Commande")
-    spec.write_text(evolue, encoding="utf-8")
+    spec.write_text(evolved, encoding="utf-8")
     cmd_update(str(proj))
-    sortie = capsys.readouterr().out
+    output = capsys.readouterr().out
 
-    assert "no interface changes" not in sortie, sortie
-    assert "access granted: PUT /commande/{id} → Patron" in sortie, sortie
+    assert "no interface changes" not in output, output
+    assert "access granted: PUT /commande/{id} → Patron" in output, output
     # And the instruction for the frontend AI says what to do with it.
     brief = (proj / "docs/FRONTEND_UPDATE_PROMPT.md").read_text(encoding="utf-8")
     assert "Newly authorized roles" in brief
     assert "supervisor" in brief
 
-    contrat = json.loads((proj / "frontend_contract.json").read_text(encoding="utf-8"))
-    put = next(r for r in contrat["routes"]
+    contract = json.loads((proj / "frontend_contract.json").read_text(encoding="utf-8"))
+    put = next(r for r in contract["routes"]
                if r["method"] == "PUT" and r["path"] == "/commande/{id}")
     assert put["allowed_actors"] == ["Client", "Patron"]
 
@@ -984,19 +984,19 @@ def test_the_delta_does_not_report_a_new_route_twice(tmp_path, capsys):
     proj = tmp_path / "proj"
     proj.mkdir()
     spec = proj / "spec.ml"
-    spec.write_text(SPEC_COMPTES, encoding="utf-8")
+    spec.write_text(SPEC_ACCOUNTS, encoding="utf-8")
     compile_project(str(spec), str(proj))
     capsys.readouterr()
 
-    spec.write_text(SPEC_COMPTES.replace(
+    spec.write_text(SPEC_ACCOUNTS.replace(
         "workflow Gerer for Patron\n    Read Commande",
         "workflow Gerer for Patron\n    Delete Commande\n    Read Commande"),
         encoding="utf-8")
     cmd_update(str(proj))
-    sortie = capsys.readouterr().out
+    output = capsys.readouterr().out
 
-    assert "route added: DELETE /commande/{id}" in sortie, sortie
-    assert "access granted: DELETE /commande/{id}" not in sortie, sortie
+    assert "route added: DELETE /commande/{id}" in output, output
+    assert "access granted: DELETE /commande/{id}" not in output, output
 
 
 def test_the_delta_reports_a_field_that_became_read_only(tmp_path, capsys):
@@ -1013,21 +1013,21 @@ def test_the_delta_reports_a_field_that_became_read_only(tmp_path, capsys):
     proj.mkdir()
     spec = proj / "spec.ml"
     # The field first exists as an ORDINARY attribute, entered by the client.
-    depart = SPEC_COMPTES.replace("    statut: String",
+    start = SPEC_ACCOUNTS.replace("    statut: String",
                                   "    statut: String\n    creeLe: DateTime")
-    spec.write_text(depart, encoding="utf-8")
+    spec.write_text(start, encoding="utf-8")
     compile_project(str(spec), str(proj))
     capsys.readouterr()
 
-    spec.write_text(depart + "rule Commande.creeLe timestamp\n", encoding="utf-8")
+    spec.write_text(start + "rule Commande.creeLe timestamp\n", encoding="utf-8")
     cmd_update(str(proj))
-    sortie = capsys.readouterr().out
+    output = capsys.readouterr().out
 
-    assert "no interface changes" not in sortie, sortie
-    assert "field is now read-only: Commande.creeLe" in sortie, sortie
+    assert "no interface changes" not in output, output
+    assert "field is now read-only: Commande.creeLe" in output, output
     # No field was added or removed: it is indeed the MEANING that changed.
-    assert "field added" not in sortie, sortie
-    assert "field removed" not in sortie, sortie
+    assert "field added" not in output, output
+    assert "field removed" not in output, output
     brief = (proj / "docs/FRONTEND_UPDATE_PROMPT.md").read_text(encoding="utf-8")
     assert "READ-ONLY" in brief
     assert "remove from forms" in brief
@@ -1043,21 +1043,21 @@ def test_the_delta_reports_an_added_prerequisite(tmp_path, capsys):
     proj = tmp_path / "proj"
     proj.mkdir()
     spec = proj / "spec.ml"
-    spec.write_text(SPEC_COMPTES, encoding="utf-8")
+    spec.write_text(SPEC_ACCOUNTS, encoding="utf-8")
     compile_project(str(spec), str(proj))
     capsys.readouterr()
 
-    spec.write_text(SPEC_COMPTES + "rule Commande.Create requiresOwn Client\n",
+    spec.write_text(SPEC_ACCOUNTS + "rule Commande.Create requiresOwn Client\n",
                     encoding="utf-8")
     cmd_update(str(proj))
-    sortie = capsys.readouterr().out
+    output = capsys.readouterr().out
 
-    assert "no interface changes" not in sortie, sortie
-    assert "prerequisite added: POST /commande → requires a Client" in sortie, sortie
+    assert "no interface changes" not in output, output
+    assert "prerequisite added: POST /commande → requires a Client" in output, output
     # Nothing else moved: it is indeed the CONDITION alone that changes.
-    assert "route added" not in sortie, sortie
-    assert "field added" not in sortie, sortie
-    assert "access granted" not in sortie, sortie
+    assert "route added" not in output, output
+    assert "field added" not in output, output
+    assert "access granted" not in output, output
     brief = (proj / "docs/FRONTEND_UPDATE_PROMPT.md").read_text(encoding="utf-8")
     assert "Added PREREQUISITES" in brief
     assert "BEFORE the form" in brief
@@ -1072,27 +1072,27 @@ def test_a_new_read_only_field_is_announced_as_such(tmp_path, capsys):
     proj = tmp_path / "proj"
     proj.mkdir()
     spec = proj / "spec.ml"
-    spec.write_text(SPEC_COMPTES, encoding="utf-8")
+    spec.write_text(SPEC_ACCOUNTS, encoding="utf-8")
     compile_project(str(spec), str(proj))
     capsys.readouterr()
 
     spec.write_text(
-        SPEC_COMPTES.replace("    statut: String",
+        SPEC_ACCOUNTS.replace("    statut: String",
                              "    statut: String\n    creeLe: DateTime")
         + "rule Commande.creeLe timestamp\n", encoding="utf-8")
     cmd_update(str(proj))
-    sortie = capsys.readouterr().out
+    output = capsys.readouterr().out
 
-    assert "field added: Commande.creeLe (read-only" in sortie, sortie
+    assert "field added: Commande.creeLe (read-only" in output, output
     # And the same batch's ordinary field does not carry the annotation.
-    assert "field is now read-only" not in sortie, sortie
+    assert "field is now read-only" not in output, output
 
 
 # ------------------------------------------------------ POINT 91: the locks --
 # A complete cart: it is the only form where the lock has TWO faces — the
 # settled order freezing itself, and its lines freezing with it (the total went
 # back up through the line after payment).
-SPEC_PANIER = """app Panier
+SPEC_CART = """app Panier
 
 entity Article
     nom: String
@@ -1134,23 +1134,23 @@ workflow Acheter for Client
     Delete Ligne
 """
 
-VERROU_PAYABLE = "rule Commande.total payable\n"
+LOCK_PAYABLE = "rule Commande.total payable\n"
 
 # The message is written by `_payment_lock_lines` and by it alone: it
 # distinguishes the LOCK from the other reads of `payment_status` — notably the
 # payment route's, which refuses a second payment for a reason of its own,
 # already described in its own note.
-GARDE_VERROU = "already paid: a charged record"
+GUARD_LOCK = "already paid: a charged record"
 
 
 def _locked_routes_in_app(app_code):
-    blocs = re.split(r"(?=@app\.(?:get|post|put|delete)\()", app_code)
-    trouvees = set()
-    for bloc in blocs[1:]:
-        entete = re.match(r"@app\.(get|post|put|delete)\('([^']+)'", bloc)
-        if entete and GARDE_VERROU in bloc:
-            trouvees.add((entete.group(1).upper(), entete.group(2)))
-    return trouvees
+    blocks = re.split(r"(?=@app\.(?:get|post|put|delete)\()", app_code)
+    found = set()
+    for block in blocks[1:]:
+        header = re.match(r"@app\.(get|post|put|delete)\('([^']+)'", block)
+        if header and GUARD_LOCK in block:
+            found.add((header.group(1).upper(), header.group(2)))
+    return found
 
 
 def test_the_contract_carries_every_lock_really_generated(tmp_path):
@@ -1166,22 +1166,22 @@ def test_the_contract_carries_every_lock_really_generated(tmp_path):
     only form that stays true when a brick moves."""
     proj = tmp_path / "panier"
     proj.mkdir()
-    (proj / "spec.ml").write_text(SPEC_PANIER + VERROU_PAYABLE, encoding="utf-8")
+    (proj / "spec.ml").write_text(SPEC_CART + LOCK_PAYABLE, encoding="utf-8")
     contract = compile_project(str(proj / "spec.ml"), str(proj))
 
-    annonces = {(r["method"], r["path"]) for r in contract["routes"]
+    announced = {(r["method"], r["path"]) for r in contract["routes"]
                 if r.get("payment_locked")}
-    reelles = _locked_routes_in_app((proj / "app.py").read_text(encoding="utf-8"))
-    assert annonces == reelles, (
-        f"the contract announces {sorted(annonces)}, the backend locks "
-        f"{sorted(reelles)}")
+    real = _locked_routes_in_app((proj / "app.py").read_text(encoding="utf-8"))
+    assert announced == real, (
+        f"the contract announces {sorted(announced)}, the backend locks "
+        f"{sorted(real)}")
     # And the lock does cover both faces: the order, and its lines.
-    assert ("PUT", "/commande/{id}") in annonces
-    assert ("POST", "/ligne") in annonces
+    assert ("PUT", "/commande/{id}") in announced
+    assert ("POST", "/ligne") in announced
     # The witness: opening ONE MORE order was never locked — a payable entity
     # does not freeze itself at creation, it does not exist yet. A lock
     # announced there would make the "Order" button disappear.
-    assert ("POST", "/commande") not in annonces
+    assert ("POST", "/commande") not in announced
     # Each locked route carries its note: the JSON serves the delta, the note
     # serves the AI, which only reads the brief.
     for route in contract["routes"]:
@@ -1195,7 +1195,7 @@ def test_without_payable_no_route_is_locked(tmp_path):
     test while guaranteeing nothing."""
     proj = tmp_path / "panier_libre"
     proj.mkdir()
-    (proj / "spec.ml").write_text(SPEC_PANIER, encoding="utf-8")
+    (proj / "spec.ml").write_text(SPEC_CART, encoding="utf-8")
     contract = compile_project(str(proj / "spec.ml"), str(proj))
 
     assert not [r for r in contract["routes"] if r.get("payment_locked")]
@@ -1215,19 +1215,19 @@ def test_the_delta_reports_a_payment_lock(tmp_path, capsys):
     proj = tmp_path / "proj"
     proj.mkdir()
     spec = proj / "spec.ml"
-    spec.write_text(SPEC_PANIER, encoding="utf-8")
+    spec.write_text(SPEC_CART, encoding="utf-8")
     compile_project(str(spec), str(proj))
     capsys.readouterr()
 
-    spec.write_text(SPEC_PANIER + VERROU_PAYABLE, encoding="utf-8")
+    spec.write_text(SPEC_CART + LOCK_PAYABLE, encoding="utf-8")
     cmd_update(str(proj))
-    sortie = capsys.readouterr().out
+    output = capsys.readouterr().out
 
-    assert "no interface changes" not in sortie, sortie
+    assert "no interface changes" not in output, output
     assert "payment lock: PUT /commande/{id} → frozen once Commande is paid" \
-        in sortie, sortie
+        in output, output
     assert "payment lock: POST /ligne → frozen once Commande is paid" \
-        in sortie, sortie
+        in output, output
     brief = (proj / "docs/FRONTEND_UPDATE_PROMPT.md").read_text(encoding="utf-8")
     assert "PAYMENT LOCKS" in brief
     assert "payment_status" in brief
@@ -1243,22 +1243,22 @@ def test_the_delta_does_not_report_twice_a_lock_on_a_new_route(tmp_path, capsys)
     proj = tmp_path / "proj"
     proj.mkdir()
     spec = proj / "spec.ml"
-    spec.write_text(SPEC_PANIER + VERROU_PAYABLE, encoding="utf-8")
+    spec.write_text(SPEC_CART + LOCK_PAYABLE, encoding="utf-8")
     compile_project(str(spec), str(proj))
     capsys.readouterr()
 
     spec.write_text(
-        (SPEC_PANIER + VERROU_PAYABLE)
+        (SPEC_CART + LOCK_PAYABLE)
         .replace("rule Commande.Update ownedBy Client",
                  "rule Commande.Update ownedBy Client\n"
                  "rule Commande.Delete ownedBy Client")
         .replace("    Update Commande\n", "    Update Commande\n    Delete Commande\n"),
         encoding="utf-8")
     cmd_update(str(proj))
-    sortie = capsys.readouterr().out
+    output = capsys.readouterr().out
 
-    assert "route added: DELETE /commande/{id}" in sortie, sortie
-    assert "payment lock" not in sortie, sortie
+    assert "route added: DELETE /commande/{id}" in output, output
+    assert "payment lock" not in output, output
 
 
 # -------------------------------------------------------- POINT 94: the FAQ --
@@ -1271,8 +1271,8 @@ landing
 """
 
 
-def _faq_project(tmp_path, spec=SPEC_FAQ, nom="faq"):
-    proj = tmp_path / nom
+def _faq_project(tmp_path, spec=SPEC_FAQ, name="faq"):
+    proj = tmp_path / name
     proj.mkdir()
     (proj / "spec.ml").write_text(spec, encoding="utf-8")
     return proj, compile_project(str(proj / "spec.ml"), str(proj))
@@ -1300,7 +1300,7 @@ def test_the_question_order_is_the_specs(tmp_path):
     inverse = SPEC_FAQ.replace(
         '    question "Comment choisir ma taille ?": "Nos paires taillent normalement."\n', "")
     inverse += '    question "Comment choisir ma taille ?": "Nos paires taillent normalement."\n'
-    _proj, contract = _faq_project(tmp_path, inverse, nom="ordre")
+    _proj, contract = _faq_project(tmp_path, inverse, name="ordre")
     assert [q["question"] for q in contract["faq"]] == [
         "Puis-je annuler une commande ?", "Comment choisir ma taille ?"]
 
@@ -1333,9 +1333,9 @@ def test_a_question_without_answer_is_refused(tmp_path):
     from monl.parser import parse_monl_string
 
     spec = SPEC_FAQ.replace('"Nos paires taillent normalement."', '"   "')
-    with pytest.raises((ASTValidationError, ValueError)) as refus:
+    with pytest.raises((ASTValidationError, ValueError)) as refusal:
         MonlAST(parse_monl_string(spec)).validate_and_audit()
-    assert "question" in str(refus.value)
+    assert "question" in str(refusal.value)
 
 
 def test_the_delta_reports_an_added_question_and_a_rewritten_text(tmp_path, capsys):
@@ -1349,21 +1349,21 @@ def test_the_delta_reports_an_added_question_and_a_rewritten_text(tmp_path, caps
     Comparing titles alone is point 89's exact mistake."""
     from monl.cli import cmd_update
 
-    proj, _contract = _faq_project(tmp_path, nom="delta")
+    proj, _contract = _faq_project(tmp_path, name="delta")
     capsys.readouterr()
-    evolue = (SPEC_FAQ.replace('"Atelier fondé en 2015."', '"Atelier fondé en 2015, et agrandi depuis."')
+    evolved = (SPEC_FAQ.replace('"Atelier fondé en 2015."', '"Atelier fondé en 2015, et agrandi depuis."')
               + '    question "Livrez-vous en Europe ?": "Oui, sous 3 à 5 jours."\n')
-    (proj / "spec.ml").write_text(evolue, encoding="utf-8")
+    (proj / "spec.ml").write_text(evolved, encoding="utf-8")
 
     cmd_update(str(proj))
-    sortie = capsys.readouterr().out
+    output = capsys.readouterr().out
 
-    assert "no interface changes" not in sortie, sortie
-    assert "content added: question “Livrez-vous en Europe ?”" in sortie, sortie
-    assert "content rewritten: section “À propos”" in sortie, sortie
+    assert "no interface changes" not in output, output
+    assert "content added: question “Livrez-vous en Europe ?”" in output, output
+    assert "content rewritten: section “À propos”" in output, output
     # Nothing else moved: neither route nor field.
-    assert "route added" not in sortie, sortie
-    assert "field added" not in sortie, sortie
+    assert "route added" not in output, output
+    assert "field added" not in output, output
     brief = (proj / "docs/FRONTEND_UPDATE_PROMPT.md").read_text(encoding="utf-8")
     assert "ADDED editorial content" in brief
     assert "REWRITTEN content" in brief

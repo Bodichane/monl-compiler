@@ -59,17 +59,17 @@ def test_the_slug_is_GLOBALLY_unique_and_homonyms_step_aside(tmp_path):
     alice = identity.register("alice@example.test", "MotDePasse-123")
     bob = identity.register("bob@example.test", "MotDePasse-123")
 
-    premier = _project(identity, platform, alice, "boutique")
+    first = _project(identity, platform, alice, "boutique")
     vole = _project(identity, platform, bob, "boutique")
 
     duplicate_id = uuid.uuid4().hex
     identity.add_project(alice["id"], duplicate_id, "Deuxième boutique")
-    troisieme = platform.create_project(alice["id"], duplicate_id, "BOUTIQUE")
+    third = platform.create_project(alice["id"], duplicate_id, "BOUTIQUE")
 
-    assert platform.get_project(premier)["slug"] == "boutique", (
+    assert platform.get_project(first)["slug"] == "boutique", (
         "the first lost the address its name announces")
     assert platform.get_project(vole)["slug"] == "boutique-2"
-    assert troisieme == "boutique-3"
+    assert third == "boutique-3"
 
     assert len(platform.list_projects(alice["id"])) == 2
     assert len(platform.list_projects(bob["id"])) == 1
@@ -90,21 +90,21 @@ def test_an_oauth_account_refuses_a_password_exactly_like_a_wrong_one(tmp_path):
     assert len(password_hash) == 32 and len(password_salt) == 16
 
     faux_password = identity.authenticate("github:4242", "MotDePasse-123")
-    absent_password = identity.authenticate("absent@example.test", "MotDePasse-123")
-    assert faux_password == absent_password is None
+    missing_password = identity.authenticate("absent@example.test", "MotDePasse-123")
+    assert faux_password == missing_password is None
 
     # Counter-proof of the "before comparison" guard: authenticating an OAuth
     # account must not even call the KDF.
     original = identity._password_hash
-    appels = []
+    calls = []
 
-    def compter(password, salt):
-        appels.append((password, salt))
+    def count(password, salt):
+        calls.append((password, salt))
         return original(password, salt)
 
-    identity._password_hash = compter
+    identity._password_hash = count
     assert identity.authenticate("github:4242", "MotDePasse-123") is None
-    assert appels == []
+    assert calls == []
 
 
 def test_legacy_accounts_are_counted_and_stay_out_of_users(tmp_path, monkeypatch):
@@ -117,7 +117,7 @@ def test_legacy_accounts_are_counted_and_stay_out_of_users(tmp_path, monkeypatch
             ("ancien-compte", "hachage-ancienne-fonction", "2026-08-26T00:00:00+00:00"),
         )
 
-    assert identity.comptes_herites() == 1
+    assert identity.accounts_inherited() == 1
     assert platform.legacy_account_count() == 1
     with sqlite_db(identity.path) as db:
         assert db.execute(
@@ -128,10 +128,10 @@ def test_legacy_accounts_are_counted_and_stay_out_of_users(tmp_path, monkeypatch
         ).fetchone()[0] == 1
 
     app_module = importlib.import_module("monl_platform.app")
-    annonces = []
-    monkeypatch.setattr(app_module, "anomalie", lambda nom, **champs: annonces.append((nom, champs)))
+    announced = []
+    monkeypatch.setattr(app_module, "anomaly", lambda name, **fields: announced.append((name, fields)))
     app_module.create_app(workspace=tmp_path)
-    assert annonces == [(
+    assert announced == [(
         "comptes_heritages_non_convertibles",
         {
             "nombre": 1,

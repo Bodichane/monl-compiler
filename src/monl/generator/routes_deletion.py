@@ -6,12 +6,12 @@ and nothing says what to give back or to whom (points 82 and 92)."""
 from . import sql
 
 
-class SuppressionRoutesMixin:
+class DeletionRoutesMixin:
     """The `Delete` route, and workflow actions."""
 
     # The three methods below are extracted from `_generate_delete_route_lines`
     # (complexity ceiling); emitted text byte-identical.
-    def _controle_de_suppression(self, base_target, access, is_public, dependency_injection):
+    def _control_of_deletion(self, base_target, access, is_public, dependency_injection):
         """(dependencies, ownership check lines) of a Delete route."""
         owner_entity = access.owner_entity
         apply_ownership = owner_entity and not is_public
@@ -57,23 +57,23 @@ class SuppressionRoutesMixin:
             ]
         return delete_deps, ownership_check_lines
 
-    def _garde_dernier_profil(self, base_target):
+    def _guard_last_profile(self, base_target):
         """Refuses to delete the last profile that other records depend on."""
         api_lines = []
-        dependantes = self._profile_dependents(base_target)
-        col_compte = self._profile_account_column(base_target)
-        if dependantes and col_compte:
+        dependents = self._profile_dependents(base_target)
+        col_account = self._profile_account_column(base_target)
+        if dependents and col_account:
             api_lines += [
                 f"    cursor.execute('SELECT COUNT(*) FROM "
-                f'"{base_target.lower()}" WHERE "{col_compte}" = ?\', '
+                f'"{base_target.lower()}" WHERE "{col_account}" = ?\', '
                 "(current_user_id,))",
                 "    _restantes = cursor.fetchone()[0] - 1",
                 "    if _restantes <= 0:",
             ]
-            for nom, table, colonne in dependantes:
+            for name, table, column in dependents:
                 api_lines += [
                     f"        cursor.execute('SELECT COUNT(*) FROM "
-                    f'"{table}" WHERE "{colonne}" = ?\', (current_user_id,))',
+                    f'"{table}" WHERE "{column}" = ?\', (current_user_id,))',
                     "        _dep = cursor.fetchone()[0]",
                     "        if _dep:",
                     "            conn.close()",
@@ -81,27 +81,27 @@ class SuppressionRoutesMixin:
                     # The entity name as the SPEC writes it: the vocabulary the
                     # project's author recognizes, and the frontend contract's.
                     f"                f'Deletion impossible: {{_dep}} "
-                    f"{nom} record(s) depend on this profile. '",
+                    f"{name} record(s) depend on this profile. '",
                     "                'Without it, they would no longer be attached to "
                     "anyone.'))",
                 ]
         return api_lines
 
-    def _lectures_de_restitution(self, base_target):
+    def _lectures_of_restitution(self, base_target):
         """Reads, BEFORE the DELETE, what each counter rule must give back."""
         api_lines = []
         restitutions = []
-        for indice, rule in enumerate(
+        for index, rule in enumerate(
                 self.reputation_rules_by_trigger.get(base_target, [])):
-            fk_cible = rule.target_fk
-            var = f"_rendu_{indice}"
-            champ = rule.amount_field
+            fk_target = rule.target_fk
+            var = f"_rendu_{index}"
+            field = rule.amount_field
             # The quantity and the foreign key are read BEFORE the DELETE:
             # afterwards the row no longer exists and nothing says what to give
             # back or to whom. Same reason as point 82, two lines above.
-            colonnes = f'"{champ}", "{fk_cible}"' if champ else f'"{fk_cible}"'
+            columns = f'"{field}", "{fk_target}"' if field else f'"{fk_target}"'
             api_lines += [
-                f"    cursor.execute('SELECT {colonnes} FROM "
+                f"    cursor.execute('SELECT {columns} FROM "
                 f'"{base_target.lower()}" WHERE id = ?\', (id,))',
                 f"    {var} = cursor.fetchone()",
             ]
@@ -111,9 +111,9 @@ class SuppressionRoutesMixin:
                 "op": "+" if rule.direction == "decrements" else "-",
                 "table": rule.target_entity.lower(),
                 "champ": rule.target_field,
-                "montant": (f"int({var}[0] or 0)" if champ
+                "montant": (f"int({var}[0] or 0)" if field
                             else str(rule.amount)),
-                "fk_index": 1 if champ else 0,
+                "fk_index": 1 if field else 0,
             })
         return api_lines, restitutions
 
@@ -126,7 +126,7 @@ class SuppressionRoutesMixin:
         is_public = context["is_public"]
         security_check = context["security_check"]
         dependency_injection = context["dependency_injection"]
-        delete_deps, ownership_check_lines = self._controle_de_suppression(
+        delete_deps, ownership_check_lines = self._control_of_deletion(
             base_target, access, is_public, dependency_injection)
 
         delete_deps_suffix = f", {delete_deps}" if delete_deps else ""
@@ -141,23 +141,23 @@ class SuppressionRoutesMixin:
         # `projets/SneakerLab`: 1 order, 0 profiles. The check applies to the
         # LAST profile only: `requiresOwn` requires "at least one", so deleting
         # the second to last stays legitimate.
-        api_lines += self._garde_dernier_profil(base_target)
+        api_lines += self._guard_last_profile(base_target)
         # BRICK 18 (point 91): deleting erases the trace of a charge. The 409
         # the foreign key returned protected nothing — removing the lines first
         # was enough, and the paid order vanished from the database (checked).
         if self._payment_lock_field(base_target):
             api_lines += self._payment_lock_lines(
                 base_target.lower(), "id", base_target)
-        for verrou in self._payment_locked_parents(base_target):
-            lien = f"_verrou_{verrou['fk_column']}"
+        for lock in self._payment_locked_parents(base_target):
+            link = f"_verrou_{lock['fk_column']}"
             api_lines += [
-                f"    cursor.execute('SELECT \"{verrou['fk_column']}\" FROM "
+                f"    cursor.execute('SELECT \"{lock['fk_column']}\" FROM "
                 f'"{base_target.lower()}" WHERE id = ?\', (id,))',
-                f"    {lien} = cursor.fetchone()",
-                f"    if {lien} and {lien}[0] is not None:",
+                f"    {link} = cursor.fetchone()",
+                f"    if {link} and {link}[0] is not None:",
             ]
             api_lines += self._payment_lock_lines(
-                verrou["table"], f"{lien}[0]", verrou["entity"],
+                lock["table"], f"{link}[0]", lock["entity"],
                 indent="        ", var="_parent_regle")
         # FIX (beta 3): foreign keys are now really enforced (PRAGMA
         # foreign_keys), so deleting a record that is still referenced raises
@@ -169,11 +169,11 @@ class SuppressionRoutesMixin:
         # nothing says which total to recompute. Removing an item from a cart
         # without bringing the total down is exactly where the sum would lie,
         # and on a 'payable' entity we would charge for a returned item.
-        recalculs_del = self._aggregation_recomputes(base_target)
-        for recalcul in recalculs_del:
-            var = f"_parent_{recalcul['fk_column']}"
+        recomputes_del = self._aggregation_recomputes(base_target)
+        for recompute in recomputes_del:
+            var = f"_parent_{recompute['fk_column']}"
             api_lines += [
-                f"    cursor.execute('SELECT \"{recalcul['fk_column']}\" FROM "
+                f"    cursor.execute('SELECT \"{recompute['fk_column']}\" FROM "
                 f'"{base_target.lower()}" WHERE id = ?\', (id,))',
                 f"    {var} = cursor.fetchone()",
             ]
@@ -191,8 +191,8 @@ class SuppressionRoutesMixin:
         # up, a taken back `increments` does not go below the value before
         # creation. Refusing a deletion because of a floor would forbid
         # cancelling an order — exactly what is being fixed here.
-        lignes_restitution, restitutions = self._lectures_de_restitution(base_target)
-        api_lines += lignes_restitution
+        lines_restitution, restitutions = self._lectures_of_restitution(base_target)
+        api_lines += lines_restitution
         upload_refs = []
         for upload in self.upload_fields_by_entity.get(base_target, []):
             ref_var = f"_upload_ref_{upload['field']}"
@@ -203,19 +203,19 @@ class SuppressionRoutesMixin:
             upload_refs.append((upload, ref_var))
         api_lines.append("    try:")
         api_lines.append(f"        cursor.execute('DELETE FROM \"{base_target.lower()}\" WHERE id = ?', (id,))")
-        for recalcul in recalculs_del:
-            var = f"_parent_{recalcul['fk_column']}"
+        for recompute in recomputes_del:
+            var = f"_parent_{recompute['fk_column']}"
             api_lines += [
                 f"        if {var}:",
-                f"            cursor.execute({recalcul['sql']!r}, ({var}[0], {var}[0]))",
+                f"            cursor.execute({recompute['sql']!r}, ({var}[0], {var}[0]))",
             ]
-        for rendu in restitutions:
-            var = rendu["var"]
+        for rendered in restitutions:
+            var = rendered["var"]
             api_lines += [
-                f"        if {var} and {var}[{rendu['fk_index']}] is not None:",
-                f"            cursor.execute('UPDATE \"{rendu['table']}\" SET "
-                f'"{rendu["champ"]}" = "{rendu["champ"]}" {rendu["op"]} ? '
-                f"WHERE id = ?', ({rendu['montant']}, {var}[{rendu['fk_index']}]))",
+                f"        if {var} and {var}[{rendered['fk_index']}] is not None:",
+                f"            cursor.execute('UPDATE \"{rendered['table']}\" SET "
+                f'"{rendered["champ"]}" = "{rendered["champ"]}" {rendered["op"]} ? '
+                f"WHERE id = ?', ({rendered['montant']}, {var}[{rendered['fk_index']}]))",
             ]
         api_lines.append("        conn.commit()")
         api_lines.append("    except _DATABASE_INTEGRITY_ERRORS:")

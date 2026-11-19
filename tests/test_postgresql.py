@@ -57,13 +57,13 @@ def postgres_dsn():
         admin.commit()
     finally:
         admin.close()
-    morceaux = urlsplit(base)
+    chunks = urlsplit(base)
     options = f"-c search_path={schema}"
-    params = dict(parse_qsl(morceaux.query, keep_blank_values=True))
+    params = dict(parse_qsl(chunks.query, keep_blank_values=True))
     params["options"] = options
     # libpq does not treat '+' as a space in the ``options`` option; explicitly
     # encoding the space is needed for ``-c search_path``.
-    dsn = urlunsplit(morceaux._replace(query=urlencode(params, quote_via=quote)))
+    dsn = urlunsplit(chunks._replace(query=urlencode(params, quote_via=quote)))
     try:
         yield dsn
     finally:

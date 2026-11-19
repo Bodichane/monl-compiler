@@ -5,144 +5,144 @@ import os
 import re
 
 
-def _attendues(tool, normalized, entite, types, infos, parent, colonnes):
-    attendues = []
-    blocs = [b for b in normalized.get("seeds", []) if b["entity"] == entite]
-    for (_i, _plages, parent_info), bloc in zip(infos, blocs, strict=True):
-        for ast_row in bloc["rows"]:
-            attendu = {"_parent": parent_info[2]} if parent else {}
-            for nom in colonnes:
-                if nom != "_parent":
-                    attendu[nom] = tool._valeur_csv(ast_row.get(nom), types[nom])
-            attendues.append(attendu)
-    return attendues
+def _expected(tool, normalized, entity, types, infos, parent, columns):
+    expected_ones = []
+    blocks = [b for b in normalized.get("seeds", []) if b["entity"] == entity]
+    for (_i, _ranges, parent_info), block in zip(infos, blocks, strict=True):
+        for ast_row in block["rows"]:
+            expected = {"_parent": parent_info[2]} if parent else {}
+            for name in columns:
+                if name != "_parent":
+                    expected[name] = tool._value_csv(ast_row.get(name), types[name])
+            expected_ones.append(expected)
+    return expected_ones
 
 
-def _texte_seed_avec_parent(tool, entite, rows, types, dossier_assets, parent):
-    morceaux, precedent = [], object()
-    for numero, row in rows:
+def _text_seed_with_parent(tool, entity, rows, types, folder_assets, parent):
+    chunks, precedent = [], object()
+    for number, row in rows:
         parent_value = row.get("_parent")
         if parent_value != precedent:
             try:
-                valeur = tool._litteral(parent_value)
+                valeur = tool._literal(parent_value)
             except tool.AssetsToolError as err:
                 raise tool.ContentToolError(
-                    f"{entite}.csv row {numero}, column _parent: {err}") from None
-            morceaux.append(f"seed {entite} for {parent[0]}.{parent[1]} {valeur}\n")
+                    f"{entity}.csv row {number}, column _parent: {err}") from None
+            chunks.append(f"seed {entity} for {parent[0]}.{parent[1]} {valeur}\n")
             precedent = parent_value
-        morceaux.append(tool._texte_fiche(
-            entite, row, numero, types, dossier_assets))
-    return "".join(morceaux)
+        chunks.append(tool._text_fiche(
+            entity, row, number, types, folder_assets))
+    return "".join(chunks)
 
 
-def _nouveau_seed(tool, entite, rows, types, dossier_assets, parent):
+def _new_seed(tool, entity, rows, types, folder_assets, parent):
     if parent:
-        return _texte_seed_avec_parent(
-            tool, entite, rows, types, dossier_assets, parent)
-    morceaux, precedent = [], object()
-    for numero, row in rows:
+        return _text_seed_with_parent(
+            tool, entity, rows, types, folder_assets, parent)
+    chunks, precedent = [], object()
+    for number, row in rows:
         if precedent.__class__ is object:
-            morceaux.append(f"seed {entite}\n")
+            chunks.append(f"seed {entity}\n")
             precedent = None
-        morceaux.append(tool._texte_fiche(
-            entite, row, numero, types, dossier_assets))
-    return "".join(morceaux)
+        chunks.append(tool._text_fiche(
+            entity, row, number, types, folder_assets))
+    return "".join(chunks)
 
 
-def _zone_des_seeds(tool, lignes, entite):
-    existants = [p for p in tool._plages_blocs(lignes) if p[0] == entite]
-    if existants:
-        for gauche, droite in itertools.pairwise(existants):
-            entre = "".join(lignes[gauche[2] + 1:droite[1]])
-            if not tool._seulement_espaces_commentaires(entre):
+def _zone_des_seeds(tool, lines, entity):
+    existing = [p for p in tool._ranges_blocks(lines) if p[0] == entity]
+    if existing:
+        for gauche, right in itertools.pairwise(existing):
+            entre = "".join(lines[gauche[2] + 1:right[1]])
+            if not tool._only_spaces_comments(entre):
                 raise tool.ContentToolError(
-                    f"The seed blocks for {entite} are not contiguous. "
+                    f"The seed blocks for {entity} are not contiguous. "
                     "Group them by hand before importing.")
-        return existants[0][1], existants[-1][2], True
-    tous = tool._plages_blocs(lignes)
-    if tous:
-        debut = fin = tous[-1][2] + 1
+        return existing[0][1], existing[-1][2], True
+    all_ = tool._ranges_blocks(lines)
+    if all_:
+        debut = fin = all_[-1][2] + 1
     else:
-        debut = next((i for i, li in enumerate(lignes)
-                      if re.match(r"^workflow\s+", li)), len(lignes))
+        debut = next((i for i, li in enumerate(lines)
+                      if re.match(r"^workflow\s+", li)), len(lines))
         fin = debut
     return debut, fin, False
 
 
-def _entite_import(tool, normalized, lignes, blocs, entite, types,
-                   dossier_content, dossier_assets):
-    chemin = os.path.join(dossier_content, f"{entite}.csv")
-    if not os.path.isfile(chemin):
+def _entity_import(tool, normalized, lines, blocks, entity, types,
+                   folder_content, folder_assets):
+    path = os.path.join(folder_content, f"{entity}.csv")
+    if not os.path.isfile(path):
         return None
-    infos, parent = tool._infos_parent(lignes, blocs, entite)
-    colonnes = tool._colonnes(normalized, entite, bool(parent))
-    rows = tool._lire_csv(chemin, colonnes)
-    if "_parent" in colonnes and any(not row["_parent"] for _n, row in rows):
-        numero = next(n for n, row in rows if not row["_parent"])
+    infos, parent = tool._infos_parent(lines, blocks, entity)
+    columns = tool._columns(normalized, entity, bool(parent))
+    rows = tool._read_csv(path, columns)
+    if "_parent" in columns and any(not row["_parent"] for _n, row in rows):
+        number = next(n for n, row in rows if not row["_parent"])
         raise tool.ContentToolError(
-            f"{entite}.csv row {numero}: column _parent is empty.")
-    attendues = _attendues(
-        tool, normalized, entite, types, infos, parent, colonnes)
-    nouveau = _nouveau_seed(tool, entite, rows, types, dossier_assets, parent)
-    debut, fin, remplace = _zone_des_seeds(tool, lignes, entite)
+            f"{entity}.csv row {number}: column _parent is empty.")
+    expected_ones = _expected(
+        tool, normalized, entity, types, infos, parent, columns)
+    new = _new_seed(tool, entity, rows, types, folder_assets, parent)
+    debut, fin, replaces = _zone_des_seeds(tool, lines, entity)
     operation = None
-    if [row for _numero, row in rows] != attendues:
-        operation = (debut, fin, nouveau, entite, rows, remplace)
+    if [row for _number, row in rows] != expected_ones:
+        operation = (debut, fin, new, entity, rows, replaces)
     return operation, {"fiches": len(rows)}
 
 
-def _images_importees(tool, project_dir, normalized, rapports,
-                      lignes, blocs, dossier_content, dossier_assets):
-    for entite in rapports:
-        chemin = os.path.join(dossier_content, f"{entite}.csv")
-        infos, parent = tool._infos_parent(lignes, blocs, entite)
-        rows = tool._lire_csv(
-            chemin, tool._colonnes(normalized, entite, bool(parent)))
-        types = normalized["schema"]["entities"][entite]
-        for numero, row in rows:
-            for nom, type_ in types.items():
-                valeur = row.get(nom, "")
+def _images_imported(tool, project_dir, normalized, rapports,
+                      lines, blocks, folder_content, folder_assets):
+    for entity in rapports:
+        path = os.path.join(folder_content, f"{entity}.csv")
+        infos, parent = tool._infos_parent(lines, blocks, entity)
+        rows = tool._read_csv(
+            path, tool._columns(normalized, entity, bool(parent)))
+        types = normalized["schema"]["entities"][entity]
+        for number, row in rows:
+            for name, type_ in types.items():
+                valeur = row.get(name, "")
                 if type_ == "Image" and valeur:
-                    asset = f"{dossier_assets}/{valeur}"
-                    if not tool.resoudre_asset(project_dir, dossier_assets, asset):
+                    asset = f"{folder_assets}/{valeur}"
+                    if not tool.resolve_asset(project_dir, folder_assets, asset):
                         raise tool.ContentToolError(
-                            f"{entite}.csv row {numero}: image file "
-                            f"'{valeur}' was not found in {dossier_assets}/.")
+                            f"{entity}.csv row {number}: image file "
+                            f"'{valeur}' was not found in {folder_assets}/.")
 
 
-def importer_contenu(spec_path, project_dir, tool):
-    normalized = tool._appeler(tool._charger, spec_path)
+def importer_content(spec_path, project_dir, tool):
+    normalized = tool._call(tool._charger, spec_path)
     with open(spec_path, encoding="utf-8") as fh:
         original = fh.read()
-    lignes = original.splitlines(keepends=True)
-    blocs = tool._blocs_seed(lignes)
-    dossier_content = os.path.join(project_dir, "content")
-    dossier_assets = (normalized.get("assets") or {}).get("dir") or tool.DEFAULT_ASSETS_DIR
+    lines = original.splitlines(keepends=True)
+    blocks = tool._blocks_seed(lines)
+    folder_content = os.path.join(project_dir, "content")
+    folder_assets = (normalized.get("assets") or {}).get("dir") or tool.DEFAULT_ASSETS_DIR
     operations, rapports = [], {}
-    for entite, types in normalized["schema"]["entities"].items():
-        resultat = _entite_import(
-            tool, normalized, lignes, blocs, entite, types,
-            dossier_content, dossier_assets)
-        if resultat:
-            operation, rapport = resultat
+    for entity, types in normalized["schema"]["entities"].items():
+        result = _entity_import(
+            tool, normalized, lines, blocks, entity, types,
+            folder_content, folder_assets)
+        if result:
+            operation, rapport = result
             if operation:
                 operations.append(operation)
-            rapports[entite] = rapport
-    texte_lignes = list(lignes)
-    for debut, fin, nouveau, _entite, _rows, remplace in sorted(
+            rapports[entity] = rapport
+    text_lines = list(lines)
+    for debut, fin, new, _entity, _rows, replaces in sorted(
             operations, reverse=True):
-        texte_lignes[debut:fin + 1 if remplace else debut] = (
-            nouveau.splitlines(keepends=True))
-    texte = "".join(texte_lignes)
-    apres = tool._appeler(tool._revalider, texte, spec_path)
-    _images_importees(
-        tool, project_dir, normalized, rapports, lignes, blocs,
-        dossier_content, dossier_assets)
-    changee = texte != original
-    if changee:
+        text_lines[debut:fin + 1 if replaces else debut] = (
+            new.splitlines(keepends=True))
+    text = "".join(text_lines)
+    apres = tool._call(tool._revalidate, text, spec_path)
+    _images_imported(
+        tool, project_dir, normalized, rapports, lines, blocks,
+        folder_content, folder_assets)
+    changed = text != original
+    if changed:
         with open(spec_path, "w", encoding="utf-8") as fh:
-            fh.write(texte)
-    avertissements = tool._avertissements(project_dir, apres, changee)
+            fh.write(text)
+    warnings = tool._warnings(project_dir, apres, changed)
     for rapport in rapports.values():
-        rapport.update({"spec_changee": changee, "avertissements": avertissements})
-    return {"entites": rapports, "spec_changee": changee}
+        rapport.update({"spec_changee": changed, "avertissements": warnings})
+    return {"entites": rapports, "spec_changee": changed}

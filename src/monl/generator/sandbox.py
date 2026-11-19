@@ -11,9 +11,9 @@ _CUSTOM_FUNCTION = Template('''def ${name}(context: dict) -> dict:
 ''')
 
 
-def _docstring_litterale(texte):
+def _docstring_literal(text):
     """A backslash in the spec stays a backslash in the emitted docstring."""
-    return texte.replace("\\", "\\\\")
+    return text.replace("\\", "\\\\")
 
 
 class SandboxMixin:
@@ -28,7 +28,7 @@ class SandboxMixin:
         for func in self.custom_functions:
             sb_lines.append(_CUSTOM_FUNCTION.substitute(
                 name=func["name"],
-                description=_docstring_litterale(
+                description=_docstring_literal(
                     func.get("description", "Custom business logic.").strip()),
             ))
         return "\n".join(sb_lines)

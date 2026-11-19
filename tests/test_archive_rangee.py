@@ -66,15 +66,15 @@ def project(tmp_path):
 
 def test_documents_live_in_docs_and_code_at_the_root(project):
     """(a) The rule in one sentence: `docs/` is read, the root is run."""
-    for nom in DOCUMENTS:
-        assert (project / "docs" / nom).is_file(), f"{nom} is not in docs/"
-        assert not (project / nom).exists(), f"{nom} still lingers at the root"
+    for name in DOCUMENTS:
+        assert (project / "docs" / name).is_file(), f"{name} is not in docs/"
+        assert not (project / name).exists(), f"{name} still lingers at the root"
 
     # The contract is the MACHINE interface: a tool opens it knowing nothing of
     # the tree. It stays where it is found without searching.
     assert (project / "frontend_contract.json").is_file()
-    for nom in ("app.py", "schema.sql", "manage.py", "serve.py", "monl.json"):
-        assert (project / nom).is_file(), f"{nom} left the root"
+    for name in ("app.py", "schema.sql", "manage.py", "serve.py", "monl.json"):
+        assert (project / name).is_file(), f"{name} left the root"
 
 
 def test_the_project_memory_is_called_agents_and_the_readme_exists(project):
@@ -101,20 +101,20 @@ def test_the_readme_names_the_real_spec_and_the_backend_starts(project, tmp_path
     assert "uvicorn serve:app" in readme, "the README does not say how to start"
     assert "docs/" in readme, "the README does not say what docs/ contains"
 
-    resultat = subprocess.run(
+    result = subprocess.run(
         [sys.executable, "-c", "import serve; assert serve.app is not None; print('ok')"],
         cwd=str(project), capture_output=True, text=True, timeout=120,
         env={**os.environ, "PYTHONPATH": str(project)},
     )
-    assert resultat.returncode == 0, (
+    assert result.returncode == 0, (
         f"the README command does not load the application:\n"
-        f"{resultat.stderr[-1500:]}")
+        f"{result.stderr[-1500:]}")
 
 
-def _remettre_a_plat(project):
+def _put_back_a_plat(project):
     """Rebuilds the EARLIER form: everything at the root, memory in CLAUDE.md."""
-    for nom in DOCUMENTS:
-        (project / "docs" / nom).replace(project / nom)
+    for name in DOCUMENTS:
+        (project / "docs" / name).replace(project / name)
     (project / "docs").rmdir()
     (project / "AGENTS.md").replace(project / "CLAUDE.md")
     (project / "README.md").unlink()
@@ -128,16 +128,16 @@ def test_an_already_compiled_project_is_tidied_without_losing_anything(project):
     is what would happen if we wrote into `docs/` without moving the root: the
     preserved copy would find nothing to preserve.
     """
-    _remettre_a_plat(project)
-    ecrit_a_la_main = "# Direction écrite par l'humain\nDu vert bouteille.\n"
-    (project / "DESIGN_SPEC.md").write_text(ecrit_a_la_main, encoding="utf-8")
+    _put_back_a_plat(project)
+    written_to_the_main = "# Direction écrite par l'humain\nDu vert bouteille.\n"
+    (project / "DESIGN_SPEC.md").write_text(written_to_the_main, encoding="utf-8")
 
     compile_project(str(project / "spec.ml"), str(project))
 
     assert (project / "docs" / "DESIGN_SPEC.md").read_text(encoding="utf-8") == (
-        ecrit_a_la_main), "human work was overwritten by the tidying"
-    for nom in DOCUMENTS:
-        assert not (project / nom).exists(), f"{nom} stayed at the root"
+        written_to_the_main), "human work was overwritten by the tidying"
+    for name in DOCUMENTS:
+        assert not (project / name).exists(), f"{name} stayed at the root"
     assert (project / "AGENTS.md").is_file()
     assert not (project / "CLAUDE.md").exists()
 
@@ -150,7 +150,7 @@ def test_a_personal_claude_md_is_never_touched(project):
     under a name monl overwrites at the next compilation: their memory would
     disappear later, which is worse than an immediate overwrite.
     """
-    _remettre_a_plat(project)
+    _put_back_a_plat(project)
     a_lui = "# Mes consignes à moi\nNe touche pas à la barre de navigation.\n"
     (project / "CLAUDE.md").write_text(a_lui, encoding="utf-8")
 
@@ -166,9 +166,9 @@ def test_a_personal_claude_md_is_never_touched(project):
 
 def test_the_tidying_is_idempotent(project):
     """Recompiling must announce nothing and move nothing a second time."""
-    avant = sorted(p.relative_to(project).as_posix()
+    before = sorted(p.relative_to(project).as_posix()
                    for p in project.rglob("*") if p.is_file())
     compile_project(str(project / "spec.ml"), str(project))
     apres = sorted(p.relative_to(project).as_posix()
                    for p in project.rglob("*") if p.is_file())
-    assert avant == apres
+    assert before == apres

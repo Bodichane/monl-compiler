@@ -4,7 +4,7 @@ from ..ir import EffectPlan, ForeignKeyPlacement
 from ..planning import plan_foreign_keys
 
 
-class ModeleMixin:
+class TemplateMixin:
     """From the validated AST to the model the generator works with."""
 
 
@@ -95,9 +95,9 @@ class ModeleMixin:
             table = entity.lower()
             generated = self.generated_fields_by_entity.get(entity, [])
             parent = seed.get("parent")
-            rattachement = None
+            attachment = None
             if parent:
-                rattachement = {
+                attachment = {
                     "column": f"{parent['entity'].lower()}_id",
                     "table": parent["entity"].lower(),
                     "field": parent["field"],
@@ -110,5 +110,5 @@ class ModeleMixin:
                     if gfield not in filled:
                         # Stable synthetic pseudonym, unique per row.
                         filled[gfield] = f"Anon#{1000 + len(seed_data[table])}"
-                seed_data[table].append({"values": filled, "parent": rattachement})
+                seed_data[table].append({"values": filled, "parent": attachment})
         return seed_data

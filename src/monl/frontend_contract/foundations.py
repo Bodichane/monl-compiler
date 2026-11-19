@@ -55,7 +55,7 @@ README_FILENAME = "README.md"
 FRONTEND_ARTIFACTS = (CONTRACT_FILENAME, PROMPT_FILENAME,
                       AGENTS_FILENAME, README_FILENAME)
 
-def paragraphes(texte):
+def paragraphs(text):
     """Translates the spec's paragraph separator back into real breaks (point
     64). The grammar forbids line breaks in a STRING_LITERAL: a three-paragraph
     "about" therefore travels on a single, marked line. The contract is the
@@ -64,7 +64,7 @@ def paragraphes(texte):
 
     Without a marker, the text comes out as is: a contract written before
     point 64, or a hand-written spec, reads exactly as before."""
-    return "\n\n".join(p.strip() for p in texte.split("¶") if p.strip())
+    return "\n\n".join(p.strip() for p in text.split("¶") if p.strip())
 
 def _coerce_plans(source) -> CompilationPlans:
     """Library compatibility for old calls with a generator."""

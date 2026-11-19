@@ -24,7 +24,7 @@ class AdminCliMixin:
         # and sometimes provisions service roles ('monitoring', 'backup') that
         # have neither an address nor a number.
         formes = self.auth_identifier or []
-        prefixe = self.auth_phone_prefix
+        prefix = self.auth_phone_prefix
         password_invalidation = []
         if any(self.auth_features.get(name) for name in
                ("password_reset", "refresh_tokens", "lockout", "totp", "verify_email")):
@@ -345,4 +345,4 @@ ${totp_entry}${unlock_parser_entry}    sub.add_parser("users", help="list accoun
 
 if __name__ == "__main__":
     main()
-''').substitute(app_name=self.app_name, self_register_description=self_reg or "none", totp_command=totp_command, unlock_command=unlock_command, actors=actors, identifier_forms=repr(formes), phone_prefix=repr(prefixe), self_register_actors=self_reg, password_invalidation=''.join(password_invalidation), totp_function=totp_function, unlock_parser=unlock_parser, totp_entry=totp_entry, unlock_parser_entry=unlock_parser_entry)
+''').substitute(app_name=self.app_name, self_register_description=self_reg or "none", totp_command=totp_command, unlock_command=unlock_command, actors=actors, identifier_forms=repr(formes), phone_prefix=repr(prefix), self_register_actors=self_reg, password_invalidation=''.join(password_invalidation), totp_function=totp_function, unlock_parser=unlock_parser, totp_entry=totp_entry, unlock_parser_entry=unlock_parser_entry)

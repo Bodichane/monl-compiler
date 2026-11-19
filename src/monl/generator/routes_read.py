@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from . import sql
 
 
-class LectureRoutesMixin:
+class ReadRoutesMixin:
     """The read routes: list and detail."""
 
     def _generate_read_route_lines(self, plan, context, act_type):
@@ -24,7 +24,7 @@ class LectureRoutesMixin:
         base_target = context["base_target"]
         tag = context["tag"]
         security_check = context["security_check"]
-        e = self._etat_lecture(context)
+        e = self._state_read(context)
         masked = e.masked
         categorized_here = e.categorized_here
         read_dep_suffix = e.read_dep_suffix
@@ -39,9 +39,9 @@ class LectureRoutesMixin:
         api_lines.append(security_check)
         api_lines.append("    limit = max(1, min(limit, 200))")
         api_lines.append("    offset = max(0, offset)")
-        api_lines += self._where_liste_lecture(e, parties_where, parties_params)
+        api_lines += self._where_list_read(e, parties_where, parties_params)
         api_lines.append("    conn = _connect(); cursor = conn.cursor()")
-        api_lines += self._requetes_liste_lecture(
+        api_lines += self._queries_list_read(
             base_target, e, parties_where, parties_params)
         api_lines.append("    rows = cursor.fetchall()")
         api_lines.append("    _columns = [d[0] for d in cursor.description]  # real column order in the database (robust to migrations)")
@@ -68,7 +68,7 @@ class LectureRoutesMixin:
         api_lines.append("    conn.close()")
         api_lines.append("    if not row: raise HTTPException(status_code=404, detail='Record not found')")
         api_lines.append("    named_row = dict(zip(_columns, row))")
-        api_lines += self._gardes_detail_lecture(base_target, e)
+        api_lines += self._guards_detail_read(base_target, e)
         if masked:
             api_lines.append(f"    for _f in [{mask_literal}]: named_row.pop(_f, None)")
         for cf in categorized_here:
@@ -79,7 +79,7 @@ class LectureRoutesMixin:
         return api_lines
 
 
-    def _etat_lecture(self, context):
+    def _state_read(self, context):
         """Who may list and read what: shared by both Read emitters.
 
         Masking, the publicWhen condition and its exemptions, the parties,
@@ -206,7 +206,7 @@ class LectureRoutesMixin:
             own_where_sql=own_where_sql,
         )
 
-    def _where_liste_lecture(self, e, parties_where, parties_params):
+    def _where_list_read(self, e, parties_where, parties_params):
         """The runtime WHERE of the list: owner, supervisor or publicWhen."""
         condition_fragment = e.condition_fragment
         condition_supervisors = e.condition_supervisors
@@ -256,7 +256,7 @@ class LectureRoutesMixin:
                 api_lines.append("        _own_where, _own_params = '', ()")
         return api_lines
 
-    def _requetes_liste_lecture(self, base_target, e, parties_where, parties_params):
+    def _queries_list_read(self, base_target, e, parties_where, parties_params):
         """COUNT then page query, under the ACL WHERE."""
         condition_fragment = e.condition_fragment
         apply_condition_identity = e.apply_condition_identity
@@ -291,7 +291,7 @@ class LectureRoutesMixin:
                 api_lines.append(f"    cursor.execute('SELECT * FROM \"{base_target.lower()}\" LIMIT ? OFFSET ?', (limit, offset))")
         return api_lines
 
-    def _gardes_detail_lecture(self, base_target, e):
+    def _guards_detail_read(self, base_target, e):
         """Detail read guards: publicWhen 404, owner 404, parties 403."""
         public_condition = e.public_condition
         condition_supervisors = e.condition_supervisors
@@ -312,7 +312,7 @@ class LectureRoutesMixin:
             # 403 for the others: on sequential identifiers, distinguishing
             # "does not exist" from "hidden" would let someone count what was
             # removed.
-            garde = (f"    if named_row.get({public_condition.field!r}) != "
+            guard = (f"    if named_row.get({public_condition.field!r}) != "
                      f"{public_condition.value!r}")
             if apply_condition_identity:
                 exemptions = []
@@ -323,9 +323,9 @@ class LectureRoutesMixin:
                     exemptions.append(
                         f"(_ident.get('user_id') and named_row.get({col!r}) "
                         f"== _ident.get('user_id'))")
-                garde += " and not (" + " or ".join(exemptions) + ")"
+                guard += " and not (" + " or ".join(exemptions) + ")"
             api_lines.append(
-                garde + ": raise HTTPException(status_code=404, detail='Record not found')")
+                guard + ": raise HTTPException(status_code=404, detail='Record not found')")
         if apply_read_owner:
             # 404 and not 403: on an entity with sequential identifiers, a 403
             # would confirm that someone else's record exists — enumerating the

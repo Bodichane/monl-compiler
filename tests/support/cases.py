@@ -16,7 +16,7 @@ from collections.abc import Callable, Iterable, Sequence
 import pytest
 
 
-def check_each_case(table: Iterable[tuple], verifier: Callable, *,
+def check_each_case(table: Iterable[tuple], check: Callable, *,
                         ids: Sequence[str] | None = None) -> None:
     """Calls `verifier(*cas)` for each tuple of `table`.
 
@@ -29,13 +29,13 @@ def check_each_case(table: Iterable[tuple], verifier: Callable, *,
     assert table, "empty case table: this test would check nothing"
     if ids is not None:
         assert len(ids) == len(table), "un nom par cas"
-    echecs = []
+    failures = []
     for rang, cas in enumerate(table):
         try:
-            verifier(*cas)
+            check(*cas)
         except (Exception, pytest.fail.Exception) as exc:  # aggregate, do not hide
-            nom = ids[rang] if ids is not None else repr(cas)[:160]
-            echecs.append(f"- {nom} : {type(exc).__name__}: {exc}")
-    if echecs:
-        pytest.fail(f"{len(echecs)}/{len(table)} cases failed:\n" + "\n".join(echecs),
+            name = ids[rang] if ids is not None else repr(cas)[:160]
+            failures.append(f"- {name} : {type(exc).__name__}: {exc}")
+    if failures:
+        pytest.fail(f"{len(failures)}/{len(table)} cases failed:\n" + "\n".join(failures),
                     pytrace=False)

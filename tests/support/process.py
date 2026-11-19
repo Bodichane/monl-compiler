@@ -12,24 +12,24 @@ from __future__ import annotations
 import subprocess
 
 
-def fermer_tubes(processus: subprocess.Popen) -> None:
+def close_tubes(process: subprocess.Popen) -> None:
     """Closes the pipes still open, without touching the process."""
-    for tube in (processus.stdin, processus.stdout, processus.stderr):
+    for tube in (process.stdin, process.stdout, process.stderr):
         if tube is not None and not tube.closed:
             tube.close()
 
 
-def arreter_processus(processus: subprocess.Popen, delai: float = 10) -> None:
+def stop_process(process: subprocess.Popen, delay: float = 10) -> None:
     """`terminate`, bounded wait, `kill` as a last resort, then close.
 
     After a `kill`, we WAIT again: without `wait`, the process stays a zombie and
     `Popen.__del__` reports it too.
     """
-    if processus.poll() is None:
-        processus.terminate()
+    if process.poll() is None:
+        process.terminate()
         try:
-            processus.wait(timeout=delai)
+            process.wait(timeout=delay)
         except subprocess.TimeoutExpired:
-            processus.kill()
-            processus.wait()
-    fermer_tubes(processus)
+            process.kill()
+            process.wait()
+    close_tubes(process)

@@ -27,95 +27,95 @@ import requests
 from monl.cli import compile_project
 from tests.support.server import uvicorn_server
 
-EXEMPLES_DIR = os.path.join(os.path.dirname(__file__), "..", "exemples")
-EXEMPLES = sorted(glob.glob(os.path.join(EXEMPLES_DIR, "*.ml")))
-MOT_DE_PASSE = "audit-offensif-197-solide"
-VALEURS = {"Integer": 1, "Float": 1.0, "Money": 1.0, "Boolean": False}
+EXAMPLES_DIR = os.path.join(os.path.dirname(__file__), "..", "exemples")
+EXAMPLES = sorted(glob.glob(os.path.join(EXAMPLES_DIR, "*.ml")))
+PASSWORD = "audit-offensif-197-solide"
+VALUES = {"Integer": 1, "Float": 1.0, "Money": 1.0, "Boolean": False}
 
 
 def test_the_examples_are_found():
     # An empty list would make the parametrized test green without attacking
     # anything.
-    assert len(EXEMPLES) >= 5, EXEMPLES
+    assert len(EXAMPLES) >= 5, EXAMPLES
 
 
-def _compiler(spec, sortie):
-    compile_project(spec, str(sortie))
+def _compiler(spec, output):
+    compile_project(spec, str(output))
     from monl.ast_validator import MonlAST
     from monl.parser import parse_monl_file
-    return MonlAST(parse_monl_file(spec), base_dir=EXEMPLES_DIR).validate_and_audit()
+    return MonlAST(parse_monl_file(spec), base_dir=EXAMPLES_DIR).validate_and_audit()
 
 
-def _cibles(ast):
-    securite = ast["security"]
-    entites = ast["schema"]["entities"]
-    publiques = set(securite.get("public", []))
-    inscriptibles = set(securite.get("self_register_actors", []))
+def _targets(ast):
+    security = ast["security"]
+    entities = ast["schema"]["entities"]
+    public = set(security.get("public", []))
+    writable = set(security.get("self_register_actors", []))
 
     creation = None
-    for wf in securite["workflows"]:
+    for wf in security["workflows"]:
         for action in wf["actions"]:
-            cible = action["target"]
-            if (action["type"] == "Create" and cible in entites
-                    and f"{cible}.Create" not in publiques):
-                prefere = wf["actor"] in inscriptibles
-                if creation is None or (prefere and not creation["inscriptible"]):
-                    creation = {"entite": cible, "acteur": wf["actor"],
-                                "inscriptible": prefere}
+            target = action["target"]
+            if (action["type"] == "Create" and target in entities
+                    and f"{target}.Create" not in public):
+                preferred = wf["actor"] in writable
+                if creation is None or (preferred and not creation["inscriptible"]):
+                    creation = {"entite": target, "acteur": wf["actor"],
+                                "inscriptible": preferred}
 
-    autorises = {}
-    for wf in securite["workflows"]:
+    allowed = {}
+    for wf in security["workflows"]:
         for action in wf["actions"]:
             base = action["target"].split(".")[0]
-            if action["type"] in ("Update", "Delete") and base in entites:
-                autorises.setdefault((base, action["type"]), set()).add(wf["actor"])
+            if action["type"] in ("Update", "Delete") and base in entities:
+                allowed.setdefault((base, action["type"]), set()).add(wf["actor"])
     # A deletion first: without a body, nothing can answer 422 before the role
     # check (an update validates its body FIRST, measured).
     elevation = None
-    for (entite, verbe), acteurs in sorted(autorises.items(),
+    for (entity, verb), actors in sorted(allowed.items(),
                                            key=lambda c: (c[0][1] != "Delete", c[0])):
-        adverses = sorted(a for a in inscriptibles if a not in acteurs)
-        if adverses:
-            elevation = {"entite": entite, "verbe": verbe, "acteur": adverses[0]}
+        adverse = sorted(a for a in writable if a not in actors)
+        if adverse:
+            elevation = {"entite": entity, "verbe": verb, "acteur": adverse[0]}
             break
     return creation, elevation
 
 
-def _corps_valide(projet, entite):
+def _body_valid(project, entity):
     """A body the SCHEMA accepts, read from the compiled contract: without it, a
     422 would answer before the role check and the attack would measure nothing."""
-    contrat = json.loads((projet / "frontend_contract.json").read_text(encoding="utf-8"))
+    contract = json.loads((project / "frontend_contract.json").read_text(encoding="utf-8"))
     return {
-        champ["name"]: (champ["allowed_values"][0] if champ.get("allowed_values")
-                        else VALEURS.get(champ["type"], "valeur-audit"))
-        for champ in contrat["entities"][entite]["fields"]
-        if not champ["server_generated"]
+        field["name"]: (field["allowed_values"][0] if field.get("allowed_values")
+                        else VALUES.get(field["type"], "valeur-audit"))
+        for field in contract["entities"][entity]["fields"]
+        if not field["server_generated"]
     }
 
 
-def _token(base, identifiant, acteur):
-    inscrit = requests.post(base + "/register", timeout=20, json={
-        "username": identifiant, "password": MOT_DE_PASSE, "actor": acteur})
-    assert inscrit.status_code == 200, inscrit.text
-    connecte = requests.post(base + "/login", timeout=20, json={
-        "username": identifiant, "password": MOT_DE_PASSE})
-    assert connecte.status_code == 200, connecte.text
-    return connecte.json()["access_token"]
+def _token(base, identifier, actor):
+    registered = requests.post(base + "/register", timeout=20, json={
+        "username": identifier, "password": PASSWORD, "actor": actor})
+    assert registered.status_code == 200, registered.text
+    connected = requests.post(base + "/login", timeout=20, json={
+        "username": identifier, "password": PASSWORD})
+    assert connected.status_code == 200, connected.text
+    return connected.json()["access_token"]
 
 
-@pytest.mark.parametrize("spec", EXEMPLES, ids=[os.path.basename(p) for p in EXEMPLES])
+@pytest.mark.parametrize("spec", EXAMPLES, ids=[os.path.basename(p) for p in EXAMPLES])
 def test_the_offensive_audit_fails_on_every_example(spec, tmp_path):
     ast = _compiler(spec, tmp_path / "projet")
-    creation, elevation = _cibles(ast)
+    creation, elevation = _targets(ast)
     assert creation, "no protected creation: nothing to attack on this example"
     route = "/" + creation["entite"].lower()
 
     with uvicorn_server(str(tmp_path / "projet")) as base:
         if creation["inscriptible"]:
-            legitime = _token(base, "legitime@example.test", creation["acteur"])
-            accepte = requests.post(base + route, json={}, timeout=10,
-                                    headers={"Authorization": f"Bearer {legitime}"})
-            assert accepte.status_code != 401, accepte.text
+            legitimate = _token(base, "legitime@example.test", creation["acteur"])
+            accepted = requests.post(base + route, json={}, timeout=10,
+                                    headers={"Authorization": f"Bearer {legitimate}"})
+            assert accepted.status_code != 401, accepted.text
 
         usurpe = requests.post(base + route, json={}, timeout=10,
                                headers={"x_actor": creation["acteur"]})
@@ -130,10 +130,10 @@ def test_the_offensive_audit_fails_on_every_example(spec, tmp_path):
         assert refuse.status_code == 401, refuse.text
 
         if elevation:
-            jeton = _token(base, "adverse@example.test", elevation["acteur"])
-            suppression = elevation["verbe"] == "Delete"
-            methode = requests.delete if suppression else requests.put
-            corps = None if suppression else _corps_valide(tmp_path / "projet", elevation["entite"])
-            interdit = methode(f"{base}/{elevation['entite'].lower()}/1", json=corps,
-                               timeout=10, headers={"Authorization": f"Bearer {jeton}"})
-            assert interdit.status_code == 403, interdit.text
+            token = _token(base, "adverse@example.test", elevation["acteur"])
+            deletion = elevation["verbe"] == "Delete"
+            method = requests.delete if deletion else requests.put
+            body = None if deletion else _body_valid(tmp_path / "projet", elevation["entite"])
+            forbidden = method(f"{base}/{elevation['entite'].lower()}/1", json=body,
+                               timeout=10, headers={"Authorization": f"Bearer {token}"})
+            assert forbidden.status_code == 403, forbidden.text

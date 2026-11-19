@@ -9,9 +9,9 @@ import re
 from lark import Lark
 from lark.exceptions import VisitError
 
-from .errors import MonlSyntaxError, NombreHorsLimites, _format_lark_error
+from .errors import MonlSyntaxError, NumberOutsideLimites, _format_lark_error
 from .lark_grammar import grammar
-from .transformer import MonlIndenter, MonlTransformer
+from .transformer import MonlIndent, MonlTransformer
 
 # FIX (roadmap, discovered while assembling the anonymous social network, point
 # 29 of docs/design_decisions.md): a comment line ALONE (nothing but spaces
@@ -65,7 +65,7 @@ def _get_parser():
     stay stateless."""
     global _PARSER
     if _PARSER is None:
-        _PARSER = Lark(grammar, parser='lalr', postlex=MonlIndenter())
+        _PARSER = Lark(grammar, parser='lalr', postlex=MonlIndent())
     return _PARSER
 
 
@@ -89,13 +89,13 @@ def parse_monl_string(content, file_path=None):
     try:
         return MonlTransformer().transform(tree)
     except VisitError as err:
-        nombre = _nombre_trop_long(err, original, file_path)
-        if nombre is None:
+        number = _number_too_long(err, original, file_path)
+        if number is None:
             raise
-        raise nombre from None
+        raise number from None
 
 
-def _nombre_trop_long(err, original, file_path):
+def _number_too_long(err, original, file_path):
     """Point 204: two numbers the grammar accepts but Python does not convert —
     more than 4,300 digits, or an exponent that gives infinity. The error came
     up wrapped in a Lark `VisitError`, without a line. No real use writes such
@@ -103,7 +103,7 @@ def _nombre_trop_long(err, original, file_path):
     stays a compiler defect and comes up as is — swallowing it here would hide
     it."""
     cause = err.orig_exc
-    if isinstance(cause, NombreHorsLimites):
+    if isinstance(cause, NumberOutsideLimites):
         motif = re.escape(str(cause))
         message = (f"number out of range: {str(cause)[:40]} fits in no "
                    "numeric column.")
@@ -113,12 +113,12 @@ def _nombre_trop_long(err, original, file_path):
                    "thousands of digits.")
     else:
         return None
-    lignes = original.split("\n")
-    ligne = next((i for i, texte in enumerate(lignes, 1)
-                  if re.search(motif, texte)), None)
+    lines = original.split("\n")
+    line = next((i for i, text in enumerate(lines, 1)
+                  if re.search(motif, text)), None)
     return MonlSyntaxError(
-        message, line=ligne,
-        source_line=lignes[ligne - 1][:80] + "…" if ligne else None,
+        message, line=line,
+        source_line=lines[line - 1][:80] + "…" if line else None,
         file_path=file_path)
 
 def parse_monl_file(file_path):

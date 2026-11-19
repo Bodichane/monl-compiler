@@ -405,14 +405,14 @@ def test_manage_py_names_the_remedy_instead_of_dumping_a_trace():
         # The v1 spec has one field fewer than the database created by v2: it
         # is a non-additive removal, without a declared `migration`.
         _compile_cli(SPEC_V1, workdir)
-        resultat = subprocess.run(
+        result = subprocess.run(
             [sys.executable, os.path.join(workdir, "manage.py"), "users"],
             cwd=tempfile.gettempdir(), env=_cli_env(),
             capture_output=True, text=True,
         )
 
-    sortie = resultat.stdout + resultat.stderr
-    assert resultat.returncode != 0, "administering a pending database must fail"
-    assert "Traceback" not in sortie, f"trace brute au lieu d'un diagnostic :\n{sortie}"
-    assert "monl migrate" in sortie, "the output must name the remedy"
-    assert workdir in sortie, "the output must name the concerned folder"
+    output = result.stdout + result.stderr
+    assert result.returncode != 0, "administering a pending database must fail"
+    assert "Traceback" not in output, f"trace brute au lieu d'un diagnostic :\n{output}"
+    assert "monl migrate" in output, "the output must name the remedy"
+    assert workdir in output, "the output must name the concerned folder"

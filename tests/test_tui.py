@@ -33,11 +33,11 @@ def test_plain_rendering_keeps_the_historical_strings():
 
 def test_engine_uses_plain_rendering_by_default():
     """No styling must slip into a scripted dialogue."""
-    vus = []
-    dialogue = GuidedDialogue(ask=lambda p: (vus.append(p), "1")[1])
+    seen = []
+    dialogue = GuidedDialogue(ask=lambda p: (seen.append(p), "1")[1])
     assert isinstance(dialogue.ui, PlainDialogueUI)
     dialogue._ask_choice("Type ?", ["A", "B"])
-    assert vus == ["Type ?\n  [1] A  [2] B\n> "]
+    assert seen == ["Type ?\n  [1] A  [2] B\n> "]
 
 
 def test_styled_rendering_without_color_or_unicode_stays_plain_text():
@@ -50,11 +50,11 @@ def test_styled_rendering_without_color_or_unicode_stays_plain_text():
     # Drawing glyphs have an ASCII equivalent; the text itself is not
     # transliterated — a terminal unable to encode non-ASCII letters could not
     # show the user's own accented input either.
-    glyphes = "│❯○━✗→…"
-    for sortie in sorties:
-        assert "\033" not in sortie, f"ANSI sequence emitted without color: {sortie!r}"
-        for glyphe in glyphes:
-            assert glyphe not in sortie, f"glyph {glyphe!r} not degraded: {sortie!r}"
+    glyphs = "│❯○━✗→…"
+    for output in sorties:
+        assert "\033" not in output, f"ANSI sequence emitted without color: {output!r}"
+        for glyph in glyphs:
+            assert glyph not in output, f"glyph {glyph!r} not degraded: {output!r}"
 
 
 def test_styled_rendering_colors_and_frames_without_breaking_text():
@@ -71,10 +71,10 @@ def test_explanation_truncated_to_terminal_width():
     """A line that wraps breaks the menu's alignment."""
     ui = StyledDialogueUI(_TerminalNu(width=60))
     menu = ui.menu("Type ?", ["Court"], hints={"Court": "explication " * 20})
-    assert all(len(ligne) <= 62 for ligne in menu.splitlines()), menu
+    assert all(len(line) <= 62 for line in menu.splitlines()), menu
 
 
-def test_capacites_terminal_respectent_no_color(monkeypatch):
+def test_capabilities_terminal_respect_no_color(monkeypatch):
     monkeypatch.setenv("NO_COLOR", "1")
     monkeypatch.setenv("TERM", "xterm-256color")
     assert Terminal().color is False

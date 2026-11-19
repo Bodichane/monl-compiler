@@ -9,21 +9,21 @@ import subprocess
 from pathlib import Path
 
 from monl.cli.dispatch import build_parser as build_monl_parser
-from monl_platform.__main__ import ALIAS_DES_VERBES
-from monl_platform.__main__ import VERBES as VERBES_PLATEFORME
+from monl_platform.__main__ import ALIAS_OF_VERBS
+from monl_platform.__main__ import VERBS as VERBS_PLATFORM
 
 RACINE = Path(__file__).resolve().parents[1]
 
 # These documents tell a past state: their references are evidence, not
 # instructions to apply to the current tree.
-DOCUMENTS_HISTORIQUES = {
+DOCUMENTS_HISTORICAL = {
     "CHANGELOG.md": "journal des versions passées",
     "CLAUDE.md": "journal de travail conservé par le mainteneur",
     "CODEBASE_AUDIT.md": "photographie datée de l'audit du 11 août 2026",
     "docs/design_decisions.md": "journal chronologique des décisions de conception",
     **{
-        f"docs/phase_{numero}_{nom}.md": "archive d'une phase de conception achevée"
-        for numero, nom in (
+        f"docs/phase_{number}_{name}.md": "archive d'une phase de conception achevée"
+        for number, name in (
             (3, "parser"),
             (4, "ast"),
             (5, "generator"),
@@ -36,7 +36,7 @@ DOCUMENTS_HISTORIQUES = {
 # These names designate artifacts produced in a compiled project. Their absence
 # from the repository is therefore normal, but every exception must stay in
 # use.
-FICHIERS_GENERES = {
+FILES_GENERATED = {
     "app.py": "backend FastAPI produit par la compilation",
     "schema.sql": "schéma SQL produit par la compilation",
     "manage.py": "outil d'administration produit par la compilation",
@@ -58,50 +58,50 @@ FICHIERS_GENERES = {
 }
 
 MOTIF_CODE = re.compile(r"(?<!`)`([^`\n]+)`(?!`)")
-MOTIF_LIEN = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
+MOTIF_LINK = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
 MOTIF_CLI = re.compile(r"(?<![\w-])(monl(?:-platform)?)\s+([a-z][a-z0-9-]*)\b")
-MOTIF_CHIFFRE_TESTS = re.compile(r"\b\d[\d _]*(?:tests?|réussites?)\b", re.IGNORECASE)
-MOTIF_COUVERTURE = re.compile(
+MOTIF_DIGIT_TESTS = re.compile(r"\b\d[\d _]*(?:tests?|réussites?)\b", re.IGNORECASE)
+MOTIF_COVERAGE = re.compile(
     r"(?:\b\d+(?:[,.]\d+)?\s*%[^\n]{0,40}\bcouverture\b|"
     r"\bcouverture\b[^\n]{0,40}\b\d+(?:[,.]\d+)?\s*%)",
     re.IGNORECASE,
 )
-SUFFIXES_FICHIER = {
+SUFFIXES_FILE = {
     ".css", ".csv", ".html", ".ini", ".js", ".json", ".md", ".ml",
     ".py", ".sql", ".toml", ".txt", ".yaml", ".yml",
 }
 
 
 def _documents() -> dict[str, str]:
-    chemins = list(RACINE.glob("*.md"))
-    for dossier in ("docs", "exemples", "demo", "deploy"):
-        base = RACINE / dossier
+    paths = list(RACINE.glob("*.md"))
+    for folder in ("docs", "exemples", "demo", "deploy"):
+        base = RACINE / folder
         if base.exists():
-            chemins.extend(base.rglob("*.md"))
-    return {p.relative_to(RACINE).as_posix(): p.read_text(encoding="utf-8") for p in chemins}
+            paths.extend(base.rglob("*.md"))
+    return {p.relative_to(RACINE).as_posix(): p.read_text(encoding="utf-8") for p in paths}
 
 
-def _file_citations(texte: str) -> list[str]:
+def _file_citations(text: str) -> list[str]:
     citations = []
-    for brut in MOTIF_CODE.findall(texte):
-        cible = brut.strip().rstrip(".,:;")
-        if any(c in cible for c in " \n\t*{}[]()=<>|'\""):
+    for brut in MOTIF_CODE.findall(text):
+        target = brut.strip().rstrip(".,:;")
+        if any(c in target for c in " \n\t*{}[]()=<>|'\""):
             continue
-        if "/" in cible or Path(cible).suffix.lower() in SUFFIXES_FICHIER:
-            citations.append(cible)
+        if "/" in target or Path(target).suffix.lower() in SUFFIXES_FILE:
+            citations.append(target)
     return citations
 
 
-def _links(texte: str) -> list[str]:
-    return [cible.split(maxsplit=1)[0].strip("<>") for cible in MOTIF_LIEN.findall(texte)]
+def _links(text: str) -> list[str]:
+    return [target.split(maxsplit=1)[0].strip("<>") for target in MOTIF_LINK.findall(text)]
 
 
-def _orders(parseur: argparse.ArgumentParser) -> set[str]:
+def _orders(parser: argparse.ArgumentParser) -> set[str]:
     return {
-        choix
-        for action in parseur._actions
+        choice
+        for action in parser._actions
         if isinstance(action, argparse._SubParsersAction)
-        for choix in action.choices
+        for choice in action.choices
     }
 
 
@@ -118,54 +118,54 @@ def _package_roots() -> tuple[str, ...]:
     The list is DERIVED from `package-dir`, never written here: the day the
     repository changes layout, the witness follows instead of lying.
     """
-    texte = (RACINE / "pyproject.toml").read_text(encoding="utf-8")
-    bloc = re.search(r"\[tool\.setuptools\.package-dir\](.*?)(?:\n\[|\Z)",
-                     texte, re.S)
-    assert bloc, "extractor not working: [tool.setuptools.package-dir] not found"
-    racines = tuple(re.findall(r'=\s*"([^"]+)"', bloc.group(1)))
-    assert racines, "extractor not working: no package root read"
-    return racines
+    text = (RACINE / "pyproject.toml").read_text(encoding="utf-8")
+    block = re.search(r"\[tool\.setuptools\.package-dir\](.*?)(?:\n\[|\Z)",
+                     text, re.S)
+    assert block, "extractor not working: [tool.setuptools.package-dir] not found"
+    roots = tuple(re.findall(r'=\s*"([^"]+)"', block.group(1)))
+    assert roots, "extractor not working: no package root read"
+    return roots
 
 
-RACINES_DE_PAQUETS = _package_roots()
+ROOTS_OF_PACKAGES = _package_roots()
 
 
-def _resout(citation: str, document: str, fichiers: set[str]) -> bool:
-    cible = citation.split("#", 1)[0].split("?", 1)[0]
-    if not cible:
+def _resolves(citation: str, document: str, files: set[str]) -> bool:
+    target = citation.split("#", 1)[0].split("?", 1)[0]
+    if not target:
         return True
-    if re.match(r"^(?:https?://|ghcr\.io/|[/$~]|\$|[\w.+-]+://)", cible):
+    if re.match(r"^(?:https?://|ghcr\.io/|[/$~]|\$|[\w.+-]+://)", target):
         return True
-    normalise = os.path.normpath((Path(document).parent / cible).as_posix())
-    racine = os.path.normpath(cible)
+    normalise = os.path.normpath((Path(document).parent / target).as_posix())
+    racine = os.path.normpath(target)
     # A bare basename is an accepted ellipsis if it is unambiguous as to
     # existence: the documentation is not bound to repeat src/monl/.
-    if "/" not in cible:
-        noms = {Path(f).name for f in fichiers} | {Path(f).parent.name for f in fichiers}
-        return cible in noms or (cible.endswith(".py") and cible[:-3] in noms)
+    if "/" not in target:
+        names = {Path(f).name for f in files} | {Path(f).parent.name for f in files}
+        return target in names or (target.endswith(".py") and target[:-3] in names)
     # A path as it appears in an INSTALLED package is valid too: packaging
     # removes the prefix declared by `package-dir`.
-    candidats = [normalise, racine]
-    candidats += [f"{prefixe}/{c}" for prefixe in RACINES_DE_PAQUETS
-                  for c in (normalise, racine) if prefixe]
+    candidates = [normalise, racine]
+    candidates += [f"{prefix}/{c}" for prefix in ROOTS_OF_PACKAGES
+                  for c in (normalise, racine) if prefix]
     return any(
-        c in fichiers or any(f.startswith(c.rstrip("/") + "/") for f in fichiers)
-        for c in candidats
+        c in files or any(f.startswith(c.rstrip("/") + "/") for f in files)
+        for c in candidates
     )
 
 
-def _cited_commands(texte: str) -> list[tuple[str, str]]:
-    return [commande for code in MOTIF_CODE.findall(texte) for commande in MOTIF_CLI.findall(code)]
+def _cited_commands(text: str) -> list[tuple[str, str]]:
+    return [command for code in MOTIF_CODE.findall(text) for command in MOTIF_CLI.findall(code)]
 
 
 #: The README table that serves as the command reference. A verb shipped and
 #: absent from this table exists for nobody.
-TABLEAU_DES_COMMANDES = "README.md"
+TABLE_OF_COMMANDS = "README.md"
 
 #: The verbs left out of the table, with their reason. `init` is the guided
 #: dialogue, which the README presents everywhere as plain `monl` — repeating
 #: it there under its internal name would confuse instead of inform.
-VERBES_HORS_TABLEAU = {
+VERBS_OUTSIDE_TABLE = {
     "init": "c'est `monl` sans argument, présenté comme tel dans tout le README",
 }
 
@@ -183,22 +183,22 @@ def test_every_shipped_verb_is_documented():
     three verbs were mentioned in passing in a sentence elsewhere, which does not
     make a reference one can look up.
     """
-    attendus = _orders(build_monl_parser()) - set(VERBES_HORS_TABLEAU)
-    assert attendus, "extractor not working: no verb read on the parser"
-    tableau = (RACINE / TABLEAU_DES_COMMANDES).read_text(encoding="utf-8")
-    lignes = [ligne for ligne in tableau.splitlines()
-              if ligne.startswith("| `monl")]
-    assert lignes, "extractor not working: commands table not found"
-    documentes = {verbe for ligne in lignes
-                  for _, verbe in MOTIF_CLI.findall(ligne)}
+    expected_items = _orders(build_monl_parser()) - set(VERBS_OUTSIDE_TABLE)
+    assert expected_items, "extractor not working: no verb read on the parser"
+    tableau = (RACINE / TABLE_OF_COMMANDS).read_text(encoding="utf-8")
+    lines = [line for line in tableau.splitlines()
+              if line.startswith("| `monl")]
+    assert lines, "extractor not working: commands table not found"
+    documented = {verb for line in lines
+                  for _, verb in MOTIF_CLI.findall(line)}
 
-    manquants = sorted(attendus - documentes)
-    assert not manquants, (
-        f"verbs shipped and missing from the {TABLEAU_DES_COMMANDES} table: "
-        f"{manquants}")
+    missing = sorted(expected_items - documented)
+    assert not missing, (
+        f"verbs shipped and missing from the {TABLE_OF_COMMANDS} table: "
+        f"{missing}")
 
-    perimes = sorted(set(VERBES_HORS_TABLEAU) - _orders(build_monl_parser()))
-    assert not perimes, f"exemption de verbe devenue inutile : {perimes}"
+    stale = sorted(set(VERBS_OUTSIDE_TABLE) - _orders(build_monl_parser()))
+    assert not stale, f"exemption de verbe devenue inutile : {stale}"
 
 
 def test_a_compiled_project_path_points_where_the_file_really_goes(tmp_path):
@@ -216,128 +216,128 @@ def test_a_compiled_project_path_points_where_the_file_really_goes(tmp_path):
     """
     from monl.cli import compile_project
 
-    cible = tmp_path / "projet"
-    compile_project(str(RACINE / "exemples" / "01_portfolio.ml"), str(cible))
-    produits = {p.relative_to(cible).as_posix() for p in cible.rglob("*") if p.is_file()}
-    assert produits, "extractor not working: compilation produced nothing"
-    par_nom = {}
-    for chemin in produits:
-        par_nom.setdefault(Path(chemin).name, []).append(chemin)
+    target = tmp_path / "projet"
+    compile_project(str(RACINE / "exemples" / "01_portfolio.ml"), str(target))
+    products = {p.relative_to(target).as_posix() for p in target.rglob("*") if p.is_file()}
+    assert products, "extractor not working: compilation produced nothing"
+    by_name = {}
+    for path in products:
+        by_name.setdefault(Path(path).name, []).append(path)
 
     # The search covers ALL the text, not only what is between backticks: the
     # original defect lived in a comment inside a `bash` block, that is exactly
     # where a reader copy-pastes. The pattern stays narrow — it only judges
     # files whose compilation really produced a namesake — so widening the
     # window does not widen what is accused.
-    noms_juges = "|".join(re.escape(n) for n in sorted(par_nom) if n in FICHIERS_GENERES)
-    assert noms_juges, "extractor not working: no generated artifact to confront"
-    motif = re.compile(rf"([A-Za-z<][\w<>./-]*)/({noms_juges})\b")
+    names_judged = "|".join(re.escape(n) for n in sorted(by_name) if n in FILES_GENERATED)
+    assert names_judged, "extractor not working: no generated artifact to confront"
+    motif = re.compile(rf"([A-Za-z<][\w<>./-]*)/({names_judged})\b")
 
     documents = _documents()
-    fautes = []
-    for doc, texte in documents.items():
-        if doc in DOCUMENTS_HISTORIQUES:
+    faults = []
+    for doc, text in documents.items():
+        if doc in DOCUMENTS_HISTORICAL:
             continue
-        for prefixe, nom in motif.findall(texte):
+        for prefix, name in motif.findall(text):
             # A prefix that IS a folder of the repository talks about the
             # repository, not about a compiled project.
-            if prefixe.split("/")[0] in {"src", "docs", "tests", "exemples",
+            if prefix.split("/")[0] in {"src", "docs", "tests", "exemples",
                                          "deploy", "scripts", "demo"}:
                 continue
-            reels = par_nom[nom]
-            attendu = {Path(r).parent.as_posix() for r in reels}
+            reels = by_name[name]
+            expected = {Path(r).parent.as_posix() for r in reels}
             # The prefix is the project name (`Boutique`, `<App>`) followed or
             # not by a subfolder: we compare what comes AFTER the name.
-            sous = prefixe.split("/", 1)[1] if "/" in prefixe else ""
-            if sous not in attendu:
-                fautes.append(
-                    f"{doc}: `{prefixe}/{nom}` — le fichier sort dans "
-                    f"`<projet>/{sorted(attendu)[0] or '.'}/`")
+            sous = prefix.split("/", 1)[1] if "/" in prefix else ""
+            if sous not in expected:
+                faults.append(
+                    f"{doc}: `{prefix}/{name}` — le fichier sort dans "
+                    f"`<projet>/{sorted(expected)[0] or '.'}/`")
 
-    assert not fautes, "\n" + "\n".join(fautes)
+    assert not faults, "\n" + "\n".join(faults)
 
 
 def test_the_extractors_cannot_succeed_on_nothing():
-    exemple = (
+    example = (
         "Voir `src/monl/cli/dispatch.py`, lancer `monl compile`, puis "
         "[le guide](docs/GUIDE.md). La suite avait 12 tests et 91,5 % de couverture."
     )
-    assert _file_citations(exemple) == ["src/monl/cli/dispatch.py"]
-    assert _cited_commands(exemple) == [("monl", "compile")]
-    assert _links(exemple) == ["docs/GUIDE.md"]
-    assert MOTIF_CHIFFRE_TESTS.search(exemple)
-    assert MOTIF_COUVERTURE.search(exemple)
+    assert _file_citations(example) == ["src/monl/cli/dispatch.py"]
+    assert _cited_commands(example) == [("monl", "compile")]
+    assert _links(example) == ["docs/GUIDE.md"]
+    assert MOTIF_DIGIT_TESTS.search(example)
+    assert MOTIF_COVERAGE.search(example)
 
 
 def test_the_documentation_respects_the_repository_invariants():
     documents = _documents()
     assert documents, "extractor not working: no Markdown document read"
-    fichiers = set(subprocess.check_output(
+    files = set(subprocess.check_output(
         ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
         cwd=RACINE, text=True
     ).splitlines())
     citations = {
-        doc: _file_citations(texte) for doc, texte in documents.items()
+        doc: _file_citations(text) for doc, text in documents.items()
     }
-    commandes = {doc: _cited_commands(texte) for doc, texte in documents.items()}
+    commands = {doc: _cited_commands(text) for doc, text in documents.items()}
     assert sum(map(len, citations.values())), "extractor not working: no path extracted"
-    assert sum(map(len, commandes.values())), "extractor not working: no CLI verb extracted"
+    assert sum(map(len, commands.values())), "extractor not working: no CLI verb extracted"
 
     # The two programs dispatch differently, so the truth is read in two
     # different places — but in BOTH cases it is what the code RUNS, never a
     # list kept for the test.
-    commandes_valides = {
+    commands_valid = {
         "monl": _orders(build_monl_parser()),
         # The French aliases are served by the same dispatch: the design
         # journal, which stays in French, may cite them.
-        "monl-platform": set(VERBES_PLATEFORME) | set(ALIAS_DES_VERBES),
+        "monl-platform": set(VERBS_PLATFORM) | set(ALIAS_OF_VERBS),
     }
-    assert all(commandes_valides.values()), (
+    assert all(commands_valid.values()), (
         "extractor not working: a program declares no verb")
-    erreurs: list[str] = []
-    historiques_utilises: set[str] = set()
-    generes_utilises: set[str] = set()
+    errors: list[str] = []
+    historical_utilises: set[str] = set()
+    generated_utilises: set[str] = set()
 
-    for doc, texte in documents.items():
-        problemes_doc: list[str] = []
+    for doc, text in documents.items():
+        problems_doc: list[str] = []
         for citation in citations[doc]:
-            nom = Path(citation).name
-            genere = nom if nom in FICHIERS_GENERES else next(
-                (partie for partie in Path(citation).parts if partie in FICHIERS_GENERES),
+            name = Path(citation).name
+            generated = name if name in FILES_GENERATED else next(
+                (part for part in Path(citation).parts if part in FILES_GENERATED),
                 None,
             )
-            if genere is not None and (
-                "/" not in citation.rstrip("/") or not _resout(citation, doc, fichiers)
+            if generated is not None and (
+                "/" not in citation.rstrip("/") or not _resolves(citation, doc, files)
             ):
-                generes_utilises.add(genere)
-            elif not _resout(citation, doc, fichiers):
-                problemes_doc.append(f"chemin inexistant `{citation}`")
+                generated_utilises.add(generated)
+            elif not _resolves(citation, doc, files):
+                problems_doc.append(f"chemin inexistant `{citation}`")
 
-        for programme, verbe in commandes[doc]:
-            if verbe not in commandes_valides[programme]:
-                problemes_doc.append(f"verbe CLI inexistant `{programme} {verbe}`")
+        for programme, verb in commands[doc]:
+            if verb not in commands_valid[programme]:
+                problems_doc.append(f"verbe CLI inexistant `{programme} {verb}`")
 
-        for cible in _links(texte):
-            if re.match(r"^(?:https?://|mailto:|#)", cible):
+        for target in _links(text):
+            if re.match(r"^(?:https?://|mailto:|#)", target):
                 continue
-            if not _resout(cible, doc, fichiers):
-                problemes_doc.append(f"lien local inexistant `{cible}`")
+            if not _resolves(target, doc, files):
+                problems_doc.append(f"lien local inexistant `{target}`")
 
-        if MOTIF_CHIFFRE_TESTS.search(texte):
-            problemes_doc.append("nombre de tests figé dans un document prescriptif")
-        if MOTIF_COUVERTURE.search(texte):
-            problemes_doc.append("pourcentage de couverture figé dans un document prescriptif")
+        if MOTIF_DIGIT_TESTS.search(text):
+            problems_doc.append("nombre de tests figé dans un document prescriptif")
+        if MOTIF_COVERAGE.search(text):
+            problems_doc.append("pourcentage de couverture figé dans un document prescriptif")
 
-        if doc in DOCUMENTS_HISTORIQUES:
-            if problemes_doc or "Document historique" in texte:
-                historiques_utilises.add(doc)
+        if doc in DOCUMENTS_HISTORICAL:
+            if problems_doc or "Document historique" in text:
+                historical_utilises.add(doc)
         else:
-            erreurs.extend(f"{doc}: {probleme}" for probleme in problemes_doc)
+            errors.extend(f"{doc}: {problem}" for problem in problems_doc)
 
-    historiques_absents = set(DOCUMENTS_HISTORIQUES) - set(documents)
-    historiques_inutiles = set(DOCUMENTS_HISTORIQUES) - historiques_utilises
-    generes_inutiles = set(FICHIERS_GENERES) - generes_utilises
-    erreurs.extend(f"exemption historique absente: {doc}" for doc in sorted(historiques_absents))
-    erreurs.extend(f"exemption historique devenue inutile: {doc}" for doc in sorted(historiques_inutiles))
-    erreurs.extend(f"exemption de fichier généré devenue inutile: {nom}" for nom in sorted(generes_inutiles))
-    assert not erreurs, "\n" + "\n".join(erreurs)
+    historical_missing = set(DOCUMENTS_HISTORICAL) - set(documents)
+    historical_useless = set(DOCUMENTS_HISTORICAL) - historical_utilises
+    generated_useless = set(FILES_GENERATED) - generated_utilises
+    errors.extend(f"exemption historique absente: {doc}" for doc in sorted(historical_missing))
+    errors.extend(f"exemption historique devenue inutile: {doc}" for doc in sorted(historical_useless))
+    errors.extend(f"exemption de fichier généré devenue inutile: {name}" for name in sorted(generated_useless))
+    assert not errors, "\n" + "\n".join(errors)

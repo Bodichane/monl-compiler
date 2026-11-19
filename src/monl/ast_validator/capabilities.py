@@ -5,26 +5,26 @@ substance is not validation, it is NORMALIZATION — without a canonical
 form, uniqueness can be bypassed by changing a capital letter."""
 
 from .base import (
-    DEVISE_PAR_DEFAUT,
+    CURRENCIES_BY_PROVIDER,
+    CURRENCY_DEFAULT,
     DEVISES,
-    DEVISES_PAR_PRESTATAIRE,
-    PRESTATAIRE_PAR_DEFAUT,
-    PRESTATAIRES,
-    PRESTATAIRES_ECARTES,
+    PROVIDER_DEFAULT,
+    PROVIDERS,
+    PROVIDERS_DISCARDED,
     ASTValidationError,
 )
 
 
-class CapacitesMixin:
+class CapabilitiesMixin:
     """The `capability` blocks, and the form of the account identifier."""
 
     # POINT 95: recognized forms for the account identifier. 'libre' is the
     # historical behavior (any string) and stays the default: a spec that says
     # nothing compiles exactly as before.
-    FORMES_IDENTIFIANT = ("email", "phone", "libre")
+    SHAPES_IDENTIFIER = ("email", "phone", "libre")
 
     @staticmethod
-    def _indicatif_valide(brut):
+    def _calling_code_valid(brut):
         """The cleaned `phone_prefix` calling code, or a refusal. Extracted from
         `_valider_identifiant_de_compte` (complexity ceiling)."""
         valeur = brut.strip()
@@ -38,63 +38,63 @@ class CapacitesMixin:
                 f"(found: {valeur!r}).")
         return valeur
 
-    def _formes_demandees(self, brutes):
+    def _shapes_requested(self, brutes):
         """The identifier forms of a list, deduplicated in order, or a refusal.
         Extracted from `_valider_identifiant_de_compte` (ceiling)."""
-        demandees = list(dict.fromkeys(brutes))
-        inconnues = [f for f in demandees if f not in self.FORMES_IDENTIFIANT]
-        if inconnues:
+        requested = list(dict.fromkeys(brutes))
+        unknown = [f for f in requested if f not in self.SHAPES_IDENTIFIER]
+        if unknown:
             raise ASTValidationError(
                 f"Structure: unknown identifier form(s): "
-                f"{', '.join(inconnues)}. Recognized forms: "
-                f"{', '.join(self.FORMES_IDENTIFIANT)}.")
+                f"{', '.join(unknown)}. Recognized forms: "
+                f"{', '.join(self.SHAPES_IDENTIFIER)}.")
         # 'libre' accepts everything: combining it with a strict form cancels
         # the latter without saying so. A refusal is better than a written rule
         # that produces nothing — that is all of point 85.
-        if "libre" in demandees and len(demandees) > 1:
+        if "libre" in requested and len(requested) > 1:
             raise ASTValidationError(
                 "Structure: 'identifier: libre' already accepts any "
                 "string—combining it with "
-                f"{', '.join(f for f in demandees if f != 'libre')} "
+                f"{', '.join(f for f in requested if f != 'libre')} "
                 "would add no constraint and imply otherwise.")
-        return demandees
+        return requested
 
-    def _valider_identifiant_de_compte(self, capacites):
+    def _validate_identifier_of_account(self, capabilities):
         """Forms accepted by '/register', declared on 'capability auth'.
 
         Returns None when nothing is declared — and that None matters: it means
         "no constraint", not "email by default". Guessing here would lock every
         existing project on its first recompilation."""
-        formes, prefixe = None, None
-        for capacite in capacites:
-            if "phone_prefix" in capacite:
-                prefixe = self._indicatif_valide(capacite["phone_prefix"])
-            if "identifier" not in capacite:
+        formes, prefix = None, None
+        for capability in capabilities:
+            if "phone_prefix" in capability:
+                prefix = self._calling_code_valid(capability["phone_prefix"])
+            if "identifier" not in capability:
                 continue
-            if capacite["name"] != "auth":
+            if capability["name"] != "auth":
                 raise ASTValidationError(
                     f"Structure: 'identifier' only makes sense on "
-                    f"'capability auth' (found on '{capacite['name']}')— "
+                    f"'capability auth' (found on '{capability['name']}')— "
                     "it constrains registration.")
-            demandees = self._formes_demandees(capacite["identifier"])
+            requested = self._shapes_requested(capability["identifier"])
             if formes is not None:
                 raise ASTValidationError(
                     "Structure: 'identifier' declared twice on "
                     "'capability auth'—there must be one list; otherwise, "
                     "which one applies?")
-            formes = demandees
+            formes = requested
         # A calling code without a 'phone' form would produce NOTHING: that is
         # what point 85 refuses. Saying so is better than letting people
         # believe it applies.
-        if prefixe and not (formes and "phone" in formes):
+        if prefix and not (formes and "phone" in formes):
             raise ASTValidationError(
                 "Structure: 'phone_prefix' only makes sense with "
                 "'identifier: … phone'—without a number to canonicalize, "
                 "it would have no effect.")
-        self.auth_phone_prefix = prefixe
+        self.auth_phone_prefix = prefix
         return formes
 
-    def _valider_capacites(self):
+    def _validate_capabilities(self):
         """Validates the declared capabilities and prepares B4 authentication."""
         known_capabilities = {"auth", "payment"}
         names = [capability["name"] for capability in self.capabilities_raw]
@@ -105,17 +105,17 @@ class CapacitesMixin:
                 f"Recognized capabilities: {', '.join(sorted(known_capabilities))}."
             )
         self.capabilities = list(dict.fromkeys(names))
-        self.auth_identifier = self._valider_identifiant_de_compte(self.capabilities_raw)
+        self.auth_identifier = self._validate_identifier_of_account(self.capabilities_raw)
 
-        features = self._lire_les_options()
+        features = self._read_the_options()
 
-        self._valider_options_auth(features)
+        self._validate_options_auth(features)
         self.auth_features = features
 
-        self._refuser_paiement_sans_payable()
-        self._exiger_devise_du_prestataire()
+        self._refuse_payment_without_payable()
+        self._require_currency_of_provider()
 
-    def _lire_les_options(self):
+    def _read_the_options(self):
         """Ties each option to its capability; returns the auth features."""
         allowed_auth_options = {
             "name", "identifier", "phone_prefix", "lockout", "password_reset",
@@ -126,7 +126,7 @@ class CapacitesMixin:
         # across all capabilities — so it is here, and nowhere else, that each
         # option is tied to its capability.
         allowed_payment_options = {"currency", "provider"}
-        options_par_capacite = {
+        options_by_capability = {
             "auth": allowed_auth_options - {"name"},
             "payment": allowed_payment_options,
         }
@@ -134,56 +134,56 @@ class CapacitesMixin:
         self.payment_currency = None
         self.payment_provider = None
         for capability in self.capabilities_raw:
-            nom = capability["name"]
+            name = capability["name"]
             options = set(capability) - {"name"}
-            permises = options_par_capacite.get(nom, set())
-            hors_sujet = options - permises
-            if hors_sujet:
-                self._refuser_options_hors_sujet(nom, hors_sujet, options_par_capacite)
-            self._lire_option_paiement(nom, capability)
-            if nom != "auth":
+            allowed = options_by_capability.get(name, set())
+            outside_subject = options - allowed
+            if outside_subject:
+                self._refuse_options_outside_subject(name, outside_subject, options_by_capability)
+            self._read_option_payment(name, capability)
+            if name != "auth":
                 continue
-            self._lire_options_auth(capability, features)
+            self._read_options_auth(capability, features)
         return features
 
-    def _refuser_options_hors_sujet(self, nom, hors_sujet, options_par_capacite):
+    def _refuse_options_outside_subject(self, name, outside_subject, options_by_capability):
         """Names the capability that ACCEPTS a misplaced option."""
         # Name the capability that ACCEPTS the option, when it exists:
         # "currency makes no sense here" would send people looking for
         # a typo when the line is simply in the wrong place.
-        accueil = {opt: cap
-                   for cap, opts in options_par_capacite.items()
+        home = {opt: cap
+                   for cap, opts in options_by_capability.items()
                    for opt in opts}
-        remedes = sorted(
-            f"'{opt}' belongs under 'capability {accueil[opt]}'"
-            for opt in hors_sujet if opt in accueil)
-        inconnues = sorted(opt for opt in hors_sujet if opt not in accueil)
-        detail = "; ".join(remedes + [f"'{o}' is unknown" for o in inconnues])
+        remedies = sorted(
+            f"'{opt}' belongs under 'capability {home[opt]}'"
+            for opt in outside_subject if opt in home)
+        unknown = sorted(opt for opt in outside_subject if opt not in home)
+        detail = "; ".join(remedies + [f"'{o}' is unknown" for o in unknown])
         raise ASTValidationError(
             f"Structure: misplaced or unknown option(s) on "
-            f"'capability {nom}'—{detail}.")
+            f"'capability {name}'—{detail}.")
 
-    def _lire_option_paiement(self, nom, capability):
+    def _read_option_payment(self, name, capability):
         """One provider and one currency at most, each validated."""
-        if nom == "payment" and "provider" in capability:
+        if name == "payment" and "provider" in capability:
             if self.payment_provider is not None:
                 raise ASTValidationError(
                     "Structure: the payment provider is declared twice— "
                     "an application can accept payments through only ONE "
                     "provider, or the webhook cannot know which signature "
                     "to verify.")
-            self.payment_provider = self._valider_prestataire(
+            self.payment_provider = self._validate_provider(
                 capability["provider"])
-        if nom == "payment" and "currency" in capability:
+        if name == "payment" and "currency" in capability:
             if self.payment_currency is not None:
                 raise ASTValidationError(
                     "Structure: the currency is declared twice—an "
                     "application accepts payments in only ONE currency, "
                     "or 'montant' no longer has a consistent meaning "
                     "across orders.")
-            self.payment_currency = self._valider_devise(capability["currency"])
+            self.payment_currency = self._validate_currency(capability["currency"])
 
-    def _lire_options_auth(self, capability, features):
+    def _read_options_auth(self, capability, features):
         """Collects the B4 options, each declared once."""
         for option in ("lockout", "password_reset", "refresh_tokens", "totp",
                        "verify_email", "verify_resend"):
@@ -195,7 +195,7 @@ class CapacitesMixin:
                     "on 'capability auth'.")
             features[option] = capability[option]
 
-    def _valider_options_auth(self, features):
+    def _validate_options_auth(self, features):
         """Positive durations, and an email address for password reset."""
         lockout = features.get("lockout")
         if lockout:
@@ -205,20 +205,20 @@ class CapacitesMixin:
             if lockout["window_seconds"] < 1:
                 raise ASTValidationError(
                     "Structure: the 'lockout' window must be a positive number of seconds.")
-        for option, libelle in (("password_reset", "password_reset"),
+        for option, label in (("password_reset", "password_reset"),
                                 ("refresh_tokens", "refresh_tokens")):
             if option in features and features[option] < 1:
                 raise ASTValidationError(
-                    f"Structure: '{libelle}' must be a positive duration in seconds.")
+                    f"Structure: '{label}' must be a positive duration in seconds.")
         if "password_reset" in features and (
                 not self.auth_identifier or "email" not in self.auth_identifier):
             raise ASTValidationError(
                 "Structure: 'password_reset' requires 'capability auth' with "
                 "'identifier: email': the recovery message needs an account "
                 "address; a business field cannot be guessed.")
-        self._valider_verification_email(features)
+        self._validate_verification_email(features)
 
-    def _refuser_paiement_sans_payable(self):
+    def _refuse_payment_without_payable(self):
         """A payment configuration with nothing to charge has no effect."""
         # BRICK 2a: a currency declared with nothing to charge produces
         # NOTHING. It is point 85 word for word — refuse a rule with no effect
@@ -249,7 +249,7 @@ class CapacitesMixin:
                     f"have no effect. Add "
                     f"'rule Entite.field payable', or remove these lines.")
 
-    def _exiger_devise_du_prestataire(self):
+    def _require_currency_of_provider(self):
         """The EFFECTIVE currency must be one the provider accepts."""
         # BRICK 2b, CONTINUED: the provider and the currency are declared
         # separately, so nothing prevented declaring them INCOMPATIBLE. The
@@ -258,23 +258,23 @@ class CapacitesMixin:
         # `provider: fedapay` alone therefore set off to charge in euros at a
         # provider that accepts none. The refusal NAMES the expected currency —
         # a message that only said "incompatible" would leave people searching.
-        prestataire = self.payment_provider or PRESTATAIRE_PAR_DEFAUT
-        acceptees = DEVISES_PAR_PRESTATAIRE.get(prestataire)
-        effective = (self.payment_currency or {}).get("code") or DEVISE_PAR_DEFAUT
+        provider = self.payment_provider or PROVIDER_DEFAULT
+        acceptees = CURRENCIES_BY_PROVIDER.get(provider)
+        effective = (self.payment_currency or {}).get("code") or CURRENCY_DEFAULT
         if acceptees is not None and effective not in acceptees:
-            attendue = ", ".join(sorted(acceptees))
-            constat = (f"the declared currency is '{effective}'"
+            expected = ", ".join(sorted(acceptees))
+            finding = (f"the declared currency is '{effective}'"
                        if self.payment_currency else
                        f"no 'currency' line is declared, so the default "
                        f"applies: '{effective}'")
             raise ASTValidationError(
-                f"Structure: provider '{prestataire}' only accepts "
-                f"{attendue}, but {constat}. This configuration would compile "
+                f"Structure: provider '{provider}' only accepts "
+                f"{expected}, but {finding}. This configuration would compile "
                 f"without ever being able to accept a payment; it is rejected "
                 f"now rather than at the first real payment. Add 'currency: "
-                f"{attendue.split(', ')[0]}' to the 'capability payment' block.")
+                f"{expected.split(', ')[0]}' to the 'capability payment' block.")
 
-    def _valider_verification_email(self, features):
+    def _validate_verification_email(self, features):
         """Two settings together, an email-only recipient."""
         if ("verify_email" in features) != ("verify_resend" in features):
             raise ASTValidationError("Structure: verify_email and verify_resend must be declared together.")
@@ -288,21 +288,21 @@ class CapacitesMixin:
         if resend["max_attempts"] < 1 or resend["window_seconds"] < 1:
             raise ASTValidationError("Structure: verify_resend requires a positive maximum and window.")
 
-    def _valider_prestataire(self, nom):
+    def _validate_provider(self, name):
         """Resolves the payment provider — or refuses and explains why."""
-        nom = str(nom).lower()
-        if nom in PRESTATAIRES:
-            return nom
-        if nom in PRESTATAIRES_ECARTES:
+        name = str(name).lower()
+        if name in PROVIDERS:
+            return name
+        if name in PROVIDERS_DISCARDED:
             raise ASTValidationError(
-                f"Structure: provider '{nom}' is not implemented by "
-                f"monl, and this is intentional: {PRESTATAIRES_ECARTES[nom]}. "
-                f"Available providers: {', '.join(sorted(PRESTATAIRES))}.")
+                f"Structure: provider '{name}' is not implemented by "
+                f"monl, and this is intentional: {PROVIDERS_DISCARDED[name]}. "
+                f"Available providers: {', '.join(sorted(PROVIDERS))}.")
         raise ASTValidationError(
-            f"Structure: unknown payment provider: '{nom}'. "
-            f"Available providers: {', '.join(sorted(PRESTATAIRES))}.")
+            f"Structure: unknown payment provider: '{name}'. "
+            f"Available providers: {', '.join(sorted(PROVIDERS))}.")
 
-    def _valider_devise(self, code):
+    def _validate_currency(self, code):
         """Resolves an ISO code into {code, exponent} — or refuses and explains why.
 
         The exponent is computed HERE and only once: the generator READS it, it

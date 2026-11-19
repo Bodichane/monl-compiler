@@ -31,7 +31,7 @@ def _entity_media(entity: dict) -> list[tuple[str, str]]:
 
 # The next two functions are extracted from `infer_design_profile`
 # (complexity ceiling): same lists, same order.
-def _entites_media(entities):
+def _entities_media(entities):
     """The entities carrying media fields, with those fields."""
     return [
         {"entity": name, "fields": [field for field, _type in _entity_media(spec)]}
@@ -40,7 +40,7 @@ def _entites_media(entities):
     ]
 
 
-def _pages_du_profil(contract, kind, skills):
+def _pages_of_profile(contract, kind, skills):
     """The pages a site of this kind is expected to render, in order."""
     pages = ["Home / main entry"]
     if kind == "commerce":
@@ -97,8 +97,8 @@ def infer_design_profile(contract: dict) -> dict:
         kind = "generic"
         pattern = "Clear entry + main content + proof + next action"
 
-    media_entities = _entites_media(entities)
-    pages = _pages_du_profil(contract, kind, skills)
+    media_entities = _entities_media(entities)
+    pages = _pages_of_profile(contract, kind, skills)
 
     profile = {
         "kind": kind,
@@ -119,26 +119,26 @@ def _guarantees(contract: dict) -> list[str]:
     contract, hence verifiable one by one on the generated server."""
     routes = contract.get("routes") or []
     entities = contract.get("entities") or {}
-    champs = [champ for spec in entities.values()
-              for champ in (spec.get("fields") or [])]
+    fields = [field for spec in entities.values()
+              for field in (spec.get("fields") or [])]
 
-    def champ(cle):
-        return any(c.get(cle) for c in champs)
+    def field(key):
+        return any(c.get(key) for c in fields)
 
     # A table rather than a series of `if`s: the order of the sentences is the
     # order of the rows, and adding a guarantee adds no branch.
-    garanties = (
+    guarantees = (
         (any("/paiement" in (r.get("path") or "") for r in routes),
          "Payment goes through a provider; the site never sees a card "
          "number, and the amount is reread from the database at the "
          "moment of charging."),
-        (champ("server_generated"),
+        (field("server_generated"),
          "Amounts and references are calculated by the server: they "
          "cannot be changed from the browser."),
-        (champ("postpayment_only"),
+        (field("postpayment_only"),
          "A paid order is frozen: nobody can change its content or its "
          "total any more."),
-        (champ("numbered_as"),
+        (field("numbered_as"),
          "Each record receives a readable number, assigned once and "
          "never reassigned."),
         (any(r.get("auth_required") for r in routes),
@@ -148,4 +148,4 @@ def _guarantees(contract: dict) -> list[str]:
          "Registration is open only to the roles the specification "
          "provides for; nobody can grant themselves a privileged role."),
     )
-    return [phrase for vrai, phrase in garanties if vrai]
+    return [phrase for true, phrase in guarantees if true]

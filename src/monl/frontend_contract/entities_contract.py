@@ -1,12 +1,12 @@
 """Each entity's contract: fields, roles, what the server fills."""
 
-from ..ast_validator.fields import ChampsMixin
+from ..ast_validator.fields import FieldsMixin
 from ..ir import PAYMENT_REF_COLUMN, PAYMENT_STATUS_COLUMN
 from . import field_roles
 from . import fields as contract_fields
 
 
-def _specs_des_entites(entities, fk_placements, lisibles, plans):
+def _specs_of_entities(entities, fk_placements, readable, plans):
     """Each entity's contract: fields, roles, what the server fills."""
     # POINT 79: a 'derivedFrom' field is CALCULATED by the server, hence absent
     # from request bodies — exactly like a 'generated' field. The contract had
@@ -36,8 +36,8 @@ def _specs_des_entites(entities, fk_placements, lisibles, plans):
         entity_model = plans.entity_models[ent]
         for fname, ftype in fields.items():
             policy = entity_model.fields[fname]
-            peuple_par_le_serveur = policy.server_generated
-            champ = {
+            populated_by_the_server = policy.server_generated
+            field = {
                 "name": fname,
                 "type": ftype,
                 # POINT 91: what the SERVER requires, not what the spec
@@ -50,12 +50,12 @@ def _specs_des_entites(entities, fk_placements, lisibles, plans):
                 # `email` and `address` to a customer profile broke the form of
                 # a running site, while the contract announced them as
                 # optional.
-                "required": not peuple_par_le_serveur and not policy.upload_rule,
+                "required": not populated_by_the_server and not policy.upload_rule,
                 # hidden: never present in read responses
                 "hidden_in_reads": policy.hidden_in_reads,
                 # generated, derivedFrom or sumOf: NOT to be sent, the server
                 # fills it itself (and would ignore it in the request body)
-                "server_generated": peuple_par_le_serveur,
+                "server_generated": populated_by_the_server,
                 # categorized: reading returns a label, not the number
                 "categorized_in_reads": policy.categorized_in_reads,
                 "postpayment_only": policy.postpayment_only,
@@ -64,15 +64,15 @@ def _specs_des_entites(entities, fk_placements, lisibles, plans):
             # these keys means "not filterable/sortable"; that keeps the
             # contract of historical specs byte-identical.
             if fname in plans.filterable_fields.get(ent, ()):
-                _rendre_filtrable(champ, fname, ftype, policy)
+                _render_filterable(field, fname, ftype, policy)
             if fname in plans.sortable_fields.get(ent, ()):
-                champ["sortable"] = True
+                field["sortable"] = True
             if policy.upload_rule:
                 # BRICK B1: the field is a dedicated multipart input, not a
                 # JSON value and not an Image asset. The contract exposes the
                 # limit, the types, the exact field name and the two routes
                 # added below; the frontend AI has nothing to guess.
-                champ["upload"] = {
+                field["upload"] = {
                     "field_name": fname,
                     "max_bytes": policy.upload_rule.max_bytes,
                     "accepted_types": list(policy.upload_rule.accepted_types),
@@ -87,25 +87,25 @@ def _specs_des_entites(entities, fk_placements, lisibles, plans):
             # — while the list fits in a dropdown menu. Same reason as the
             # bounds below: the contract describes what the backend REFUSES as
             # much as what it accepts.
-            choix = policy.allowed_values
-            if choix:
-                champ["allowed_values"] = list(choix)
+            choice = policy.allowed_values
+            if choice:
+                field["allowed_values"] = list(choice)
             # POINT 85: the 'min'/'max' bounds give a 422 before any INSERT.
             # The contract MUST announce them: an interface that ignores them
             # lets the user fill in a form only to be refused at the end, when
             # it could have said so right away. Same reason as for
             # `server_generated` (point 79) — the contract describes what the
             # backend REALLY does, including what it REFUSES.
-            _poser_bornes(champ, policy)
-            champ.update(_non_blank_constraint(ftype, policy))
+            _ask_bounds(field, policy)
+            field.update(_non_blank_constraint(ftype, policy))
             if policy.constraints.unique:
-                champ["unique"] = True
-                champ["unique_note"] = ("unique value enforced by the database: a "
+                field["unique"] = True
+                field["unique_note"] = ("unique value enforced by the database: a "
                                         "duplicate creation or update answers "
                                         "409, not 422 — tell the user rather "
                                         "than replaying the request.")
-            _noter_champ_calcule(champ, policy, ent)
-            field_list.append(champ)
+            _note_field_computed(field, policy, ent)
+            field_list.append(field)
         # POINT 88: a monl foreign key references one of TWO things, and the
         # contract said only one. Those the Create route fills from the token
         # carry an ACCOUNT identifier (`_monl_users.id`); the others carry the
@@ -118,7 +118,7 @@ def _specs_des_entites(entities, fk_placements, lisibles, plans):
         # `customer.customer_id`. A join that HALF works — only as long as the
         # account id and the profile id coincide, that is, on the first
         # records, that is, during testing.
-        fks = _liens_de_l_entite(ent, fk_placements, plans)
+        fks = _links_of_entity(ent, fk_placements, plans)
         roles = field_roles._assign_field_roles(field_list)
         for f in field_list:
             f["role"] = roles.get(f["name"])
@@ -140,7 +140,7 @@ def _specs_des_entites(entities, fk_placements, lisibles, plans):
             # shared sentence made `payment_ref`, which holds a session
             # reference, announce "'en_attente' / 'payee'" — seen when
             # rereading the produced brief, not the code.
-            suivi = (
+            tracking = (
                 (PAYMENT_STATUS_COLUMN,
                  "payment state, written by the server alone: 'en_attente' "
                  "while nothing is charged, 'payee' once the provider's "
@@ -153,9 +153,9 @@ def _specs_des_entites(entities, fk_placements, lisibles, plans):
                  "indicator, payment_status is what says whether it is "
                  "paid"),
             )
-            for colonne, explication in suivi:
+            for column, explanation in tracking:
                 field_list.append({
-                    "name": colonne,
+                    "name": column,
                     "type": "String",
                     "required": False,
                     "hidden_in_reads": False,
@@ -164,14 +164,14 @@ def _specs_des_entites(entities, fk_placements, lisibles, plans):
                     "server_generated": True,
                     "categorized_in_reads": False,
                     "payment_tracking": True,
-                    "note": explication,
+                    "note": explanation,
                     "role": None,
                 })
         entity_specs[ent] = {
             "fields": field_list, "foreign_keys": fks,
             "client_foreign_keys": contract_fields._client_supplied_fks(plans, ent),
             "archetype": field_roles._archetype(
-                roles, ent in lisibles,
+                roles, ent in readable,
                 bool(plans.access_policies.get((ent, "Read"), None)
                      and plans.access_policies[(ent, "Read")].public)),
         }
@@ -179,7 +179,7 @@ def _specs_des_entites(entities, fk_placements, lisibles, plans):
 
 
 def _non_blank_constraint(type_, policy):
-    if (type_ in ChampsMixin.BORNES_TEXTE and policy.constraints.required
+    if (type_ in FieldsMixin.BOUNDS_TEXT and policy.constraints.required
             and not policy.server_generated):
         return {"non_blank": True}
     return {}
@@ -187,39 +187,39 @@ def _non_blank_constraint(type_, policy):
 
 # The three functions below are extracted from `_specs_des_entites`
 # (complexity ceiling): same keys, same values, same insertion order.
-def _rendre_filtrable(champ, fname, ftype, policy):
+def _render_filterable(field, fname, ftype, policy):
     """Marks a field as an exact-match list filter."""
-    valeurs_filtre = (list(policy.allowed_values)
+    values_filter = (list(policy.allowed_values)
                        if policy.allowed_values else None)
     if ftype == "Boolean":
-        valeurs_filtre = ["true", "false"]
-    champ["filterable"] = True
-    champ["filter"] = {
+        values_filter = ["true", "false"]
+    field["filterable"] = True
+    field["filter"] = {
         "parameter": fname,
         "kind": "exact",
-        "allowed_values": valeurs_filtre,
+        "allowed_values": values_filter,
     }
 
 
-def _noter_champ_calcule(champ, policy, ent):
+def _note_field_computed(field, policy, ent):
     """What the server computes for this field, and how to display it."""
     derive = policy.derived_rule
     somme = policy.aggregate_rule
-    numero = policy.numbering_rule
+    number = policy.numbering_rule
     if derive:
-        champ["derived_from"] = (f"{derive.source_entity}."
+        field["derived_from"] = (f"{derive.source_entity}."
                                  f"{derive.source_field}")
-        champ["derived_factor"] = derive.factor
-        champ["note"] = (
+        field["derived_factor"] = derive.factor
+        field["note"] = (
             f"calculated by the server: {derive.source_entity}."
             f"{derive.source_field} × {derive.factor}. Do not "
             f"send it, and do not calculate it in the browser to "
             f"show it before creation — reread the value returned by "
             f"the server, it is the one that will be charged.")
     if somme:
-        champ["summed_from"] = (f"{somme.source_entity}."
+        field["summed_from"] = (f"{somme.source_entity}."
                                 f"{somme.source_field}")
-        champ["note"] = (
+        field["note"] = (
             f"total recalculated by the server: sum of the attached "
             f"{somme.source_entity}.{somme.source_field}. "
             f"Do not send it. It changes with each {somme.source_entity} "
@@ -227,8 +227,8 @@ def _noter_champ_calcule(champ, policy, ent):
             f"{ent} after each line write rather than keeping a "
             f"total in the browser, which would drift.")
     if policy.timestamped:
-        champ["created_at"] = True
-        champ["note"] = (
+        field["created_at"] = True
+        field["note"] = (
             "creation instant, written by the server in ISO 8601 UTC "
             "(e.g. '2026-07-31T04:18:22.310+00:00'), and never changed afterwards. "
             "Do not send it: neither on creation nor on update. "
@@ -237,52 +237,52 @@ def _noter_champ_calcule(champ, policy, ent):
             "MAY BE EMPTY on records created before the rule was "
             "added: show a dash, never today's date — that date "
             "was not lost, it never existed.")
-    if numero:
-        champ["numbered_as"] = numero.format
-        champ["note"] = (
+    if number:
+        field["numbered_as"] = number.format
+        field["note"] = (
             f"readable number assigned by the server on creation, on the "
-            f"template “{numero.format}”, and never changed afterwards. "
+            f"template “{number.format}”, and never changed afterwards. "
             f"Do not send it: neither on creation nor on update. "
             f"It is the reference a human reads and dictates — SHOW it "
             f"wherever the record is identified (list, detail, order "
             f"confirmation), preferably before the technical `id`, "
             f"and make it copyable. "
             + ("It sorts as text, the sequence part being padded "
-               "with zeros. " if "{N" in numero.format else "")
+               "with zeros. " if "{N" in number.format else "")
             + "MAY BE EMPTY on records created before the rule was "
               "added: show a dash, never an invented number.")
 
 
-def _liens_de_l_entite(ent, fk_placements, plans):
+def _links_of_entity(ent, fk_placements, plans):
     """The entity's foreign keys, and what each one really contains."""
     identity_cols = plans.identity_foreign_keys.get(ent, frozenset())
     fks = []
     for p in fk_placements.get(ent, []):
-        lien = {"column": p["fk_column"], "references": p["owner_entity"],
+        link = {"column": p["fk_column"], "references": p["owner_entity"],
                 "unique": p["unique"]}
         if p["fk_column"] in identity_cols:
-            lien["references_account"] = True
+            link["references_account"] = True
             # The business profile is found through the column of the SAME
             # NAME, which carries the same account identifier — not through
             # its `id`.
-            lien["note"] = (
+            link["note"] = (
                 f"contains an ACCOUNT identifier (the holder's), "
                 f"not the `id` of a {p['owner_entity']} record. To "
                 f"find the record: look for the {p['owner_entity']} whose "
                 f"`{p['fk_column']}` has this same value — never the one "
                 f"whose `id` has it, the match would be accidental.")
         else:
-            lien["references_account"] = False
-            lien["note"] = (f"contains the `id` of a "
+            link["references_account"] = False
+            link["note"] = (f"contains the `id` of a "
                             f"{p['owner_entity']} record.")
-        fks.append(lien)
+        fks.append(link)
     return fks
 
 
-def _poser_bornes(champ, policy):
+def _ask_bounds(field, policy):
     """`min_length`/`max_length` for text, `min_value`/`max_value` for numbers."""
-    for nom, borne in (("min", policy.constraints.minimum),
+    for name, bound in (("min", policy.constraints.minimum),
                        ("max", policy.constraints.maximum)):
-        if borne:
-            champ[f"{nom}_{'length' if borne.portee == 'longueur' else 'value'}"] = \
-                borne.valeur
+        if bound:
+            field[f"{name}_{'length' if bound.portee == 'longueur' else 'value'}"] = \
+                bound.valeur

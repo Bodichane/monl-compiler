@@ -5,17 +5,17 @@ import urllib.request
 from . import foundations
 
 
-def _premier_id(base, entite, token):
+def _first_id(base, entity, token):
     """Identifier of a REAL record of the parent entity, or None if the list is
     empty or out of this actor's reach. Used to attach a creation to a target
     that exists: foreign keys are constrained (PRAGMA foreign_keys = ON in the
     generated backend)."""
-    if not entite:
+    if not entity:
         return None
-    status, corps = foundations._http("GET", f"{base}/{entite.lower()}?limit=1", token=token)
+    status, body = foundations._http("GET", f"{base}/{entity.lower()}?limit=1", token=token)
     if status != 200:
         return None
-    donnees = (corps or {}).get("data") or []
+    donnees = (body or {}).get("data") or []
     return donnees[0].get("id") if donnees else None
 
 def _sample_value(ftype, fname, spec=None):
@@ -24,9 +24,9 @@ def _sample_value(ftype, fname, spec=None):
     # Second occurrence of the point 95 lesson: the verifier is a client like
     # any other, and any brick that constrains an INPUT constrains it too. The
     # first declared value will do — on a status, it is the initial state.
-    choix = (spec or {}).get("allowed_values")
-    if choix:
-        return choix[0]
+    choice = (spec or {}).get("allowed_values")
+    if choice:
+        return choice[0]
     if ftype == "Integer":
         return 1
     if ftype in ("Float", "Money"):
@@ -61,16 +61,16 @@ def _list_query_probe(route, contract):
                       .get("fields") or [])
     }
     pairs = []
-    for filtre in query.get("filters") or []:
-        spec = fields[filtre["field"]]
-        choices = filtre.get("allowed_values")
+    for filter_ in query.get("filters") or []:
+        spec = fields[filter_["field"]]
+        choices = filter_.get("allowed_values")
         value = choices[0] if choices else _sample_value(
             spec["type"], spec["name"], spec)
         if spec["type"] == "Boolean":
             value = str(value).lower()
-        pairs.append((filtre["parameter"], value))
-    tri = query.get("sort")
-    if tri:
-        pairs.extend(((tri["parameter"], tri["fields"][0]),
-                      (tri["direction_parameter"], "asc")))
+        pairs.append((filter_["parameter"], value))
+    sort = query.get("sort")
+    if sort:
+        pairs.extend(((sort["parameter"], sort["fields"][0]),
+                      (sort["direction_parameter"], "asc")))
     return "?" + urllib.parse.urlencode(pairs)

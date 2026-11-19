@@ -12,7 +12,7 @@ MAX_AGE_ENV = "MONL_BACKUP_MAX_AGE_SECONDS"
 DEFAULT_MAX_AGE = 172800
 
 
-def _sqlite_valide(chemin: Path) -> bool:
+def _sqlite_valid(path: Path) -> bool:
     """Checks that a recent copy is really readable by SQLite.
 
     `with sqlite3.connect(...)` commits the transaction but does NOT CLOSE the
@@ -25,45 +25,45 @@ def _sqlite_valide(chemin: Path) -> bool:
     healthcheck would then declare itself unhealthy for a backup that is
     valid."""
     try:
-        connexion = sqlite3.connect(f"file:{chemin}?mode=ro", uri=True)
+        login = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     except (OSError, sqlite3.Error):
         return False
     try:
-        with connexion:
-            return connexion.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+        with login:
+            return login.execute("PRAGMA integrity_check").fetchone() == ("ok",)
     except (OSError, sqlite3.Error):
         return False
     finally:
-        connexion.close()
+        login.close()
 
 
-def sauvegarde_recente(
+def backup_recent(
     directory: Path = BACKUP_DIRECTORY,
     *,
-    maintenant: float | None = None,
+    now: float | None = None,
     age_maximal: int = DEFAULT_MAX_AGE,
 ) -> bool:
     """Says whether the folder contains a recent and intact SQLite copy."""
-    instant = time.time() if maintenant is None else maintenant
+    instant = time.time() if now is None else now
     try:
         candidates = sorted(
             (
-                chemin
-                for chemin in directory.glob("base-*.sqlite3")
-                if chemin.is_file() and not chemin.is_symlink() and chemin.stat().st_size > 0
+                path
+                for path in directory.glob("base-*.sqlite3")
+                if path.is_file() and not path.is_symlink() and path.stat().st_size > 0
             ),
-            key=lambda chemin: chemin.stat().st_mtime,
+            key=lambda path: path.stat().st_mtime,
             reverse=True,
         )
     except OSError:
         return False
 
-    for chemin in candidates:
+    for path in candidates:
         try:
-            recente = instant - chemin.stat().st_mtime <= age_maximal
+            recent = instant - path.stat().st_mtime <= age_maximal
         except OSError:
             continue
-        if recente and _sqlite_valide(chemin):
+        if recent and _sqlite_valid(path):
             return True
     return False
 
@@ -73,7 +73,7 @@ def main() -> int:
         age_maximal = int(os.environ.get(MAX_AGE_ENV, str(DEFAULT_MAX_AGE)))
     except ValueError:
         return 1
-    return 0 if sauvegarde_recente(age_maximal=max(0, age_maximal)) else 1
+    return 0 if backup_recent(age_maximal=max(0, age_maximal)) else 1
 
 
 if __name__ == "__main__":

@@ -23,14 +23,14 @@ from monl.parser import MonlSyntaxError, parse_monl_string
 from tests.support.cases import check_each_case
 
 
-def _valide(spec):
+def _valid(spec):
     return MonlAST(parse_monl_string(spec)).validate_and_audit()
 
 
 # Common base: two entities, one actor, one workflow. The cases below only
 # insert the rules to test, so that the faulty line is the only difference
 # between a case and its witness.
-SOCLE = """app T
+BASE = """app T
 
 entity Note
     titre: String
@@ -51,11 +51,11 @@ workflow W for Admin
 """
 
 
-def _socle(regles):
-    return SOCLE.format(regles=regles)
+def _base(rules):
+    return BASE.format(regles=rules)
 
 
-CIBLES_INEXISTANTES = [
+TARGETS_NONEXISTENT = [
     ("ownedBy sur une entité absente", "rule Fantome.Update ownedBy Admin",
      "'ownedBy' rule targets entity 'Fantome'"),
     ("ownedBy sur une action inventée", "rule Note.Manger ownedBy Admin",
@@ -103,7 +103,7 @@ TYPES_INCOMPATIBLES = [
      "Money, Float, or Integer"),
 ]
 
-PALIERS_MAL_FORMES = [
+STEPS_MAL_SHAPES = [
     ("categorized sans palier de secours",
      'rule Note.score categorized: "bas" below 5, "haut" below 10',
      "'otherwise'"),
@@ -112,7 +112,7 @@ PALIERS_MAL_FORMES = [
      "strictly increasing"),
 ]
 
-REGLES_QUI_SE_CONTREDISENT = [
+RULES_QUI_SE_CONTRADICT = [
     ("hidden et categorized sur le même champ",
      'rule Note.score hidden\nrule Note.score categorized: "bas" below 5, "haut" otherwise',
      "is both 'hidden' and 'categorized'"),
@@ -126,23 +126,23 @@ REGLES_QUI_SE_CONTREDISENT = [
      "both 'hidden' and 'payable'"),
 ]
 
-TOUS_LES_CAS = (CIBLES_INEXISTANTES + TYPES_INCOMPATIBLES
-                + PALIERS_MAL_FORMES + REGLES_QUI_SE_CONTREDISENT)
+ALL_THE_CASE = (TARGETS_NONEXISTENT + TYPES_INCOMPATIBLES
+                + STEPS_MAL_SHAPES + RULES_QUI_SE_CONTRADICT)
 
 
 def test_a_faulty_rule_is_refused_naming_its_cause():
     """Refusing is not enough: the message must name what is wrong. A validator
     raising a generic error would leave the spec's author searching alone, which
     is half the work the compiler exists to avoid."""
-    table = [(r, f) for _n, r, f in TOUS_LES_CAS]
-    noms = [n for n, _r, _f in TOUS_LES_CAS]
+    table = [(r, f) for _n, r, f in ALL_THE_CASE]
+    names = [n for n, _r, _f in ALL_THE_CASE]
 
-    def cas(regles, fragment):
-        with pytest.raises(ASTValidationError) as refus:
-            _valide(_socle(regles))
-        assert fragment in str(refus.value), str(refus.value)
+    def cas(rules, fragment):
+        with pytest.raises(ASTValidationError) as refusal:
+            _valid(_base(rules))
+        assert fragment in str(refusal.value), str(refusal.value)
 
-    check_each_case(table, cas, ids=noms)
+    check_each_case(table, cas, ids=names)
 
 
 def test_the_same_well_formed_rule_compiles():
@@ -161,17 +161,17 @@ def test_the_same_well_formed_rule_compiles():
         # witness is `test_a_single_payable_field_compiles`, on the dedicated
         # spec below.
     ]
-    noms = ["public", "hidden", "categorized", "generated"]
+    names = ["public", "hidden", "categorized", "generated"]
 
-    def cas(regles):
-        assert _valide(_socle(regles))
+    def cas(rules):
+        assert _valid(_base(rules))
 
-    check_each_case([(valeur,) for valeur in table], cas, ids=noms)
+    check_each_case([(valeur,) for valeur in table], cas, ids=names)
 
 
 # Counters have their own witness: they require a relation between the
 # triggering entity and the target entity, which the base above does not carry.
-SPEC_COMPTEUR = """app T
+SPEC_COUNTER = """app T
 
 entity Post
     contenu: Text
@@ -194,7 +194,7 @@ workflow W for Membre
 
 def test_a_well_formed_counter_compiles():
     """Witness of the three `increments` cases above."""
-    assert _valide(SPEC_COMPTEUR.format(
+    assert _valid(SPEC_COUNTER.format(
         regles="rule Like.Create increments Post.likes by 1"))
 
 
@@ -202,20 +202,20 @@ def test_a_counter_without_relation_between_the_two_entities_is_refused():
     """Found while building the witness, not by reading the validator: without a
     relation, there is no foreign key from which to get WHICH record to
     increment. The rule would not only be ineffective — it would be ambiguous."""
-    sans_relation = SPEC_COMPTEUR.replace("relation Post hasMany Like\n", "")
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(sans_relation.format(
+    sans_relation = SPEC_COUNTER.replace("relation Post hasMany Like\n", "")
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(sans_relation.format(
             regles="rule Like.Create increments Post.likes by 1"))
-    assert "requires a relation" in str(refus.value)
+    assert "requires a relation" in str(refusal.value)
 
 
 def test_a_counter_outside_creation_is_refused():
     """`increments` is only supported on `Create`: wiring it to `Update` would
     suggest a counter following updates."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC_COMPTEUR.format(
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC_COUNTER.format(
             regles="rule Like.Update increments Post.likes by 1"))
-    assert "'Create'" in str(refus.value)
+    assert "'Create'" in str(refusal.value)
 
 
 # --------------------------------- incompatibilities between two mechanisms --
@@ -223,8 +223,8 @@ def test_generated_requires_an_identified_caller(spec=None):
     """Point 30: no reliable identity, no derivable pseudonym. A `public` creation
     and a `generated` field on the same entity cannot coexist — and this refusal
     can only be seen by crossing two rules nothing links syntactically."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide("""app T
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid("""app T
 entity Post
     author: String
 actor Membre selfRegister
@@ -233,7 +233,7 @@ rule Post.author generated
 workflow W for Membre
     Create Post
 """)
-    assert "'generated'" in str(refus.value) and "'public'" in str(refus.value)
+    assert "'generated'" in str(refusal.value) and "'public'" in str(refusal.value)
 
 
 # ---------------------------------------------- payment (point 74): the two --
@@ -275,10 +275,10 @@ def test_a_single_payable_field_per_entity():
     charge. The compiler cannot decide in the author's place — adding would be an
     invention, taking the first a coin toss. Witness below: the same spec with a
     single `payable` compiles."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC_PAYABLE.format(
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC_PAYABLE.format(
             regles="rule Commande.total payable\nrule Commande.frais payable"))
-    assert "multiple 'payable' fields" in str(refus.value)
+    assert "multiple 'payable' fields" in str(refusal.value)
 
 
 def test_a_single_payable_field_compiles():
@@ -286,7 +286,7 @@ def test_a_single_payable_field_compiles():
     `payable` rule would pass just as well. It is also, since point 79, the
     witness of the COMPLETE form a charge requires — server-calculated amount
     included."""
-    assert _valide(SPEC_PAYABLE.format(
+    assert _valid(SPEC_PAYABLE.format(
         regles=f"{DERIVE}\nrule Commande.total payable"))
 
 
@@ -302,9 +302,9 @@ def test_payable_refuses_an_amount_the_client_can_write():
 
     The refusal is BREAKING and that is intended: every shop compiled before it
     could be robbed."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC_PAYABLE.format(regles="rule Commande.total payable"))
-    message = str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC_PAYABLE.format(regles="rule Commande.total payable"))
+    message = str(refusal.value)
     assert "the client can write it" in message
     # The message must name the way out, not only the problem.
     assert "derivedFrom" in message
@@ -315,18 +315,18 @@ def test_payable_requires_an_identified_caller():
     `public` creation has no identity to attach the payment to — nor anyone to
     refund. This refusal only shows when crossing two rules nothing links
     syntactically."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC_PAYABLE.format(
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC_PAYABLE.format(
             regles="rule Commande.Create public\nrule Commande.total payable"))
-    assert "'payable'" in str(refus.value) and "'public'" in str(refus.value)
+    assert "'payable'" in str(refusal.value) and "'public'" in str(refusal.value)
 
 
 def test_ownedby_and_accessibleby_cannot_govern_the_same_action():
     """Point 31: `accessibleBy` generalizes `ownedBy`. Combining them would leave
     two competing access checks on one route, whose application order would
     decide the result."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide("""app T
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid("""app T
 entity Msg
     corps: Text
     dest_id: Integer
@@ -339,15 +339,15 @@ rule Msg.Read accessibleBy membre_id, dest_id
 workflow W for Membre
     Read Msg
 """)
-    assert "ownedBy" in str(refus.value) and "accessibleBy" in str(refus.value)
+    assert "ownedBy" in str(refusal.value) and "accessibleBy" in str(refusal.value)
 
 
 def test_restrictedto_on_an_undeclared_actor():
     """Point 112: before, nothing checked that the actor named by 'restrictedTo'
     exists — a typo disabled the restriction silently, without any warning
     appearing."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide("""app T
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid("""app T
 entity Note
     titre: String
 actor Admin selfRegister
@@ -355,13 +355,13 @@ rule Note.titre restrictedTo Fantome
 workflow W for Admin
     Read Note
 """)
-    assert "restrictedTo" in str(refus.value) and "Fantome" in str(refus.value)
+    assert "restrictedTo" in str(refusal.value) and "Fantome" in str(refusal.value)
 
 
 def test_restrictedto_bien_forme_compile():
     """The witness: without it, a validator refusing every 'restrictedTo' would
     also pass the previous test."""
-    assert _valide("""app T
+    assert _valid("""app T
 entity Note
     titre: String
 actor Admin selfRegister
@@ -375,16 +375,16 @@ def test_ownedby_without_matching_relation_is_refused():
     """An ownership rule without a relation to get the owner from would protect
     nothing. It is the textbook case of the "rule without effect" the README
     promises to refuse rather than ignore."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(_socle("rule Note.Update ownedBy Admin"))
-    assert "no compatible relationship" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(_base("rule Note.Update ownedBy Admin"))
+    assert "no compatible relationship" in str(refusal.value)
 
 
 def test_two_actors_on_the_same_write_do_not_compile():
     """Point 1, the founding rule: shared authority must be declared
     (`sharedBy`), never accidental."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide("""app T
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid("""app T
 entity Note
     titre: String
 actor Admin selfRegister
@@ -394,47 +394,47 @@ workflow A for Admin
 workflow B for Editeur
     Update Note
 """)
-    assert "CRITICAL_COLLISION" in str(refus.value)
+    assert "CRITICAL_COLLISION" in str(refusal.value)
 
 
 # --------------------------------------------------- workflows et blocs annexes --
 def test_a_workflow_cannot_target_an_undeclared_actor():
-    with pytest.raises(ASTValidationError) as refus:
-        _valide("""app T
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid("""app T
 entity Note
     titre: String
 actor Admin selfRegister
 workflow W for Inconnu
     Create Note
 """)
-    assert "'Inconnu'" in str(refus.value)
+    assert "'Inconnu'" in str(refusal.value)
 
 
 def test_a_workflow_cannot_target_a_missing_entity():
-    with pytest.raises(ASTValidationError) as refus:
-        _valide("""app T
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid("""app T
 entity Note
     titre: String
 actor Admin selfRegister
 workflow W for Admin
     Create Fantome
 """)
-    assert "'Fantome'" in str(refus.value)
+    assert "'Fantome'" in str(refusal.value)
 
 
 def test_execute_requires_the_custom_block_to_exist():
     """Without this refusal, `Execute` on a missing block would produce an app.py
     calling a function sandbox_ai.py does not contain — an ImportError at startup
     rather than a compile error."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide("""app T
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid("""app T
 entity Note
     titre: String
 actor Admin selfRegister
 workflow W for Admin
     Execute CalculMagique
 """)
-    assert "CalculMagique" in str(refus.value)
+    assert "CalculMagique" in str(refusal.value)
 
 
 def test_annex_blocks_are_validated_like_rules():
@@ -447,19 +447,19 @@ def test_annex_blocks_are_validated_like_rules():
         ("seed Fantome\n    titre: \"a\"", "targets entity 'Fantome'"),
         ("seed Note\n    titre: \"a\", fantome: \"b\"", "references field 'fantome'"),
     ]
-    noms = ["ui-entité", "ui-primary", "ui-order", "seed-entité", "seed-champ"]
+    names = ["ui-entité", "ui-primary", "ui-order", "seed-entité", "seed-champ"]
 
-    def cas(bloc, fragment):
-        with pytest.raises(ASTValidationError) as refus:
-            _valide(_socle(bloc))
-        assert fragment in str(refus.value)
+    def cas(block, fragment):
+        with pytest.raises(ASTValidationError) as refusal:
+            _valid(_base(block))
+        assert fragment in str(refusal.value)
 
-    check_each_case(table, cas, ids=noms)
+    check_each_case(table, cas, ids=names)
 
 
 def test_a_well_formed_ui_block_compiles():
     """Witness of the five cases above."""
-    assert _valide(_socle("ui Note\n    primary: titre\n    order: titre, score"))
+    assert _valid(_base("ui Note\n    primary: titre\n    order: titre, score"))
 
 
 def test_accessibleby_with_fewer_than_two_columns_is_stopped_by_the_grammar():
@@ -469,7 +469,7 @@ def test_accessibleby_with_fewer_than_two_columns_is_stopped_by_the_grammar():
     looking for an ASTValidationError that will not come — knowing which layer
     holds a safeguard is what keeps one from moving it by mistake."""
     with pytest.raises(MonlSyntaxError):
-        _valide(_socle("rule Note.Read accessibleBy titre"))
+        _valid(_base("rule Note.Read accessibleBy titre"))
 
 
 def test_payable_without_field_is_stopped_by_the_grammar():
@@ -480,7 +480,7 @@ def test_payable_without_field_is_stopped_by_the_grammar():
     Letting the validator believe it holds it risks moving it there some day while
     thinking to strengthen it."""
     with pytest.raises(MonlSyntaxError):
-        _valide(_socle("rule Note payable"))
+        _valid(_base("rule Note payable"))
 
 
 # ------------------------------- brique 10 : derivedFrom (point 77) ----------
@@ -488,7 +488,7 @@ def test_payable_without_field_is_stopped_by_the_grammar():
 # Dedicated base: a calculated entity that has an owner AND a distinct source,
 # that is the minimal form the brick requires. The cases below change only one
 # line at a time.
-SOCLE_DERIVE = """app D
+BASE_DERIVE = """app D
 
 entity Article
     nom: String
@@ -517,17 +517,17 @@ workflow Acheter for Client
 """
 
 
-def _socle_derive(regles=""):
-    return SOCLE_DERIVE.format(regles=regles)
+def _base_derive(rules=""):
+    return BASE_DERIVE.format(regles=rules)
 
 
-REGLE_VALIDE = "rule Commande.total derivedFrom Article.prix by quantite"
+RULE_VALID = "rule Commande.total derivedFrom Article.prix by quantite"
 
 
 def test_a_well_formed_derivation_compiles():
     """Witness of the refusals below: without it, a validator refusing EVERY
     derivation would make them all pass."""
-    normalise = _valide(_socle_derive(REGLE_VALIDE))
+    normalise = _valid(_base_derive(RULE_VALID))
     assert normalise["security"]["derived_fields"] == [{
         "entity": "Commande", "field": "total",
         "source_entity": "Article", "source_field": "prix",
@@ -547,7 +547,7 @@ def test_malformed_derivations_are_refused():
          "field does not exist"),
         ("rule Commande.total derivedFrom Article.nom by quantite",
          "reads 'Article.nom'"),
-        (REGLE_VALIDE + "\nrule Commande.total derivedFrom Article.prix by quantite",
+        (RULE_VALID + "\nrule Commande.total derivedFrom Article.prix by quantite",
          "multiple 'derivedFrom' rules"),
         # `quantite` is Integer, hence acceptable both as a calculated field
         # and as a multiplier: it is the only setup that REACHES this refusal.
@@ -557,61 +557,61 @@ def test_malformed_derivations_are_refused():
          "cannot be its own multiplier"),
         ("rule Commande.total derivedFrom Article.prix by nom",
          "field does not exist"),
-        (REGLE_VALIDE + "\nrule Commande.total hidden",
+        (RULE_VALID + "\nrule Commande.total hidden",
          "is both 'hidden' and 'derivedFrom'"),
     ]
-    noms = ["entité-calculée-absente", "entité-source-absente", "champ-absent",
+    names = ["entité-calculée-absente", "entité-source-absente", "champ-absent",
         "source-non-numérique", "deux-règles", "auto-multiplicateur",
         "multiplicateur-absent", "cumul-hidden"]
 
-    def cas(regles, fragment):
-        with pytest.raises(ASTValidationError) as refus:
-            _valide(_socle_derive(regles))
-        assert fragment in str(refus.value)
+    def cas(rules, fragment):
+        with pytest.raises(ASTValidationError) as refusal:
+            _valid(_base_derive(rules))
+        assert fragment in str(refusal.value)
 
-    check_each_case(table, cas, ids=noms)
+    check_each_case(table, cas, ids=names)
 
 
 def test_the_multiplier_must_be_declared_required():
     """Without `required`, a client omitting the quantity would make the
     calculation run on nothing — and the amount to charge would be zero or wrong."""
-    spec = _socle_derive(REGLE_VALIDE).replace(
+    spec = _base_derive(RULE_VALID).replace(
         "rule Commande.quantite required\n", "")
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(spec)
-    assert "required" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(spec)
+    assert "required" in str(refusal.value)
 
 
 def test_the_source_cannot_be_the_owner():
     """The owner's foreign key is filled from the TOKEN, never chosen by the
     client: if the source owned the entity, no row could be designated at
     creation."""
-    spec = _socle_derive("rule Commande.total derivedFrom Client.remise by quantite")
+    spec = _base_derive("rule Commande.total derivedFrom Client.remise by quantite")
     spec = spec.replace("entity Client\n    displayName: String",
                         "entity Client\n    displayName: String\n    remise: Float")
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(spec)
-    assert "owner" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(spec)
+    assert "owner" in str(refusal.value)
 
 
 def test_an_entity_without_owner_cannot_derive():
     """The owner is what distinguishes the foreign key filled by the server from
     the one the client provides to designate the row to read."""
-    spec = _socle_derive(REGLE_VALIDE).replace(
+    spec = _base_derive(RULE_VALID).replace(
         "rule Commande.Read ownedBy Client\n", "")
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(spec)
-    assert "owner" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(spec)
+    assert "owner" in str(refusal.value)
 
 
 def test_a_source_without_relation_is_refused():
     """Without a relation, nothing says WHICH source row to read — same
     requirement as for 'increments' (point 27)."""
-    spec = _socle_derive(REGLE_VALIDE).replace(
+    spec = _base_derive(RULE_VALID).replace(
         "relation Article hasMany Commande\n", "")
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(spec)
-    assert "requires a relation" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(spec)
+    assert "requires a relation" in str(refusal.value)
 
 
 # ------------------------- ownership: the chain must lead back to an ACCOUNT -
@@ -623,7 +623,7 @@ def test_a_source_without_relation_is_refused():
 # it a brick (TRANSITIVE ownership), on one condition: the chain must end at an
 # actor. What follows checks the cases where it does not.
 
-SPEC_PROPRIETE = """app P
+SPEC_OWNERSHIP = """app P
 
 entity Commande
     statut: String
@@ -652,7 +652,7 @@ def test_an_ownership_chain_leading_to_an_actor_compiles():
     """The brick itself (point 81): "a line belongs to whoever owns its order".
     The witness of all the refusals below — without it, a validator refusing every
     chain would pass them all."""
-    assert _valide(SPEC_PROPRIETE.format(
+    assert _valid(SPEC_OWNERSHIP.format(
         regles=CHAINE_COMPLETE + "\nrule Ligne.Read ownedBy Commande"))
 
 
@@ -660,9 +660,9 @@ def test_an_intermediate_without_owner_leads_to_no_account():
     """Without `ownedBy` on the intermediate, nothing links the line to an
     account: the server would have no column to compare. It is the exact case
     point 80 had found compiling."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC_PROPRIETE.format(regles="rule Ligne.Read ownedBy Commande"))
-    message = str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC_OWNERSHIP.format(regles="rule Ligne.Read ownedBy Commande"))
+    message = str(refusal.value)
     assert "does not lead to ANY actor" in message
     # The message must say what is missing, not only what is wrong.
     assert "ownedBy" in message
@@ -704,10 +704,10 @@ workflow W for Client
     Create Detail
     Read Detail
 """
-    ast = _valide(spec)
-    transitif = ast["security"]["transitive_ownership"]
-    assert transitif["Ligne"] == {"chain": ["Commande"], "actor": "Client"}
-    assert transitif["Detail"] == {"chain": ["Ligne", "Commande"], "actor": "Client"}
+    ast = _valid(spec)
+    transitive = ast["security"]["transitive_ownership"]
+    assert transitive["Ligne"] == {"chain": ["Commande"], "actor": "Client"}
+    assert transitive["Detail"] == {"chain": ["Ligne", "Commande"], "actor": "Client"}
 
 
 def test_an_intermediate_with_two_owners_makes_the_chain_ambiguous():
@@ -742,9 +742,9 @@ workflow W for Client
 workflow V for Vendeur
     Update Commande
 """
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(spec)
-    assert "is ambiguous at" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(spec)
+    assert "is ambiguous at" in str(refusal.value)
 
 
 def test_mixing_direct_and_transitive_ownership_is_refused():
@@ -776,9 +776,9 @@ workflow W for Client
     Read Ligne
     Update Ligne
 """
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(spec)
-    assert "Designate only one owner" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(spec)
+    assert "Designate only one owner" in str(refusal.value)
 
 
 def test_payable_on_a_transitively_owned_entity_now_compiles():
@@ -823,7 +823,7 @@ workflow W for Client
     Create Ligne
     Read Ligne
 """
-    ast = _valide(spec)
+    ast = _valid(spec)
     assert ast["security"]["payable_fields"] == [{"entity": "Ligne", "field": "sousTotal"}]
     assert ast["security"]["transitive_ownership"]["Ligne"] == {"chain": ["Commande"], "actor": "Client"}
 
@@ -862,9 +862,9 @@ workflow W for Client
     Create Ligne
     Read Ligne
 """
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(spec)
-    assert "the client can write it" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(spec)
+    assert "the client can write it" in str(refusal.value)
 
 
 # ------------------------- aggregation: summing a total (brick 12) -----------
@@ -875,7 +875,7 @@ workflow W for Client
 # writes would give the payer back control over what they pay — point 77's
 # flaw, back through the cart, exactly as point 80's scoping feared.
 
-SPEC_PANIER = """app P
+SPEC_CART = """app P
 
 entity Article
     prix: Money
@@ -913,20 +913,20 @@ SOMME = "rule Commande.total sumOf Ligne.sousTotal"
 def test_a_well_formed_sum_compiles():
     """The witness of this whole section: without it, a validator refusing every
     `sumOf` rule would pass each of the refusals below."""
-    assert _valide(SPEC_PANIER.format(regles=SOMME))
+    assert _valid(SPEC_CART.format(regles=SOMME))
 
 
 def test_a_summed_cart_is_chargeable():
     """Point 82, and the outcome of points 77 to 81: until now, `payable` only
     accepted a `derivedFrom` field, hence a ONE-item order. A summed total is
     calculated by the server, so it satisfies point 79's refusal."""
-    assert _valide(SPEC_PANIER.format(
+    assert _valid(SPEC_CART.format(
         regles=SOMME + "\nrule Commande.total payable"))
 
 
 # ---------------- supervised write after payment -----------------------------
 
-SPEC_APRES_PAIEMENT = SPEC_PANIER.replace(
+SPEC_AFTER_PAYMENT = SPEC_CART.replace(
     "    libelle: String", "    libelle: String\n    statut: String\n    creeLe: DateTime\n"
     "    reference: String\n    quantite: Integer\n    calcule: Money"
 ).replace(
@@ -937,26 +937,26 @@ SPEC_APRES_PAIEMENT = SPEC_PANIER.replace(
 )
 
 
-def _apres_paiement(regles):
+def _after_payment(rules):
     base = (SOMME + "\nrule Commande.total payable"
             "\nrule Commande.quantite required")
-    return SPEC_APRES_PAIEMENT.format(regles=base + "\n" + regles)
+    return SPEC_AFTER_PAYMENT.format(regles=base + "\n" + rules)
 
 
 def test_writable_after_payment_on_undeclared_actor_is_refused():
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(_apres_paiement(
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(_after_payment(
             "rule Commande.statut writableAfterPayment Fantome"))
-    assert "writableAfterPayment" in str(refus.value)
-    assert "Fantome" in str(refus.value)
+    assert "writableAfterPayment" in str(refusal.value)
+    assert "Fantome" in str(refusal.value)
 
 
 def test_writable_after_payment_requires_a_payable_entity():
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC_PANIER.format(
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC_CART.format(
             regles=SOMME
             + "\nrule Commande.libelle writableAfterPayment Client"))
-    assert "only applies to a 'payable' entity" in str(refus.value)
+    assert "only applies to a 'payable' entity" in str(refusal.value)
 
 
 def test_writable_after_payment_refuses_a_server_written_field():
@@ -966,24 +966,24 @@ def test_writable_after_payment_refuses_a_server_written_field():
         "rule Commande.creeLe timestamp",
         'rule Commande.reference numbered "CMD-{YYYY}-{NNNN}"',
     ]
-    noms = ["generated", "derivedFrom", "timestamp", "numbered"]
+    names = ["generated", "derivedFrom", "timestamp", "numbered"]
 
-    def cas(regle_serveur):
-        cible = {
+    def cas(rule_server):
+        target = {
             "generated": "statut",
             "derivedFrom": "calcule",
             "timestamp": "creeLe",
             "numbered": "reference",
-        }[regle_serveur.split()[2]]
-        spec = _apres_paiement(
-            regle_serveur
-            + f"\nrule Commande.{cible} writableAfterPayment Superviseur")
-        with pytest.raises(ASTValidationError) as refus:
-            _valide(spec)
-        assert "writableAfterPayment" in str(refus.value)
-        assert regle_serveur.split()[2] in str(refus.value)
+        }[rule_server.split()[2]]
+        spec = _after_payment(
+            rule_server
+            + f"\nrule Commande.{target} writableAfterPayment Superviseur")
+        with pytest.raises(ASTValidationError) as refusal:
+            _valid(spec)
+        assert "writableAfterPayment" in str(refusal.value)
+        assert rule_server.split()[2] in str(refusal.value)
 
-    check_each_case([(valeur,) for valeur in table], cas, ids=noms)
+    check_each_case([(valeur,) for valeur in table], cas, ids=names)
 
 
 def test_writable_after_payment_refuses_a_summed_field():
@@ -994,40 +994,40 @@ def test_writable_after_payment_refuses_a_summed_field():
     database without recalculation AND without the payment lock — exactly the flaw
     of points 77/82 reopened by a combination of rules nothing reported at compile
     time."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(_apres_paiement(
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(_after_payment(
             "rule Commande.total writableAfterPayment Superviseur"))
-    assert "writableAfterPayment" in str(refus.value)
-    assert "sumOf" in str(refus.value)
+    assert "writableAfterPayment" in str(refusal.value)
+    assert "sumOf" in str(refusal.value)
 
 
 def test_writable_after_payment_refuses_the_owner():
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(_apres_paiement(
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(_after_payment(
             "rule Commande.statut writableAfterPayment Client"))
-    assert "who already owns 'Commande'" in str(refus.value)
+    assert "who already owns 'Commande'" in str(refusal.value)
 
 
 def test_writable_after_payment_refuses_two_actors_per_entity():
-    spec = _apres_paiement(
+    spec = _after_payment(
         "actor AutreSuperviseur\n"
         "rule Commande.statut writableAfterPayment Superviseur\n"
         "rule Commande.libelle writableAfterPayment AutreSuperviseur")
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(spec)
-    assert "Superviseur" in str(refus.value)
-    assert "AutreSuperviseur" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(spec)
+    assert "Superviseur" in str(refusal.value)
+    assert "AutreSuperviseur" in str(refusal.value)
 
 
 def test_writable_after_payment_refuses_a_duplicate_field():
-    regle = "rule Commande.statut writableAfterPayment Superviseur"
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(_apres_paiement(regle + "\n" + regle))
-    assert "multiple 'writableAfterPayment' rules are declared" in str(refus.value)
+    rule = "rule Commande.statut writableAfterPayment Superviseur"
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(_after_payment(rule + "\n" + rule))
+    assert "multiple 'writableAfterPayment' rules are declared" in str(refusal.value)
 
 
 def test_well_formed_writable_after_payment_compiles_and_normalizes():
-    ast = _valide(_apres_paiement(
+    ast = _valid(_after_payment(
         "rule Commande.statut writableAfterPayment Superviseur\n"
         "rule Commande.libelle writableAfterPayment Superviseur"))
     assert ast["security"]["writable_after_payment"] == {
@@ -1047,25 +1047,25 @@ def test_writable_after_payment_breaks_neither_create_nor_update(tmp_path):
     """
     from monl.generator import MonlSecureGenerator
 
-    spec = _apres_paiement(
+    spec = _after_payment(
         "rule Commande.statut writableAfterPayment Superviseur\n"
         "rule Commande.libelle writableAfterPayment Superviseur")
     spec = spec.replace(
         "rule Commande.Read ownedBy Client",
         "rule Commande.Read ownedBy Client\nrule Commande.Update ownedBy Client",
     ).replace("    Read Commande\n", "    Read Commande\n    Update Commande\n")
-    ast = _valide(spec)
+    ast = _valid(spec)
     MonlSecureGenerator(ast, output_dir=str(tmp_path)).generate_all()
-    genere = (tmp_path / "app.py").read_text(encoding="utf-8")
-    creation = genere.split("def create_commande(", 1)[1].split("@app.", 1)[0]
-    modification = genere.split("def update_commande(", 1)[1].split("@app.", 1)[0]
+    generated = (tmp_path / "app.py").read_text(encoding="utf-8")
+    creation = generated.split("def create_commande(", 1)[1].split("@app.", 1)[0]
+    modification = generated.split("def update_commande(", 1)[1].split("@app.", 1)[0]
 
     assert "data.statut" not in creation
     assert "data.libelle" not in creation
     assert "data.statut" not in modification
     assert "data.libelle" not in modification
-    assert "if enregistrement[1] != 'payee':" in genere
-    assert "only after the payment is confirmed" in genere
+    assert "if enregistrement[1] != 'payee':" in generated
+    assert "only after the payment is confirmed" in generated
 
 
 def test_malformed_sum_refusals():
@@ -1085,10 +1085,10 @@ def test_malformed_sum_refusals():
         ("rule Commande.total sumOf Article.prix", "parent-child relation"),
     ]
 
-    def cas(regle, attendu):
-        with pytest.raises(ASTValidationError) as refus:
-            _valide(SPEC_PANIER.format(regles=regle))
-        assert attendu in str(refus.value)
+    def cas(rule, expected):
+        with pytest.raises(ASTValidationError) as refusal:
+            _valid(SPEC_CART.format(regles=rule))
+        assert expected in str(refusal.value)
 
     check_each_case(table, cas)
 
@@ -1096,10 +1096,10 @@ def test_malformed_sum_refusals():
 def test_a_hidden_sum_is_refused():
     """Same reason as for `payable` and `derivedFrom`: a total that cannot be read
     cannot be checked by whoever pays it."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC_PANIER.format(
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC_CART.format(
             regles=SOMME + "\nrule Commande.total hidden"))
-    assert "hidden" in str(refus.value) and "sumOf" in str(refus.value)
+    assert "hidden" in str(refusal.value) and "sumOf" in str(refusal.value)
 
 
 def test_two_competing_calculations_on_the_same_field_are_refused():
@@ -1145,17 +1145,17 @@ workflow W for Client
     Create Ligne
     Read Ligne
 """
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(spec)
-    message = str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(spec)
+    message = str(refusal.value)
     assert "has both 'derivedFrom' and 'sumOf'" in message
     assert "choose one" in message
 
 
 def test_two_sums_on_the_same_field_are_refused():
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC_PANIER.format(regles=SOMME + "\n" + SOMME))
-    assert "only one sum is allowed per field" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC_CART.format(regles=SOMME + "\n" + SOMME))
+    assert "only one sum is allowed per field" in str(refusal.value)
 
 
 def test_summing_an_entity_without_owner_is_refused():
@@ -1168,12 +1168,12 @@ def test_summing_an_entity_without_owner_is_refused():
     loses its `derivedFrom` rule: on `Ligne.sousTotal`, `derivedFrom`'s owner
     requirement (point 78) answered first, and the test validated another brick's
     guard."""
-    spec = (SPEC_PANIER
+    spec = (SPEC_CART
             .replace("rule Ligne.Read ownedBy Commande\n", "")
             .replace("rule Ligne.sousTotal derivedFrom Article.prix by quantite\n", ""))
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(spec.format(regles="rule Commande.total sumOf Ligne.quantite"))
-    message = str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(spec.format(regles="rule Commande.total sumOf Ligne.quantite"))
+    message = str(refusal.value)
     assert "has no owner" in message
     assert "ownedBy" in message
 
@@ -1191,11 +1191,11 @@ def test_charging_a_sum_of_client_written_amounts_is_refused():
     loop, because summing a client field stays legitimate outside payment:
     `Commande.nbArticles sumOf Ligne.quantite` counts items, it charges nothing.
     The COMBINATION is at fault, not the sum."""
-    spec = SPEC_PANIER.replace(
+    spec = SPEC_CART.replace(
         "rule Ligne.sousTotal derivedFrom Article.prix by quantite\n", "")
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(spec.format(regles=SOMME + "\nrule Commande.total payable"))
-    message = str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(spec.format(regles=SOMME + "\nrule Commande.total payable"))
+    message = str(refusal.value)
     assert "which the client can write" in message
     # The message must name the faulty line and suggest the fix.
     assert "Ligne.sousTotal" in message
@@ -1206,9 +1206,9 @@ def test_summing_a_client_field_stays_allowed_outside_payment():
     """The witness of the refusal above: the combination with `payable` is
     forbidden, not the sum of a client-provided field. Counting a cart's items is
     legitimate and charges nothing."""
-    spec = SPEC_PANIER.replace("entity Commande\n    total: Money",
+    spec = SPEC_CART.replace("entity Commande\n    total: Money",
                                "entity Commande\n    total: Money\n    nbArticles: Integer")
-    assert _valide(spec.format(
+    assert _valid(spec.format(
         regles="rule Commande.nbArticles sumOf Ligne.quantite"))
 
 
@@ -1216,7 +1216,7 @@ def test_summing_a_client_field_stays_allowed_outside_payment():
 # no account, while the `membre_id` keys a client reads carry an ACCOUNT id:
 # measured on 03_reseau_social, reporting a post's author lowered the
 # reporter's reputation.
-SPEC_COMPTEUR_ACTEUR = """app T
+SPEC_COUNTER_ACTOR = """app T
 
 entity {cible}
     nom: String
@@ -1238,11 +1238,11 @@ workflow W for Membre
 
 
 def test_a_counter_on_an_actor_entity_is_refused():
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC_COMPTEUR_ACTEUR.format(cible="Membre"))
-    assert "is also an actor" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC_COUNTER_ACTOR.format(cible="Membre"))
+    assert "is also an actor" in str(refusal.value)
 
 
 def test_the_same_counter_on_a_business_entity_compiles():
     """Witness: only the target's name changes, and the rule compiles."""
-    assert _valide(SPEC_COMPTEUR_ACTEUR.format(cible="Profil"))
+    assert _valid(SPEC_COUNTER_ACTOR.format(cible="Profil"))

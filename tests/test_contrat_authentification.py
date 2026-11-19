@@ -53,26 +53,26 @@ capability auth
     refresh_tokens: 3600
 """
 
-IDENTIFIANT = "cliente@example.com"
+IDENTIFIER = "cliente@example.com"
 SECRET = "motdepasse1"
 
 
-def _compiler(tmp_path, spec, nom="spec.ml"):
-    chemin = tmp_path / nom
-    chemin.write_text(spec, encoding="utf-8")
-    sortie = tmp_path / "projet"
-    compile_project(str(chemin), str(sortie))
-    return sortie
+def _compiler(tmp_path, spec, name="spec.ml"):
+    path = tmp_path / name
+    path.write_text(spec, encoding="utf-8")
+    output = tmp_path / "projet"
+    compile_project(str(path), str(output))
+    return output
 
 
-def _contract(sortie):
-    with open(os.path.join(str(sortie), "frontend_contract.json"),
+def _contract(output):
+    with open(os.path.join(str(output), "frontend_contract.json"),
               encoding="utf-8") as fh:
         return json.load(fh)
 
 
-def _brief(sortie):
-    with open(os.path.join(str(sortie), "docs/FRONTEND_PROMPT.md"),
+def _brief(output):
+    with open(os.path.join(str(output), "docs/FRONTEND_PROMPT.md"),
               encoding="utf-8") as fh:
         return fh.read()
 
@@ -87,50 +87,50 @@ def test_the_contract_names_the_fields_login_really_returns(tmp_path):
     This is the test that would have caught the defect: before the fix, `login`
     had no `response` key at all.
     """
-    sortie = _compiler(tmp_path, SPEC)
-    auth = _contract(sortie)["api"]["auth"]
+    output = _compiler(tmp_path, SPEC)
+    auth = _contract(output)["api"]["auth"]
 
     assert "response" in auth["login"], (
         "the contract must describe the response shape, not only say "
         "there is \"a token\"")
 
-    with uvicorn_server(str(sortie)) as base:
+    with uvicorn_server(str(output)) as base:
         inscription = requests.post(
             base + "/register", timeout=10,
-            json={"username": IDENTIFIANT, "password": SECRET, "actor": "Client"})
+            json={"username": IDENTIFIER, "password": SECRET, "actor": "Client"})
         assert inscription.status_code == 200, inscription.text
-        connexion = requests.post(
+        login = requests.post(
             base + "/login", timeout=10,
-            json={"username": IDENTIFIANT, "password": SECRET})
-        assert connexion.status_code == 200, connexion.text
+            json={"username": IDENTIFIER, "password": SECRET})
+        assert login.status_code == 200, login.text
 
-        reponse_reelle = connexion.json()
-        for champ in auth["login"]["response"]:
-            assert champ in reponse_reelle, (
-                f"the contract announces the '{champ}' field that /login does not "
-                f"return — received: {sorted(reponse_reelle)}")
+        response_real = login.json()
+        for field in auth["login"]["response"]:
+            assert field in response_real, (
+                f"the contract announces the '{field}' field that /login does not "
+                f"return — received: {sorted(response_real)}")
 
         # And the announced token must REALLY open a protected route: a key
         # present but empty would pass the loop above.
-        jeton = reponse_reelle["access_token"]
+        token = response_real["access_token"]
         protegee = requests.get(base + "/note", timeout=10,
-                                headers={"Authorization": f"Bearer {jeton}"})
+                                headers={"Authorization": f"Bearer {token}"})
         assert protegee.status_code == 200, protegee.text
 
 
 def test_the_contract_names_what_register_returns(tmp_path):
-    sortie = _compiler(tmp_path, SPEC)
-    auth = _contract(sortie)["api"]["auth"]
+    output = _compiler(tmp_path, SPEC)
+    auth = _contract(output)["api"]["auth"]
     assert "response" in auth["register"]
 
-    with uvicorn_server(str(sortie)) as base:
-        reponse = requests.post(
+    with uvicorn_server(str(output)) as base:
+        response = requests.post(
             base + "/register", timeout=10,
-            json={"username": IDENTIFIANT, "password": SECRET, "actor": "Client"})
-        assert reponse.status_code == 200, reponse.text
-        for champ in auth["register"]["response"]:
-            assert champ in reponse.json(), (
-                f"'{champ}' announced by the contract, missing from /register")
+            json={"username": IDENTIFIER, "password": SECRET, "actor": "Client"})
+        assert response.status_code == 200, response.text
+        for field in auth["register"]["response"]:
+            assert field in response.json(), (
+                f"'{field}' announced by the contract, missing from /register")
 
 
 def test_with_refresh_tokens_the_response_gains_a_field(tmp_path):
@@ -140,24 +140,24 @@ def test_with_refresh_tokens_the_response_gains_a_field(tmp_path):
     is already hashed under "authentication B4", so the delta reports the change
     without a second witness being needed.
     """
-    sortie = _compiler(tmp_path, SPEC_REFRESH)
-    reponse_contrat = _contract(sortie)["api"]["auth"]["login"]["response"]
-    assert "refresh_token" in reponse_contrat
-    assert "not a JWT" in reponse_contrat["refresh_token"], (
+    output = _compiler(tmp_path, SPEC_REFRESH)
+    response_contract = _contract(output)["api"]["auth"]["login"]["response"]
+    assert "refresh_token" in response_contract
+    assert "not a JWT" in response_contract["refresh_token"], (
         "the contract must say this token is OPAQUE: sent as "
         "'Authorization: Bearer', it would be refused")
 
-    with uvicorn_server(str(sortie)) as base:
+    with uvicorn_server(str(output)) as base:
         requests.post(base + "/register", timeout=10,
-                      json={"username": IDENTIFIANT, "password": SECRET,
+                      json={"username": IDENTIFIER, "password": SECRET,
                             "actor": "Client"})
-        connexion = requests.post(
+        login = requests.post(
             base + "/login", timeout=10,
-            json={"username": IDENTIFIANT, "password": SECRET})
-        assert connexion.status_code == 200, connexion.text
-        for champ in reponse_contrat:
-            assert champ in connexion.json(), (
-                f"'{champ}' announced, missing from the real response")
+            json={"username": IDENTIFIER, "password": SECRET})
+        assert login.status_code == 200, login.text
+        for field in response_contract:
+            assert field in login.json(), (
+                f"'{field}' announced, missing from the real response")
 
 
 def test_without_the_capability_no_refresh_token_is_promised(tmp_path):
@@ -166,8 +166,8 @@ def test_without_the_capability_no_refresh_token_is_promised(tmp_path):
     Without it, a contract promising `refresh_token` to everyone would pass the
     three tests above.
     """
-    sortie = _compiler(tmp_path, SPEC)
-    assert "refresh_token" not in _contract(sortie)["api"]["auth"]["login"]["response"]
+    output = _compiler(tmp_path, SPEC)
+    assert "refresh_token" not in _contract(output)["api"]["auth"]["login"]["response"]
 
 
 # --------------------------------------------------------------------------
@@ -183,6 +183,6 @@ def test_the_brief_names_access_token(tmp_path):
         "without any checker noticing")
 
 
-@pytest.mark.parametrize("mot", ["status, user_id", "access_token, token_type"])
-def test_the_brief_gives_the_shape_of_authentication_responses(tmp_path, mot):
-    assert mot in _brief(_compiler(tmp_path, SPEC))
+@pytest.mark.parametrize("word", ["status, user_id", "access_token, token_type"])
+def test_the_brief_gives_the_shape_of_authentication_responses(tmp_path, word):
+    assert word in _brief(_compiler(tmp_path, SPEC))

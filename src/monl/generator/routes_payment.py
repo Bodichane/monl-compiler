@@ -6,7 +6,7 @@ write — it is the ONLY place in the generated backend where an
 unauthenticated third party writes; a missing key gives 503 and NAMES it,
 without preventing the rest of the server from working."""
 
-class PaiementRoutesMixin:
+class PaymentRoutesMixin:
     """The two payment routes."""
 
     # ─────────────────────────────────────────────────────────────────
@@ -20,13 +20,13 @@ class PaiementRoutesMixin:
     # smoke test stays green offline.
     # ─────────────────────────────────────────────────────────────────
 
-    def _parametres_prestataire(self, prestataire, code_devise):
+    def _parameters_provider(self, provider, code_devise):
         """The webhook names, the key names and the prelude of a provider.
 
         Extracted from `_generate_payment_routes` (complexity ceiling); emitted
         text byte-identical. Returns (secret_var, secret_env, signature header,
         signature scheme, key_var, key_env, prelude lines)."""
-        if prestataire == "fedapay":
+        if provider == "fedapay":
             return ("FEDAPAY_WEBHOOK_SECRET", "MONL_FEDAPAY_WEBHOOK_SECRET",
                     "x-fedapay-signature", "s",
                     "FEDAPAY_SECRET_KEY", "MONL_FEDAPAY_SECRET_KEY",
@@ -97,7 +97,7 @@ class PaiementRoutesMixin:
         # exponent 2 ⇒ ×100 as before).
         devise = self.payment_currency or {"code": "EUR", "exponent": 2}
         code_devise = devise["code"].lower()
-        exposant_devise = devise["exponent"]
+        exponent_currency = devise["exponent"]
         # BRICK 2b: the provider. `None` ⇒ Stripe, and the Stripe emission is
         # left byte-for-byte INTACT — the condition for no existing project to
         # see its app.py move. FedaPay is a SECOND emission, not a
@@ -105,7 +105,7 @@ class PaiementRoutesMixin:
         # core (amount read from the database, signature checked before any
         # write, 503 naming the variable, qualified reference), not the wire
         # format.
-        prestataire = self.payment_provider or "stripe"
+        provider = self.payment_provider or "stripe"
         # What DIFFERS from one provider to another at the webhook: the
         # secret's name, the header, and the letter of the signature scheme.
         # The rest — the HMAC-SHA256 of "timestamp.raw body", the five-minute
@@ -114,11 +114,11 @@ class PaiementRoutesMixin:
         # its official SDK (Webhook.ts: EXPECTED_SCHEME = 's',
         # `${timestamp}.${payload}`, sha256 hex, DEFAULT_TOLERANCE = 300),
         # never inferred from prose.
-        (secret_var, secret_env, entete_signature, schema_signature,
-         cle_var, cle_env, lignes) = self._parametres_prestataire(
-            prestataire, code_devise)
-        for entite, champ in sorted(self.payable_by_entity.items()):
-            table = entite.lower()
+        (secret_var, secret_env, header_signature, schema_signature,
+         key_var, key_env, lines) = self._parameters_provider(
+            provider, code_devise)
+        for entity, field in sorted(self.payable_by_entity.items()):
+            table = entity.lower()
             # POINT 99: the column compared with `current_user_id` must carry
             # an ACCOUNT identifier — hence the one from
             # `_identity_fk_columns`, not the first incoming relation that
@@ -129,9 +129,9 @@ class PaiementRoutesMixin:
             # refuses this case; the assertion below guarantees that no
             # divergence between it and this line can write a route without a
             # check.
-            colonnes_compte = self._identity_fk_columns().get(entite, set())
-            proprio = ({"fk_column": sorted(colonnes_compte)[0]}
-                       if colonnes_compte else None)
+            columns_account = self._identity_fk_columns().get(entity, set())
+            owner = ({"fk_column": sorted(columns_account)[0]}
+                       if columns_account else None)
             # POINT 87: under TRANSITIVE ownership, the entity's foreign key
             # designates the intermediate, not an account — which is why point
             # 81 refused to charge here. A one-level join gives the ACCOUNT id,
@@ -142,33 +142,33 @@ class PaiementRoutesMixin:
             # come out of the SAME read. Two separate queries would reopen the
             # window between the access check and the amount calculation — so
             # the join goes INTO the SELECT, it is not added beside it.
-            chaine = self._transitive_chain(entite)
-            if not chaine and not proprio:
+            chaine = self._transitive_chain(entity)
+            if not chaine and not owner:
                 # POINT 99: without an owner, the route would charge any record
                 # for any authenticated caller (IDOR). The validator forbids it
                 # — reaching here means it has diverged from this layer.
                 # Failing at generation is better than writing a payment route
                 # without access control, same reasoning as `plan_derivations`.
                 raise ValueError(
-                    f"Generation: '{entite}' is 'payable' but no column carries "
+                    f"Generation: '{entity}' is 'payable' but no column carries "
                     f"the owning account's identifier — the payment route could "
                     f"answer 403 to nobody.")
             if chaine:
                 # Bricks 11 and 24: a chain of JOINs, one per link, up to the
                 # account. Amount, state and owner come out of the SAME read.
-                _depuis, _cur, _fk = self._chain_join(entite)
-                colonnes = f't."{champ}", t.payment_status, {_cur}."{_fk}"'
-                depuis = _depuis
+                _from, _cur, _fk = self._chain_join(entity)
+                columns = f't."{field}", t.payment_status, {_cur}."{_fk}"'
+                from_ = _from
             else:
-                colonnes = (f'"{champ}", payment_status, "{proprio["fk_column"]}"')
-                depuis = f'"{table}"'
-            lignes += [
+                columns = (f'"{field}", payment_status, "{owner["fk_column"]}"')
+                from_ = f'"{table}"'
+            lines += [
                 f"@app.post('/{table}/{{id}}/paiement', tags=['Paiement'])",
                 f"def payer_{table}(id: int, request: Request, "
                 "current_user_id: int = Depends(get_current_user_id)):",
-                f"    _exiger_cle_paiement('{cle_env}', {cle_var})",
+                f"    _exiger_cle_paiement('{key_env}', {key_var})",
                 "    conn = _connect(); cursor = conn.cursor()",
-                f"    cursor.execute('SELECT {colonnes} FROM {depuis} WHERE "
+                f"    cursor.execute('SELECT {columns} FROM {from_} WHERE "
                 f"{'t.' if chaine else ''}id = ?', (id,))",
                 "    ligne = cursor.fetchone()",
                 "    conn.close()",
@@ -178,13 +178,13 @@ class PaiementRoutesMixin:
                 "    if not ligne:",
                 "        raise HTTPException(status_code=404, detail='Not found.')",
             ]
-            lignes += [
+            lines += [
                 "    montant, etat, proprietaire = ligne",
                 "    if proprietaire is not None and proprietaire != current_user_id:",
                 "        raise HTTPException(status_code=403, detail="
                 "'This record does not belong to you.')",
             ]
-            lignes += [
+            lines += [
                 "    if etat == 'payee':",
                 "        raise HTTPException(status_code=409, detail='Already paid.')",
                 # BRICK 2a: the provider expects an INTEGER in the currency's
@@ -195,7 +195,7 @@ class PaiementRoutesMixin:
                 # `centimes` — it is the code's word, not the wire's (see
                 # below).
                 "    centimes = int(round(float(montant or 0) * "
-                f"{10 ** exposant_devise}))",
+                f"{10 ** exponent_currency}))",
                 "    if centimes <= 0:",
                 "        raise HTTPException(status_code=400, detail=(",
                 "            'Zero or negative amount: nothing to charge.'))",
@@ -205,12 +205,12 @@ class PaiementRoutesMixin:
                 # entity in the same app -- the webhook then marked as paid a
                 # record from a completely different table, which merely had
                 # the same id.
-                f"    reference = '{entite}:' + str(id)",
+                f"    reference = '{entity}:' + str(id)",
                 f"    session = _session_paiement(centimes, '{code_devise}', "
                 "reference, retour)",
             ]
-            if prestataire == "fedapay":
-                lignes += [
+            if provider == "fedapay":
+                lines += [
                     # PROVEN, NOT GUESSED: FedaPay's official Odoo plugin
                     # (fedapay/fedapay-odoo, payment_transaction.py) finds its
                     # order through `notification_data.get('id')`, the
@@ -232,7 +232,7 @@ class PaiementRoutesMixin:
                     "WHERE id = ?', (str(session.get('id')), id))",
                     "    _c_ref.commit(); _c_ref.close()",
                 ]
-            lignes += [
+            lines += [
                 # POINT 95 APPLIED TO THE WIRE: `montant_centimes` KEEPS its
                 # name. Renaming it would break the "Pay" button of every
                 # existing project for a cosmetic gain — exactly the reasoning
@@ -247,7 +247,7 @@ class PaiementRoutesMixin:
                 f"            'devise': '{devise['code']}', 'montant': montant}}",
                 "",
             ]
-        lignes += [
+        lines += [
             "WEBHOOK_MAX_BYTES = 256 * 1024",
             "",
             "@app.post('/paiement/webhook', tags=['Paiement'])",
@@ -267,7 +267,7 @@ class PaiementRoutesMixin:
             "            raise HTTPException(status_code=413, detail='Webhook too large.')",
             "        _blocs.append(_bloc)",
             "    brut = b''.join(_blocs)",
-            f"    entete = request.headers.get('{entete_signature}', '')",
+            f"    entete = request.headers.get('{header_signature}', '')",
             f"    # Signature: t=<timestamp>,{schema_signature}=<hmac sha256 of \"t.body\">.",
             "    # Without this check, anyone could mark any order as paid",
             "    # with a plain curl.",
@@ -297,8 +297,8 @@ class PaiementRoutesMixin:
             "        raise HTTPException(status_code=400, detail='Invalid signature.')",
             "    evenement = json.loads(brut or b'{}')",
         ]
-        if prestataire == "fedapay":
-            lignes += [
+        if provider == "fedapay":
+            lines += [
             "    # The `entity` key is PROVEN: FedaPay's official Odoo plugin",
             "    # (fedapay/fedapay-odoo, controllers/main.py) reads the raw",
             "    # webhook body and does `data.get('entity', {})`. What remains",
@@ -328,28 +328,28 @@ class PaiementRoutesMixin:
             "            _c_lu = _connect(); _cur_lu = _c_lu.cursor()",
             "            try:",
             ]
-            for entite in sorted(self.payable_by_entity):
-                lignes += [
-            f"                _cur_lu.execute('SELECT id FROM \"{entite.lower()}\" "
+            for entity in sorted(self.payable_by_entity):
+                lines += [
+            f"                _cur_lu.execute('SELECT id FROM \"{entity.lower()}\" "
             "WHERE payment_ref = ?', (_ref_prestataire,))",
             "                _ligne_lu = _cur_lu.fetchone()",
-            f"                if _ligne_lu and not _repli: _repli = '{entite}:' "
+            f"                if _ligne_lu and not _repli: _repli = '{entity}:' "
             "+ str(_ligne_lu[0])",
                 ]
-            lignes += [
+            lines += [
             "            finally:",
             "                _c_lu.close()",
             "        if _repli:",
             "            reference = _repli",
             ]
         else:
-            lignes += [
+            lines += [
             "    objet = (evenement.get('data') or {}).get('object') or {}",
             "    reference = objet.get('client_reference_id') or ''",
             "    _type_evenement = evenement.get('type')",
             "    _attendu = 'checkout.session.completed'",
             ]
-        lignes += [
+        lines += [
             "    # The reference is 'QualifiedEntity:id' (see session creation",
             "    # above): a bare id would be confused with one of ANOTHER payable",
             "    # entity of the same app, and would mark the wrong record paid.",
@@ -360,13 +360,13 @@ class PaiementRoutesMixin:
             "    conn = _connect(); cursor = conn.cursor()",
             "    try:",
         ]
-        for indice, entite in enumerate(sorted(self.payable_by_entity)):
-            mot_cle = "if" if indice == 0 else "elif"
-            lignes.append(f"        {mot_cle} entite_ref == '{entite}':")
-            lignes.append(
-                f"            cursor.execute('UPDATE \"{entite.lower()}\" SET payment_status = ?, "
+        for index, entity in enumerate(sorted(self.payable_by_entity)):
+            word_key = "if" if index == 0 else "elif"
+            lines.append(f"        {word_key} entite_ref == '{entity}':")
+            lines.append(
+                f"            cursor.execute('UPDATE \"{entity.lower()}\" SET payment_status = ?, "
                 f"payment_ref = ? WHERE id = ?', ('payee', objet.get('id'), id_cible))")
-        lignes += [
+        lines += [
             "        conn.commit()",
             "    except Exception:",
             "        conn.rollback(); conn.close(); raise",
@@ -374,4 +374,4 @@ class PaiementRoutesMixin:
             "    return {'status': 'success'}",
             "",
         ]
-        return lignes
+        return lines

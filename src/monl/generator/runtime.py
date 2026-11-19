@@ -6,28 +6,28 @@ Extracted from the former monolithic module src/generator.py (1307 lines)
 when it was split into a package — see docs/design_decisions.md."""
 
 
-from .runtime_auth_functions import FonctionsAuthRuntimeMixin
-from .runtime_base import SocleRuntimeMixin
+from .runtime_auth_functions import FunctionsAuthRuntimeMixin
+from .runtime_base import BaseRuntimeMixin
 from .runtime_extras import AnnexesRuntimeMixin
-from .runtime_login import ConnexionRuntimeMixin
+from .runtime_login import LoginRuntimeMixin
 from .runtime_migrations import MigrationsRuntimeMixin
 from .runtime_mounting import MontageRuntimeMixin
 from .runtime_pool import PoolRuntimeMixin
 from .runtime_preparation import PreparationRuntimeMixin
-from .runtime_tokens import JetonsRuntimeMixin
+from .runtime_tokens import TokensRuntimeMixin
 from .runtime_verification import VerificationRuntimeMixin
 
 
 class RuntimeMixin(
-    SocleRuntimeMixin,
+    BaseRuntimeMixin,
     VerificationRuntimeMixin,
     PoolRuntimeMixin,
-    JetonsRuntimeMixin,
+    TokensRuntimeMixin,
     MontageRuntimeMixin,
-    ConnexionRuntimeMixin,
+    LoginRuntimeMixin,
     MigrationsRuntimeMixin,
     PreparationRuntimeMixin,
-    FonctionsAuthRuntimeMixin,
+    FunctionsAuthRuntimeMixin,
     AnnexesRuntimeMixin,
 ):
     """The foundation of the generated app.py, by family.
@@ -60,7 +60,7 @@ class RuntimeMixin(
 
     def _generate_runtime_lines(self):
         """Lines of app.py up to the Pydantic schemas (included)."""
-        api_lines = self._socle_et_schemas()
+        api_lines = self._base_and_schemas()
         # POINT 116: OPTIONAL identity, and it exists only for conditional
         # public reads ('publicWhen'). A public route must NEVER answer 401: a
         # missing, invalid or revoked token simply leaves the caller anonymous.
@@ -70,7 +70,7 @@ class RuntimeMixin(
         # (`_condition_exemptions`, single source): with neither supervisor nor
         # owner, no route calls it and the produced app.py stays the one from
         # before point 116.
-        api_lines = self._socle_base_et_uploads(api_lines)
+        api_lines = self._base_base_and_uploads(api_lines)
 
         # ── POINT 95: the form of the account identifier ──
         # The field stays named 'username' ON THE WIRE. Renaming it to 'email'
@@ -87,5 +87,5 @@ class RuntimeMixin(
         api_lines += self._generate_message_runtime_lines()
         api_lines += self._generate_auth_feature_helpers()
 
-        api_lines = self._socle_authentification(api_lines)
+        api_lines = self._base_authentication(api_lines)
         return api_lines

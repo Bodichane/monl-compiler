@@ -36,7 +36,7 @@ import pytest
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import compile_project
 from monl.parser import parse_monl_string
-from tests.support.server import free_port as _port_libre
+from tests.support.server import free_port as _port_free
 
 SPEC = """app BancHorodatage
 
@@ -71,17 +71,17 @@ workflow Superviser for Patron
 """
 
 # The same spec without the rule: the generation "with / without" witness.
-SANS_REGLE = SPEC.replace("rule Commande.placedAt timestamp\n", "")
+WITHOUT_RULE = SPEC.replace("rule Commande.placedAt timestamp\n", "")
 
 # And without the FIELD: the state of a project from before the brick, the only
 # valid starting point to test the migration. Removing the rule while keeping
 # the field would prove nothing — the column would already exist, so no ALTER
 # TABLE. Worse: the field becomes an ordinary attribute again, hence required
 # in the request body, and the first phase's creations went out as 422.
-SANS_CHAMP = SANS_REGLE.replace("    placedAt: DateTime\n", "")
+WITHOUT_FIELD = WITHOUT_RULE.replace("    placedAt: DateTime\n", "")
 
 
-def _valide(spec):
+def _valid(spec):
     return MonlAST(parse_monl_string(spec)).validate_and_audit()
 
 
@@ -91,53 +91,53 @@ def _valide(spec):
 
 def test_the_bench_spec_compiles(capsys):
     """The witness of the refusals that follow."""
-    ast = _valide(SPEC)
+    ast = _valid(SPEC)
     assert ast["security"]["timestamp_fields"] == [
         {"entity": "Commande", "field": "placedAt"}]
     capsys.readouterr()
 
 
 def test_a_text_field_is_refused(capsys):
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC.replace("rule Commande.placedAt timestamp",
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC.replace("rule Commande.placedAt timestamp",
                              "rule Commande.reference timestamp"))
-    assert "DateTime" in str(refus.value)
+    assert "DateTime" in str(refusal.value)
     capsys.readouterr()
 
 
 def test_a_date_field_is_refused_with_a_reason(capsys):
     """`Date` compiles elsewhere: it is a legitimate type, written by the client.
     The refusal must therefore EXPLAIN, not just observe an unexpected type."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC.replace("placedAt: DateTime", "placedAt: Date"))
-    message = str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC.replace("placedAt: DateTime", "placedAt: Date"))
+    message = str(refusal.value)
     assert "Date" in message
     assert "could no longer be ordered" in message, "the refusal must say WHY, not only no"
     capsys.readouterr()
 
 
 def test_a_nonexistent_field_is_refused(capsys):
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC.replace("rule Commande.placedAt timestamp",
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC.replace("rule Commande.placedAt timestamp",
                              "rule Commande.fantome timestamp"))
-    assert "field does not exist" in str(refus.value)
+    assert "field does not exist" in str(refusal.value)
     capsys.readouterr()
 
 
 def test_a_nonexistent_entity_is_refused(capsys):
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC.replace("rule Commande.placedAt timestamp",
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC.replace("rule Commande.placedAt timestamp",
                              "rule Fantome.placedAt timestamp"))
-    assert "which does not exist" in str(refus.value)
+    assert "which does not exist" in str(refusal.value)
     capsys.readouterr()
 
 
 def test_hidden_and_timestamp_is_refused(capsys):
     """The client cannot write it; hidden, it could not read it either. The
     field would then exist nowhere."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC + "rule Commande.placedAt hidden\n")
-    assert "hidden" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC + "rule Commande.placedAt hidden\n")
+    assert "hidden" in str(refusal.value)
     capsys.readouterr()
 
 
@@ -145,25 +145,25 @@ def test_two_timestamps_on_the_same_entity_are_refused(capsys):
     """Both would get the SAME instant. This refusal mostly catches someone who
     expected an UPDATE date — that would be another brick."""
     spec = SPEC.replace("    statut: String", "    statut: String\n    updatedAt: DateTime")
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(spec + "rule Commande.updatedAt timestamp\n")
-    assert "SAME creation time" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(spec + "rule Commande.updatedAt timestamp\n")
+    assert "SAME creation time" in str(refusal.value)
     capsys.readouterr()
 
 
 def test_two_rules_on_the_same_field_are_refused(capsys):
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC + "rule Commande.placedAt timestamp\n")
-    assert "only one is allowed" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC + "rule Commande.placedAt timestamp\n")
+    assert "only one is allowed" in str(refusal.value)
     capsys.readouterr()
 
 
 def test_required_on_a_timestamp_field_is_refused(capsys):
     """Inherited from point 85's cross-check, without one more line: the contract
     would say both "to fill" and "do not send"."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC + "rule Commande.placedAt required\n")
-    assert "SERVER" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC + "rule Commande.placedAt required\n")
+    assert "SERVER" in str(refusal.value)
     capsys.readouterr()
 
 
@@ -173,9 +173,9 @@ def test_a_bound_on_a_timestamp_field_is_refused(capsys):
     cross-check only serves `required`. Written here so that the day `DateTime`
     becomes boundable, the order of the two refusals is reviewed and not
     discovered."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC + "rule Commande.placedAt max 10\n")
-    assert "DateTime" in str(refus.value)
+    with pytest.raises(ASTValidationError) as refusal:
+        _valid(SPEC + "rule Commande.placedAt max 10\n")
+    assert "DateTime" in str(refusal.value)
     capsys.readouterr()
 
 
@@ -183,42 +183,42 @@ def test_a_bound_on_a_timestamp_field_is_refused(capsys):
 # What generation must write
 # --------------------------------------------------------------------------
 
-def _compile(dossier, spec, capsys):
-    dossier.mkdir(parents=True, exist_ok=True)
-    (dossier / "spec.ml").write_text(spec, encoding="utf-8")
-    compile_project(str(dossier / "spec.ml"), str(dossier))
+def _compile(folder, spec, capsys):
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "spec.ml").write_text(spec, encoding="utf-8")
+    compile_project(str(folder / "spec.ml"), str(folder))
     capsys.readouterr()
-    return (dossier / "app.py").read_text(encoding="utf-8")
+    return (folder / "app.py").read_text(encoding="utf-8")
 
 
 def test_the_rule_really_changes_the_output(tmp_path, capsys):
     """Point 85's lesson: four old rules produced NOTHING, and nothing had ever
     checked it. No brick leaves without this test."""
-    avec = _compile(tmp_path / "a", SPEC, capsys)
-    sans = _compile(tmp_path / "b", SANS_REGLE, capsys)
-    assert avec != sans
+    with_ = _compile(tmp_path / "a", SPEC, capsys)
+    sans = _compile(tmp_path / "b", WITHOUT_RULE, capsys)
+    assert with_ != sans
 
 
 def test_the_timestamp_field_leaves_the_input_schema(tmp_path, capsys):
-    genere = _compile(tmp_path, SPEC, capsys)
-    schema = genere.split("class CommandeSchema(BaseModel):")[1].split("class ")[0]
+    generated = _compile(tmp_path, SPEC, capsys)
+    schema = generated.split("class CommandeSchema(BaseModel):")[1].split("class ")[0]
     assert "placedAt" not in schema
     assert "reference" in schema, "the other fields stay"
 
 
 def test_the_server_writes_the_date_on_creation(tmp_path, capsys):
-    genere = _compile(tmp_path, SPEC, capsys)
-    creation = genere.split("def create_commande")[1].split("@app.")[0]
+    generated = _compile(tmp_path, SPEC, capsys)
+    creation = generated.split("def create_commande")[1].split("@app.")[0]
     assert "_horodatage()" in creation
 
 
 def test_an_update_does_not_touch_the_date(tmp_path, capsys):
     """A creation date that moves is not a creation date. Reading it from `data`
     would also give a 500 — point 78's defect."""
-    genere = _compile(tmp_path, SPEC, capsys)
-    modification = genere.split("def update_commande")[1].split("@app.")[0]
-    ligne_set = next(li for li in modification.splitlines() if "UPDATE " in li)
-    assert "placedAt" not in ligne_set
+    generated = _compile(tmp_path, SPEC, capsys)
+    modification = generated.split("def update_commande")[1].split("@app.")[0]
+    line_set = next(li for li in modification.splitlines() if "UPDATE " in li)
+    assert "placedAt" not in line_set
     assert "data.placedAt" not in modification
 
 
@@ -229,29 +229,29 @@ def test_the_contract_announces_the_field_as_filled_by_the_server(tmp_path, caps
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     capsys.readouterr()
-    contrat = json.loads((tmp_path / "frontend_contract.json").read_text(encoding="utf-8"))
-    champ = next(f for f in contrat["entities"]["Commande"]["fields"]
+    contract = json.loads((tmp_path / "frontend_contract.json").read_text(encoding="utf-8"))
+    field = next(f for f in contract["entities"]["Commande"]["fields"]
                  if f["name"] == "placedAt")
-    assert champ["server_generated"] is True
-    assert champ["created_at"] is True
+    assert field["server_generated"] is True
+    assert field["created_at"] is True
     # The contract must ALSO warn about the possible gap: it is the only case
     # in the compiler where an added column cannot be caught up.
-    assert "MAY BE EMPTY" in champ["note"]
+    assert "MAY BE EMPTY" in field["note"]
 
 
 # --------------------------------------------------------------------------
 # Le comportement, contre un vrai serveur
 # --------------------------------------------------------------------------
 
-def _appel(url, corps=None, jeton=None, methode=None):
-    donnees = json.dumps(corps).encode() if corps is not None else None
-    requete = urllib.request.Request(url, data=donnees, method=methode)
-    requete.add_header("Content-Type", "application/json")
-    if jeton:
-        requete.add_header("Authorization", f"Bearer {jeton}")
+def _call(url, body=None, token=None, method=None):
+    donnees = json.dumps(body).encode() if body is not None else None
+    query = urllib.request.Request(url, data=donnees, method=method)
+    query.add_header("Content-Type", "application/json")
+    if token:
+        query.add_header("Authorization", f"Bearer {token}")
     try:
-        with urllib.request.urlopen(requete, timeout=10) as reponse:
-            return reponse.status, json.loads(reponse.read() or b"{}")
+        with urllib.request.urlopen(query, timeout=10) as response:
+            return response.status, json.loads(response.read() or b"{}")
     except urllib.error.HTTPError as err:
         with err:
             brut = err.read()
@@ -265,101 +265,101 @@ class _Server:
     """An ephemeral server that can be stopped then RESTARTED on the same
     database — what the migration proof requires."""
 
-    def __init__(self, dossier):
-        self.dossier = dossier
-        self.processus = None
+    def __init__(self, folder):
+        self.folder = folder
+        self.process = None
         self.base = None
-        self.journal = ""
+        self.log = ""
 
-    def demarrer(self):
-        port = _port_libre()
-        self.processus = subprocess.Popen(
+    def start(self):
+        port = _port_free()
+        self.process = subprocess.Popen(
             [sys.executable, "-m", "uvicorn", "app:app", "--host", "127.0.0.1",
              "--port", str(port)],
-            cwd=str(self.dossier), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            cwd=str(self.folder), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         self.base = f"http://127.0.0.1:{port}"
         for _ in range(120):
-            if self.processus.poll() is not None:
-                pytest.fail(self.processus.stdout.read().decode("utf-8", "replace")[-2000:])
+            if self.process.poll() is not None:
+                pytest.fail(self.process.stdout.read().decode("utf-8", "replace")[-2000:])
             try:
-                with urllib.request.urlopen(self.base + "/docs", timeout=5) as reponse:
-                    reponse.read()
+                with urllib.request.urlopen(self.base + "/docs", timeout=5) as response:
+                    response.read()
                 return self.base
             except OSError:
                 time.sleep(0.25)
         pytest.fail("the server never answered")
 
-    def arreter(self):
-        if self.processus is None:
+    def stop(self):
+        if self.process is None:
             return
-        self.processus.terminate()
+        self.process.terminate()
         try:
-            sortie, _ = self.processus.communicate(timeout=10)
+            output, _ = self.process.communicate(timeout=10)
         except subprocess.TimeoutExpired:
-            self.processus.kill()
-            sortie, _ = self.processus.communicate()
-        self.journal += (sortie or b"").decode("utf-8", "replace")
-        self.processus = None
+            self.process.kill()
+            output, _ = self.process.communicate()
+        self.log += (output or b"").decode("utf-8", "replace")
+        self.process = None
 
 
 @pytest.fixture
-def carnet(tmp_path):
+def book(tmp_path):
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
-    serveur = _Server(tmp_path)
-    base = serveur.demarrer()
+    server = _Server(tmp_path)
+    base = server.start()
     try:
-        _appel(base + "/register", {"username": "zoe", "password": "motdepasse1",
+        _call(base + "/register", {"username": "zoe", "password": "motdepasse1",
                                     "actor": "Client"})
-        _, jeton = _appel(base + "/login", {"username": "zoe",
+        _, token = _call(base + "/login", {"username": "zoe",
                                             "password": "motdepasse1"})
-        yield base, jeton["access_token"]
+        yield base, token["access_token"]
     finally:
-        serveur.arreter()
+        server.stop()
 
 
-def test_the_date_is_written_without_the_client_giving_it(carnet):
-    base, jeton = carnet
-    code, _ = _appel(base + "/commande", {"reference": "CMD-1", "statut": "panier"}, jeton)
+def test_the_date_is_written_without_the_client_giving_it(book):
+    base, token = book
+    code, _ = _call(base + "/commande", {"reference": "CMD-1", "statut": "panier"}, token)
     assert code == 200
-    _, lu = _appel(base + "/commande/1", jeton=jeton)
+    _, lu = _call(base + "/commande/1", token=token)
     assert lu["data"]["placedAt"], "no date written"
     assert lu["data"]["placedAt"].endswith("+00:00"), "UTC explicite attendu"
 
 
-def test_a_date_imposed_by_the_client_is_ignored(carnet):
+def test_a_date_imposed_by_the_client_is_ignored(book):
     """The heart of the brick. Without it, anyone backdates their order — and
     nobody can prove anything any more about arrival order."""
-    base, jeton = carnet
-    _appel(base + "/commande", {"reference": "CMD-1", "statut": "panier",
-                                "placedAt": "2019-01-01T00:00:00+00:00"}, jeton)
-    _, lu = _appel(base + "/commande/1", jeton=jeton)
+    base, token = book
+    _call(base + "/commande", {"reference": "CMD-1", "statut": "panier",
+                                "placedAt": "2019-01-01T00:00:00+00:00"}, token)
+    _, lu = _call(base + "/commande/1", token=token)
     assert not lu["data"]["placedAt"].startswith("2019")
 
 
-def test_an_update_leaves_the_date_intact(carnet):
-    base, jeton = carnet
-    _appel(base + "/commande", {"reference": "CMD-1", "statut": "panier"}, jeton)
-    _, avant = _appel(base + "/commande/1", jeton=jeton)
+def test_an_update_leaves_the_date_intact(book):
+    base, token = book
+    _call(base + "/commande", {"reference": "CMD-1", "statut": "panier"}, token)
+    _, before = _call(base + "/commande/1", token=token)
 
-    code, _ = _appel(base + "/commande/1",
+    code, _ = _call(base + "/commande/1",
                      {"reference": "CMD-1", "statut": "expediee",
-                      "placedAt": "2019-01-01T00:00:00+00:00"}, jeton, methode="PUT")
+                      "placedAt": "2019-01-01T00:00:00+00:00"}, token, method="PUT")
     assert code == 200, "the brick must not break updates"
-    _, apres = _appel(base + "/commande/1", jeton=jeton)
+    _, apres = _call(base + "/commande/1", token=token)
     assert apres["data"]["statut"] == "expediee", "the rest must indeed change"
-    assert apres["data"]["placedAt"] == avant["data"]["placedAt"]
+    assert apres["data"]["placedAt"] == before["data"]["placedAt"]
 
 
-def test_two_orders_in_quick_succession_stay_orderable(carnet):
+def test_two_orders_in_quick_succession_stay_orderable(book):
     """The reason for the millisecond. To the second, these two dates were
     IDENTICAL — and the sort the contract announces became wrong at the first
     rush, that is exactly when an order book needs it."""
-    base, jeton = carnet
+    base, token = book
     for i in range(2):
-        _appel(base + "/commande", {"reference": f"CMD-{i}", "statut": "panier"}, jeton)
-    _, liste = _appel(base + "/commande", jeton=jeton)
-    dates = [c["placedAt"] for c in liste["data"]]
+        _call(base + "/commande", {"reference": f"CMD-{i}", "statut": "panier"}, token)
+    _, list_ = _call(base + "/commande", token=token)
+    dates = [c["placedAt"] for c in list_["data"]]
     assert dates[0] != dates[1], "two close creations must be distinguishable"
     # Sorted as TEXT: it is the property the contract announces, and it holds
     # because the offset is always '+00:00' and the format fixed-width. No
@@ -371,36 +371,36 @@ def test_earlier_records_stay_without_date_and_the_server_says_so(tmp_path):
     """The only case in the compiler where an added column cannot be caught up.
     We count, we name, we leave NULL — rather than dating orders from the day
     before yesterday as today."""
-    (tmp_path / "spec.ml").write_text(SANS_CHAMP, encoding="utf-8")
+    (tmp_path / "spec.ml").write_text(WITHOUT_FIELD, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
-    serveur = _Server(tmp_path)
-    base = serveur.demarrer()
-    _appel(base + "/register", {"username": "zoe", "password": "motdepasse1",
+    server = _Server(tmp_path)
+    base = server.start()
+    _call(base + "/register", {"username": "zoe", "password": "motdepasse1",
                                 "actor": "Client"})
-    _, jeton = _appel(base + "/login", {"username": "zoe", "password": "motdepasse1"})
-    jeton = jeton["access_token"]
+    _, token = _call(base + "/login", {"username": "zoe", "password": "motdepasse1"})
+    token = token["access_token"]
     for i in range(3):
-        _appel(base + "/commande", {"reference": f"VIEILLE-{i}", "statut": "livree"}, jeton)
-    serveur.arreter()
+        _call(base + "/commande", {"reference": f"VIEILLE-{i}", "statut": "livree"}, token)
+    server.stop()
 
     # The rule arrives on an ALREADY populated database.
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
-    serveur = _Server(tmp_path)
-    base = serveur.demarrer()
+    server = _Server(tmp_path)
+    base = server.start()
     try:
-        _, jeton = _appel(base + "/login", {"username": "zoe", "password": "motdepasse1"})
-        jeton = jeton["access_token"]
-        _appel(base + "/commande", {"reference": "NEUVE", "statut": "panier"}, jeton)
-        _, liste = _appel(base + "/commande", jeton=jeton)
-        par_reference = {c["reference"]: c["placedAt"] for c in liste["data"]}
+        _, token = _call(base + "/login", {"username": "zoe", "password": "motdepasse1"})
+        token = token["access_token"]
+        _call(base + "/commande", {"reference": "NEUVE", "statut": "panier"}, token)
+        _, list_ = _call(base + "/commande", token=token)
+        par_reference = {c["reference"]: c["placedAt"] for c in list_["data"]}
     finally:
-        serveur.arreter()
+        server.stop()
 
     assert par_reference["NEUVE"], "new orders are dated"
     for i in range(3):
         assert par_reference[f"VIEILLE-{i}"] is None, (
             "a date invented afterwards would be false: empty is the only "
             "honest answer")
-    assert "3 record(s)" in serveur.journal, (
+    assert "3 record(s)" in server.log, (
         "the server must NAME the records that will never have a date")

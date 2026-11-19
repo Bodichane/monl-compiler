@@ -7,10 +7,10 @@ from `monl.parser` exactly as before."""
 from .errors import MonlSyntaxError
 from .lark_grammar import grammar
 from .reading import parse_monl_file, parse_monl_string
-from .transformer import MonlIndenter, MonlTransformer
+from .transformer import MonlIndent, MonlTransformer
 
 __all__ = [
-    "MonlIndenter",
+    "MonlIndent",
     "MonlSyntaxError",
     "MonlTransformer",
     "grammar",
