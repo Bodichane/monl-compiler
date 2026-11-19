@@ -1,20 +1,20 @@
-"""Ce que le compilateur REFUSE — les branches de garde d'ast_validator.py.
+"""What the compiler REFUSES — ast_validator.py's guard branches.
 
-Le README l'affiche comme la différence de fond avec un générateur d'IA : « une
-règle sans effet est refusée à la compilation plutôt qu'ignorée en silence ».
-`tests/test_parser_errors.py` couvrait les erreurs de SYNTAXE (Lark), et
-`tests/test_exploit*.py` les attaques au runtime. Entre les deux, les quelque
-cinquante refus du validateur — l'endroit exact où cette promesse se tient —
-n'étaient exercés par presque rien : `ast_validator.py` plafonnait à 76 %, et
-ses lignes manquantes étaient très majoritairement des `raise`.
+The README displays it as the fundamental difference from an AI generator: "a
+rule without effect is refused at compile time rather than silently
+ignored". `tests/test_parser_errors.py` covered SYNTAX errors (Lark), and
+`tests/test_exploit*.py` runtime attacks. Between the two, the fifty or so
+validator refusals — the exact place where this promise is kept — were
+exercised by almost nothing: `ast_validator.py` capped at 76 %, and its missing
+lines were overwhelmingly `raise`s.
 
-Un garde-fou muet est pire qu'un garde-fou absent : il rassure. Un `raise` que
-personne n'atteint est un garde-fou dont on ne sait pas s'il fonctionne encore.
+A mute safeguard is worse than an absent one: it reassures. A `raise` nobody
+reaches is a safeguard one does not know still works.
 
-**Les témoins font partie du test.** Un validateur cassé qui refuserait TOUTE
-spec passerait une suite composée uniquement de refus. Chaque famille de refus
-est donc accompagnée de la spec valide la plus proche possible — celle qui ne
-diffère que par ce qui est fautif — et cette spec doit compiler.
+**The witnesses are part of the test.** A broken validator refusing EVERY spec
+would pass a suite made only of refusals. Each family of refusals therefore
+comes with the closest possible valid spec — the one differing only in what is
+faulty — and that spec must compile.
 """
 import pytest
 
@@ -27,9 +27,9 @@ def _valide(spec):
     return MonlAST(parse_monl_string(spec)).validate_and_audit()
 
 
-# Socle commun : deux entités, un acteur, un workflow. Les cas ci-dessous n'y
-# insèrent que les règles à éprouver, pour que la ligne fautive soit la seule
-# différence entre un cas et son témoin.
+# Common base: two entities, one actor, one workflow. The cases below only
+# insert the rules to test, so that the faulty line is the only difference
+# between a case and its witness.
 SOCLE = """app T
 
 entity Note
@@ -97,8 +97,8 @@ TYPES_INCOMPATIBLES = [
     ("increments sur un champ texte",
      "rule Note.Create increments Autre.nom by 1",
      "Integer or Float attribute"),
-    # On n'encaisse pas du texte : la seule façon d'en tirer un montant serait
-    # de le convertir, donc de deviner.
+    # Text is not charged: the only way to get an amount out of it would be to
+    # convert it, hence to guess.
     ("payable sur un champ texte", "rule Note.titre payable",
      "Money, Float, or Integer"),
 ]
@@ -119,8 +119,8 @@ REGLES_QUI_SE_CONTREDISENT = [
     ("hidden et generated sur le même champ",
      "rule Note.titre generated\nrule Note.titre hidden",
      "is both 'hidden' and 'generated'"),
-    # Un montant qu'on ne peut pas lire ne peut pas être vérifié par celui
-    # qui le règle : il paierait un chiffre qu'on refuse de lui montrer.
+    # An amount that cannot be read cannot be checked by whoever pays it: they
+    # would pay a figure one refuses to show them.
     ("hidden et payable sur le même champ",
      "rule Note.score hidden\nrule Note.score payable",
      "both 'hidden' and 'payable'"),
@@ -130,11 +130,10 @@ TOUS_LES_CAS = (CIBLES_INEXISTANTES + TYPES_INCOMPATIBLES
                 + PALIERS_MAL_FORMES + REGLES_QUI_SE_CONTREDISENT)
 
 
-def test_une_regle_fautive_est_refusee_en_nommant_sa_cause():
-    """Refuser ne suffit pas : le message doit nommer ce qui cloche. Un
-    validateur qui lèverait une erreur générique laisserait l'auteur de la spec
-    chercher lui-même, ce qui est la moitié du travail que le compilateur
-    existe pour éviter."""
+def test_a_faulty_rule_is_refused_naming_its_cause():
+    """Refusing is not enough: the message must name what is wrong. A validator
+    raising a generic error would leave the spec's author searching alone, which
+    is half the work the compiler exists to avoid."""
     table = [(r, f) for _n, r, f in TOUS_LES_CAS]
     noms = [n for n, _r, _f in TOUS_LES_CAS]
 
@@ -146,20 +145,21 @@ def test_une_regle_fautive_est_refusee_en_nommant_sa_cause():
     verifier_chaque_cas(table, cas, ids=noms)
 
 
-def test_la_meme_regle_bien_formee_compile():
-    """Le témoin. Sans lui, un validateur qui refuserait tout passerait les
-    tests ci-dessus sans qu'on s'en aperçoive."""
+def test_the_same_well_formed_rule_compiles():
+    """The witness. Without it, a validator refusing everything would pass the
+    tests above without anyone noticing."""
     table = [
         "rule Note.Read public",
         "rule Note.titre hidden",
         'rule Note.score categorized: "bas" below 5, "haut" otherwise',
         "rule Note.titre generated",
-        # `payable` ne figure PLUS ici : depuis le point 79 il exige un montant
-        # calculé par le serveur, donc une entité source, une relation, une
-        # quantité `required` et un propriétaire — une structure que le socle ne
-        # porte pas, et qu'y ajouter romprait sa raison d'être (« la ligne fautive
-        # est la seule différence entre un cas et son témoin »). Son témoin est
-        # `test_un_seul_champ_payable_compile`, sur la spec dédiée plus bas.
+        # `payable` is NO LONGER here: since point 79 it requires a
+        # server-calculated amount, hence a source entity, a relation, a
+        # `required` quantity and an owner — a structure the base does not
+        # carry, and adding it would break its reason for being ("the faulty
+        # line is the only difference between a case and its witness"). Its
+        # witness is `test_a_single_payable_field_compiles`, on the dedicated
+        # spec below.
     ]
     noms = ["public", "hidden", "categorized", "generated"]
 
@@ -169,8 +169,8 @@ def test_la_meme_regle_bien_formee_compile():
     verifier_chaque_cas([(valeur,) for valeur in table], cas, ids=noms)
 
 
-# Les compteurs ont leur propre témoin : ils exigent une relation entre
-# l'entité déclencheuse et l'entité cible, que le socle ci-dessus ne porte pas.
+# Counters have their own witness: they require a relation between the
+# triggering entity and the target entity, which the base above does not carry.
 SPEC_COMPTEUR = """app T
 
 entity Post
@@ -193,16 +193,15 @@ workflow W for Membre
 
 
 def test_un_compteur_bien_forme_compile():
-    """Témoin des trois cas `increments` ci-dessus."""
+    """Witness of the three `increments` cases above."""
     assert _valide(SPEC_COMPTEUR.format(
         regles="rule Like.Create increments Post.likes by 1"))
 
 
-def test_un_compteur_sans_relation_entre_les_deux_entites_est_refuse():
-    """Trouvé en construisant le témoin, pas en lisant le validateur : sans
-    relation, il n'existe aucune clé étrangère d'où tirer QUEL enregistrement
-    incrémenter. La règle ne serait pas seulement inefficace — elle serait
-    ambiguë."""
+def test_a_counter_without_relation_between_the_two_entities_is_refused():
+    """Found while building the witness, not by reading the validator: without a
+    relation, there is no foreign key from which to get WHICH record to
+    increment. The rule would not only be ineffective — it would be ambiguous."""
     sans_relation = SPEC_COMPTEUR.replace("relation Post hasMany Like\n", "")
     with pytest.raises(ASTValidationError) as refus:
         _valide(sans_relation.format(
@@ -210,21 +209,20 @@ def test_un_compteur_sans_relation_entre_les_deux_entites_est_refuse():
     assert "requires a relation" in str(refus.value)
 
 
-def test_un_compteur_hors_creation_est_refuse():
-    """`increments` n'est pris en charge que sur `Create` : le brancher sur
-    `Update` laisserait croire à un compteur qui suit les modifications."""
+def test_a_counter_outside_creation_is_refused():
+    """`increments` is only supported on `Create`: wiring it to `Update` would
+    suggest a counter following updates."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_COMPTEUR.format(
             regles="rule Like.Update increments Post.likes by 1"))
     assert "'Create'" in str(refus.value)
 
 
-# ------------------------------------- incompatibilités entre deux mécanismes --
+# --------------------------------- incompatibilities between two mechanisms --
 def test_generated_exige_un_appelant_identifie(spec=None):
-    """Point 30 : pas d'identité fiable, pas de pseudonyme dérivable. Une
-    création `public` et un champ `generated` sur la même entité ne peuvent pas
-    coexister — et ce refus ne peut se voir qu'en croisant deux règles que rien
-    ne relie syntaxiquement."""
+    """Point 30: no reliable identity, no derivable pseudonym. A `public` creation
+    and a `generated` field on the same entity cannot coexist — and this refusal
+    can only be seen by crossing two rules nothing links syntactically."""
     with pytest.raises(ASTValidationError) as refus:
         _valide("""app T
 entity Post
@@ -238,8 +236,8 @@ workflow W for Membre
     assert "'generated'" in str(refus.value) and "'public'" in str(refus.value)
 
 
-# ----------------------------------------- paiement (point 74) : les deux --
-# refus qui exigent leur propre spec, le socle ne pouvant pas les porter.
+# ---------------------------------------------- payment (point 74): the two --
+# refusals requiring their own spec, since the base cannot carry them.
 SPEC_PAYABLE = """app T
 
 entity Article
@@ -265,69 +263,68 @@ workflow W for Client
     Read Commande
 """
 
-# Ce que le point 79 rend obligatoire à côté de tout `payable` : un montant
-# que le client ne peut pas écrire. Les cas de refus ci-dessous ne l'incluent
-# PAS quand leur propre refus se déclenche avant (deux champs `payable`,
-# création `public`) — leur garde-fou vit dans la boucle `payable`, en amont du
-# recoupement final.
+# What point 79 makes mandatory alongside any `payable`: an amount the client
+# cannot write. The refusal cases below do NOT include it when their own
+# refusal fires before (two `payable` fields, `public` creation) — their
+# safeguard lives in the `payable` loop, upstream of the final cross-check.
 DERIVE = "rule Commande.total derivedFrom Article.prix by quantite"
 
 
-def test_un_seul_champ_payable_par_entite():
-    """Deux montants sur la même entité, et plus rien ne dit lequel encaisser.
-    Le compilateur ne peut pas trancher à la place de l'auteur — additionner
-    serait une invention, prendre le premier un tirage au sort. Témoin ci-
-    dessous : la même spec avec un seul `payable` compile."""
+def test_a_single_payable_field_per_entity():
+    """Two amounts on the same entity, and nothing says any more which one to
+    charge. The compiler cannot decide in the author's place — adding would be an
+    invention, taking the first a coin toss. Witness below: the same spec with a
+    single `payable` compiles."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_PAYABLE.format(
             regles="rule Commande.total payable\nrule Commande.frais payable"))
     assert "multiple 'payable' fields" in str(refus.value)
 
 
-def test_un_seul_champ_payable_compile():
-    """Le témoin du test précédent : sans lui, un validateur qui refuserait
-    toute règle `payable` passerait aussi bien. C'est aussi, depuis le point 79,
-    le témoin de la forme COMPLÈTE qu'un encaissement exige — montant calculé
-    par le serveur inclus."""
+def test_a_single_payable_field_compiles():
+    """The previous test's witness: without it, a validator refusing every
+    `payable` rule would pass just as well. It is also, since point 79, the
+    witness of the COMPLETE form a charge requires — server-calculated amount
+    included."""
     assert _valide(SPEC_PAYABLE.format(
         regles=f"{DERIVE}\nrule Commande.total payable"))
 
 
-def test_payable_refuse_un_montant_que_le_client_peut_ecrire():
-    """Le refus du point 79, et la garantie que le point 74 ne tenait pas.
+def test_payable_refuses_an_amount_the_client_can_write():
+    """Point 79's refusal, and the guarantee point 74 did not hold.
 
-    `payable` promettait « le montant vient de la base, jamais du corps de
-    requête ». C'était vrai de la ROUTE et faux du système : le créateur d'un
-    enregistrement en devient le propriétaire (sa clé étrangère est peuplée avec
-    `current_user_id`), et la route de règlement n'accepte que le propriétaire —
-    donc le payeur écrivait lui-même ce qu'il payait. Deux exploits de trois
-    requêtes suffisaient à encaisser un centime pour 945 euros.
+    `payable` promised "the amount comes from the database, never the request
+    body". It was true of the ROUTE and false of the system: the creator of a
+    record becomes its owner (its foreign key is filled with `current_user_id`),
+    and the payment route only accepts the owner — so the payer wrote what they
+    paid themselves. Two exploits of three requests were enough to charge one cent
+    for 945 euros.
 
-    Le refus est CASSANT et c'est voulu : toute boutique compilée avant lui
-    pouvait être volée."""
+    The refusal is BREAKING and that is intended: every shop compiled before it
+    could be robbed."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_PAYABLE.format(regles="rule Commande.total payable"))
     message = str(refus.value)
     assert "the client can write it" in message
-    # Le message doit nommer la sortie, pas seulement le problème.
+    # The message must name the way out, not only the problem.
     assert "derivedFrom" in message
 
 
 def test_payable_exige_un_appelant_identifie():
-    """Même raison qu'au point 30 pour `generated`, mais avec de l'argent au
-    bout : une création `public` n'a aucune identité à rattacher au règlement
-    — ni personne à qui rembourser. Ce refus ne se voit qu'en croisant deux
-    règles que rien ne relie syntaxiquement."""
+    """Same reason as at point 30 for `generated`, but with money at the end: a
+    `public` creation has no identity to attach the payment to — nor anyone to
+    refund. This refusal only shows when crossing two rules nothing links
+    syntactically."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_PAYABLE.format(
             regles="rule Commande.Create public\nrule Commande.total payable"))
     assert "'payable'" in str(refus.value) and "'public'" in str(refus.value)
 
 
-def test_ownedby_et_accessibleby_ne_peuvent_pas_regir_la_meme_action():
-    """Point 31 : `accessibleBy` généralise `ownedBy`. Les cumuler laisserait
-    deux contrôles d'accès concurrents sur une même route, dont l'ordre
-    d'application déciderait du résultat."""
+def test_ownedby_and_accessibleby_cannot_govern_the_same_action():
+    """Point 31: `accessibleBy` generalizes `ownedBy`. Combining them would leave
+    two competing access checks on one route, whose application order would
+    decide the result."""
     with pytest.raises(ASTValidationError) as refus:
         _valide("""app T
 entity Msg
@@ -345,10 +342,10 @@ workflow W for Membre
     assert "ownedBy" in str(refus.value) and "accessibleBy" in str(refus.value)
 
 
-def test_restrictedto_sur_un_acteur_non_declare():
-    """Point 112 : avant, rien ne vérifiait que l'acteur nommé par
-    'restrictedTo' existe — une faute de frappe désactivait la restriction
-    en silence, sans qu'aucun avertissement n'apparaisse."""
+def test_restrictedto_on_an_undeclared_actor():
+    """Point 112: before, nothing checked that the actor named by 'restrictedTo'
+    exists — a typo disabled the restriction silently, without any warning
+    appearing."""
     with pytest.raises(ASTValidationError) as refus:
         _valide("""app T
 entity Note
@@ -362,8 +359,8 @@ workflow W for Admin
 
 
 def test_restrictedto_bien_forme_compile():
-    """Le témoin : sans lui, un validateur qui refuserait tout 'restrictedTo'
-    passerait aussi le test précédent."""
+    """The witness: without it, a validator refusing every 'restrictedTo' would
+    also pass the previous test."""
     assert _valide("""app T
 entity Note
     titre: String
@@ -374,18 +371,18 @@ workflow W for Admin
 """)
 
 
-def test_ownedby_sans_relation_correspondante_est_refuse():
-    """Une règle de propriété sans relation d'où tirer le propriétaire ne
-    protégerait rien. C'est le cas type de la « règle sans effet » que le
-    README promet de refuser plutôt que d'ignorer."""
+def test_ownedby_without_matching_relation_is_refused():
+    """An ownership rule without a relation to get the owner from would protect
+    nothing. It is the textbook case of the "rule without effect" the README
+    promises to refuse rather than ignore."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(_socle("rule Note.Update ownedBy Admin"))
     assert "no compatible relationship" in str(refus.value)
 
 
-def test_deux_acteurs_sur_la_meme_ecriture_ne_compilent_pas():
-    """Point 1, la règle fondatrice : un partage d'autorité doit être déclaré
-    (`sharedBy`), jamais accidentel."""
+def test_two_actors_on_the_same_write_do_not_compile():
+    """Point 1, the founding rule: shared authority must be declared
+    (`sharedBy`), never accidental."""
     with pytest.raises(ASTValidationError) as refus:
         _valide("""app T
 entity Note
@@ -401,7 +398,7 @@ workflow B for Editeur
 
 
 # --------------------------------------------------- workflows et blocs annexes --
-def test_un_workflow_ne_peut_pas_viser_un_acteur_non_declare():
+def test_a_workflow_cannot_target_an_undeclared_actor():
     with pytest.raises(ASTValidationError) as refus:
         _valide("""app T
 entity Note
@@ -413,7 +410,7 @@ workflow W for Inconnu
     assert "'Inconnu'" in str(refus.value)
 
 
-def test_un_workflow_ne_peut_pas_viser_une_entite_absente():
+def test_a_workflow_cannot_target_a_missing_entity():
     with pytest.raises(ASTValidationError) as refus:
         _valide("""app T
 entity Note
@@ -425,10 +422,10 @@ workflow W for Admin
     assert "'Fantome'" in str(refus.value)
 
 
-def test_execute_exige_que_le_bloc_custom_existe():
-    """Sans ce refus, `Execute` sur un bloc absent produirait un app.py qui
-    appelle une fonction que sandbox_ai.py ne contient pas — une ImportError
-    au démarrage plutôt qu'une erreur de compilation."""
+def test_execute_requires_the_custom_block_to_exist():
+    """Without this refusal, `Execute` on a missing block would produce an app.py
+    calling a function sandbox_ai.py does not contain — an ImportError at startup
+    rather than a compile error."""
     with pytest.raises(ASTValidationError) as refus:
         _valide("""app T
 entity Note
@@ -440,9 +437,9 @@ workflow W for Admin
     assert "CalculMagique" in str(refus.value)
 
 
-def test_les_blocs_annexes_sont_validés_comme_les_regles():
-    """`ui` et `seed` ne portent aucune sécurité — mais une faute de frappe qui
-    y passe inaperçue se paie au rendu ou au démarrage, loin de sa cause."""
+def test_annex_blocks_are_validated_like_rules():
+    """`ui` and `seed` carry no security — but a typo going unnoticed there is
+    paid at render or startup, far from its cause."""
     table = [
         ("ui Fantome\n    primary: titre", "targets an entity that does not exist"),
         ("ui Note\n    primary: fantome", "primary: fantome"),
@@ -461,37 +458,36 @@ def test_les_blocs_annexes_sont_validés_comme_les_regles():
 
 
 def test_un_bloc_ui_bien_forme_compile():
-    """Témoin des cinq cas ci-dessus."""
+    """Witness of the five cases above."""
     assert _valide(_socle("ui Note\n    primary: titre\n    order: titre, score"))
 
 
-def test_accessibleby_a_moins_de_deux_colonnes_est_arrete_par_la_grammaire():
-    """Le garde-fou du point 31 (« au moins deux colonnes distinctes, sinon
-    `ownedBy` ») n'est PAS dans le validateur : la grammaire exige la virgule,
-    donc une colonne unique n'atteint jamais ast_validator.py. Le test le dit
-    plutôt que de chercher un ASTValidationError qui ne viendra pas — savoir
-    quelle couche tient un garde-fou est ce qui permet de ne pas le déplacer
-    par mégarde."""
+def test_accessibleby_with_fewer_than_two_columns_is_stopped_by_the_grammar():
+    """Point 31's safeguard ("at least two distinct columns, otherwise
+    `ownedBy`") is NOT in the validator: the grammar requires the comma, so a
+    single column never reaches ast_validator.py. The test says so rather than
+    looking for an ASTValidationError that will not come — knowing which layer
+    holds a safeguard is what keeps one from moving it by mistake."""
     with pytest.raises(MonlSyntaxError):
         _valide(_socle("rule Note.Read accessibleBy titre"))
 
 
-def test_payable_sans_champ_est_arrete_par_la_grammaire():
-    """Même situation que ci-dessus, et il faut le dire pour la même raison :
-    `ast_validator.py` porte un refus pour une règle `payable` qui ne
-    nommerait pas `Entite.champ`, mais le terminal REFERENCE de la grammaire
-    EXIGE le point. Ce `raise` est donc inatteignable, et le garde-fou réel
-    est dans `parser.py`. Le laisser croire au validateur, c'est risquer de
-    l'y déplacer un jour en pensant le renforcer."""
+def test_payable_without_field_is_stopped_by_the_grammar():
+    """Same situation as above, and it must be said for the same reason:
+    `ast_validator.py` carries a refusal for a `payable` rule not naming
+    `Entite.champ`, but the grammar's REFERENCE terminal REQUIRES the dot. This
+    `raise` is therefore unreachable, and the real safeguard is in `parser.py`.
+    Letting the validator believe it holds it risks moving it there some day while
+    thinking to strengthen it."""
     with pytest.raises(MonlSyntaxError):
         _valide(_socle("rule Note payable"))
 
 
 # ------------------------------- brique 10 : derivedFrom (point 77) ----------
 
-# Socle dédié : une entité calculée qui a un propriétaire ET une source
-# distincte, c'est-à-dire la forme minimale que la brique exige. Les cas
-# ci-dessous n'en changent qu'une ligne à la fois.
+# Dedicated base: a calculated entity that has an owner AND a distinct source,
+# that is the minimal form the brick requires. The cases below change only one
+# line at a time.
 SOCLE_DERIVE = """app D
 
 entity Article
@@ -528,9 +524,9 @@ def _socle_derive(regles=""):
 REGLE_VALIDE = "rule Commande.total derivedFrom Article.prix by quantite"
 
 
-def test_une_derivation_bien_formee_compile():
-    """Témoin des refus ci-dessous : sans lui, un validateur qui refuserait
-    TOUTE dérivation les ferait tous passer."""
+def test_a_well_formed_derivation_compiles():
+    """Witness of the refusals below: without it, a validator refusing EVERY
+    derivation would make them all pass."""
     normalise = _valide(_socle_derive(REGLE_VALIDE))
     assert normalise["security"]["derived_fields"] == [{
         "entity": "Commande", "field": "total",
@@ -539,9 +535,9 @@ def test_une_derivation_bien_formee_compile():
     }]
 
 
-def test_les_derivations_mal_formees_sont_refusees():
-    """Un calcul mal déclaré doit échouer à la COMPILATION : c'est un montant
-    à encaisser, l'échec au runtime coûterait de l'argent."""
+def test_malformed_derivations_are_refused():
+    """A badly declared calculation must fail at COMPILE time: it is an amount to
+    charge, failing at runtime would cost money."""
     table = [
         ("rule Fantome.total derivedFrom Article.prix by quantite",
          "targets entity 'Fantome'"),
@@ -553,10 +549,10 @@ def test_les_derivations_mal_formees_sont_refusees():
          "reads 'Article.nom'"),
         (REGLE_VALIDE + "\nrule Commande.total derivedFrom Article.prix by quantite",
          "multiple 'derivedFrom' rules"),
-        # `quantite` est Integer, donc recevable à la fois comme champ calculé et
-        # comme multiplicateur : c'est le seul montage qui ATTEINT ce refus. Avec
-        # `total` (Money), c'est le contrôle de type du multiplicateur qui refuse
-        # avant — juste, mais pas le garde-fou qu'on prétend éprouver.
+        # `quantite` is Integer, hence acceptable both as a calculated field
+        # and as a multiplier: it is the only setup that REACHES this refusal.
+        # With `total` (Money), the multiplier's type check refuses first —
+        # rightly, but it is not the safeguard we claim to test.
         ("rule Commande.quantite derivedFrom Article.prix by quantite",
          "cannot be its own multiplier"),
         ("rule Commande.total derivedFrom Article.prix by nom",
@@ -576,9 +572,9 @@ def test_les_derivations_mal_formees_sont_refusees():
     verifier_chaque_cas(table, cas, ids=noms)
 
 
-def test_le_multiplicateur_doit_etre_declare_required():
-    """Sans `required`, un client qui omet la quantité ferait calculer sur du
-    vide — et le montant à encaisser serait nul ou faux."""
+def test_the_multiplier_must_be_declared_required():
+    """Without `required`, a client omitting the quantity would make the
+    calculation run on nothing — and the amount to charge would be zero or wrong."""
     spec = _socle_derive(REGLE_VALIDE).replace(
         "rule Commande.quantite required\n", "")
     with pytest.raises(ASTValidationError) as refus:
@@ -586,10 +582,10 @@ def test_le_multiplicateur_doit_etre_declare_required():
     assert "required" in str(refus.value)
 
 
-def test_la_source_ne_peut_pas_etre_le_proprietaire():
-    """La clé étrangère du propriétaire est peuplée depuis le JETON, jamais
-    choisie par le client : si la source possédait l'entité, aucune ligne ne
-    pourrait être désignée à la création."""
+def test_the_source_cannot_be_the_owner():
+    """The owner's foreign key is filled from the TOKEN, never chosen by the
+    client: if the source owned the entity, no row could be designated at
+    creation."""
     spec = _socle_derive("rule Commande.total derivedFrom Client.remise by quantite")
     spec = spec.replace("entity Client\n    displayName: String",
                         "entity Client\n    displayName: String\n    remise: Float")
@@ -598,9 +594,9 @@ def test_la_source_ne_peut_pas_etre_le_proprietaire():
     assert "owner" in str(refus.value)
 
 
-def test_une_entite_sans_proprietaire_ne_peut_pas_deriver():
-    """C'est le propriétaire qui distingue la clé étrangère peuplée par le
-    serveur de celle que le client fournit pour désigner la ligne à lire."""
+def test_an_entity_without_owner_cannot_derive():
+    """The owner is what distinguishes the foreign key filled by the server from
+    the one the client provides to designate the row to read."""
     spec = _socle_derive(REGLE_VALIDE).replace(
         "rule Commande.Read ownedBy Client\n", "")
     with pytest.raises(ASTValidationError) as refus:
@@ -608,9 +604,9 @@ def test_une_entite_sans_proprietaire_ne_peut_pas_deriver():
     assert "owner" in str(refus.value)
 
 
-def test_une_source_sans_relation_est_refusee():
-    """Sans relation, rien ne dit QUELLE ligne de la source lire — même
-    exigence que pour 'increments' (point 27)."""
+def test_a_source_without_relation_is_refused():
+    """Without a relation, nothing says WHICH source row to read — same
+    requirement as for 'increments' (point 27)."""
     spec = _socle_derive(REGLE_VALIDE).replace(
         "relation Article hasMany Commande\n", "")
     with pytest.raises(ASTValidationError) as refus:
@@ -618,15 +614,14 @@ def test_une_source_sans_relation_est_refusee():
     assert "requires a relation" in str(refus.value)
 
 
-# ------------------------- propriété : la chaîne doit remonter à un COMPTE ---
+# ------------------------- ownership: the chain must lead back to an ACCOUNT -
 #
-# Point 80 puis 81. `ownedBy <Entité>` compilait à l'origine en silence, en
-# produisant du code incohérent : clé étrangère annoncée vers la table des
-# comptes, identifiant de l'appelant écrit à la place du rattachement demandé,
-# filtre de lecture comparant un id d'enregistrement à un id de compte. Le
-# point 80 l'a refusé ; le point 81 en a fait une brique (propriété
-# TRANSITIVE), à une condition : la chaîne doit aboutir à un acteur. Ce qui
-# suit vérifie les cas où elle n'aboutit pas.
+# Point 80 then 81. `ownedBy <Entity>` originally compiled silently, producing
+# inconsistent code: a foreign key announced towards the accounts table, the
+# caller's id written in place of the requested attachment, a read filter
+# comparing a record id with an account id. Point 80 refused it; point 81 made
+# it a brick (TRANSITIVE ownership), on one condition: the chain must end at an
+# actor. What follows checks the cases where it does not.
 
 SPEC_PROPRIETE = """app P
 
@@ -653,34 +648,33 @@ workflow W for Client
 CHAINE_COMPLETE = "rule Commande.Read ownedBy Client"
 
 
-def test_une_chaine_de_propriete_qui_remonte_a_un_acteur_compile():
-    """La brique elle-même (point 81) : « une ligne appartient à qui possède sa
-    commande ». Le témoin de tous les refus ci-dessous — sans lui, un validateur
-    qui refuserait toute chaîne les passerait tous."""
+def test_an_ownership_chain_leading_to_an_actor_compiles():
+    """The brick itself (point 81): "a line belongs to whoever owns its order".
+    The witness of all the refusals below — without it, a validator refusing every
+    chain would pass them all."""
     assert _valide(SPEC_PROPRIETE.format(
         regles=CHAINE_COMPLETE + "\nrule Ligne.Read ownedBy Commande"))
 
 
-def test_un_intermediaire_sans_proprietaire_ne_mene_a_aucun_compte():
-    """Sans `ownedBy` sur l'intermédiaire, rien ne relie la ligne à un compte :
-    le serveur n'aurait aucune colonne à comparer. C'est le cas exact que le
-    point 80 avait trouvé en train de compiler."""
+def test_an_intermediate_without_owner_leads_to_no_account():
+    """Without `ownedBy` on the intermediate, nothing links the line to an
+    account: the server would have no column to compare. It is the exact case
+    point 80 had found compiling."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_PROPRIETE.format(regles="rule Ligne.Read ownedBy Commande"))
     message = str(refus.value)
     assert "does not lead to ANY actor" in message
-    # Le message doit dire ce qui manque, pas seulement ce qui cloche.
+    # The message must say what is missing, not only what is wrong.
     assert "ownedBy" in message
 
 
-def test_une_chaine_a_deux_niveaux_est_desormais_resolue():
-    """BRIQUE 24 (point 107) : ce cas était REFUSÉ (« plus d'un niveau »), la
-    jointure générée ne remontant qu'un maillon. La marche remonte désormais
-    toute la profondeur jusqu'à un acteur, maillon par maillon. La classe de
-    défaut du point 80 ne reparaît PAS pour autant : cycle, cul-de-sac et
-    maillon ambigu restent refusés (tests dédiés dans
-    tests/test_transitive_profondeur.py), et la profondeur 2 est éprouvée
-    contre un vrai serveur dans le même fichier."""
+def test_a_two_level_chain_is_now_resolved():
+    """BRICK 24 (point 107): this case was REFUSED ("more than one level"), the
+    generated join only going up one link. The walk now goes up the full depth to
+    an actor, link by link. Point 80's defect class does NOT reappear for all
+    that: cycle, dead end and ambiguous link stay refused (dedicated tests in
+    tests/test_transitive_profondeur.py), and depth 2 is tested against a real
+    server in the same file."""
     spec = """app P
 
 entity Commande
@@ -716,10 +710,10 @@ workflow W for Client
     assert transitif["Detail"] == {"chain": ["Ligne", "Commande"], "actor": "Client"}
 
 
-def test_un_intermediaire_a_deux_proprietaires_rend_la_chaine_ambigue():
-    """Deux propriétaires sur l'intermédiaire : le serveur ne saurait pas lequel
-    vérifier. Choisir au hasard de l'ordre d'écriture de la spec est exactement
-    ce que le correctif de la bêta 3 avait déjà refusé ailleurs."""
+def test_an_intermediate_with_two_owners_makes_the_chain_ambiguous():
+    """Two owners on the intermediate: the server would not know which one to
+    check. Choosing by the spec's writing order is exactly what beta 3's fix had
+    already refused elsewhere."""
     spec = """app P
 
 entity Commande
@@ -753,10 +747,10 @@ workflow V for Vendeur
     assert "is ambiguous at" in str(refus.value)
 
 
-def test_melanger_propriete_directe_et_transitive_est_refuse():
-    """La colonne de propriété serait à la fois peuplée depuis le jeton (pour
-    une règle) et fournie par le client (pour l'autre) : deux traitements
-    contradictoires sur une seule colonne."""
+def test_mixing_direct_and_transitive_ownership_is_refused():
+    """The ownership column would be both filled from the token (for one rule)
+    and provided by the client (for the other): two contradictory treatments on a
+    single column."""
     spec = """app P
 
 entity Commande
@@ -787,18 +781,18 @@ workflow W for Client
     assert "Designate only one owner" in str(refus.value)
 
 
-def test_payable_sur_une_entite_possedee_transitivement_compile_desormais():
-    """POINT 87 : ce cas était REFUSÉ (point 81), et le refus a été levé.
+def test_payable_on_a_transitively_owned_entity_now_compiles():
+    """POINT 87: this case was REFUSED (point 81), and the refusal was lifted.
 
-    Il ne protégeait pas d'une impossibilité mais d'une comparaison fausse : la
-    route de règlement opposait `current_user_id` à une clé étrangère qui, sous
-    chaîne transitive, porte un id d'enregistrement intermédiaire. La brique 11
-    fournissait déjà la jointure qui rend l'id de COMPTE — la route l'emploie.
+    It did not protect from an impossibility but from a wrong comparison: the
+    payment route compared `current_user_id` with a foreign key that, under a
+    transitive chain, carries an intermediate record id. Brick 11 already provided
+    the join returning the ACCOUNT id — the route uses it.
 
-    Ce test garde donc l'inverse de ce qu'il gardait. Les trois refus qui
-    rendent `payable` sûr sont vérifiés ailleurs et n'ont pas bougé : chaîne
-    remontant à un acteur (point 81), montant incalculable par le client
-    (point 79), relation entrante obligatoire (point 75)."""
+    This test therefore guards the opposite of what it guarded. The three refusals
+    that make `payable` safe are checked elsewhere and have not moved: chain
+    leading back to an actor (point 81), amount not computable by the client
+    (point 79), mandatory incoming relation (point 75)."""
     spec = """app P
 
 entity Article
@@ -834,11 +828,11 @@ workflow W for Client
     assert ast["security"]["transitive_ownership"]["Ligne"] == {"chain": ["Commande"], "actor": "Client"}
 
 
-def test_payable_transitif_exige_toujours_un_montant_incalculable_par_le_client():
-    """Le témoin du test ci-dessus : lever le refus du point 81 ne lève PAS
-    celui du point 79. Sans `derivedFrom`, le payeur écrirait encore ce qu'il
-    règle — et la propriété transitive n'y change rien, puisque le créateur
-    d'une ligne doit posséder la commande à laquelle il la rattache."""
+def test_transitive_payable_still_requires_an_amount_the_client_cannot_compute():
+    """The witness of the test above: lifting point 81's refusal does NOT lift
+    point 79's. Without `derivedFrom`, the payer would still write what they pay —
+    and transitive ownership changes nothing, since a line's creator must own the
+    order they attach it to."""
     spec = """app P
 
 entity Article
@@ -873,14 +867,13 @@ workflow W for Client
     assert "the client can write it" in str(refus.value)
 
 
-# ------------------------- agrégation : sommer un total (brique 12) ----------
+# ------------------------- aggregation: summing a total (brick 12) -----------
 #
-# Point 82. `derivedFrom` ne lit qu'UNE ligne liée : une commande à plusieurs
-# articles ne savait pas ce qu'elle coûtait. `sumOf` la somme. Le refus qui
-# porte tout le reste est le dernier de cette section : sommer un montant que le
-# client écrit rendrait au payeur la main sur ce qu'il règle — la faille du
-# point 77, revenue par le panier, exactement comme le cadrage du point 80 le
-# redoutait.
+# Point 82. `derivedFrom` only reads ONE linked row: an order with several
+# items did not know what it cost. `sumOf` sums it. The refusal carrying
+# everything else is the last of this section: summing an amount the client
+# writes would give the payer back control over what they pay — point 77's
+# flaw, back through the cart, exactly as point 80's scoping feared.
 
 SPEC_PANIER = """app P
 
@@ -917,22 +910,21 @@ workflow W for Client
 SOMME = "rule Commande.total sumOf Ligne.sousTotal"
 
 
-def test_une_somme_bien_formee_compile():
-    """Le témoin de toute cette section : sans lui, un validateur qui refuserait
-    toute règle `sumOf` passerait chacun des refus ci-dessous."""
+def test_a_well_formed_sum_compiles():
+    """The witness of this whole section: without it, a validator refusing every
+    `sumOf` rule would pass each of the refusals below."""
     assert _valide(SPEC_PANIER.format(regles=SOMME))
 
 
-def test_un_panier_somme_est_encaissable():
-    """Point 82, et l'aboutissement des points 77 à 81 : jusqu'ici, `payable`
-    n'acceptait qu'un champ `derivedFrom`, donc une commande à UN article. Un
-    total sommé est calculé par le serveur, il satisfait donc le refus du
-    point 79."""
+def test_a_summed_cart_is_chargeable():
+    """Point 82, and the outcome of points 77 to 81: until now, `payable` only
+    accepted a `derivedFrom` field, hence a ONE-item order. A summed total is
+    calculated by the server, so it satisfies point 79's refusal."""
     assert _valide(SPEC_PANIER.format(
         regles=SOMME + "\nrule Commande.total payable"))
 
 
-# ---------------- écriture supervisée après paiement ------------------------
+# ---------------- supervised write after payment -----------------------------
 
 SPEC_APRES_PAIEMENT = SPEC_PANIER.replace(
     "    libelle: String", "    libelle: String\n    statut: String\n    creeLe: DateTime\n"
@@ -951,7 +943,7 @@ def _apres_paiement(regles):
     return SPEC_APRES_PAIEMENT.format(regles=base + "\n" + regles)
 
 
-def test_writable_after_payment_sur_acteur_non_declare_est_refuse():
+def test_writable_after_payment_on_undeclared_actor_is_refused():
     with pytest.raises(ASTValidationError) as refus:
         _valide(_apres_paiement(
             "rule Commande.statut writableAfterPayment Fantome"))
@@ -959,7 +951,7 @@ def test_writable_after_payment_sur_acteur_non_declare_est_refuse():
     assert "Fantome" in str(refus.value)
 
 
-def test_writable_after_payment_exige_une_entite_payable():
+def test_writable_after_payment_requires_a_payable_entity():
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_PANIER.format(
             regles=SOMME
@@ -967,7 +959,7 @@ def test_writable_after_payment_exige_une_entite_payable():
     assert "only applies to a 'payable' entity" in str(refus.value)
 
 
-def test_writable_after_payment_refuse_un_champ_ecrit_par_le_serveur():
+def test_writable_after_payment_refuses_a_server_written_field():
     table = [
         "rule Commande.statut generated",
         "rule Commande.calcule derivedFrom Article.prix by quantite",
@@ -995,13 +987,13 @@ def test_writable_after_payment_refuse_un_champ_ecrit_par_le_serveur():
 
 
 def test_writable_after_payment_refuse_un_champ_somme():
-    """`sumOf` manquait à la liste des familles serveur ci-dessus : une entité
-    'payable' dont le montant est 'sumOf' (le panier à plusieurs lignes,
-    seule forme éprouvée depuis le point 82 pour un total encaissable)
-    pouvait déclarer 'writableAfterPayment' sur CE MÊME champ. La route
-    dédiée qui en résulte écrit le total en base sans recalcul ET sans le
-    verrou de paiement — exactement la faille des points 77/82 rouverte par
-    une combinaison de règles que rien ne signalait à la compilation."""
+    """`sumOf` was missing from the list of server families above: a 'payable'
+    entity whose amount is 'sumOf' (the multi-line cart, the only form tested
+    since point 82 for a chargeable total) could declare 'writableAfterPayment'
+    on THAT SAME field. The resulting dedicated route writes the total to the
+    database without recalculation AND without the payment lock — exactly the flaw
+    of points 77/82 reopened by a combination of rules nothing reported at compile
+    time."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(_apres_paiement(
             "rule Commande.total writableAfterPayment Superviseur"))
@@ -1009,7 +1001,7 @@ def test_writable_after_payment_refuse_un_champ_somme():
     assert "sumOf" in str(refus.value)
 
 
-def test_writable_after_payment_refuse_le_proprietaire():
+def test_writable_after_payment_refuses_the_owner():
     with pytest.raises(ASTValidationError) as refus:
         _valide(_apres_paiement(
             "rule Commande.statut writableAfterPayment Client"))
@@ -1046,12 +1038,12 @@ def test_writable_after_payment_bien_forme_compile_et_normalise():
     }
 
 
-def test_writable_after_payment_ne_casse_ni_create_ni_update(tmp_path):
-    """Un champ absent du schéma générique ne doit jamais être lu sur `data`.
+def test_writable_after_payment_breaks_neither_create_nor_update(tmp_path):
+    """A field absent from the generic schema must never be read on `data`.
 
-    Le checkout réel de CodexShop révélait sinon un AttributeError avant même
-    l'insertion de la commande : les champs de suivi, réservés au superviseur,
-    n'existent légitimement pas encore à la création.
+    CodexShop's real checkout otherwise revealed an AttributeError even before the
+    order was inserted: the tracking fields, reserved to the supervisor,
+    legitimately do not exist yet at creation.
     """
     from monl.generator import MonlSecureGenerator
 
@@ -1087,9 +1079,9 @@ def test_refus_de_somme_mal_formee():
         ("rule Commande.total sumOf Ligne.quantiteAbsente",
          "which must be a declared Money, Float, or Integer attribute "
          "(received: field does not exist)"),
-        # Une entité ne peut pas s'additionner elle-même.
+        # An entity cannot sum itself.
         ("rule Commande.total sumOf Commande.total", "cannot sum itself"),
-        # Sans relation parent-enfant, la somme porterait sur la table entière.
+        # Without a parent-child relation, the sum would cover the whole table.
         ("rule Commande.total sumOf Article.prix", "parent-child relation"),
     ]
 
@@ -1101,24 +1093,24 @@ def test_refus_de_somme_mal_formee():
     verifier_chaque_cas(table, cas)
 
 
-def test_une_somme_masquee_est_refusee():
-    """Même raison que pour `payable` et `derivedFrom` : un total qu'on ne peut
-    pas lire ne peut pas être vérifié par celui qui le règle."""
+def test_a_hidden_sum_is_refused():
+    """Same reason as for `payable` and `derivedFrom`: a total that cannot be read
+    cannot be checked by whoever pays it."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_PANIER.format(
             regles=SOMME + "\nrule Commande.total hidden"))
     assert "hidden" in str(refus.value) and "sumOf" in str(refus.value)
 
 
-def test_deux_calculs_concurrents_sur_le_meme_champ_sont_refuses():
-    """`derivedFrom` lit UNE ligne liée, `sumOf` additionne des enfants. Les
-    deux sur le même champ, c'est deux écritures qui se contredisent.
+def test_two_competing_calculations_on_the_same_field_are_refused():
+    """`derivedFrom` reads ONE linked row, `sumOf` adds up children. Both on the
+    same field are two writes contradicting each other.
 
-    Spec dédiée : pour ATTEINDRE ce recoupement, la règle `derivedFrom` doit
-    elle-même être valide (entité source liée, multiplicateur Integer `required`
-    sur l'entité calculée). Mon premier essai la posait sur la spec commune, où
-    `Commande` n'a pas de multiplicateur : c'est le contrôle du facteur qui
-    répondait, et le test ne prouvait rien du recoupement."""
+    Dedicated spec: to REACH this cross-check, the `derivedFrom` rule must itself
+    be valid (linked source entity, `required` Integer multiplier on the
+    calculated entity). My first try put it on the common spec, where `Commande`
+    has no multiplier: the factor check answered, and the test proved nothing about
+    the cross-check."""
     spec = """app P
 
 entity Article
@@ -1160,23 +1152,22 @@ workflow W for Client
     assert "choose one" in message
 
 
-def test_deux_sommes_sur_le_meme_champ_sont_refusees():
+def test_two_sums_on_the_same_field_are_refused():
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_PANIER.format(regles=SOMME + "\n" + SOMME))
     assert "only one sum is allowed per field" in str(refus.value)
 
 
-def test_sommer_une_entite_sans_proprietaire_est_refuse():
-    """Sans propriétaire déclaré sur la ligne, la colonne qui la relie à sa
-    commande peut recevoir un id de COMPTE (voir _identity_fk_columns) et la
-    somme se recalculerait sur le mauvais parent. Et une ligne sans
-    propriétaire serait créable par n'importe qui : le total d'un tiers
-    deviendrait déplaçable à volonté.
+def test_summing_an_entity_without_owner_is_refused():
+    """Without a declared owner on the line, the column linking it to its order
+    can receive an ACCOUNT id (see _identity_fk_columns) and the sum would be
+    recalculated on the wrong parent. And a line without an owner could be created
+    by anyone: a third party's total would become movable at will.
 
-    La somme porte ici sur `Ligne.quantite`, un champ ORDINAIRE, et la spec perd
-    aussi sa règle `derivedFrom` : sur `Ligne.sousTotal`, c'est l'exigence de
-    propriétaire de `derivedFrom` (point 78) qui répondait d'abord, et le test
-    validait la garde d'une autre brique."""
+    The sum here covers `Ligne.quantite`, an ORDINARY field, and the spec also
+    loses its `derivedFrom` rule: on `Ligne.sousTotal`, `derivedFrom`'s owner
+    requirement (point 78) answered first, and the test validated another brick's
+    guard."""
     spec = (SPEC_PANIER
             .replace("rule Ligne.Read ownedBy Commande\n", "")
             .replace("rule Ligne.sousTotal derivedFrom Article.prix by quantite\n", ""))
@@ -1187,44 +1178,44 @@ def test_sommer_une_entite_sans_proprietaire_est_refuse():
     assert "ownedBy" in message
 
 
-def test_encaisser_une_somme_de_montants_ecrits_par_le_client_est_refuse():
-    """LE refus de la brique — la faille du point 77 fermée avant qu'elle ne
-    revienne par le panier.
+def test_charging_a_sum_of_client_written_amounts_is_refused():
+    """THE brick's refusal — point 77's flaw closed before it comes back through
+    the cart.
 
-    Un champ `sumOf` est calculé par le serveur, donc il satisfait le refus du
-    point 79. Mais additionner des lignes dont le montant vient du client ne
-    produit pas un total sûr : il produit un total que le client contrôle, en
-    une addition de plus. Le payeur reprend la main sur ce qu'il règle.
+    A `sumOf` field is calculated by the server, so it satisfies point 79's
+    refusal. But adding up lines whose amount comes from the client does not
+    produce a safe total: it produces a total the client controls, with one more
+    addition. The payer regains control over what they pay.
 
-    Le refus vit dans le recoupement avec `payable`, et non dans la boucle
-    `sumOf`, parce que sommer un champ client reste légitime hors paiement :
-    `Commande.nbArticles sumOf Ligne.quantite` compte des articles, il n'encaisse
-    rien. C'est le CUMUL qui est fautif, pas la somme."""
+    The refusal lives in the cross-check with `payable`, and not in the `sumOf`
+    loop, because summing a client field stays legitimate outside payment:
+    `Commande.nbArticles sumOf Ligne.quantite` counts items, it charges nothing.
+    The COMBINATION is at fault, not the sum."""
     spec = SPEC_PANIER.replace(
         "rule Ligne.sousTotal derivedFrom Article.prix by quantite\n", "")
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec.format(regles=SOMME + "\nrule Commande.total payable"))
     message = str(refus.value)
     assert "which the client can write" in message
-    # Le message doit nommer la ligne fautive et proposer le correctif.
+    # The message must name the faulty line and suggest the fix.
     assert "Ligne.sousTotal" in message
     assert "derivedFrom" in message
 
 
 def test_sommer_un_champ_client_reste_permis_hors_paiement():
-    """Le témoin du refus ci-dessus : c'est le cumul avec `payable` qui est
-    interdit, pas la somme d'un champ fourni par le client. Compter les articles
-    d'un panier est légitime et n'encaisse rien."""
+    """The witness of the refusal above: the combination with `payable` is
+    forbidden, not the sum of a client-provided field. Counting a cart's items is
+    legitimate and charges nothing."""
     spec = SPEC_PANIER.replace("entity Commande\n    total: Money",
                                "entity Commande\n    total: Money\n    nbArticles: Integer")
     assert _valide(spec.format(
         regles="rule Commande.nbArticles sumOf Ligne.quantite"))
 
 
-# Issue #89 : un compteur sur une entité qui porte le nom d'un acteur. Ses
-# lignes ne sont liées à aucun compte, alors que les clés `membre_id` lues
-# par un client portent un id de COMPTE : mesuré sur 03_reseau_social,
-# signaler l'auteur d'un post faisait baisser la réputation du signaleur.
+# Issue #89: a counter on an entity named like an actor. Its rows are linked to
+# no account, while the `membre_id` keys a client reads carry an ACCOUNT id:
+# measured on 03_reseau_social, reporting a post's author lowered the
+# reporter's reputation.
 SPEC_COMPTEUR_ACTEUR = """app T
 
 entity {cible}
@@ -1246,12 +1237,12 @@ workflow W for Membre
 """
 
 
-def test_un_compteur_sur_une_entite_acteur_est_refuse():
+def test_a_counter_on_an_actor_entity_is_refused():
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_COMPTEUR_ACTEUR.format(cible="Membre"))
     assert "is also an actor" in str(refus.value)
 
 
-def test_le_meme_compteur_sur_une_entite_metier_compile():
-    """Témoin : seule la cible change de nom, et la règle compile."""
+def test_the_same_counter_on_a_business_entity_compiles():
+    """Witness: only the target's name changes, and the rule compiles."""
     assert _valide(SPEC_COMPTEUR_ACTEUR.format(cible="Profil"))
