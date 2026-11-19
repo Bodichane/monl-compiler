@@ -1,28 +1,28 @@
-"""Brique 22 : le numéro que l'humain lit et dicte — point 102.
+"""Brick 22: the number a human reads and dictates — point 102.
 
-Pourquoi la brique. `exemples/02_boutique.ml` déclarait `Order.reference: UUID`
-— un champ que le CLIENT remplissait, et qui depuis le point 101 exige la forme
-canonique d'un UUID. Or personne ne dicte `3f2504e0-4f89-41d3-9a0c-0305e82c3301`
-au téléphone. Un carnet de commandes veut « CMD-2026-0001 », et ce numéro-là
-n'est pas une donnée du client : c'est le vendeur qui l'attribue.
+Why the brick. `exemples/02_boutique.ml` declared `Order.reference: UUID` — a
+field the CLIENT filled, and which since point 101 requires a UUID's canonical
+form. But nobody dictates `3f2504e0-4f89-41d3-9a0c-0305e82c3301` over the
+phone. An order book wants "CMD-2026-0001", and that number is not the
+client's data: the seller assigns it.
 
     rule Order.reference numbered "CMD-{YYYY}-{NNNN}"
 
-Ce que la brique décide, et qui n'allait pas de soi :
+What the brick decides, and what did not go without saying:
 
-* **le compteur vit dans une table SYSTÈME.** `MAX(...) + 1` sur la table métier
-  redonnerait le numéro d'un enregistrement supprimé — deux factures avec la
-  même référence — et se tromperait dès que deux créations se croisent.
-  `test_le_numero_ne_recule_pas_apres_une_suppression` le prouve ;
-* **l'attribution vit DANS la transaction de création.** Hors d'elle, une
-  insertion refusée laisserait le compteur avancé ;
-* **le mot-clé n'est pas `reference`.** Il se confondrait avec le nom du champ
-  qu'on lui donne presque toujours : `rule Order.reference reference "…"` ne se
-  lit pas ;
-* **les enregistrements antérieurs restent SANS numéro.** Les numéroter au
-  démarrage prétendrait un ordre d'arrivée que le serveur n'a pas observé — et
-  sur un carnet de commandes, un numéro inventé finit sur une facture. C'est la
-  leçon du point 89, mot pour mot.
+* **the counter lives in a SYSTEM table.** `MAX(...) + 1` over the business
+  table would give back a deleted record's number — two invoices with the
+  same reference — and would go wrong as soon as two creations cross.
+  `test_the_number_does_not_go_back_after_a_deletion` proves it;
+* **assignment lives IN the creation transaction.** Outside it, a refused
+  insertion would leave the counter advanced;
+* **the keyword is not `reference`.** It would be confused with the field name
+  it is almost always given: `rule Order.reference reference "…"` does not
+  read;
+* **earlier records stay WITHOUT a number.** Numbering them at startup would
+  claim an arrival order the server did not observe — and on an order book, an
+  invented number ends up on an invoice. It is point 89's lesson, word for
+  word.
 """
 import json
 import sqlite3
@@ -67,7 +67,7 @@ def _valide(spec):
 
 
 # --------------------------------------------------------------------------
-# Ce que la compilation doit refuser
+# What compilation must refuse
 # --------------------------------------------------------------------------
 
 def test_the_bench_spec_compiles(capsys):
@@ -86,7 +86,7 @@ def test_a_nonexistent_field_is_refused(capsys):
     capsys.readouterr()
 
 
-def test_un_champ_non_texte_est_refuse(capsys):
+def test_a_non_text_field_is_refused(capsys):
     spec = SPEC.replace("    reference: String", "    reference: Integer")
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec)
@@ -94,10 +94,10 @@ def test_un_champ_non_texte_est_refuse(capsys):
     capsys.readouterr()
 
 
-def test_un_champ_uuid_est_refuse_en_le_nommant(capsys):
-    """POINT 101 : c'est le type qu'on est tenté de choisir pour une référence,
-    et depuis ce point-là il vérifie sa forme — un numéro lisible n'y entrerait
-    jamais. Le message doit le DIRE, sinon l'auteur essaie et ne comprend pas."""
+def test_a_uuid_field_is_refused_by_name(capsys):
+    """POINT 101: it is the type one is tempted to choose for a reference, and
+    since that point it checks its form — a readable number would never fit. The
+    message must SAY so, otherwise the author tries and does not understand."""
     spec = SPEC.replace("    reference: String", "    reference: UUID")
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec)
@@ -105,7 +105,7 @@ def test_un_champ_uuid_est_refuse_en_le_nommant(capsys):
     capsys.readouterr()
 
 
-def test_un_champ_masque_est_refuse(capsys):
+def test_a_hidden_field_is_refused(capsys):
     spec = SPEC.replace("rule Commande.reference numbered",
                         "rule Commande.reference hidden\nrule Commande.reference numbered")
     with pytest.raises(ASTValidationError) as refus:
@@ -124,48 +124,48 @@ def test_two_rules_on_the_same_field_are_refused(capsys):
     capsys.readouterr()
 
 
-def test_un_gabarit_sans_sequence_est_refuse(capsys):
-    """LE refus qui porte la brique : sans séquence, tous les enregistrements
-    porteraient le même numéro — ce qui n'en est pas un (point 85)."""
+def test_a_template_without_sequence_is_refused(capsys):
+    """THE refusal that carries the brick: without a sequence, all records would
+    carry the same number — which is not one (point 85)."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace('"CMD-{YYYY}-{NNNN}"', '"CMD-{YYYY}"'))
     assert "has no sequence" in str(refus.value)
     capsys.readouterr()
 
 
-def test_deux_sequences_sont_refusees(capsys):
+def test_two_sequences_are_refused(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace('"CMD-{YYYY}-{NNNN}"', '"CMD-{NN}-{NNNN}"'))
     assert "which one to increment" in str(refus.value)
     capsys.readouterr()
 
 
-def test_un_jalon_inconnu_est_refuse(capsys):
+def test_an_unknown_milestone_is_refused(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace('"CMD-{YYYY}-{NNNN}"', '"CMD-{MOIS}-{NNNN}"'))
     assert "which has no meaning" in str(refus.value)
     capsys.readouterr()
 
 
-def test_une_accolade_orpheline_est_refusee(capsys):
+def test_an_orphan_brace_is_refused(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace('"CMD-{YYYY}-{NNNN}"', '"CMD-{YYYY-{NNNN}"'))
     assert "unmatched brace" in str(refus.value)
     capsys.readouterr()
 
 
-def test_un_mois_sans_annee_est_refuse(capsys):
-    """'CMD-{MM}-{NNNN}' redonne 'CMD-03-0001' tous les mois de mars. L'index
-    unique l'attraperait — un an plus tard, et en production."""
+def test_a_month_without_year_is_refused(capsys):
+    """'CMD-{MM}-{NNNN}' gives 'CMD-03-0001' again every March. The unique index
+    would catch it — a year later, and in production."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace('"CMD-{YYYY}-{NNNN}"', '"CMD-{MM}-{NNNN}"'))
     assert "without '{YYYY}'" in str(refus.value)
     capsys.readouterr()
 
 
-def test_une_borne_sur_un_champ_numerote_est_refusee(capsys):
-    """Héritée du recoupement du point 85 sans une ligne de plus : le champ
-    n'est pas dans le schéma d'entrée, une borne n'aurait nulle part où vivre."""
+def test_a_bound_on_a_numbered_field_is_refused(capsys):
+    """Inherited from point 85's cross-check without one more line: the field is
+    not in the input schema, a bound would have nowhere to live."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC + "rule Commande.reference max 10\n")
     assert "reference" in str(refus.value)
@@ -173,7 +173,7 @@ def test_une_borne_sur_un_champ_numerote_est_refusee(capsys):
 
 
 # --------------------------------------------------------------------------
-# Ce que la génération doit écrire
+# What generation must write
 # --------------------------------------------------------------------------
 
 def _compile(tmp_path, spec=SPEC, nom="p"):
@@ -182,16 +182,16 @@ def _compile(tmp_path, spec=SPEC, nom="p"):
     return contrat, (tmp_path / nom / "app.py").read_text(encoding="utf-8")
 
 
-def test_le_champ_disparait_du_schema_dentree(tmp_path, capsys):
+def test_the_field_leaves_the_input_schema(tmp_path, capsys):
     _, genere = _compile(tmp_path)
     capsys.readouterr()
     debut = genere.index("class CommandeSchema")
     assert "reference" not in genere[debut:debut + 300]
 
 
-def test_le_champ_disparait_du_set_de_modification(tmp_path, capsys):
-    """Un numéro de commande qui change n'est plus une référence : le client
-    l'a noté, le vendeur aussi."""
+def test_the_field_leaves_the_update_set(tmp_path, capsys):
+    """An order number that changes is no longer a reference: the customer wrote
+    it down, so did the seller."""
     _, genere = _compile(tmp_path)
     capsys.readouterr()
     ligne = next(li for li in genere.splitlines() if 'UPDATE "commande" SET' in li)
@@ -199,16 +199,16 @@ def test_le_champ_disparait_du_set_de_modification(tmp_path, capsys):
     assert '"libelle"' in ligne
 
 
-def test_un_index_unique_est_cree_sans_le_declarer(tmp_path, capsys):
-    """Un numéro en double n'est pas un numéro. Exiger 'unique' dans la spec
-    ferait dépendre la garantie d'une ligne qu'on peut oublier d'écrire."""
+def test_a_unique_index_is_created_without_declaring_it(tmp_path, capsys):
+    """A duplicate number is not a number. Requiring 'unique' in the spec would
+    make the guarantee depend on a line one can forget to write."""
     _, genere = _compile(tmp_path)
     capsys.readouterr()
     assert "idx_unique_commande_reference" in genere
 
 
-def test_la_sortie_differe_sans_la_regle(tmp_path, capsys):
-    """POINT 85 : le test qui interdit une règle ne produisant rien."""
+def test_the_output_differs_without_the_rule(tmp_path, capsys):
+    """POINT 85: the test forbidding a rule that produces nothing."""
     _, avec = _compile(tmp_path, SPEC, "avec")
     _, sans = _compile(
         tmp_path, SPEC.replace('rule Commande.reference numbered "CMD-{YYYY}-{NNNN}"\n', ""),
@@ -217,7 +217,7 @@ def test_la_sortie_differe_sans_la_regle(tmp_path, capsys):
     assert avec != sans
 
 
-def test_le_contrat_annonce_un_champ_en_lecture_seule(tmp_path, capsys):
+def test_the_contract_announces_a_read_only_field(tmp_path, capsys):
     contrat, _ = _compile(tmp_path)
     capsys.readouterr()
     champ = next(f for f in contrat["entities"]["Commande"]["fields"]
@@ -272,7 +272,7 @@ def _demarrer(dossier, port):
 def _arreter(processus):
     processus.terminate()
     try:
-        # communicate() lit jusqu'au bout ET ferme les tubes.
+        # communicate() reads to the end AND closes the pipes.
         return processus.communicate(timeout=10)[0].decode("utf-8", "replace")
     except subprocess.TimeoutExpired:
         arreter_processus(processus)
@@ -299,7 +299,7 @@ def _numero(base, identifiant, jeton):
     return reponse["data"]["reference"]
 
 
-def test_les_numeros_se_suivent(carnet):
+def test_the_numbers_follow_each_other(carnet):
     base, jeton, _ = carnet
     numeros = []
     for i in range(3):
@@ -309,16 +309,16 @@ def test_les_numeros_se_suivent(carnet):
     assert numeros == [f"CMD-{annee}-0001", f"CMD-{annee}-0002", f"CMD-{annee}-0003"]
 
 
-def test_le_client_ne_peut_pas_choisir_son_numero(carnet):
-    """Le champ n'est pas dans le schéma : l'envoyer ne fait rien. C'est le
-    comportement de toute la famille des champs peuplés par le serveur."""
+def test_the_client_cannot_choose_its_number(carnet):
+    """The field is not in the schema: sending it does nothing. It is the
+    behavior of the whole family of server-filled fields."""
     base, jeton, _ = carnet
     _, cree = _appel(base + "/commande",
                      {"libelle": "triche", "reference": "CMD-1999-0001"}, jeton)
     assert _numero(base, cree["id"], jeton) != "CMD-1999-0001"
 
 
-def test_le_numero_ne_bouge_pas_a_la_modification(carnet):
+def test_the_number_does_not_move_on_update(carnet):
     base, jeton, _ = carnet
     _, cree = _appel(base + "/commande", {"libelle": "achat"}, jeton)
     avant = _numero(base, cree["id"], jeton)
@@ -329,10 +329,9 @@ def test_le_numero_ne_bouge_pas_a_la_modification(carnet):
     assert _numero(base, cree["id"], jeton) == avant
 
 
-def test_le_numero_ne_recule_pas_apres_une_suppression(carnet):
-    """LA raison d'être de la table système. Avec `MAX(...) + 1`, supprimer la
-    dernière commande ferait RÉATTRIBUER son numéro — deux factures, une seule
-    référence."""
+def test_the_number_does_not_go_back_after_a_deletion(carnet):
+    """THE system table's reason for being. With `MAX(...) + 1`, deleting the
+    last order would REASSIGN its number — two invoices, one reference."""
     base, jeton, _ = carnet
     _, premiere = _appel(base + "/commande", {"libelle": "a"}, jeton)
     _, seconde = _appel(base + "/commande", {"libelle": "b"}, jeton)
@@ -343,15 +342,15 @@ def test_le_numero_ne_recule_pas_apres_une_suppression(carnet):
     assert _numero(base, premiere["id"], jeton).endswith("0001")
 
 
-def test_deux_creations_simultanees_ne_partagent_pas_un_numero(carnet):
-    """Huit créations concurrentes : huit numéros distincts, et aucun échec.
+def test_two_simultaneous_creations_do_not_share_a_number(carnet):
+    """Eight concurrent creations: eight distinct numbers, and no failure.
 
-    Ce que ce test prouve VRAIMENT, et pas plus : que la contention ne produit
-    ni collision, ni « database is locked », ni 500. Il ne départage pas à lui
-    seul un compteur atomique d'un `MAX(...) + 1` — SQLite sérialise les
-    écritures, et cette sérialisation masquerait la différence sous une charge
-    aussi modeste. C'est `test_le_numero_ne_recule_pas_apres_une_suppression`
-    qui tranche entre les deux conceptions."""
+    What this test REALLY proves, and no more: that contention produces neither
+    collision, nor "database is locked", nor 500. It does not by itself settle
+    between an atomic counter and a `MAX(...) + 1` — SQLite serializes writes,
+    and that serialization would hide the difference under such a modest load.
+    `test_the_number_does_not_go_back_after_a_deletion` settles between the two
+    designs."""
     base, jeton, _ = carnet
     obtenus, verrou = [], threading.Lock()
 
@@ -371,9 +370,9 @@ def test_deux_creations_simultanees_ne_partagent_pas_un_numero(carnet):
     assert len(set(numeros)) == 8, numeros
 
 
-def test_une_periode_anterieure_ne_decale_pas_la_sequence(carnet):
-    """La séquence repart à 1 à chaque année : un compteur laissé par l'année
-    passée ne doit pas être repris."""
+def test_an_earlier_period_does_not_shift_the_sequence(carnet):
+    """The sequence restarts at 1 every year: a counter left by last year must
+    not be picked up."""
     base, jeton, dossier = carnet
     connexion = sqlite3.connect(str(dossier / "app.db"))
     connexion.execute(
@@ -385,9 +384,9 @@ def test_une_periode_anterieure_ne_decale_pas_la_sequence(carnet):
     assert _numero(base, cree["id"], jeton).endswith("0001")
 
 
-def test_les_enregistrements_anterieurs_restent_sans_numero(tmp_path):
-    """POINT 89, mot pour mot : la migration additive rattrape une colonne,
-    jamais son contenu. Numéroter après coup inventerait un ordre d'arrivée."""
+def test_earlier_records_stay_without_number(tmp_path):
+    """POINT 89, word for word: the additive migration catches up a column, never
+    its content. Numbering afterwards would invent an arrival order."""
     sans = SPEC.replace('rule Commande.reference numbered "CMD-{YYYY}-{NNNN}"\n', "")
     (tmp_path / "spec.ml").write_text(sans, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
@@ -399,7 +398,7 @@ def test_les_enregistrements_anterieurs_restent_sans_numero(tmp_path):
     _appel(base + "/commande", {"libelle": "avant la règle", "reference": ""}, jeton)
     _arreter(processus)
 
-    # La règle arrive maintenant, sur la base déjà peuplée.
+    # The rule arrives now, on the already populated database.
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     processus, base = _demarrer(tmp_path, _port_libre())
@@ -412,24 +411,24 @@ def test_les_enregistrements_anterieurs_restent_sans_numero(tmp_path):
             'SELECT "reference" FROM "commande" ORDER BY id').fetchall()]
     finally:
         connexion.close()
-    # L'ancienne garde ce qu'elle avait, la nouvelle repart de 1.
+    # The old one keeps what it had, the new one starts again from 1.
     assert refs[-1].endswith("0001")
     assert refs[0] != refs[-1]
     assert "remain unnumbered" in journal or refs[0] == ""
 
 
-def test_un_numero_en_double_rend_409_et_jamais_un_succes(carnet):
-    """CHANTIER A1, défaut trouvé en revue. Le classement des erreurs
-    d'intégrité par SQLSTATE avait laissé l'`except` se terminer SANS `raise` :
-    une intégrité violée d'une espèce non nommée sortait du bloc sans rien
-    lever, et la route continuait jusqu'à son `return {'status': 'success'}` —
-    après un `rollback`. Mesuré ici : la référence en double rendait 500
-    (`UnboundLocalError` sur `row_id`) au lieu d'un 409, et le même trou aurait
-    annoncé écrit ce qui venait d'être défait dès que `row_id` était déjà lié.
+def test_a_duplicate_number_returns_409_never_a_success(carnet):
+    """WORKSTREAM A1, defect found in review. Classifying integrity errors by
+    SQLSTATE had left the `except` ending WITHOUT `raise`: an integrity violation
+    of an unnamed kind left the block raising nothing, and the route went on to
+    its `return {'status': 'success'}` — after a `rollback`. Measured here: the
+    duplicate reference returned 500 (`UnboundLocalError` on `row_id`) instead
+    of a 409, and the same hole would have announced as written what had just
+    been undone as soon as `row_id` was already bound.
 
-    Le compteur remis à zéro n'est pas une hypothèse d'école : c'est ce que
-    produit la restauration d'une sauvegarde partielle. Un `except` qui
-    n'aboutit pas à un `raise` est un `except` qui ment."""
+    The reset counter is not a textbook hypothesis: it is what restoring a
+    partial backup produces. An `except` that does not end in a `raise` is an
+    `except` that lies."""
     base, jeton, dossier = carnet
     code, _ = _appel(base + "/commande", {"libelle": "premiere"}, jeton)
     assert code == 200
@@ -449,19 +448,19 @@ def test_un_numero_en_double_rend_409_et_jamais_un_succes(carnet):
     assert lignes == 1, "l'écriture refusée ne doit rien avoir laissé en base"
 
 
-def test_aucun_except_dintegrite_ne_se_termine_sans_raise(tmp_path):
-    """Le témoin structurel du test précédent : il vaut pour TOUTES les routes,
-    pas seulement celle que le banc exerce. Un bloc d'intégrité qui ne finit pas
-    par un `raise` laisse passer une écriture annulée pour un succès."""
+def test_no_integrity_except_ends_without_raise(tmp_path):
+    """The previous test's structural witness: it holds for ALL routes, not only
+    the one the bench exercises. An integrity block not ending with a `raise` lets
+    a cancelled write pass for a success."""
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     lignes = (tmp_path / "app.py").read_text(encoding="utf-8").splitlines()
 
-    # Le bloc d'intégrité d'`init_db` est EXCLU, et c'est délibéré : sur une
-    # base contenant déjà des doublons, il NOMME le champ et laisse le serveur
-    # tourner (point 85). Lui imposer un `raise` immobiliserait un projet
-    # existant au démarrage. Le témoin ne porte donc que sur les routes, d'où
-    # le découpage au premier décorateur.
+    # `init_db`'s integrity block is EXCLUDED, on purpose: on a database
+    # already containing duplicates, it NAMES the field and lets the server run
+    # (point 85). Forcing a `raise` on it would immobilize an existing project
+    # at startup. The witness is therefore only about the routes, hence the cut
+    # at the first decorator.
     premiere_route = next(i for i, ligne in enumerate(lignes)
                           if ligne.startswith("@app."))
     blocs = [i for i, ligne in enumerate(lignes)

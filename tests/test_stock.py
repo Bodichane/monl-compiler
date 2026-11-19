@@ -1,28 +1,27 @@
-"""Brique 14 : décompter ce que le client a demandé — point 86.
+"""Brick 14: counting down what the client requested — point 86.
 
-Pourquoi cette brique. `decrements` savait retirer une CONSTANTE (`by 3`), ce qui
-convient à une réputation ou à un like. Une boutique a besoin de retirer *ce que
-le client a commandé*, et `exemples/02_boutique.ml` encaissait pour de vrai
-depuis le point 74 sans jamais toucher à son stock : on pouvait commander cinquante
-paires sur douze, et payer.
+Why this brick. `decrements` could subtract a CONSTANT (`by 3`), which suits a
+reputation or a like. A shop needs to subtract *what the client ordered*, and
+`exemples/02_boutique.ml` had been charging for real since point 74 without
+ever touching its stock: one could order fifty pairs out of twelve, and pay.
 
-Ce que la brique décide, et qui n'allait pas de soi :
+What the brick decides, and what did not go without saying:
 
-* **le plancher n'est pas câblé.** Un décompte qui passe sous zéro est un stock
-  qui MENT — la boutique afficherait « -3 disponibles » après avoir encaissé les
-  huit qu'elle n'avait pas. Mais une réputation, elle, a le droit d'être
-  négative. Ce qui distingue les deux n'est pas le nom du champ : c'est la
-  DÉCLARATION `rule Product.stock min 0`, arrivée au point 85. La vérification
-  s'arme donc toute seule, à partir de ce que la spec dit — et reste absente là
-  où rien ne la demande ;
-* **une seule instruction SQL.** Lire le stock puis l'écrire laisserait deux
-  commandes simultanées lire le même chiffre et décompter chacune de son côté.
-  La condition voyage DANS le `UPDATE`, et c'est `rowcount` qui dit si elle a
-  tenu ;
-* **la colonne visée est celle qui pointe vers l'entité décrémentée.** Tant
-  qu'une entité déclenchante n'avait qu'une relation entrante, « la relation
-  propriétaire » et « la cible du décompte » coïncidaient. `OrderLine` en a deux
-  — le bug est décrit plus bas, il a été trouvé en lisant le SQL généré.
+* **the floor is not wired in.** A count going below zero is a stock that LIES
+  — the shop would show "-3 available" after charging for the eight it did not
+  have. But a reputation does have the right to be negative. What tells the
+  two apart is not the field name: it is the DECLARATION
+  `rule Product.stock min 0`, arrived at point 85. The check therefore arms
+  itself, from what the spec says — and stays absent where nothing asks for
+  it;
+* **a single SQL statement.** Reading the stock then writing it would let two
+  simultaneous orders read the same figure and each count down on its own
+  side. The condition travels INSIDE the `UPDATE`, and `rowcount` says whether
+  it held;
+* **the targeted column is the one pointing to the decremented entity.** As
+  long as a triggering entity had only one incoming relation, "the owner
+  relation" and "the counter target" coincided. `OrderLine` has two — the bug
+  is described below, it was found by reading the generated SQL.
 """
 import json
 import sqlite3
@@ -77,13 +76,13 @@ workflow Acheter for Client
     Read Commande
     Create Ligne
     Read Ligne
-    # POINT 91 : `Update Ligne` est ici pour éprouver le décompte au PUT. Sans
-    # cette action, la brique n'avait aucune façon d'être prise en défaut — et
-    # elle l'était : la quantité changeait, le stock non.
+    # POINT 91: `Update Ligne` is here to test counting on PUT. Without this
+    # action, the brick had no way to be caught out — and it was: the quantity
+    # changed, the stock did not.
     Update Ligne
-    # POINT 92 : `Delete Ligne` éprouve la RESTITUTION. Sans cette action, la
-    # brique n'avait toujours aucune façon d'être prise en défaut — et elle
-    # l'était : vider son panier faisait disparaître le stock pour de bon.
+    # POINT 92: `Delete Ligne` tests RESTITUTION. Without this action, the
+    # brick still had no way to be caught out — and it was: emptying one's cart
+    # made the stock disappear for good.
     Delete Ligne
     Create Client
     Read Client
@@ -105,11 +104,11 @@ def _valide(spec):
 
 
 # --------------------------------------------------------------------------
-# Ce que la compilation doit refuser
+# What compilation must refuse
 # --------------------------------------------------------------------------
 
 def test_the_bench_spec_compiles(capsys):
-    """Le témoin des refus qui suivent."""
+    """The witness of the refusals that follow."""
     ast = _valide(SPEC)
     regle = next(r for r in ast["security"]["reputation_rules"]
                  if r["target_field"] == "stock")
@@ -118,14 +117,14 @@ def test_the_bench_spec_compiles(capsys):
     capsys.readouterr()
 
 
-def test_une_quantite_qui_nest_pas_un_champ_est_refusee(capsys):
+def test_a_quantity_that_is_not_a_field_is_refused(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace("by quantite", "by fantome"))
     assert "field does not exist" in str(refus.value)
     capsys.readouterr()
 
 
-def test_une_quantite_non_entiere_est_refusee(capsys):
+def test_a_non_integer_quantity_is_refused(capsys):
     spec = SPEC.replace("    quantite: Integer", "    quantite: Integer\n    note: String")
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec.replace("by quantite", "by note"))
@@ -133,10 +132,9 @@ def test_une_quantite_non_entiere_est_refusee(capsys):
     capsys.readouterr()
 
 
-def test_une_quantite_facultative_est_refusee(capsys):
-    """Même exigence que le multiplicateur de `derivedFrom` (point 77), et pour
-    la même raison : un champ que le client peut omettre ferait décompter sur
-    du vide."""
+def test_an_optional_quantity_is_refused(capsys):
+    """Same requirement as `derivedFrom`'s multiplier (point 77), and for the
+    same reason: a field the client can omit would count down on nothing."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace("rule Ligne.quantite required\n", ""))
     assert "required" in str(refus.value)
@@ -144,18 +142,18 @@ def test_une_quantite_facultative_est_refusee(capsys):
 
 
 # --------------------------------------------------------------------------
-# Ce que la génération doit écrire
+# What generation must write
 # --------------------------------------------------------------------------
 
-def test_le_decompte_vise_la_bonne_cle_etrangere(tmp_path, capsys):
-    """LE bug trouvé en lisant le SQL généré, pas en relisant le code.
+def test_counting_targets_the_right_foreign_key(tmp_path, capsys):
+    """THE bug found by reading the generated SQL, not by rereading the code.
 
-    La quantité était retranchée `WHERE id = data.commande_id` : le stock du
-    produit portant l'id de la COMMANDE. Invisible tant qu'une entité
-    déclenchante n'avait qu'UNE relation entrante (Report -> Member,
-    Like -> Post) ; `Ligne` en a deux. Le compilateur a déjà connu ce défaut
-    (« un mécanisme de clé étrangère qui décrémentait le mauvais
-    enregistrement ») : il est revenu par la porte de la deuxième relation."""
+    The quantity was subtracted `WHERE id = data.commande_id`: the stock of the
+    product carrying the ORDER's id. Invisible as long as a triggering entity had
+    only ONE incoming relation (Report -> Member, Like -> Post); `Ligne` has two.
+    The compiler had already known this defect ("a foreign key mechanism that
+    decremented the wrong record"): it came back through the second relation's
+    door."""
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     capsys.readouterr()
@@ -165,10 +163,10 @@ def test_le_decompte_vise_la_bonne_cle_etrangere(tmp_path, capsys):
     assert "data.commande_id" not in ligne
 
 
-def test_sans_plancher_declare_le_decompte_reste_libre(tmp_path, capsys):
-    """Une réputation a le droit de passer sous zéro. La vérification vient de
-    `min`, pas d'une exception « stock » câblée dans le compilateur : retirer la
-    déclaration doit retirer le garde-fou."""
+def test_without_declared_floor_counting_stays_free(tmp_path, capsys):
+    """A reputation has the right to go below zero. The check comes from `min`,
+    not from a "stock" exception wired into the compiler: removing the declaration
+    must remove the safeguard."""
     (tmp_path / "spec.ml").write_text(SPEC.replace("rule Produit.stock min 0\n", ""),
                                       encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
@@ -229,9 +227,9 @@ def boutique(tmp_path):
                                             "password": "motdepasse1"})
         jeton = jeton["access_token"]
         _appel(base + "/client", {"nom": "Zoe"}, jeton)
-        # Trois commandes pour que l'id retenu DIVERGE de ceux des produits :
-        # avec « commande 1 » et « produit 1 », une confusion de clé étrangère
-        # passerait inaperçue — c'est la leçon de la sonde du point 81.
+        # Three orders so that the kept id DIVERGES from the products': with
+        # "order 1" and "product 1", a foreign key confusion would go unnoticed
+        # — it is the lesson of point 81's probe.
         for _ in range(3):
             _, commande = _appel(base + "/commande", {"statut": "panier"}, jeton)
         _, catalogue = _appel(base + "/produit?limit=20")
@@ -253,7 +251,7 @@ def _stock(base, produit_id):
     return reponse["data"]["stock"]
 
 
-def test_une_commande_decompte_le_stock(boutique):
+def test_an_order_counts_down_the_stock(boutique):
     base, jeton, commande, produits, _ = boutique
     halo = produits["Halo RS"]["id"]
     assert _stock(base, halo) == 3
@@ -264,9 +262,9 @@ def test_une_commande_decompte_le_stock(boutique):
     assert _stock(base, halo) == 1, "le décompte doit valoir la QUANTITÉ, pas 1"
 
 
-def test_commander_plus_que_le_stock_est_refuse(boutique):
-    """Le trou que la brique ferme : avant elle, la boutique encaissait cinquante
-    paires sur douze."""
+def test_ordering_more_than_the_stock_is_refused(boutique):
+    """The hole the brick closes: before it, the shop charged for fifty pairs out
+    of twelve."""
     base, jeton, commande, produits, dossier = boutique
     halo = produits["Halo RS"]["id"]
 
@@ -275,7 +273,7 @@ def test_commander_plus_que_le_stock_est_refuse(boutique):
     assert code == 409
     assert "insufficient" in reponse["detail"]
     assert _stock(base, halo) == 3, "un refus ne doit rien avoir décompté"
-    # Et la ligne ne doit pas exister : le refus arrive DANS la transaction.
+    # And the line must not exist: the refusal comes INSIDE the transaction.
     base_donnees = sqlite3.connect(dossier / "app.db")
     try:
         assert base_donnees.execute("SELECT COUNT(*) FROM ligne").fetchone()[0] == 0
@@ -283,7 +281,7 @@ def test_commander_plus_que_le_stock_est_refuse(boutique):
         base_donnees.close()
 
 
-def test_un_produit_epuise_refuse_toute_ligne(boutique):
+def test_a_sold_out_product_refuses_any_line(boutique):
     base, jeton, commande, produits, _ = boutique
     deck = produits["Deck Low"]["id"]
     assert _stock(base, deck) == 0
@@ -292,9 +290,9 @@ def test_un_produit_epuise_refuse_toute_ligne(boutique):
     assert code == 409
 
 
-def test_le_stock_ne_passe_jamais_sous_zero_meme_en_plusieurs_fois(boutique):
-    """Trois commandes de 1 sur un stock de 3 : les trois passent. La quatrième
-    non. C'est le cumul qui compte, pas chaque requête prise seule."""
+def test_stock_never_goes_below_zero_even_over_several_orders(boutique):
+    """Three orders of 1 on a stock of 3: all three pass. The fourth does not.
+    The cumulative total counts, not each request taken alone."""
     base, jeton, commande, produits, _ = boutique
     halo = produits["Halo RS"]["id"]
     codes = [_appel(base + "/ligne", {"quantite": 1, "commande_id": commande,
@@ -304,9 +302,9 @@ def test_le_stock_ne_passe_jamais_sous_zero_meme_en_plusieurs_fois(boutique):
     assert _stock(base, halo) == 0
 
 
-def test_le_decompte_vise_le_produit_demande_et_pas_un_autre(boutique):
-    """La contre-épreuve du bug de clé étrangère : avec des identifiants
-    volontairement DIVERGENTS, décompter la mauvaise ligne se verrait."""
+def test_counting_targets_the_requested_product_and_no_other(boutique):
+    """The foreign key bug's counter-proof: with deliberately DIVERGENT ids,
+    counting down the wrong row would show."""
     base, jeton, commande, produits, _ = boutique
     halo, deck = produits["Halo RS"]["id"], produits["Deck Low"]["id"]
     assert halo != commande, "identifiants confondus : le test ne prouve rien"
@@ -318,10 +316,10 @@ def test_le_decompte_vise_le_produit_demande_et_pas_un_autre(boutique):
 
 
 # ---------------------------------------------------------------------------
-# POINT 91 : le décompte au PUT. `decrements` ne s'armait qu'à la CRÉATION —
-# créer une ligne à 1 puis la passer à 4 facturait quatre paires et n'en
-# décomptait qu'une. C'est le défaut du point 78 déplacé de l'argent vers la
-# marchandise, et il vivait dans la brique depuis le point 86.
+# POINT 91: counting on PUT. `decrements` only fired on CREATION — creating a
+# line at 1 then setting it to 4 billed four pairs and counted only one. It is
+# point 78's defect moved from money to goods, and it had lived in the brick
+# since point 86.
 
 def _line_of(base, jeton, commande, produit, quantite):
     code, reponse = _appel(base + "/ligne", {"quantite": quantite,
@@ -331,7 +329,7 @@ def _line_of(base, jeton, commande, produit, quantite):
     return reponse["id"]
 
 
-def test_augmenter_la_quantite_decompte_la_difference(boutique):
+def test_increasing_the_quantity_counts_the_difference(boutique):
     base, jeton, commande, produits, _ = boutique
     halo = produits["Halo RS"]["id"]
     ligne = _line_of(base, jeton, commande, halo, 1)
@@ -342,13 +340,14 @@ def test_augmenter_la_quantite_decompte_la_difference(boutique):
                             "produit_id": halo}, jeton, methode="PUT")
 
     assert code == 200, reponse
-    # 3 au départ, 3 commandées : le DELTA de 2 s'ajoute au 1 déjà décompté.
+    # 3 at the start, 3 ordered: the DELTA of 2 is added to the 1 already
+    # counted.
     assert _stock(base, halo) == 0, "le PUT doit décompter la différence"
 
 
-def test_reduire_la_quantite_rend_du_stock(boutique):
-    """Le delta joue dans les deux sens, sans code séparé : `stock - (-2)`
-    repasse au-dessus du plancher, donc la même instruction suffit."""
+def test_reducing_the_quantity_gives_stock_back(boutique):
+    """The delta works both ways, without separate code: `stock - (-2)` goes back
+    above the floor, so the same statement is enough."""
     base, jeton, commande, produits, _ = boutique
     halo = produits["Halo RS"]["id"]
     ligne = _line_of(base, jeton, commande, halo, 3)
@@ -362,9 +361,8 @@ def test_reduire_la_quantite_rend_du_stock(boutique):
     assert _stock(base, halo) == 2
 
 
-def test_une_quantite_qui_depasse_le_stock_est_refusee_au_put(boutique):
-    """Le trou tel qu'il a été mesuré sur une boutique réelle : quatre paires
-    facturées, une seule décomptée."""
+def test_a_quantity_exceeding_the_stock_is_refused_on_put(boutique):
+    """The hole as measured on a real shop: four pairs billed, only one counted."""
     base, jeton, commande, produits, _ = boutique
     halo = produits["Halo RS"]["id"]
     ligne = _line_of(base, jeton, commande, halo, 1)
@@ -382,17 +380,17 @@ def test_une_quantite_qui_depasse_le_stock_est_refusee_au_put(boutique):
 
 
 # --------------------------------------------------------------------------
-# POINT 92 : la restitution — le troisième branchement, celui qu'on oublie
+# POINT 92: restitution — the third branch, the one people forget
 # --------------------------------------------------------------------------
 
-def test_supprimer_une_ligne_rend_le_stock(boutique):
-    """LE défaut, mesuré sur `projets/SneakerLab` contre un vrai serveur :
-    commander trois paires puis vider son panier laissait le stock à 9 sur 12.
+def test_deleting_a_line_gives_the_stock_back(boutique):
+    """THE defect, measured on `projets/SneakerLab` against a real server:
+    ordering three pairs then emptying one's cart left the stock at 9 out of 12.
 
-    Le décompte s'armait à la création (point 86) puis à la modification
-    (point 91), jamais à la suppression. Le total du parent, lui, redescendait
-    bien à zéro depuis le point 82 — donc une base qui se contredisait
-    elle-même, et un catalogue qui s'épuise sans qu'une paire soit vendue."""
+    Counting fired on creation (point 86) then on update (point 91), never on
+    deletion. The parent total, meanwhile, did go back to zero since point 82 —
+    hence a database contradicting itself, and a catalog running out without a
+    pair being sold."""
     base, jeton, commande, produits, _ = boutique
     halo = produits["Halo RS"]["id"]
     depart = _stock(base, halo)
@@ -405,10 +403,10 @@ def test_supprimer_une_ligne_rend_le_stock(boutique):
     assert _stock(base, halo) == depart, "la ligne supprimée n'a pas rendu son stock"
 
 
-def test_la_restitution_rend_la_quantite_COURANTE_pas_celle_de_la_creation(boutique):
-    """Créée à 1 puis passée à 3, la ligne a consommé 3 : c'est 3 qu'elle doit
-    rendre. La quantité est relue EN BASE au moment de la suppression — la lire
-    ailleurs rendrait la valeur d'origine et laisserait deux paires évaporées."""
+def test_restitution_gives_back_the_CURRENT_quantity_not_the_creation_one(boutique):
+    """Created at 1 then set to 3, the line consumed 3: it must give back 3. The
+    quantity is reread FROM THE DATABASE at deletion time — reading it elsewhere
+    would give back the original value and leave two pairs evaporated."""
     base, jeton, commande, produits, _ = boutique
     halo = produits["Halo RS"]["id"]
     depart = _stock(base, halo)
@@ -422,11 +420,11 @@ def test_la_restitution_rend_la_quantite_COURANTE_pas_celle_de_la_creation(bouti
     assert _stock(base, halo) == depart
 
 
-def test_la_restitution_vise_le_produit_de_la_ligne_et_pas_un_autre(boutique):
-    """Même piège qu'au point 86, sur l'autre branchement : `Ligne` a DEUX
-    relations entrantes, et rendre le stock au produit portant l'id de la
-    COMMANDE serait invisible tant que les deux id coïncident. Le banc fait
-    diverger les identifiants exprès."""
+def test_restitution_targets_the_lines_product_and_no_other(boutique):
+    """Same trap as at point 86, on the other branch: `Ligne` has TWO incoming
+    relations, and giving the stock back to the product carrying the ORDER's id
+    would be invisible as long as the two ids coincide. The bench makes the ids
+    diverge on purpose."""
     base, jeton, commande, produits, _ = boutique
     halo, deck = produits["Halo RS"]["id"], produits["Deck Low"]["id"]
     depart_halo, depart_deck = _stock(base, halo), _stock(base, deck)
@@ -438,10 +436,10 @@ def test_la_restitution_vise_le_produit_de_la_ligne_et_pas_un_autre(boutique):
     assert _stock(base, deck) == depart_deck, "le stock d'un autre produit a bougé"
 
 
-def test_vider_puis_recommander_ne_perd_aucune_unite(boutique):
-    """La contre-épreuve du cycle complet : trois allers-retours ne doivent pas
-    grignoter le catalogue. C'est la forme sous laquelle le défaut se voyait en
-    production — un stock qui ne descend que dans un sens."""
+def test_emptying_then_reordering_loses_no_unit(boutique):
+    """The full cycle's counter-proof: three round trips must not nibble away at
+    the catalog. It is the form in which the defect showed in production — a
+    stock that only goes one way."""
     base, jeton, commande, produits, _ = boutique
     halo = produits["Halo RS"]["id"]
     depart = _stock(base, halo)
@@ -451,11 +449,11 @@ def test_vider_puis_recommander_ne_perd_aucune_unite(boutique):
     assert _stock(base, halo) == depart
 
 
-def test_la_restitution_ne_porte_pas_de_plancher(tmp_path, capsys):
-    """Décision assumée : rendre ne se refuse pas. La restitution rétablit un
-    état qui a existé et qui était valide — un `decrements` rendu ne fait que
-    remonter. Un garde-fou ici interdirait d'annuler une commande, c'est-à-dire
-    exactement ce que la brique répare."""
+def test_restitution_carries_no_floor(tmp_path, capsys):
+    """A deliberate decision: giving back is never refused. Restitution restores
+    a state that existed and was valid — a returned `decrements` only goes up. A
+    safeguard here would forbid cancelling an order, that is exactly what the
+    brick repairs."""
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     capsys.readouterr()
@@ -463,15 +461,15 @@ def test_la_restitution_ne_porte_pas_de_plancher(tmp_path, capsys):
     bloc = genere.split("def delete_ligne(")[1].split("\n@app.")[0]
     rendu = next(li for li in bloc.splitlines() if '"stock" + ?' in li)
     assert ">= ?" not in rendu, "la restitution ne doit porter aucune condition"
-    # Et elle rend au produit de la ligne : la colonne est nommée dans la
-    # lecture qui précède, la restitution en réutilise la valeur.
+    # And it gives back to the line's product: the column is named in the
+    # preceding read, restitution reuses its value.
     assert 'SELECT "quantite", "produit_id"' in bloc
 
 
-def test_la_restitution_lit_la_ligne_avant_de_la_supprimer(tmp_path, capsys):
-    """Après le DELETE, la ligne n'existe plus et sa clé étrangère avec elle :
-    plus rien ne dit quoi rendre ni à qui. Même leçon qu'au point 82 pour
-    l'agrégation — l'ordre des deux instructions EST la brique."""
+def test_restitution_reads_the_line_before_deleting_it(tmp_path, capsys):
+    """After the DELETE, the line no longer exists and its foreign key with it:
+    nothing says any more what to give back nor to whom. Same lesson as at point
+    82 for aggregation — the order of the two statements IS the brick."""
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     capsys.readouterr()
@@ -483,7 +481,7 @@ def test_la_restitution_lit_la_ligne_avant_de_la_supprimer(tmp_path, capsys):
 
 
 # --------------------------------------------------------------------------
-# POINT 92 : la variable qui fuyait d'une branche à l'autre
+# POINT 92: the variable that leaked from one branch to another
 # --------------------------------------------------------------------------
 
 SPEC_SANS_CREATE = """app SansCreate
@@ -504,12 +502,11 @@ workflow Consulter for Client
 """
 
 
-def test_un_update_sans_aucun_create_compile(tmp_path, capsys):
-    """RÉGRESSION (point 91 → 92) : le décompte au PUT lisait
-    `reputation_rules_here`, variable assignée dans la branche `Create`. Une
-    spec qui n'a aucun `Create` faisait donc PLANTER le compilateur —
-    « cannot access local variable ». Aucun exemple ni test n'exerçait ce
-    chemin : toutes les specs du dépôt créent quelque chose."""
+def test_an_update_without_any_create_compiles(tmp_path, capsys):
+    """REGRESSION (point 91 → 92): counting on PUT read `reputation_rules_here`,
+    a variable assigned in the `Create` branch. A spec with no `Create` therefore
+    CRASHED the compiler — "cannot access local variable". No example or test
+    exercised this path: every spec in the repository creates something."""
     (tmp_path / "spec.ml").write_text(SPEC_SANS_CREATE, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     capsys.readouterr()
@@ -551,15 +548,15 @@ workflow Acheter for Client
 """
 
 
-def test_les_regles_de_decompte_ne_fuient_pas_dune_entite_a_lautre(tmp_path, capsys):
-    """L'autre face de la même régression, et la plus sournoise : la branche
-    `Update` héritait des règles de la DERNIÈRE entité créée. `Avis` ne porte
-    aucun `decrements` — modifier un avis décomptait pourtant le stock d'un
-    produit (vérifié dans le SQL généré avant correction).
+def test_counting_rules_do_not_leak_from_one_entity_to_another(tmp_path, capsys):
+    """The other face of the same regression, and the sneakiest: the `Update`
+    branch inherited the rules of the LAST created entity. `Avis` carries no
+    `decrements` — yet updating a review counted down a product's stock (checked
+    in the generated SQL before the fix).
 
-    La coïncidence qui masquait le défaut : quand `Create X` précède
-    immédiatement `Update X`, la variable contient les bonnes règles. Il suffit
-    qu'une autre entité s'intercale pour que ce ne soit plus vrai."""
+    The coincidence that hid the defect: when `Create X` immediately precedes
+    `Update X`, the variable contains the right rules. Another entity slipping in
+    between is enough for that to no longer hold."""
     (tmp_path / "spec.ml").write_text(SPEC_FUITE, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     capsys.readouterr()
