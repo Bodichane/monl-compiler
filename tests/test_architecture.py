@@ -40,7 +40,7 @@ def _grammar_literals():
     litteraux = frozenset(
         re.findall(r'"([a-zA-Z][a-zA-Z_]{1,24})"', productions))
     if not litteraux:
-        raise AssertionError("la grammaire ne fournit aucun littéral à vérifier")
+        raise AssertionError("the grammar provides no literal to check")
     return litteraux
 
 
@@ -174,7 +174,7 @@ def test_the_architecture_boundaries_hold():
     for source, interdits, pourquoi in INTERDITS:
         for cible in _depends_on(source) & set(interdits):
             violations.append(f"{source} → {cible} : {pourquoi}")
-    assert not violations, "frontières franchies :\n  " + "\n  ".join(violations)
+    assert not violations, "boundaries crossed:\n  " + "\n  ".join(violations)
 
 
 def test_the_compiler_stays_usable_alone():
@@ -242,9 +242,9 @@ def test_each_contract_applies_to_a_module_the_graph_knows():
     architecture test stops looking."""
     inconnus = [source for source, _, _ in INTERDITS if source not in MODULES]
     assert not inconnus, (
-        "contrat sans module : " + ", ".join(inconnus)
-        + " — MODULES est lu sur le disque, un renommage ou un passage en "
-          "paquet a dû casser la correspondance")
+        "contract without module: " + ", ".join(inconnus)
+        + " — MODULES is read from disk, a rename or a move to a "
+          "package must have broken the mapping")
 
 
 def test_the_validator_base_reads_nothing_from_its_package():
@@ -261,8 +261,8 @@ def test_the_validator_base_reads_nothing_from_its_package():
                for noeud in ast.walk(arbre)
                if isinstance(noeud, ast.ImportFrom) and noeud.level == 1]
     assert not voisins, (
-        "le socle lit son propre paquet : " + ", ".join(voisins)
-        + " — il doit ne dépendre que de la stdlib et de `..errors`")
+        "the base reads its own package: " + ", ".join(voisins)
+        + " — it must depend only on the stdlib and `..errors`")
 
 
 def test_no_ruff_exception_targets_a_vanished_file():
@@ -287,9 +287,9 @@ def test_no_ruff_exception_targets_a_vanished_file():
     absents = [chemin for chemin in ignores
                if not os.path.exists(os.path.join(racine, chemin))]
     assert not absents, (
-        "exception ruff sur un fichier disparu : " + ", ".join(absents)
-        + " — la déplacer sur le nouveau chemin, ou la retirer si elle n'a "
-          "plus lieu d'être")
+        "ruff exception on a vanished file: " + ", ".join(absents)
+        + " — move it to the new path, or remove it if it is no "
+          "longer needed")
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -344,8 +344,8 @@ def test_no_src_file_exceeds_the_ceiling():
         if n > PLAFOND_FICHIER and rel not in EXCEPTIONS_DE_TAILLE:
             trop[rel] = n
     assert not trop, (
-        f"fichiers au-dessus de {PLAFOND_FICHIER} lignes sans exception "
-        f"écrite : {trop}")
+        f"files above {PLAFOND_FICHIER} lines without a written "
+        f"exception: {trop}")
 
 
 def test_no_function_exceeds_the_ceiling():
@@ -373,11 +373,11 @@ def test_each_size_exception_targets_a_file_still_over():
         with open(chemin, encoding="utf-8") as fh:
             tailles[rel] = len(fh.read().splitlines())
     for rel, raison in EXCEPTIONS_DE_TAILLE.items():
-        assert rel in tailles, f"exception sur un fichier disparu : {rel}"
+        assert rel in tailles, f"exception on a vanished file: {rel}"
         assert tailles[rel] > PLAFOND_FICHIER, (
-            f"{rel} tient désormais dans {PLAFOND_FICHIER} lignes "
-            f"({tailles[rel]}) : retirer l'exception")
-        assert len(raison) > 40, f"exception sans raison écrite : {rel}"
+            f"{rel} now fits in {PLAFOND_FICHIER} lines "
+            f"({tailles[rel]}): remove the exception")
+        assert len(raison) > 40, f"exception without a written reason: {rel}"
 
 
 # ---- Cyclomatic complexity ---------------------------------------------
@@ -487,7 +487,7 @@ def test_no_src_function_exceeds_the_complexity_ceiling():
     violations = _complexity_violations(
         _src_functions(), EXCEPTIONS_DE_COMPLEXITE)
     assert not violations, (
-        f"fonctions au-dessus de {PLAFOND_COMPLEXITE} sans cliquet valide : "
+        f"functions above {PLAFOND_COMPLEXITE} without a valid ratchet: "
         f"{violations}")
 
 
@@ -504,14 +504,14 @@ def test_each_complexity_exception_is_still_needed():
     """
     fonctions = dict(_src_functions())
     for nom, (valeur, raison) in EXCEPTIONS_DE_COMPLEXITE.items():
-        assert nom in fonctions, f"exception sur une fonction disparue : {nom}"
+        assert nom in fonctions, f"exception on a vanished function: {nom}"
         assert fonctions[nom] > PLAFOND_COMPLEXITE, (
-            f"{nom} tient désormais dans {PLAFOND_COMPLEXITE} lignes de score "
-            f"({fonctions[nom]}) : retirer l'exception")
+            f"{nom} now fits in {PLAFOND_COMPLEXITE} score lines "
+            f"({fonctions[nom]}): remove the exception")
         assert fonctions[nom] == valeur, (
-            f"{nom} a changé de score ({fonctions[nom]} au lieu de {valeur}) : "
-            "mettre à jour le code ou le cliquet après revue")
-        assert len(raison) > 40, f"exception sans raison écrite : {nom}"
+            f"{nom} changed score ({fonctions[nom]} instead of {valeur}): "
+            "update the code or the ratchet after review")
+        assert len(raison) > 40, f"exception without a written reason: {nom}"
 
 
 def test_the_complexity_counter_counts_the_announced_constructs():
@@ -608,8 +608,8 @@ def test_no_test_skips_for_lack_of_a_library():
                 fautifs.append(f"{nom}:{noeud.lineno}")
 
     assert not fautifs, (
-        "importorskip rend du vert sans vérifier — déclarer la bibliothèque "
-        "dans l'extra `dev` : " + ", ".join(fautifs))
+        "importorskip returns green without checking — declare the library "
+        "in the `dev` extra: " + ", ".join(fautifs))
 
 
 def test_every_platform_static_file_is_shipped_in_the_package():
@@ -640,13 +640,13 @@ def test_every_platform_static_file_is_shipped_in_the_package():
 
     presents = sorted(nom for nom in os.listdir(statiques)
                       if os.path.isfile(os.path.join(statiques, nom)))
-    assert presents, "aucun fichier statique : ce test ne garde plus rien"
+    assert presents, "no static file: this test no longer guards anything"
     absents = [nom for nom in presents
                if not any(fnmatch.fnmatch(f"static/{nom}", m) for m in motifs)]
 
     assert not absents, (
-        "ces fichiers ne seront PAS installés avec le paquet — ajouter leur "
-        f"motif à [tool.setuptools.package-data] : {', '.join(absents)}")
+        "these files will NOT be installed with the package — add their "
+        f"pattern to [tool.setuptools.package-data]: {', '.join(absents)}")
 
 
 def test_no_test_mounts_the_platform_with_testclient():
@@ -683,8 +683,8 @@ def test_no_test_mounts_the_platform_with_testclient():
                         fautifs.append(f"{nom}:{noeud.lineno}")
 
     assert not fautifs, (
-        "TestClient exige httpx2 et n'exerce pas le vrai serveur — monter un "
-        "uvicorn éphémère à la place : " + ", ".join(fautifs))
+        "TestClient requires httpx2 and does not exercise the real server — mount an "
+        "ephemeral uvicorn instead: " + ", ".join(fautifs))
 
 
 def _ouvertures_sqlite_nues(source, nom):
@@ -727,8 +727,8 @@ def test_no_sqlite_connection_is_opened_by_a_bare_with():
             fautifs += [f"{chemin.relative_to(racine)}:{ligne}"
                         for ligne in _ouvertures_sqlite_nues(source, str(chemin))]
     assert not fautifs, (
-        "`with sqlite3.connect(...)` valide sans fermer — utiliser "
-        "tests.support.sqlite.sqlite_db : " + ", ".join(fautifs))
+        "`with sqlite3.connect(...)` commits without closing — use "
+        "tests.support.sqlite.sqlite_db: " + ", ".join(fautifs))
 
 
 OUVERTURES_A_FERMER = {"open", "io.open", "codecs.open", "urllib.request.urlopen", "urlopen"}
@@ -762,8 +762,8 @@ def test_no_file_or_http_response_is_opened_outside_a_with():
             fautifs += [f"{chemin.relative_to(racine)}:{ligne}"
                         for ligne in _ouvertures_hors_with(source, str(chemin))]
     assert not fautifs, (
-        "ouverture hors `with` : le fichier ou la réponse ne sera fermé que par "
-        "le ramasse-miettes — " + ", ".join(fautifs))
+        "opening outside `with`: the file or response will only be closed by "
+        "the garbage collector — " + ", ".join(fautifs))
 
 
 def test_the_outside_with_opening_extractor_sees_the_pattern():
@@ -932,10 +932,10 @@ def test_the_libraries_tests_need_are_in_dev():
                               f"importé par {sorted(fichiers)[0]})")
 
     assert not manquantes, (
-        f"la CI installe `.[dev,postgres]` et n'y trouvera pas : {manquantes}. "
-        f"Les tests qui en dépendent échoueront à la collecte, ou sauteront — "
-        f"et un saut ne dit pas « rien à vérifier », il dit « je n'ai pas "
-        f"vérifié » (point 140). Non mesurables ici : {non_mesurables or 'aucun'}")
+        f"CI installs `.[dev,postgres]` and will not find: {manquantes}. "
+        f"The tests depending on them will fail at collection, or skip — "
+        f"and a skip does not say \"nothing to check\", it says \"I did not "
+        f"check\" (point 140). Not measurable here: {non_mesurables or 'none'}")
 
 
 # Modules that entered the standard library AFTER the minimum version declared
@@ -964,7 +964,7 @@ def test_no_test_imports_at_top_a_module_missing_from_the_minimum_version():
     dossier = os.path.dirname(os.path.abspath(__file__))
     fichiers = sorted(nom for nom in os.listdir(dossier)
                       if nom.startswith("test_") and nom.endswith(".py"))
-    assert fichiers, "aucun fichier de test lu : ce témoin ne garde plus rien"
+    assert fichiers, "no test file read: this witness no longer guards anything"
 
     fautes = []
     for nom_fichier in fichiers:
@@ -985,8 +985,8 @@ def test_no_test_imports_at_top_a_module_missing_from_the_minimum_version():
                         f"déclaré 3.10)")
 
     assert not fautes, (
-        "import(s) de tête absent(s) de la version minimale — la collecte du "
-        "fichier ENTIER échoue sur cette version : " + " ; ".join(fautes))
+        "top-level import(s) missing from the minimum version — collection of "
+        "the WHOLE file fails on that version: " + " ; ".join(fautes))
 
 
 def test_the_keyword_extractor_does_not_look_at_nothing():
@@ -1025,8 +1025,8 @@ def test_the_keyword_reference_names_nothing_that_vanished():
     annonces = set(re.findall(r"`([a-zA-Z][a-zA-Z_]{1,24})`", reference))
     fantomes = sorted(annonces - reels)
     assert not fantomes, (
-        "la référence de CLAUDE.md annonce des mots-clés que la grammaire "
-        "n'implémente pas : " + ", ".join(fantomes))
+        "CLAUDE.md's reference announces keywords the grammar "
+        "does not implement: " + ", ".join(fantomes))
 
 
 def test_every_grammar_keyword_is_named_in_claude():
@@ -1043,7 +1043,7 @@ def test_every_grammar_keyword_is_named_in_claude():
         mot for mot in _grammar_literals()
         if not _written_as_code(memoire, mot))
     assert not absents, (
-        "mots-clés de la grammaire absents de CLAUDE.md : "
+        "grammar keywords missing from CLAUDE.md: "
         + ", ".join(absents))
 
 
@@ -1089,12 +1089,12 @@ def test_each_python_test_exercises_an_assertion():
                 else:
                     sans_temoin.append(f"{identifiant}:{fonction.lineno}")
     assert len(fonctions) >= 1000, f"extracteur de tests trop pauvre : {len(fonctions)}"
-    assert not sans_temoin, "tests sans assertion : " + ", ".join(sans_temoin)
+    assert not sans_temoin, "tests without assertion: " + ", ".join(sans_temoin)
     # An exemption no longer used (test gone, or now carrying an assertion)
     # makes the test fail: otherwise it would silently excuse the next test
     # taking that name (point 155).
     perimees = sorted(set(exemptions) - exemptions_servies)
-    assert not perimees, "exemptions qui ne servent plus : " + ", ".join(perimees)
+    assert not perimees, "exemptions no longer needed: " + ", ".join(perimees)
 
 
 def test_language_compatibility_ratchet():
@@ -1123,5 +1123,5 @@ def test_language_extractor_refuses_empty_grammar(monkeypatch):
     import pytest
 
     monkeypatch.setitem(globals(), "grammar", "TYPE: /[A-Z]+/")
-    with pytest.raises(AssertionError, match="aucun littéral"):
+    with pytest.raises(AssertionError, match="no literal"):
         _grammar_literals()

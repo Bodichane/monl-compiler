@@ -135,7 +135,7 @@ def test_no_client_value_is_pasted_into_sql_text(app_source):
                   'id = (named_row', 'id = named_row',
                   '= (data.', "WHERE id = (named_row"):
         assert motif not in app_source, (
-            f"valeur client collée dans le texte SQL : {motif!r} (point 107)")
+            f"client value pasted into the SQL text: {motif!r} (point 107)")
 
 
 def test_transitive_checks_bind_their_value(app_source):

@@ -266,7 +266,7 @@ def _demarrer(dossier, port):
         except OSError:
             time.sleep(0.25)
     arreter_processus(processus)
-    pytest.fail("le serveur n'a jamais répondu")
+    pytest.fail("the server never answered")
 
 
 def _arreter(processus):
@@ -439,13 +439,13 @@ def test_a_duplicate_number_returns_409_never_a_success(carnet):
     conn.close()
 
     code, reponse = _appel(base + "/commande", {"libelle": "doublon"}, jeton)
-    assert code == 409, f"attendu 409, reçu {code} : {reponse}"
+    assert code == 409, f"expected 409, got {code}: {reponse}"
     assert "status" not in reponse or reponse.get("status") != "success"
 
     conn = sqlite3.connect(str(dossier / "app.db"))
     lignes = conn.execute("SELECT COUNT(*) FROM commande").fetchone()[0]
     conn.close()
-    assert lignes == 1, "l'écriture refusée ne doit rien avoir laissé en base"
+    assert lignes == 1, "the refused write must have left nothing in the database"
 
 
 def test_no_integrity_except_ends_without_raise(tmp_path):
@@ -465,7 +465,7 @@ def test_no_integrity_except_ends_without_raise(tmp_path):
                           if ligne.startswith("@app."))
     blocs = [i for i, ligne in enumerate(lignes)
              if "except _DATABASE_INTEGRITY_ERRORS" in ligne and i > premiere_route]
-    assert blocs, "aucun bloc d'intégrité généré : le témoin ne prouverait rien"
+    assert blocs, "no integrity block generated: the witness would prove nothing"
     for depart in blocs:
         indentation = len(lignes[depart]) - len(lignes[depart].lstrip())
         derniere = None
@@ -477,5 +477,5 @@ def test_no_integrity_except_ends_without_raise(tmp_path):
             derniere = ligne.strip()
         assert derniere is not None
         assert derniere.startswith("raise") or derniere.endswith("))"), (
-            f"le bloc d'intégrité ligne {depart + 1} se termine par {derniere!r} : "
-            "il doit aboutir à un raise")
+            f"the integrity block at line {depart + 1} ends with {derniere!r}: "
+            "it must end in a raise")

@@ -106,7 +106,7 @@ def test_every_required_text_field_is_also_bounded():
                     manquants.append(f"{modele['name']} ({reponse}) : "
                                      f"{entite}.{champ} ({type_})")
     assert not manquants, (
-        "un champ texte obligatoire sans plancher accepte la chaîne vide :\n  "
+        "a required text field without a floor accepts the empty string:\n  "
         + "\n  ".join(manquants))
 
 
@@ -126,7 +126,7 @@ def test_a_first_numeric_field_gets_no_floor():
                         calculated=set())
         assert "rule Commande.total required" in lignes, type_
         assert "rule Commande.total min 1" not in lignes, (
-            f"un plancher sur du {type_} interdirait la valeur zéro : {lignes}")
+            f"a floor on {type_} would forbid the value zero: {lignes}")
 
 
 def test_a_first_text_field_gets_its_floor():

@@ -95,7 +95,7 @@ def _rss_mio(pid):
     for ligne in contenu.splitlines():
         if ligne.startswith("VmRSS:"):
             return int(ligne.split()[1]) / 1024
-    pytest.fail("VmRSS absent de /proc/<pid>/status : la mesure serait muette")
+    pytest.fail("VmRSS missing from /proc/<pid>/status: the measurement would be mute")
 
 
 @contextlib.contextmanager
@@ -133,7 +133,7 @@ def _plateforme_mesurable(workspace, **environnement):
         try:
             for _ in range(160):
                 if processus.poll() is not None:
-                    pytest.fail(_diagnostic("la plateforme s'est arrêtée", journal))
+                    pytest.fail(_diagnostic("the platform stopped", journal))
                 try:
                     if requests.get(base + "/health", timeout=1).status_code == 200:
                         break
@@ -141,7 +141,7 @@ def _plateforme_mesurable(workspace, **environnement):
                     pass
                 time.sleep(0.25)
             else:
-                pytest.fail(_diagnostic("la plateforme n'a jamais répondu", journal))
+                pytest.fail(_diagnostic("the platform never answered", journal))
             yield base, processus
         finally:
             if processus.poll() is None:
@@ -222,10 +222,10 @@ def test_the_platform_refuses_a_huge_body_without_keeping_it(tmp_path):
     # for the same reason as the existing witness, and this file would guard
     # nothing more (point 170).
     assert croissance < MARGE_MIO, (
-        f"le serveur a grossi de {croissance:.1f} Mio en recevant "
-        f"{POUSSE_MIO} Mio : le corps est matérialisé avant d'être refusé"
+        f"the server grew by {croissance:.1f} MiB while receiving "
+        f"{POUSSE_MIO} MiB: the body is materialized before being refused"
     )
-    assert statut == 413, f"réponse {statut} au lieu d'un refus de taille"
+    assert statut == 413, f"response {statut} instead of a size refusal"
 
 
 def test_the_relay_refuses_a_huge_body_without_keeping_it(tmp_path):
@@ -267,7 +267,7 @@ def test_the_relay_refuses_a_huge_body_without_keeping_it(tmp_path):
         amorce = requests.get(base + "/note",
                               headers={"Host": "memoire.localhost"}, timeout=60)
         assert amorce.status_code == 200, (
-            f"le relais n'a pas atteint le site ({amorce.status_code}) : "
+            f"the relay did not reach the site ({amorce.status_code}): "
             f"{amorce.text[:200]}")
         repos = _rss_mio(processus.pid)
         statut, pic, _ = _push_and_measure(base, "/note", processus.pid,
@@ -275,7 +275,7 @@ def test_the_relay_refuses_a_huge_body_without_keeping_it(tmp_path):
         croissance = pic - repos
 
     assert croissance < SEUIL_RELAIS_MIO, (
-        f"le relais a grossi de {croissance:.1f} Mio en recevant "
-        f"{POUSSE_MIO} Mio : il accumule au-delà de sa propre borne"
+        f"the relay grew by {croissance:.1f} MiB while receiving "
+        f"{POUSSE_MIO} MiB: it accumulates beyond its own bound"
     )
-    assert statut == 413, f"réponse {statut} au lieu d'un refus de taille"
+    assert statut == 413, f"response {statut} instead of a size refusal"

@@ -47,7 +47,7 @@ def _diagnostic(entete, journal, module, directory):
     return (f"{entete}\n"
             f"module={module!r} dossier={directory!r}\n"
             f"--- sortie d'uvicorn ---\n"
-            f"{sortie or '(le serveur n a rien ecrit)'}")
+            f"{sortie or '(the server wrote nothing)'}")
 
 
 @contextlib.contextmanager
@@ -102,7 +102,7 @@ def uvicorn_server(directory, *, env=None, module="app:app",
             for _ in range(attempts):
                 if process.poll() is not None:
                     pytest.fail(_diagnostic(
-                        "le serveur uvicorn s'est arrêté avant de répondre "
+                        "the uvicorn server stopped before answering "
                         f"(code {process.returncode})",
                         journal, module, directory))
                 try:
@@ -114,8 +114,8 @@ def uvicorn_server(directory, *, env=None, module="app:app",
                 time.sleep(0.25)
             else:
                 pytest.fail(_diagnostic(
-                    f"le serveur uvicorn n'a jamais répondu sur {ready_path} "
-                    f"après {attempts} essais",
+                    f"the uvicorn server never answered on {ready_path} "
+                    f"after {attempts} attempts",
                     journal, module, directory))
             yield base_url
         finally:

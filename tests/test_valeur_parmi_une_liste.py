@@ -249,7 +249,7 @@ def server(tmp_path):
             except OSError:
                 time.sleep(0.25)
         else:
-            pytest.fail("le serveur n'a jamais répondu")
+            pytest.fail("the server never answered")
         _appel(base + "/register", {"username": "zoe", "password": "motdepasse1",
                                     "actor": "Client"})
         _, jeton = _appel(base + "/login", {"username": "zoe",

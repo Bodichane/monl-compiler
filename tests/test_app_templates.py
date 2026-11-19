@@ -168,7 +168,7 @@ def test_catalog_has_ten_templates_and_free_mode():
     assert len(TEMPLATES) == 10
     assert FREE_MODE_LABEL
     names = [t["name"] for t in TEMPLATES]
-    assert len(set(names)) == 10, "noms de modèles dupliqués"
+    assert len(set(names)) == 10, "duplicated template names"
 
 
 def test_shop_options_woven_down_to_the_seeds():
@@ -304,14 +304,14 @@ def test_the_contract_sees_the_derived_filter_and_sort(tmp_path):
     contract = compile_project(str(spec_path), str(tmp_path))
     signature = _contract_signature(contract)
     listes = [k for k in signature[6] if k.startswith("list capabilities of ")]
-    assert listes, "le contrat ne porte aucune capacité de liste"
+    assert listes, "the contract carries no list capability"
 
     # COUNTER-PROOF: removing the sort rule must CHANGE the signature. A first
     # version compared the modified spec with the original spec — it therefore
     # measured nothing of the signature, and a `replace` not finding its target
     # turned it green. We compile BOTH and compare what the contract carries.
     ligne_de_tri = "rule Order.Read sort creeLe"
-    assert ligne_de_tri in spec, "la règle dérivée a changé de forme"
+    assert ligne_de_tri in spec, "the derived rule changed shape"
     ampute = spec.replace(ligne_de_tri + "\n", "")
     assert ampute != spec
     autre = tmp_path / "ampute"
@@ -320,8 +320,8 @@ def test_the_contract_sees_the_derived_filter_and_sort(tmp_path):
     signature_amputee = _contract_signature(
         compile_project(str(autre / "spec.ml"), str(autre)))
     assert signature_amputee[6] != signature[6], (
-        "le contrat ne suit pas le tri : monl update dirait « aucun "
-        "changement d'interface » en laissant un écran à refaire")
+        "the contract does not follow the sort: monl update would say \"no "
+        "interface change\" leaving a screen to redo")
 
 
 def test_a_public_listing_never_gets_an_upload(tmp_path):
@@ -430,7 +430,7 @@ def test_catalog_never_mutated_between_two_runs():
     # The category stays optional (stock has become standard): it is therefore
     # what distinguishes an "all yes" run from an "all no" one.
     assert "category: String" in spec_oui
-    assert "category: String" not in spec_non, "le catalogue a été muté !"
+    assert "category: String" not in spec_non, "the catalog was mutated!"
 
 
 # ---- Elements that became standard (point 60) ----
@@ -451,8 +451,8 @@ def test_standard_elements_are_no_longer_questions():
         spec = _run_template(index, "n", want_seed=False)   # EVERYTHING refused
         for attendu in attendus:
             assert attendu in spec, (
-                f"modèle {index} ({TEMPLATES[index - 1]['name']}) : « {attendu} » "
-                f"devrait être acquis, il manque quand tout est refusé")
+                f"template {index} ({TEMPLATES[index - 1]['name']}): \"{attendu}\" "
+                f"should be standard, it is missing when everything is refused")
 
 
 def test_editorial_sections_are_asked_not_offered():
@@ -477,9 +477,9 @@ def test_editorial_sections_are_asked_not_offered():
     spec = GuidedDialogue(ask=ask).run()
     for section in tpl["sections"]:
         assert any(section["title"] in p for p in poses), (
-            f"la rubrique « {section['title']} » n'a jamais été demandée")
+            f"the \"{section['title']}\" section was never asked")
     assert not any("Ajouter du texte de présentation" in p for p in poses), (
-        "l'ancienne question o/n subsiste alors que le modèle a des rubriques")
+        "the old y/n question remains while the template has sections")
     assert 'section "About": "Photographe à Lyon depuis 2015."' in spec
     assert 'section "Services": "Reportage et portrait."' in spec
     MonlAST(parse_monl_string(spec)).validate_and_audit()

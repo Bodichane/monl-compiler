@@ -286,7 +286,7 @@ def test_the_charged_amount_comes_from_the_database_never_the_client(application
 
     demande = faux_stripe.recu[avant]
     assert demande["champs"]["line_items[0][price_data][unit_amount]"] == "4250", (
-        f"le montant annoncé par le client a été retenu : {demande['champs']}")
+        f"the amount announced by the client was kept: {demande['champs']}")
     assert reponse.json()["montant_centimes"] == 4250, reponse.text
     assert reponse.json()["url"] == "https://paiement.example/session"
 
@@ -364,7 +364,7 @@ def test_a_zero_amount_is_not_charged(application, faux_stripe):
                           headers=entetes)
     assert refus.status_code == 400, refus.text
     assert len(faux_stripe.recu) == avant, (
-        "une session a été ouverte pour un montant nul")
+        "a session was opened for a zero amount")
 
 
 def test_a_request_without_token_is_refused(application):
@@ -495,7 +495,7 @@ def test_a_badly_signed_webhook_pays_nothing(application):
 
         assert refus.status_code == 400, refus.text
         assert _state_in_database(dossier, identifiant)[0] == "en_attente", (
-            "une signature invalide a suffi à marquer la commande payée")
+            "an invalid signature was enough to mark the order paid")
 
     check_each_case([(valeur,) for valeur in table], cas, ids=noms)
 
@@ -568,7 +568,7 @@ def test_settling_the_same_record_twice_is_refused(application, faux_stripe):
                           headers=entetes)
     assert refus.status_code == 409, refus.text
     assert len(faux_stripe.recu) == avant, (
-        "une seconde session a été ouverte sur une commande déjà réglée")
+        "a second session was opened on an already settled order")
 
 
 # ============================== the tracking columns are not for the client --

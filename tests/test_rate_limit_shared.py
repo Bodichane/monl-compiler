@@ -97,9 +97,9 @@ def test_rate_limit_is_shared_across_workers():
         journal = _journaliser(proc)
         try:
             assert _wait_for_both_workers(proc, journal), (
-                "les deux workers n'ont pas signale leur demarrage :\n"
+                "the two workers did not report their startup:\n"
                 + "".join(journal[-20:]))
-            assert _wait(port), "le serveur multi-workers n'a pas démarré"
+            assert _wait(port), "the multi-worker server did not start"
             base = f"http://127.0.0.1:{port}"
             codes = []
             for _ in range(7):
@@ -161,9 +161,9 @@ def test_startup_survives_an_already_locked_database():
             rival.rollback()
             rival.close()
             assert _wait_for_both_workers(proc, journal, attendus=1), (
-                "le serveur est mort sur une base verrouillée :\n"
+                "the server died on a locked database:\n"
                 + "".join(journal[-20:]))
-            assert _wait(port), "le serveur n'a pas démarré"
+            assert _wait(port), "the server did not start"
             # Surviving is not enough: the old fallback started too, but giving
             # up WAL. The pragma now retries within the busy_timeout budget —
             # so the database must have switched to WAL.

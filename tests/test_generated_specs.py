@@ -26,7 +26,7 @@ from tests.support.server import uvicorn_server
 def generated_spec(n):
     """Exactly N entities; parent/child pairs and an actor owner."""
     if n < 2:
-        raise ValueError("N doit être au moins 2")
+        raise ValueError("N must be at least 2")
     rng = random.Random(121)
     blocks = ["app GeneratedBench", "actor Member selfRegister",
               "actor Reader selfRegister"]
@@ -111,7 +111,7 @@ def test_every_contract_route(tmp_path):
             "username": "member", "password": "password121"})
         session.headers["Authorization"] = "Bearer " + login["access_token"]
         routes = contract["routes"]
-        assert len(routes) == 5 * 20, "chaque entité doit exposer ses cinq routes"
+        assert len(routes) == 5 * 20, "each entity must expose its five routes"
         # Creations in the real topological order, deletions in reverse order.
         for route in routes:
             if route["action"] != "Create":

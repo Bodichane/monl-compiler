@@ -42,7 +42,7 @@ def test_without_match_the_global_provider_stays_alone(tmp_path):
     provider = FakeChunkProvider("modele-global")
 
     def unexpected_factory(_model):
-        raise AssertionError("la fabrique ne doit pas être appelée sans routage")
+        raise AssertionError("the factory must not be called without routing")
 
     frontend_ai._generate_chunked_files(
         str(project), provider, "brief", "construction", 1, lambda _msg: None,

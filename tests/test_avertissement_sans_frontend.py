@@ -74,8 +74,8 @@ def test_each_path_announced_without_frontend_answers_as_announced(tmp_path, cap
                     chemin, statut, destination)
             else:
                 assert statut == 200, (
-                    f"l'avertissement cite {chemin}, qui répond {statut} : "
-                    f"un usager qui l'ouvre croit son déploiement cassé")
+                    f"the warning cites {chemin}, which answers {statut}: "
+                    f"a user opening it believes their deployment is broken")
 
 
 def test_a_frontend_calling_app_is_reported(tmp_path, capsys):

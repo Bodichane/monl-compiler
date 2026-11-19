@@ -53,7 +53,7 @@ class FakeProvider:
     model = "test-model"
 
     def __call__(self, _prompt):  # pragma: no cover - never called here
-        raise AssertionError("la connexion n'appelle aucune IA")
+        raise AssertionError("login calls no AI")
 
 
 # ───────────────────────────────────────────────── the embedded fake GitHub ──
@@ -139,7 +139,7 @@ def plateforme(tmp_path, faux_github, monkeypatch):
             except requests.RequestException:
                 time.sleep(0.02)
         else:
-            pytest.fail("la plateforme n'a pas démarré")
+            pytest.fail("the platform did not start")
         yield base
     finally:
         serveur.should_exit = True
@@ -270,7 +270,7 @@ def test_two_logins_create_only_one_account(plateforme):
         assert retour.status_code == 303
     compte = session.get(f"{plateforme}/api/auth/me", timeout=10).json()
     assert compte["email"] == "github:4242"
-    assert len(session.cookies.get_dict()) == 1, "la session OAuth n'est pas unique"
+    assert len(session.cookies.get_dict()) == 1, "the OAuth session is not unique"
 
 
 def test_an_unverified_address_is_refused(plateforme):
@@ -568,11 +568,11 @@ def test_oauth_deletion_requires_a_recent_login(plateforme, tmp_path, ancienne):
             db.execute("UPDATE sessions SET created_at = created_at - 601")
     reponse = session.delete(plateforme + "/api/auth/account", json={}, timeout=10)
     if ancienne:
-        assert reponse.status_code == 403, "Une session OAuth ancienne autorise la suppression"
+        assert reponse.status_code == 403, "An old OAuth session allows deletion"
         assert "Sign in again with your OAuth provider" in reponse.text
         assert session.get(plateforme + "/api/auth/me", timeout=10).status_code == 200
     else:
-        assert reponse.status_code == 204, "Une connexion OAuth récente ne permet pas la suppression"
+        assert reponse.status_code == 204, "A recent OAuth login does not allow deletion"
         assert session.get(plateforme + "/api/auth/me", timeout=10).status_code == 401
         assert requests.post(plateforme + "/mcp",
                              headers={"Authorization": "Bearer " + cle.json()["key"]},

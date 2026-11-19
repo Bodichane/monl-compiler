@@ -145,7 +145,7 @@ class _RunningServer:
                 return True
             time.sleep(0.05)
         raise AssertionError(
-            f"{motif!r} absent de la sortie du serveur après {delai:.0f} s :\n"
+            f"{motif!r} missing from the server output after {delai:.0f} s:\n"
             f"{self.output[-3000:]}")
 
     def stop(self):
@@ -180,7 +180,7 @@ def _uvicorn_with_output(directory, env):
             if process.poll() is not None:
                 time.sleep(0.2)  # let the reader thread drain the pipe
                 pytest.fail(
-                    f"serveur arrêté au démarrage : {running.output[-3000:]}")
+                    f"server stopped at startup: {running.output[-3000:]}")
             try:
                 response = requests.get(running.base + "/health", timeout=1)
                 if response.status_code == 200:
@@ -188,7 +188,7 @@ def _uvicorn_with_output(directory, env):
             except requests.RequestException:
                 time.sleep(0.1)
         else:
-            pytest.fail("serveur uvicorn non démarré")
+            pytest.fail("uvicorn server not started")
         yield running
     finally:
         running.stop()
@@ -428,7 +428,7 @@ def test_unreachable_smtp_does_not_undo_the_route_and_names_the_variable(
         )
         elapsed = time.monotonic() - started
         assert response.status_code == 200, response.text
-        assert elapsed < 2, f"la route attend le SMTP ({elapsed:.3f}s)"
+        assert elapsed < 2, f"the route waits for SMTP ({elapsed:.3f}s)"
         assert requests.get(f"{server.base}/health", timeout=10).status_code == 200
         server.attendre("[MONL_MESSAGE]")
 

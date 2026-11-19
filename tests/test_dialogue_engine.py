@@ -107,7 +107,7 @@ def test_spec_produite_compile_reellement():
     assert "Project.Read" in normalized["security"]["public"]
     assert "Message.Create" in normalized["security"]["public"]
     # A single write manager per entity -> never a collision.
-    assert normalized["seeds"], "le seed demandé doit être présent"
+    assert normalized["seeds"], "the requested seed must be present"
 
 
 def test_determinism_same_answers_same_spec():
@@ -125,7 +125,7 @@ def test_no_spec_names_a_remote_host():
     through `monl assets add`, which checks it at compile time."""
     spec = _run(SCENARIO_PORTFOLIO)
     for hote in ("picsum", "loremflickr", "http://", "https://"):
-        assert hote not in spec, f"la spec nomme un hôte distant : {hote}"
+        assert hote not in spec, f"the spec names a remote host: {hote}"
 
 
 # ---- The footer destinations (brick 30) ----
@@ -358,7 +358,7 @@ def test_editorial_sections_emitted_and_validated():
     assert 'section "Méthode": "Repérage, prise de vue, retouche."' in spec
     normalized = MonlAST(parse_monl_string(spec)).validate_and_audit()
     titres = [s["title"] for s in normalized["landing"]["sections"]]
-    assert titres == ["À propos", "Méthode"], "l'ordre de saisie doit être conservé"
+    assert titres == ["À propos", "Méthode"], "the entry order must be kept"
 
 
 def test_sections_refused_without_brief():
@@ -403,7 +403,7 @@ def test_a_multi_paragraph_text_survives_to_the_contract():
         "Mon travail mêle rigueur technique et composition.",
         "Chaque projet traduit une idée en image forte.",
     ], corps
-    assert "¶" not in corps, "le séparateur ne doit jamais atteindre l'IA"
+    assert "¶" not in corps, "the separator must never reach the AI"
 
 
 def test_a_text_without_marker_goes_through_unchanged():

@@ -62,7 +62,7 @@ def test_compile_with_output_writes_to_the_requested_folder(spec, tmp_path, caps
     capsys.readouterr()
     assert (ailleurs / "app.py").exists()
     assert not (tmp_path / "app.py").exists(), (
-        "--output ignoré : le projet a été écrit à côté de la spec")
+        "--output ignored: the project was written next to the spec")
 
 
 # -------------------------------------------------- run : options transmises --
@@ -188,14 +188,14 @@ def test_a_provider_error_exits_with_code_1(monkeypatch, capsys):
     from monl import frontend_ai
 
     def _explose(model=None):
-        raise frontend_ai.FrontendAIError("préciser --model")
+        raise frontend_ai.FrontendAIError("specify --model")
 
     monkeypatch.setattr(frontend_ai, "PROVIDERS", {"claude": _explose})
 
     with pytest.raises(SystemExit) as sortie:
         cli.main(["frontend", "/projet"])
     assert sortie.value.code == 1
-    assert "préciser --model" in capsys.readouterr().out
+    assert "specify --model" in capsys.readouterr().out
 
 
 def test_a_failed_verification_exits_with_code_1(monkeypatch):
@@ -241,13 +241,13 @@ def test_an_agent_without_valid_template_is_refused_before_starting(monkeypatch,
     from monl import frontend_ai
 
     def _agent(*a, **kw):
-        raise frontend_ai.FrontendAIError("gabarit sans {instruction}")
+        raise frontend_ai.FrontendAIError("template without {instruction}")
 
     monkeypatch.setattr(frontend_ai, "generate_with_cli_agent", _agent)
     with pytest.raises(SystemExit) as sortie:
         cli.main(["frontend", "/projet", "--agent-command", "mon-agent --auto"])
     assert sortie.value.code == 1
-    assert "gabarit" in capsys.readouterr().out
+    assert "template" in capsys.readouterr().out
 
 
 def test_the_current_folder_is_the_project_commands_default(monkeypatch):

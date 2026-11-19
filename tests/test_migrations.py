@@ -106,7 +106,7 @@ def _serve(workdir, port):
         [sys.executable, "-m", "uvicorn", "app:app", "--port", str(port)],
         cwd=workdir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
-    assert _wait(port), "le serveur n'a pas démarré"
+    assert _wait(port), "the server did not start"
     return proc
 
 
@@ -129,7 +129,7 @@ def _serve_expected_failure(workdir):
     except subprocess.TimeoutExpired:
         proc.kill()
         output, _ = proc.communicate()
-        raise AssertionError("le serveur a démarré malgré le schéma non migré") from None
+        raise AssertionError("the server started despite the unmigrated schema") from None
     return proc.returncode, output
 
 
@@ -412,7 +412,7 @@ def test_manage_py_names_the_remedy_instead_of_dumping_a_trace():
         )
 
     sortie = resultat.stdout + resultat.stderr
-    assert resultat.returncode != 0, "administrer une base en attente doit échouer"
+    assert resultat.returncode != 0, "administering a pending database must fail"
     assert "Traceback" not in sortie, f"trace brute au lieu d'un diagnostic :\n{sortie}"
-    assert "monl migrate" in sortie, "la sortie doit nommer le remède"
-    assert workdir in sortie, "la sortie doit nommer le dossier concerné"
+    assert "monl migrate" in sortie, "the output must name the remedy"
+    assert workdir in sortie, "the output must name the concerned folder"

@@ -29,27 +29,27 @@ def test_the_project_does_set_q_in_addopts():
     would keep a rule that no longer has a purpose — it would refuse a `-q`
     that, alone, would be legitimate. Better to learn it here."""
     assert "-q" in project_addopts(), (
-        "addopts ne porte plus `-q` : relire la règle de ce fichier avant de "
-        "continuer à interdire `-q` dans les commandes de la CI.")
+        "addopts no longer carries `-q`: reread this file's rule before "
+        "continuing to forbid `-q` in the CI commands.")
 
 
 def test_no_ci_command_sets_q_again():
     commandes = pytest_commands(CI.read_text(encoding="utf-8"))
-    assert commandes, "aucune invocation pytest trouvée dans ci.yml"
+    assert commandes, "no pytest invocation found in ci.yml"
     fautives = [c for c in commandes if "-q" in c.split()]
     assert not fautives, (
-        "`addopts` pose déjà `-q` : un second donne `-qq`, qui supprime la "
-        f"ligne de décompte et la section de résumé. Commande(s) : {fautives}")
+        "`addopts` already sets `-q`: a second one gives `-qq`, which removes the "
+        f"count line and the summary section. Command(s): {fautives}")
 
 
 def test_every_ci_command_names_skipped_tests():
     commandes = pytest_commands(CI.read_text(encoding="utf-8"))
-    assert commandes, "aucune invocation pytest trouvée dans ci.yml"
+    assert commandes, "no pytest invocation found in ci.yml"
     muettes = [c for c in commandes
                if not any(o.startswith("-r") and "s" in o[2:] for o in c.split())]
     assert not muettes, (
-        "sans `-rs`, un saut n'apparaît que comme un `s` au milieu des points "
-        f"et personne ne le lit. Commande(s) : {muettes}")
+        "without `-rs`, a skip only shows as an `s` among the dots "
+        f"and nobody reads it. Command(s): {muettes}")
 
 
 # The two tests above are only worth what `pytest_commands` is worth. An

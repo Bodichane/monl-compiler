@@ -349,4 +349,4 @@ def test_a_function_not_passing_its_parameter_is_not_an_api(tmp_path):
     appels = _appels(tmp_path, source, "sans-flux")
 
     assert ("GET", "/product") not in appels, (
-        "un argument de fonction ordinaire a été pris pour une route appelée")
+        "an ordinary function argument was taken for a called route")

@@ -205,7 +205,7 @@ def test_a_project_delivered_as_an_empty_shell_is_refused(project):
 
     fautes = livrer(remplie=False)
 
-    assert fautes, "une page de sections vides doit être refusée"
+    assert fautes, "a page of empty sections must be refused"
     vides = [f for f in fautes if f.startswith("empty or incomplete section")]
     assert len(vides) == len(manifest["section_substance"]["index.html"])
 

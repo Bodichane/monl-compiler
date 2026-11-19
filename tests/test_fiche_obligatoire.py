@@ -233,7 +233,7 @@ def test_the_contract_announces_the_prerequisite(tmp_path, capsys):
                  if r["method"] == "POST" and r["path"] == "/commande")
     assert route["requires_own"] == "Client"
     assert "PREREQUISITE" in route["note"]
-    assert "BEFORE" in route["note"], "le contrat doit dire QUAND, pas seulement quoi"
+    assert "BEFORE" in route["note"], "the contract must say WHEN, not only what"
 
 
 # --------------------------------------------------------------------------
@@ -286,7 +286,7 @@ def boutique(tmp_path):
             except OSError:
                 time.sleep(0.25)
         else:
-            pytest.fail("le serveur n'a jamais répondu")
+            pytest.fail("the server never answered")
         yield base, tmp_path
     finally:
         arreter_processus(processus, delai=10)
@@ -301,7 +301,7 @@ def test_ordering_without_a_record_is_refused_and_creates_nothing(boutique):
     assert "Client profile" in reponse["detail"]
 
     _, liste = _appel(base + "/commande", jeton=jeton)
-    assert liste["total"] == 0, "un refus ne doit rien avoir créé"
+    assert liste["total"] == 0, "a refusal must have created nothing"
 
 
 def test_the_created_record_opens_ordering(boutique):
@@ -324,7 +324,7 @@ def test_someone_elses_record_is_not_enough(boutique):
     sans = _compte(base, "bob")
 
     code, reponse = _appel(base + "/commande", {"statut": "panier"}, sans)
-    assert code == 409, "la fiche de Zoé ne doit rien ouvrir à Bob"
+    assert code == 409, "Zoé's record must open nothing to Bob"
     assert "Client profile" in reponse["detail"]
 
 
@@ -412,4 +412,4 @@ def test_ANOTHER_accounts_record_does_not_protect_mine(boutique):
 
     code, _ = _appel(f"{base}/client/{fiche['id']}", jeton=zoe, methode="DELETE")
 
-    assert code == 409, "la fiche d'un autre compte a été comptée comme la mienne"
+    assert code == 409, "another account's record was counted as mine"

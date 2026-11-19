@@ -112,7 +112,7 @@ def test_contract_matches_the_real_routes_of_app_py(tmp_path):
              ("GET", "/"), ("GET", "/health"), ("GET", "/health/ready")}
     contract_routes = {(r["method"], r["path"]) for r in contract["routes"]}
     assert contract_routes == real_routes - infra, (
-        "le contrat frontend a divergé des routes réellement générées")
+        "the frontend contract diverged from the really generated routes")
 
 
 def test_contract_imposes_same_origin_never_a_hard_coded_port(tmp_path):
@@ -126,7 +126,7 @@ def test_contract_imposes_same_origin_never_a_hard_coded_port(tmp_path):
     assert contract["api"]["base_url"] == ""
     brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     absolue = re.findall(r"`https?://[^`]+`", brief)
-    assert not absolue, f"le brief impose encore une URL absolue : {absolue}"
+    assert not absolue, f"the brief still imposes an absolute URL: {absolue}"
     assert "RELATIVE" in brief
 
 
@@ -145,7 +145,7 @@ def test_contract_fields_mark_required(tmp_path):
     proj, _spec, contract = _fresh_project(tmp_path)
     fields = {f["name"]: f for f in contract["entities"]["Item"]["fields"]}
     assert fields["label"]["required"] is True
-    assert fields["price"]["required"] is True, "non déclaré, et pourtant exigé"
+    assert fields["price"]["required"] is True, "not declared, and yet required"
 
     genere = (proj / "app.py").read_text(encoding="utf-8")
     schema = genere.split("class ItemSchema(BaseModel):")[1].split("class ")[0]
@@ -542,9 +542,9 @@ def test_the_announced_body_is_the_one_the_backend_requires(tmp_path):
             if manquants or superflus:
                 ecarts.append(f"{ident}: exigés non annoncés={manquants}, "
                               f"annoncés non acceptés={superflus}")
-    assert total >= 1, "non-vacuité: aucune route POST/PUT comparée"
-    assert total >= 39, f"non-vacuité: seulement {total} routes comparées (39 mesurées)"
-    assert schemas, "non-vacuité: aucun schéma Pydantic extrait par AST"
+    assert total >= 1, "non-vacuity: no POST/PUT route compared"
+    assert total >= 39, f"non-vacuity: only {total} routes compared (39 measured)"
+    assert schemas, "non-vacuity: no Pydantic schema extracted by AST"
     assert not ecarts, "\n".join(ecarts)
 
     # The precise case that made the real generation fail: the NON-owner parent
@@ -759,7 +759,7 @@ def test_the_tracking_columns_are_declared_as_output(tmp_path):
     _proj, contract = _payable_project(tmp_path)
     champs = _order_fields(contract)
     for colonne in ("payment_status", "payment_ref"):
-        assert colonne in champs, f"{colonne} absent du contrat"
+        assert colonne in champs, f"{colonne} missing from the contract"
         assert champs[colonne]["server_generated"] is True
         assert champs[colonne]["payment_tracking"] is True
         assert champs[colonne]["hidden_in_reads"] is False
@@ -896,20 +896,20 @@ def test_the_contract_says_which_of_the_two_foreign_key_kinds(tmp_path):
     (proj / "spec.ml").write_text(SPEC_COMPTES, encoding="utf-8")
     contrat = compile_project(str(proj / "spec.ml"), str(proj))
     reelles = _references_reelles((proj / "schema.sql").read_text(encoding="utf-8"))
-    assert reelles, "aucune contrainte FOREIGN KEY lue : le test ne prouve rien"
+    assert reelles, "no FOREIGN KEY constraint read: the test proves nothing"
 
     vues = 0
     for entite, spec in contrat["entities"].items():
         for lien in spec["foreign_keys"]:
             cible = reelles.get((entite.lower(), lien["column"]))
-            assert cible is not None, f"{entite}.{lien['column']} absente du schéma"
+            assert cible is not None, f"{entite}.{lien['column']} missing from the schema"
             vers_un_compte = cible == "_monl_users"
             assert lien["references_account"] == vers_un_compte, (
-                f"{entite}.{lien['column']} : le contrat dit "
+                f"{entite}.{lien['column']}: the contract says "
                 f"references_account={lien['references_account']}, "
-                f"schema.sql dit REFERENCES {cible}")
+                f"schema.sql says REFERENCES {cible}")
             vues += 1
-    assert vues >= 4, f"trop peu de clés confrontées ({vues})"
+    assert vues >= 4, f"too few keys confronted ({vues})"
 
     # BOTH kinds must be represented: a test set containing only one would let
     # through a contract always answering the same.
@@ -1173,7 +1173,7 @@ def test_the_contract_carries_every_lock_really_generated(tmp_path):
                 if r.get("payment_locked")}
     reelles = _locked_routes_in_app((proj / "app.py").read_text(encoding="utf-8"))
     assert annonces == reelles, (
-        f"le contrat annonce {sorted(annonces)}, le backend verrouille "
+        f"the contract announces {sorted(annonces)}, the backend locks "
         f"{sorted(reelles)}")
     # And the lock does cover both faces: the order, and its lines.
     assert ("PUT", "/commande/{id}") in annonces

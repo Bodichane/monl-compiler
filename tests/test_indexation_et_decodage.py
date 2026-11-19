@@ -85,7 +85,7 @@ def _assert_lookup_layout(directory):
     assert "idx_unique_commande_reference" in names
     assert columns["idx_unique_commande_reference"] == ["reference"]
     assert "idx_lookup_commande_reference" not in names, (
-        "une colonne unique reçoit un second index de recherche")
+        "a unique column gets a second lookup index")
 
 
 def _write_sitecustomize(trace_file, directory):

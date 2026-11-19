@@ -58,7 +58,7 @@ def test_example_compiles():
             # generated since the pivot (point 41) — see the last test.
             for artefact in ("app.py", "schema.sql"):
                 artefact_path = os.path.join(sortie, artefact)
-                assert os.path.exists(artefact_path), f"{artefact} n'a pas été généré pour {os.path.basename(yaml_path)}"
+                assert os.path.exists(artefact_path), f"{artefact} was not generated for {os.path.basename(yaml_path)}"
             # Presence on disk does not prove an emitter produced an importable
             # module. Parsing each generated source catches a broken quote or
             # indentation at once, without running the produced code or
@@ -75,8 +75,8 @@ def test_example_compiles():
             # therefore the right output, and we assert it rather than stop
             # looking.
             assert not os.path.exists(os.path.join(sortie, "sandbox_ai.py")), (
-                f"{os.path.basename(yaml_path)} n'a aucun bloc 'custom' et reçoit "
-            "pourtant le module vide")
+                f"{os.path.basename(yaml_path)} has no 'custom' block and yet "
+            "gets the empty module")
 
     check_each_case([(valeur,) for valeur in table], cas, ids=noms)
 
@@ -100,8 +100,8 @@ def test_no_example_ever_produces_frontend_html():
             MonlSecureGenerator(normalized_ast, output_dir=sortie).generate_all()
             frontend_path = os.path.join(sortie, "frontend.html")
         assert not os.path.exists(frontend_path), (
-            f"'frontend.html' a été généré pour {os.path.basename(yaml_path)} — "
-            f"monl ne doit plus jamais produire de back-office auto-généré."
+            f"'frontend.html' was generated for {os.path.basename(yaml_path)} — "
+            f"monl must never again produce an auto-generated back office."
         )
 
 
@@ -119,6 +119,6 @@ def test_no_example_ever_produces_any_generated_frontend():
                         for g in ("landing.html", "dashboard.html", "frontend.html")}
         for ghost, present in fantomes.items():
             assert not present, (
-                f"'{ghost}' a été généré pour {os.path.basename(yaml_path)} — "
-                f"monl ne doit plus produire aucun frontend (point 41)."
+                f"'{ghost}' was generated for {os.path.basename(yaml_path)} — "
+                f"monl must no longer produce any frontend (point 41)."
             )

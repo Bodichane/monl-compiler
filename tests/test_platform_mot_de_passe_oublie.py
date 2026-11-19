@@ -124,10 +124,10 @@ function equiper(w) {
 @pytest.fixture(scope="module")
 def parcours(tmp_path_factory):
     if shutil.which("node") is None:
-        pytest.fail("node est requis : un saut ne dirait pas « rien à vérifier »")
+        pytest.fail("node is required: a skip would not say \"nothing to check\"")
     racine = tmp_path_factory.mktemp("mot-de-passe-oublie")
     assert _ensure_jsdom(str(racine), lambda *_: None), (
-        "jsdom introuvable et non installable dans ~/.monl/jsdom")
+        "jsdom not found and not installable in ~/.monl/jsdom")
     (racine / "runner.js").write_text(RUNNER, encoding="utf-8")
     env = dict(os.environ)
     env["MONL_PLATFORM_WORKSPACE"] = str(racine / "projects")
@@ -150,8 +150,8 @@ def parcours(tmp_path_factory):
 def test_the_login_page_offers_the_path(parcours):
     """THE defect: the mechanism existed, the page said nothing about it."""
     assert parcours["onglet_present"], (
-        "aucun moyen d'employer ses codes depuis la page — il faudrait "
-        "connaître l'API et forger la requête à la main")
+        "no way to use one's codes from the page — one would have to "
+        "know the API and forge the request by hand")
     assert parcours["titre"] == "Recover your account", parcours["titre"]
     assert parcours["bouton"] == "Change the password", parcours["bouton"]
     assert parcours["label_motdepasse"] == "New password"
@@ -164,17 +164,17 @@ def test_the_code_field_follows_the_chosen_mode(parcours):
     see or fix: the button seems to do nothing, exactly the defect `novalidate`
     already served to fix on this page.
     """
-    assert parcours["code_masque_avant"], "le code est demandé dès la connexion"
+    assert parcours["code_masque_avant"], "the code is asked right at login"
     assert not parcours["code_requis_avant"], (
-        "un champ masqué est obligatoire : la connexion ordinaire ne partira plus")
+        "a hidden field is required: ordinary login will no longer go out")
     assert parcours["code_visible_apres"] and parcours["code_requis_apres"]
     assert parcours["aide_visible"], (
-        "la page ne dit pas quoi faire à qui n'a plus aucun code")
+        "the page does not say what to do to whoever has no code left")
 
 
 def test_a_wrong_code_shows_the_refusal_without_breaking_the_page(parcours):
     assert parcours["erreur_affichee"], parcours
-    assert parcours["texte_erreur"], "refus muet : la personne ne saura pas pourquoi"
+    assert parcours["texte_erreur"], "mute refusal: the person will not know why"
     assert parcours["erreurs"] == [], parcours["erreurs"]
 
 
@@ -194,6 +194,6 @@ def test_the_page_returns_to_login_and_says_so(parcours):
     assert parcours["succes_affiche"], parcours
     assert "Sign in with the new password" in parcours["texte_succes"], parcours["texte_succes"]
     assert parcours["revenu_en_connexion"] == "Sign in"
-    assert parcours["code_vide_apres"], "le code consommé reste dans le formulaire"
+    assert parcours["code_vide_apres"], "the consumed code stays in the form"
     assert parcours["email_conserve"] == "oubli@example.test", (
-        "l'adresse est perdue : il faut la retaper pour se connecter")
+        "the address is lost: it must be retyped to log in")

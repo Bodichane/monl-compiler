@@ -353,7 +353,7 @@ def test_a_compiler_refusal_leaves_nothing_behind(tmp_path, monkeypatch, capsys)
     import monl.assets_tool as outil
 
     def refus(*_a, **_k):
-        raise AssetsToolError("refus simulé du compilateur")
+        raise AssetsToolError("simulated compiler refusal")
     monkeypatch.setattr(outil.commandes, "_revalider", refus)
 
     with pytest.raises(AssetsToolError):

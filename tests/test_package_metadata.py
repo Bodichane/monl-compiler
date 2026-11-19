@@ -61,11 +61,11 @@ def test_the_publishing_metadata_describe_the_project():
     # an unverifiable promise; testing it without announcing it deprives the
     # user of true information.
     testees = _ci_versions()
-    assert testees, "matrice de la CI illisible : ce témoin ne garde plus rien"
+    assert testees, "unreadable CI matrix: this witness no longer guards anything"
     manquantes = [v for v in testees
                   if f"Programming Language :: Python :: {v}" not in classifiers]
     assert not manquantes, (
-        f"versions éprouvées par la CI mais non annoncées sur l'index : "
+        f"versions tested by CI but not announced on the index: "
         f"{manquantes}")
     assert project["urls"] == {
         "Repository": "https://github.com/Bodichane/monl-compiler",
@@ -87,7 +87,7 @@ def test_an_author_cannot_be_the_package_name():
     project = _project()
     auteurs = project.get("authors", [])
 
-    assert auteurs, "aucun auteur déclaré : ce témoin ne garderait plus rien"
+    assert auteurs, "no declared author: this witness would no longer guard anything"
     assert all(auteur["name"] != project["name"] for auteur in auteurs)
 
 
@@ -95,7 +95,7 @@ def test_the_distribution_author_is_the_legal_publisher():
     project = _project()
 
     assert project["authors"] == [{"name": legal.EDITEUR}], (
-        "l'auteur de la distribution doit rester identique à legal.EDITEUR"
+        "the distribution's author must stay identical to legal.EDITEUR"
     )
 
 
@@ -116,10 +116,10 @@ def test_publishing_tests_the_tag_on_the_same_versions_as_ci():
     ci = _workflow_versions("ci.yml")
     publication = _workflow_versions("publication.yml")
 
-    assert ci, "matrice de ci.yml illisible : ce témoin ne garde plus rien"
+    assert ci, "unreadable ci.yml matrix: this witness no longer guards anything"
     assert publication, (
-        "matrice de publication.yml illisible : ce témoin ne garde plus rien")
+        "unreadable publication.yml matrix: this witness no longer guards anything")
     assert publication == ci, (
-        f"la publication éprouve {publication} quand la CI éprouve {ci} : "
-        f"le tag partirait sans avoir été rejoué sur toutes les versions "
-        f"annoncées sur l'index")
+        f"publication tests {publication} while CI tests {ci}: "
+        f"the tag would go out without having been replayed on every version "
+        f"announced on the index")

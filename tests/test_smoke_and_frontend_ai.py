@@ -77,7 +77,7 @@ def test_smoke_passes_without_frontend_and_does_not_touch_the_database(project):
     ok, errors, _w = run_smoke_test(str(project), say=_quiet)
     assert ok, errors
     assert sentinel.read_bytes() == b"donnees-reelles-intouchables", (
-        "le smoke test a modifié la base réelle du projet")
+        "the smoke test modified the project's real database")
 
 
 def test_smoke_validates_a_correct_frontend(project):
@@ -312,7 +312,7 @@ def test_ai_loop_fails_after_a_single_correction(project):
 
     ok, errors = generate_and_verify(str(project), provider, say=_quiet)
     assert not ok and errors
-    assert len(calls) == 2, "jamais plus d'UNE correction automatique"
+    assert len(calls) == 2, "never more than ONE automatic correction"
     # the files stay inspectable, but run will refuse (blocking smoke)
     assert (project / "frontend" / "index.html").exists()
 
@@ -340,10 +340,10 @@ def test_a_degrading_correction_does_not_replace_the_previous_attempt(project):
 
     ok, errors = generate_and_verify(str(project), provider, say=dits.append)
 
-    assert not ok, "les deux tentatives échouent : le verdict reste un échec"
+    assert not ok, "both attempts fail: the verdict stays a failure"
     conserve = (project / "frontend" / "index.html").read_text(encoding="utf-8")
     assert conserve == BAD_FRONT, (
-        "la tentative dégradée a été conservée alors qu'elle est pire")
+        "the degraded attempt was kept although it is worse")
     assert any("Attempt 1 restored" in ligne for ligne in dits), dits
     # The REPORTED errors must describe the kept files: returning the discarded
     # attempt's would describe a frontend absent from disk.
@@ -364,7 +364,7 @@ def test_an_improving_correction_is_kept(project):
 
     assert not ok
     conserve = (project / "frontend" / "index.html").read_text(encoding="utf-8")
-    assert conserve == BAD_FRONT, "la meilleure des deux est la seconde ici"
+    assert conserve == BAD_FRONT, "the better of the two is the second here"
     assert not any("restaurée" in ligne for ligne in dits), dits
 
 
@@ -385,7 +385,7 @@ def test_restoration_leaves_no_file_from_the_discarded_attempt(project):
     assert (project / "frontend" / "index.html").read_text(
         encoding="utf-8") == BAD_FRONT
     assert not (project / "frontend" / "extra.js").exists(), (
-        "un fichier de la tentative écartée survit dans le frontend conservé")
+        "a file from the discarded attempt survives in the kept frontend")
 
 
 # ---- 'monl import': the path WITHOUT an API key (claude.ai subscription) ----
@@ -588,7 +588,7 @@ def test_an_agent_cannot_rewrite_manage_py(project, tmp_path):
     agent = _fake_agent(tmp_path, SNEAKY_AGENT)
     ok, errors = generate_with_claude_code(str(project), command=agent, say=_quiet)
 
-    assert not ok, "un manage.py réécrit doit faire ÉCHOUER la construction"
+    assert not ok, "a rewritten manage.py must make the build FAIL"
     assert any("manage.py" in e for e in errors), errors
     # The file stays on disk — monl says to restore it, it does not do it for
     # you (point 73). The test NOTES it rather than suggesting a repair.
@@ -954,7 +954,7 @@ def test_the_touch_up_writes_its_instruction_and_backs_up_existing(project):
     assert DEMANDE in consigne
     assert (project / "frontend.precedent" / "index.html").read_text(
         encoding="utf-8") == GOOD_FRONT
-    assert front.joinpath("index.html").exists(), "l'existant doit rester en place"
+    assert front.joinpath("index.html").exists(), "the existing work must stay in place"
 
 
 def test_the_touch_up_refuses_a_project_without_frontend(project):
@@ -987,7 +987,7 @@ def test_the_touch_up_prompt_carries_request_files_and_contract(project):
     prompt = build_generation_prompt(str(project), False, retouche_mode=True)
     assert DEMANDE in prompt
     assert "Current frontend files" in prompt
-    assert "fetch('/item?limit=5')" in prompt, "l'existant doit être joint"
+    assert "fetch('/item?limit=5')" in prompt, "the existing work must be attached"
     assert "Reminder of the original contract" in prompt
 
 
@@ -1082,7 +1082,7 @@ def test_a_successful_touch_up_evolves_existing_and_rechecks(project, tmp_path):
     assert ok, errors
     rendu = (project / "frontend" / "index.html").read_text(encoding="utf-8")
     assert "object-position ajusté" in rendu
-    assert "fetch('/item?limit=5')" in rendu, "l'existant ne doit pas être réécrit"
+    assert "fetch('/item?limit=5')" in rendu, "the existing work must not be rewritten"
 
 
 DECLINING_AGENT = """print("Je ne peux pas retirer cette rubrique depuis frontend/ :")
@@ -1226,10 +1226,10 @@ def test_the_retry_ladder_really_reaches_its_bound():
     etage = Etage()
     paliers = [etage.max_output_tokens]
     for _ in range(CHUNK_MAX_RETRIES):
-        assert _raise_chunk_output_limit(etage), "l'échelle s'arrête trop tôt"
+        assert _raise_chunk_output_limit(etage), "the ladder stops too early"
         paliers.append(etage.max_output_tokens)
 
     assert paliers[-1] == CHUNK_RETRY_MAX_OUTPUT_TOKENS, (
-        f"la dernière reprise plafonne à {paliers[-1]} alors que la borne "
-        f"déclarée est {CHUNK_RETRY_MAX_OUTPUT_TOKENS} : elle ne contraint rien")
+        f"the last retry caps at {paliers[-1]} while the declared bound "
+        f"is {CHUNK_RETRY_MAX_OUTPUT_TOKENS}: it constrains nothing")
     assert paliers == sorted(set(paliers)), paliers

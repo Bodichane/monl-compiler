@@ -210,7 +210,7 @@ def test_the_media_role_comes_from_the_type_not_the_name(tmp_path, capsys):
     champ = next(f for f in contrat["entities"]["Product"]["fields"]
                  if f["name"] == "cliche")
     assert champ["role"] == "media", (
-        "'cliche' n'est dans aucune heuristique de nom : seul le type peut le dire")
+        "'cliche' is in no name heuristic: only the type can tell")
 
 
 # --------------------------------------------------------------------------
@@ -237,7 +237,7 @@ def _server(dossier, assets_dir="assets"):
             except Exception:
                 time.sleep(0.25)
         else:
-            pytest.skip("serveur non démarré")
+            pytest.skip("server not started")
         yield base
     finally:
         proc.terminate()
@@ -264,7 +264,7 @@ def test_the_assets_are_really_served(tmp_path, capsys):
 
     with _server(tmp_path) as base:
         statut, corps = _statut(f"{base}/site/assets/logo.svg")
-        assert statut == 200, "le logo déclaré n'est pas servi"
+        assert statut == 200, "the declared logo is not served"
         assert b"svg" in corps
 
         # A binary, so that the check does not rely on text alone.
@@ -273,7 +273,7 @@ def test_the_assets_are_really_served(tmp_path, capsys):
         assert corps.startswith(b"\x89PNG")
 
         statut, _ = _statut(f"{base}/site/assets/chaise.jpg")
-        assert statut == 200, "la photo du seed n'est pas servie"
+        assert statut == 200, "the seed photo is not served"
 
         # The frontend stays served: the assets mount did not hide it.
         statut, corps = _statut(f"{base}/site/")
@@ -296,13 +296,13 @@ def test_the_seed_photo_is_served_at_the_url_the_api_returns(tmp_path, capsys):
     with _server(tmp_path) as base:
         with urllib.request.urlopen(f"{base}/product?limit=5", timeout=5) as r:
             produits = json.loads(r.read())["data"]
-        assert produits, "le seed n'a rien inséré"
+        assert produits, "the seed inserted nothing"
         chemin = produits[0]["photo"]
         assert chemin == "assets/chaise.jpg"
         statut, _ = _statut(f"{base}/site/{chemin}")
         assert statut == 200, (
-            f"l'API annonce '{chemin}' mais /site/{chemin} ne répond pas — "
-            f"c'est une image cassée pour tout navigateur")
+            f"the API announces '{chemin}' but /site/{chemin} does not answer — "
+            f"it is a broken image for every browser")
 
 
 def test_without_declared_assets_the_wrapper_only_mounts_the_frontend(tmp_path):
@@ -328,7 +328,7 @@ def test_assets_without_frontend_pass_the_smoke_test(tmp_path, capsys):
     shutil.rmtree(tmp_path / "frontend")
     compile_project(str(spec), str(tmp_path))
     capsys.readouterr()
-    assert not (tmp_path / "frontend").exists(), "le banc doit rester sans frontend"
+    assert not (tmp_path / "frontend").exists(), "the bench must stay without frontend"
 
     ok, erreurs, _avertissements = run_smoke_test(str(tmp_path), say=lambda *_: None)
     assert ok, erreurs

@@ -116,8 +116,8 @@ def test_files_of(racine=RACINE):
     trouves = {f.relative_to(racine) for d in dossiers for f in d.rglob("test_*.py")}
     if not trouves:
         raise AssertionError(
-            f"aucun fichier de tests trouvé sous {dossiers} : l'extracteur "
-            "rendrait vertes des garanties en ne regardant rien.")
+            f"no test file found under {dossiers}: the extractor "
+            "would make guarantees green while looking at nothing.")
     return trouves
 
 
@@ -131,7 +131,7 @@ def order_selection(commande, racine=RACINE):
     """
     jetons = commande.split()
     if "pytest" not in jetons:
-        raise AssertionError(f"commande sans `pytest` : {commande!r}")
+        raise AssertionError(f"command without `pytest`: {commande!r}")
     cibles = [j for j in jetons[jetons.index("pytest") + 1:] if not j.startswith("-")]
     if not cibles:
         cibles = project_testpaths()
@@ -147,10 +147,10 @@ def order_selection(commande, racine=RACINE):
                 atteints.add(chemin.relative_to(racine))
         if not atteints:
             raise AssertionError(
-                f"la cible {cible!r} de la commande {commande!r} ne désigne "
-                "aucun fichier existant : l'extracteur ne sait pas la lire, et "
-                "l'ignorer ferait passer une commande pour plus large qu'elle "
-                "n'est.")
+                f"target {cible!r} of command {commande!r} designates "
+                "no existing file: the extractor cannot read it, and "
+                "ignoring it would make a command look wider than it "
+                "is.")
         selection |= atteints
     return selection
 

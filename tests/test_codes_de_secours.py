@@ -58,7 +58,7 @@ def test_registration_hands_over_eight_codes_only_once(tmp_path):
         session, corps = _inscrire(base, "codes@exemple.test")
         codes = corps["recovery_codes"]
         assert len(codes) == 8
-        assert len(set(codes)) == 8, "deux codes identiques divisent les chances par deux"
+        assert len(set(codes)) == 8, "two identical codes halve the chances"
         assert all(len(c) >= 16 for c in codes), "un code court se devine"
 
         # They come out NOWHERE else — like an API key.
@@ -66,7 +66,7 @@ def test_registration_hands_over_eight_codes_only_once(tmp_path):
         assert etat == {"remaining": 8}
         me = session.get(f"{base}/api/auth/me", timeout=30).text
         for code in codes:
-            assert code not in me, "un code ressort d'une route de lecture"
+            assert code not in me, "a code comes out of a read route"
 
 
 def test_codes_are_never_stored_in_clear(tmp_path):
@@ -179,7 +179,7 @@ def test_recovery_is_rate_limited(tmp_path):
                 "password": NOUVEAU}).status_code
             for numero in range(8)
         ]
-        assert 429 in codes_recus, f"aucun plafond atteint : {codes_recus}"
+        assert 429 in codes_recus, f"no ceiling reached: {codes_recus}"
 
 
 # ---------------------------------------------------------------------------

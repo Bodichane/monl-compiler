@@ -86,13 +86,13 @@ function equiper(w, jar) {
 @pytest.fixture(scope="module")
 def rapport_jsdom(tmp_path_factory):
     if shutil.which("node") is None:
-        pytest.fail("node est requis : un saut ne dirait pas « rien à vérifier »")
+        pytest.fail("node is required: a skip would not say \"nothing to check\"")
     racine = tmp_path_factory.mktemp("console-choix")
     # jsdom lives in the user cache (~/.monl/jsdom), as for the smoke test. Its
     # absence makes the test FAIL: a skip does not say "nothing to check here",
     # it says "I did not check" (point 140).
     assert _ensure_jsdom(str(racine), lambda *_: None), (
-        "jsdom introuvable et non installable dans ~/.monl/jsdom")
+        "jsdom not found and not installable in ~/.monl/jsdom")
     (racine / "runner.js").write_text(RUNNER, encoding="utf-8")
     env = dict(os.environ)
     env["MONL_PLATFORM_WORKSPACE"] = str(racine / "projects")

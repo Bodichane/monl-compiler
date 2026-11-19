@@ -120,4 +120,4 @@ def test_application_events_do_not_mask_the_account():
     texte = source.read_text(encoding="utf-8")
     nus = re.findall(r'(?:compte|cle|projet)=(?!court\()(?:user\["id"\]|'
                      r'cle\["id"\]|key_id|manifest\["id"\])', texte)
-    assert not nus, f"identifiants journalisés sans `court()` : {nus}"
+    assert not nus, f"identifiers logged without `court()`: {nus}"

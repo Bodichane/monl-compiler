@@ -31,7 +31,7 @@ def _attendre_workers(serveur, base, workspace, journal):
             except requests.RequestException:
                 pass
         time.sleep(0.1)
-    pytest.fail("Deux workers prêts attendus : " + journal.read_text())
+    pytest.fail("Two ready workers expected: " + journal.read_text())
 
 
 def _verifier_workers(pids):
@@ -157,12 +157,12 @@ def test_complete_deletion_and_neighbor_sites_preserved(tmp_path, monkeypatch, m
                                 for projet in identites.projects(alice["id"]))):
                 break
             time.sleep(0.05)
-        assert vivant.process.poll() is not None, "Le processus du site supprimé est encore vivant"
+        assert vivant.process.poll() is not None, "The deleted site's process is still alive"
         with pytest.raises(ProcessLookupError):
             os.kill(vivant.process.pid, 0)
-        assert not dossier.exists(), "Le dossier privé supprimé conserve les données visiteurs"
+        assert not dossier.exists(), "The deleted private folder keeps visitor data"
         assert app.state.store.get_project(cible["project_id"]) is None
-        assert dossier_voisin.exists(), "Le dossier du compte voisin a été effacé"
+        assert dossier_voisin.exists(), "The neighbor account's folder was erased"
         assert _get(voisin_vivant.port, "/openapi.json")[0] == 200
         if mode in {"cli", "compte"}:
             assert autre_vivant.process.poll() is not None
@@ -175,7 +175,7 @@ def test_complete_deletion_and_neighbor_sites_preserved(tmp_path, monkeypatch, m
             assert _get(autre_vivant.port, "/openapi.json")[0] == 200
         remplacement, _ = _project(app, alice, "remplacement")
         nouveau = sites.start_project(remplacement)
-        assert _get(nouveau.port, "/openapi.json")[0] == 200, "Le créneau du site supprimé n'est pas libéré"
+        assert _get(nouveau.port, "/openapi.json")[0] == 200, "The deleted site's slot is not released"
         # Server cleanup stops every site still legitimately running.
 
 
@@ -186,7 +186,7 @@ def test_local_account_always_requires_its_password(tmp_path):
         session = _connexion(base, "locale@monl.test")
         for charge in ({}, {"password": "incorrect"}):
             refus = session.delete(base + "/api/auth/account", json=charge, timeout=10)
-            assert refus.status_code == 403, "Un compte local est supprimé sans son mot de passe"
+            assert refus.status_code == 403, "A local account is deleted without its password"
             assert "Incorrect password" in refus.text
             assert session.get(base + "/api/auth/me", timeout=10).status_code == 200
         succes = session.delete(base + "/api/auth/account",

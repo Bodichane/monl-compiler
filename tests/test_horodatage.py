@@ -112,7 +112,7 @@ def test_a_date_field_is_refused_with_a_reason(capsys):
         _valide(SPEC.replace("placedAt: DateTime", "placedAt: Date"))
     message = str(refus.value)
     assert "Date" in message
-    assert "could no longer be ordered" in message, "le refus doit dire POURQUOI, pas seulement non"
+    assert "could no longer be ordered" in message, "the refusal must say WHY, not only no"
     capsys.readouterr()
 
 
@@ -203,7 +203,7 @@ def test_the_timestamp_field_leaves_the_input_schema(tmp_path, capsys):
     genere = _compile(tmp_path, SPEC, capsys)
     schema = genere.split("class CommandeSchema(BaseModel):")[1].split("class ")[0]
     assert "placedAt" not in schema
-    assert "reference" in schema, "les autres champs restent, eux"
+    assert "reference" in schema, "the other fields stay"
 
 
 def test_the_server_writes_the_date_on_creation(tmp_path, capsys):
@@ -287,7 +287,7 @@ class _Server:
                 return self.base
             except OSError:
                 time.sleep(0.25)
-        pytest.fail("le serveur n'a jamais répondu")
+        pytest.fail("the server never answered")
 
     def arreter(self):
         if self.processus is None:
@@ -323,7 +323,7 @@ def test_the_date_is_written_without_the_client_giving_it(carnet):
     code, _ = _appel(base + "/commande", {"reference": "CMD-1", "statut": "panier"}, jeton)
     assert code == 200
     _, lu = _appel(base + "/commande/1", jeton=jeton)
-    assert lu["data"]["placedAt"], "aucune date écrite"
+    assert lu["data"]["placedAt"], "no date written"
     assert lu["data"]["placedAt"].endswith("+00:00"), "UTC explicite attendu"
 
 
@@ -345,9 +345,9 @@ def test_an_update_leaves_the_date_intact(carnet):
     code, _ = _appel(base + "/commande/1",
                      {"reference": "CMD-1", "statut": "expediee",
                       "placedAt": "2019-01-01T00:00:00+00:00"}, jeton, methode="PUT")
-    assert code == 200, "la brique ne doit pas casser la modification"
+    assert code == 200, "the brick must not break updates"
     _, apres = _appel(base + "/commande/1", jeton=jeton)
-    assert apres["data"]["statut"] == "expediee", "le reste doit bien changer"
+    assert apres["data"]["statut"] == "expediee", "the rest must indeed change"
     assert apres["data"]["placedAt"] == avant["data"]["placedAt"]
 
 
@@ -360,7 +360,7 @@ def test_two_orders_in_quick_succession_stay_orderable(carnet):
         _appel(base + "/commande", {"reference": f"CMD-{i}", "statut": "panier"}, jeton)
     _, liste = _appel(base + "/commande", jeton=jeton)
     dates = [c["placedAt"] for c in liste["data"]]
-    assert dates[0] != dates[1], "deux créations rapprochées doivent se distinguer"
+    assert dates[0] != dates[1], "two close creations must be distinguishable"
     # Sorted as TEXT: it is the property the contract announces, and it holds
     # because the offset is always '+00:00' and the format fixed-width. No
     # conversion needed on the browser side.
@@ -397,10 +397,10 @@ def test_earlier_records_stay_without_date_and_the_server_says_so(tmp_path):
     finally:
         serveur.arreter()
 
-    assert par_reference["NEUVE"], "les nouvelles commandes sont datées"
+    assert par_reference["NEUVE"], "new orders are dated"
     for i in range(3):
         assert par_reference[f"VIEILLE-{i}"] is None, (
-            "une date inventée après coup serait fausse : le vide est la seule "
-            "réponse honnête")
+            "a date invented afterwards would be false: empty is the only "
+            "honest answer")
     assert "3 record(s)" in serveur.journal, (
-        "le serveur doit NOMMER les enregistrements qui n'auront jamais de date")
+        "the server must NAME the records that will never have a date")

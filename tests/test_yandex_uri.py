@@ -165,7 +165,7 @@ def test_a_forbidden_effort_is_refused_before_any_http_call(monkeypatch):
     import requests
 
     def fail_post(*args, **kwargs):
-        pytest.fail("aucun appel HTTP ne doit partir pour une valeur interdite")
+        pytest.fail("no HTTP call must go out for a forbidden value")
 
     monkeypatch.setattr(requests, "post", fail_post)
     with pytest.raises(frontend_ai.FrontendAIError) as erreur:

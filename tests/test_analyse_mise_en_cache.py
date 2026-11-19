@@ -71,8 +71,8 @@ def test_the_foreign_key_index_is_built_only_once(monkeypatch, capsys):
     petit = _compiler(monkeypatch, 3)
     capsys.readouterr()
     assert petit == 1, (
-        f"{petit} reconstructions de l'index pour 3 familles : le cache de "
-        "`_compute_fk_placements` ne porte plus.")
+        f"{petit} index rebuilds for 3 families: the "
+        "`_compute_fk_placements` cache no longer holds.")
 
 
 def test_analysis_cost_does_not_follow_spec_size(monkeypatch, capsys):
@@ -87,8 +87,8 @@ def test_analysis_cost_does_not_follow_spec_size(monkeypatch, capsys):
     grand = _compiler(monkeypatch, 24)
     capsys.readouterr()
     assert petit == grand == 1, (
-        f"l'index est reconstruit {petit} fois pour 3 familles et {grand} fois "
-        "pour 24 : l'analyse redevient proportionnelle à la taille de la spec.")
+        f"the index is rebuilt {petit} times for 3 families and {grand} times "
+        "for 24: the analysis becomes proportional to the spec size again.")
 
 
 def test_identity_columns_are_deduced_only_once(capsys):
@@ -104,7 +104,7 @@ def test_identity_columns_are_deduced_only_once(capsys):
     premier = generateur._identity_fk_columns()
     second = generateur._identity_fk_columns()
 
-    assert premier is second, "chaque interrogation refait la déduction"
+    assert premier is second, "each query redoes the deduction"
     # Every entity created by the member carries ITS account column, the
     # appreciation included — whose second incoming relation targets the
     # counted post, excluded because the client designates it (point 99).

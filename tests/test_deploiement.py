@@ -54,7 +54,7 @@ def _server(project, module="app:app", **variables):
         for _ in range(100):
             if processus.poll() is not None:
                 sortie = processus.stdout.read() if processus.stdout else ""
-                pytest.fail(f"serveur arrêté au démarrage :\n{sortie}")
+                pytest.fail(f"server stopped at startup:\n{sortie}")
             try:
                 reponse = requests.get(f"{base}/health", timeout=1)
                 if reponse.status_code == 200:
@@ -62,7 +62,7 @@ def _server(project, module="app:app", **variables):
             except requests.RequestException:
                 time.sleep(0.05)
         else:
-            pytest.fail("serveur non démarré")
+            pytest.fail("server not started")
         yield base, processus
     finally:
         if processus.poll() is None:
@@ -236,8 +236,8 @@ def test_the_wrapper_is_written_at_compile_time(project):
     assert wrapper.exists()
     etat = json.loads((project / "monl.json").read_text(encoding="utf-8"))
     assert "serve.py" in etat["backend_sha256"], (
-        "le wrapper décide quels dossiers sont servis : il doit être scellé "
-        "comme le reste du backend généré")
+        "the wrapper decides which folders are served: it must be sealed "
+        "like the rest of the generated backend")
 
 
 def test_the_container_runs_the_wrapper_not_the_bare_api(project):

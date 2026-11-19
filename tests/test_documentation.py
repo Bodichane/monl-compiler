@@ -121,9 +121,9 @@ def _package_roots() -> tuple[str, ...]:
     texte = (RACINE / "pyproject.toml").read_text(encoding="utf-8")
     bloc = re.search(r"\[tool\.setuptools\.package-dir\](.*?)(?:\n\[|\Z)",
                      texte, re.S)
-    assert bloc, "extracteur inopérant : [tool.setuptools.package-dir] introuvable"
+    assert bloc, "extractor not working: [tool.setuptools.package-dir] not found"
     racines = tuple(re.findall(r'=\s*"([^"]+)"', bloc.group(1)))
-    assert racines, "extracteur inopérant : aucune racine de paquet lue"
+    assert racines, "extractor not working: no package root read"
     return racines
 
 
@@ -184,17 +184,17 @@ def test_every_shipped_verb_is_documented():
     make a reference one can look up.
     """
     attendus = _orders(build_monl_parser()) - set(VERBES_HORS_TABLEAU)
-    assert attendus, "extracteur inopérant : aucun verbe lu sur le parseur"
+    assert attendus, "extractor not working: no verb read on the parser"
     tableau = (RACINE / TABLEAU_DES_COMMANDES).read_text(encoding="utf-8")
     lignes = [ligne for ligne in tableau.splitlines()
               if ligne.startswith("| `monl")]
-    assert lignes, "extracteur inopérant : tableau des commandes introuvable"
+    assert lignes, "extractor not working: commands table not found"
     documentes = {verbe for ligne in lignes
                   for _, verbe in MOTIF_CLI.findall(ligne)}
 
     manquants = sorted(attendus - documentes)
     assert not manquants, (
-        f"verbes livrés et absents du tableau de {TABLEAU_DES_COMMANDES} : "
+        f"verbs shipped and missing from the {TABLEAU_DES_COMMANDES} table: "
         f"{manquants}")
 
     perimes = sorted(set(VERBES_HORS_TABLEAU) - _orders(build_monl_parser()))
@@ -219,7 +219,7 @@ def test_a_compiled_project_path_points_where_the_file_really_goes(tmp_path):
     cible = tmp_path / "projet"
     compile_project(str(RACINE / "exemples" / "01_portfolio.ml"), str(cible))
     produits = {p.relative_to(cible).as_posix() for p in cible.rglob("*") if p.is_file()}
-    assert produits, "extracteur inopérant : la compilation n'a rien produit"
+    assert produits, "extractor not working: compilation produced nothing"
     par_nom = {}
     for chemin in produits:
         par_nom.setdefault(Path(chemin).name, []).append(chemin)
@@ -230,7 +230,7 @@ def test_a_compiled_project_path_points_where_the_file_really_goes(tmp_path):
     # files whose compilation really produced a namesake — so widening the
     # window does not widen what is accused.
     noms_juges = "|".join(re.escape(n) for n in sorted(par_nom) if n in FICHIERS_GENERES)
-    assert noms_juges, "extracteur inopérant : aucun artefact généré à confronter"
+    assert noms_juges, "extractor not working: no generated artifact to confront"
     motif = re.compile(rf"([A-Za-z<][\w<>./-]*)/({noms_juges})\b")
 
     documents = _documents()
@@ -271,7 +271,7 @@ def test_the_extractors_cannot_succeed_on_nothing():
 
 def test_the_documentation_respects_the_repository_invariants():
     documents = _documents()
-    assert documents, "extracteur inopérant : aucun document Markdown lu"
+    assert documents, "extractor not working: no Markdown document read"
     fichiers = set(subprocess.check_output(
         ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
         cwd=RACINE, text=True
@@ -280,8 +280,8 @@ def test_the_documentation_respects_the_repository_invariants():
         doc: _file_citations(texte) for doc, texte in documents.items()
     }
     commandes = {doc: _cited_commands(texte) for doc, texte in documents.items()}
-    assert sum(map(len, citations.values())), "extracteur inopérant : aucun chemin extrait"
-    assert sum(map(len, commandes.values())), "extracteur inopérant : aucun verbe CLI extrait"
+    assert sum(map(len, citations.values())), "extractor not working: no path extracted"
+    assert sum(map(len, commandes.values())), "extractor not working: no CLI verb extracted"
 
     # The two programs dispatch differently, so the truth is read in two
     # different places — but in BOTH cases it is what the code RUNS, never a
@@ -293,7 +293,7 @@ def test_the_documentation_respects_the_repository_invariants():
         "monl-platform": set(VERBES_PLATEFORME) | set(ALIAS_DES_VERBES),
     }
     assert all(commandes_valides.values()), (
-        "extracteur inopérant : un programme ne déclare aucun verbe")
+        "extractor not working: a program declares no verb")
     erreurs: list[str] = []
     historiques_utilises: set[str] = set()
     generes_utilises: set[str] = set()

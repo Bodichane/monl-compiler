@@ -259,8 +259,8 @@ def test_an_always_truncated_chunk_does_not_run_a_second_full_generation(project
         attendus.append(suivant)
     assert paliers == attendus, (paliers, attendus)
     assert paliers[-1] == CHUNK_RETRY_MAX_OUTPUT_TOKENS, (
-        "la dernière reprise n'atteint pas la borne déclarée : celle-ci ne "
-        "contraint alors rien, et le message d'erreur qui la cite ment")
+        "the last retry does not reach the declared bound: the bound then "
+        "constrains nothing, and the error message citing it lies")
     assert "no second complete attempt" in errors[0]
     events = [json.loads(line) for line in
               (project / USAGE_FILENAME).read_text(encoding="utf-8").splitlines()]
@@ -292,7 +292,7 @@ class AppTimeoutAfterValidChunks:
         }
         if target == "app.js":
             from monl.frontend_ai import FrontendAIError
-            raise FrontendAIError("délai fournisseur dépassé")
+            raise FrontendAIError("provider timeout exceeded")
         return json.dumps({"files": {target: GOOD_FILES[target]}})
 
 
@@ -336,7 +336,7 @@ def test_the_app_js_budget_follows_the_number_of_routes(tmp_path):
                                 ampleur_du_contrat(_contract(tmp_path / "b", 15)))
 
     assert _vise(grand) > _vise(petit), (_vise(petit), _vise(grand))
-    assert _vise(grand) >= 6_000, "un contrat à 15 routes ne tient pas en moins"
+    assert _vise(grand) >= 6_000, "a 15-route contract does not fit in less"
     assert "1,500 tokens" not in grand and "1500 tokens" not in grand
 
 
@@ -360,8 +360,8 @@ def test_the_hard_limit_no_longer_contradicts_the_budget(tmp_path):
     caracteres = int(re.search(r"finish before (\d+) characters", prompt).group(1))
 
     assert caracteres >= _vise(prompt) * 3, (
-        "la limite dure recoupe le budget demandé : le modèle obéit à la plus "
-        "petite des deux, et c'est elle qui décide de la complétude")
+        "the hard limit cuts into the requested budget: the model obeys the "
+        "smaller of the two, and that one decides completeness")
 
 
 def test_the_route_floor_is_STATED_to_the_model(tmp_path):

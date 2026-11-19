@@ -63,7 +63,7 @@ def running_platform(tmp_path):
             except requests.RequestException:
                 time.sleep(0.02)
         else:
-            pytest.fail("le serveur de console n'a pas démarré")
+            pytest.fail("the console server did not start")
         yield base
     finally:
         server.should_exit = True

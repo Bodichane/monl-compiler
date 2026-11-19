@@ -236,7 +236,7 @@ def boutique(tmp_path):
             except OSError:
                 time.sleep(0.25)
         else:
-            pytest.fail("le serveur n'a jamais répondu")
+            pytest.fail("the server never answered")
         _appel(base + "/register", {"username": "zoe", "password": "motdepasse1",
                                     "actor": "Client"})
         _, jeton = _appel(base + "/login", {"username": "zoe",
@@ -296,7 +296,7 @@ def test_cancelling_again_does_NOT_give_back_a_second_time(boutique):
                          jeton, methode="PUT")
         assert code == 200
 
-    assert _stock(base) == depart, "le stock a été rendu plusieurs fois"
+    assert _stock(base) == depart, "the stock was given back several times"
 
 
 def test_reactivating_after_cancellation_is_refused(boutique):
@@ -312,9 +312,9 @@ def test_reactivating_after_cancellation_is_refused(boutique):
                            jeton, methode="PUT")
 
     assert code == 409, reponse
-    assert _stock(base) == depart, "un refus ne doit rien avoir consommé"
+    assert _stock(base) == depart, "a refusal must have consumed nothing"
     _, relue = _appel(f"{base}/commande/{cmd}", jeton=jeton)
-    assert relue["data"]["statut"] == "annulée", "l'état a changé malgré le refus"
+    assert relue["data"]["statut"] == "annulée", "the state changed despite the refusal"
 
 
 def test_another_status_releases_nothing(boutique):
@@ -328,7 +328,7 @@ def test_another_status_releases_nothing(boutique):
                      jeton, methode="PUT")
 
     assert code == 200
-    assert _stock(base) == depart - 2, "un statut ordinaire a rendu du stock"
+    assert _stock(base) == depart - 2, "an ordinary status gave stock back"
 
 
 def test_cancelling_gives_back_only_ITS_lines(boutique):
@@ -342,7 +342,7 @@ def test_cancelling_gives_back_only_ITS_lines(boutique):
 
     _appel(f"{base}/commande/{premiere}", {"statut": "annulée"}, jeton, methode="PUT")
 
-    assert _stock(base) == depart - 2, "la libération a débordé sur l'autre commande"
+    assert _stock(base) == depart - 2, "the release spilled over onto the other order"
 
 
 # --------------------------------------------------------------------------
@@ -401,11 +401,11 @@ def test_the_field_taken_by_payment_no_longer_breaks_the_update(tmp_path, capsys
 
     generique = source.split("def modifier_commande_apres_paiement")[0]
     assert "data.statut" not in generique, (
-        "l'Update générique lit un champ que son schéma Pydantic ne porte "
-        "pas : tout PUT répondra 500")
+        "the generic Update reads a field its Pydantic schema does not "
+        "carry: every PUT will answer 500")
     assert "class CommandeSchema" in source
     schema = source.split("class CommandeSchema")[1].split("class ")[0]
-    assert "statut" not in schema, "prémisse fausse : le champ est resté au schéma"
+    assert "statut" not in schema, "false premise: the field stayed in the schema"
 
 
 def test_the_release_follows_the_field_into_the_after_payment_route(tmp_path, capsys):
@@ -421,11 +421,11 @@ def test_the_release_follows_the_field_into_the_after_payment_route(tmp_path, ca
     source = (tmp_path / "app.py").read_text(encoding="utf-8")
 
     route = source.split("def modifier_commande_apres_paiement")[1]
-    assert "_bascule" in route, "la libération ne suit pas le champ qui l'arme"
+    assert "_bascule" in route, "the release does not follow the field that arms it"
     assert 'UPDATE "produit" SET "stock"' in route, (
-        "la bascule est émise mais ne rend rien")
+        "the transition is emitted but gives nothing back")
     # This route's fields are OPTIONAL: without this guard, a call not touching
     # the status would refuse the order it does not modify.
     assert "data.statut is not None" in route, (
-        "le refus de réactivation se déclencherait sur un appel qui ne "
-        "modifie pas le statut")
+        "the reactivation refusal would fire on a call that does not "
+        "modify the status")

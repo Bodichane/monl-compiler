@@ -109,8 +109,8 @@ def test_no_example_pastes_a_value_into_sql():
         for requete in _litteraux_sql(source):
             for interdit in INTERDITS_EN_SQL:
                 assert interdit not in requete, (
-                    f"{os.path.basename(chemin)} : valeur '{interdit}' collée dans "
-                f"le texte SQL (point 107) — {requete!r}")
+                    f"{os.path.basename(chemin)}: value '{interdit}' pasted into "
+                f"the SQL text (point 107) — {requete!r}")
 
     check_each_case([(valeur,) for valeur in table], cas, ids=noms)
 
@@ -120,7 +120,7 @@ def test_depth_2_pastes_no_value_into_sql():
     for requete in _litteraux_sql(source):
         for interdit in INTERDITS_EN_SQL:
             assert interdit not in requete, (
-                f"profondeur 2 : valeur '{interdit}' collée dans le texte SQL "
+                f"depth 2: value '{interdit}' pasted into the SQL text "
                 f"(point 107) — {requete!r}")
 
 
@@ -133,9 +133,9 @@ def test_the_invariant_really_sees_access_control():
         _app_source(SPEC_PROFONDEUR, depuis_fichier=False, base_dir=None)))
     controle = [r for r in requetes if "IN (SELECT id FROM" in r or
                 ('WHERE id = ' in r and "SELECT" in r)]
-    assert controle, "aucune requête de contrôle d'accès générée — invariant aveugle"
+    assert controle, "no access-control query generated — invariant blind"
     assert any("= ?" in r for r in controle), \
-        "le contrôle d'accès ne lie aucune valeur — régression du point 107"
+        "access control binds no value — point 107 regression"
 
 
 def test_b4_pastes_no_value_into_sql():
@@ -145,4 +145,4 @@ def test_b4_pastes_no_value_into_sql():
     for requete in _litteraux_sql(source):
         for interdit in (*INTERDITS_EN_SQL, "req.", "payload.", "row["):
             assert interdit not in requete, (
-                f"B4 : valeur '{interdit}' collée dans le texte SQL — {requete!r}")
+                f"B4: value '{interdit}' pasted into the SQL text — {requete!r}")

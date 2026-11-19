@@ -49,7 +49,7 @@ def test_projects_belong_to_a_single_account(tmp_path):
     with sqlite_db(store.path) as db:
         db.execute("UPDATE projects SET expires_at = 0 WHERE project_id = ?", ("a" * 32,))
     assert reopened.expired_projects() == ["a" * 32]
-    assert reopened.projects(alice["id"]), "La sélection des projets échus ne doit pas effacer leur propriétaire"
+    assert reopened.projects(alice["id"]), "Selecting expired projects must not erase their owner"
     from monl_platform.app_lifecycle import _purger
     from monl_platform.service import CompilationService
 

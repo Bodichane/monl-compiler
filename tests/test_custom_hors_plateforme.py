@@ -48,7 +48,7 @@ def test_custom_description_stays_exactly_a_shell(tmp_path):
 
 
 def _assert_writes_without_custom(fichiers):
-    assert fichiers, 'aucun fichier de plateforme inspecté'
+    assert fichiers, 'no platform file inspected'
     for fichier in fichiers:
         arbre = ast.parse(fichier.read_text(encoding='utf-8'))
         # Conservative resolution of path variables: every assignment is
@@ -81,7 +81,7 @@ def _assert_writes_without_custom(fichiers):
                 if isinstance(fonction, ast.Attribute):
                     cibles.append(fonction.value)
                 assert not any(vise_custom(c) for c in cibles), (
-                    f'{fichier}:{appel.lineno} : écriture visant sandbox_ai interdite'
+                    f'{fichier}:{appel.lineno}: write targeting sandbox_ai forbidden'
                 )
 
 
@@ -90,5 +90,5 @@ def test_platform_does_not_write_sandbox_ai():
 
 
 def test_guard_refuses_an_empty_scope():
-    with pytest.raises(AssertionError, match='aucun fichier'):
+    with pytest.raises(AssertionError, match='no file'):
         _assert_writes_without_custom([])

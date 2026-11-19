@@ -58,7 +58,7 @@ def _descripteurs(chemin):
 
 
 @pytest.mark.skipif(not os.path.isdir("/proc/self/fd"),
-                    reason="le décompte de descripteurs demande /proc")
+                    reason="descriptor counting requires /proc")
 def test_the_probe_leaves_no_connection_open_behind_it(tmp_path):
     """`with sqlite3.connect(...)` commits the transaction, but does NOT CLOSE
     (point 141, identity_database.py) — a CPython `Connection` object takes
@@ -77,4 +77,4 @@ def test_the_probe_leaves_no_connection_open_behind_it(tmp_path):
         assert _sqlite_valide(chemin)
 
     ouverts = _descripteurs(chemin)
-    assert ouverts == 0, f"{ouverts} descripteurs restent ouverts sur la sauvegarde"
+    assert ouverts == 0, f"{ouverts} descriptors stay open on the backup"

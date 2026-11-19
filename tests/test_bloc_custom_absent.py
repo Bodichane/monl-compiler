@@ -60,9 +60,9 @@ def test_without_custom_block_the_module_is_neither_written_nor_imported(tmp_pat
     app = (dossier / "app.py").read_text(encoding="utf-8")
 
     assert not (dossier / "sandbox_ai.py").exists(), (
-        "un module vide reste livré alors que la spec n'a aucun bloc 'custom'")
+        "an empty module is still shipped while the spec has no 'custom' block")
     assert "import sandbox_ai" not in app, (
-        "app.py importe un module qui n'existe pas — le serveur ne démarrerait pas")
+        "app.py imports a module that does not exist — the server would not start")
 
 
 def test_without_custom_block_the_backend_really_starts(tmp_path):
@@ -79,7 +79,7 @@ def test_without_custom_block_the_backend_really_starts(tmp_path):
         env={**os.environ, "PYTHONPATH": str(dossier)},
     )
     assert resultat.returncode == 0, (
-        f"l'application ne se charge pas :\n{resultat.stderr[-1500:]}")
+        f"the application does not load:\n{resultat.stderr[-1500:]}")
     assert "ok" in resultat.stdout
 
 
@@ -90,9 +90,9 @@ def test_with_a_custom_block_the_module_comes_back(tmp_path):
     app = (dossier / "app.py").read_text(encoding="utf-8")
     sandbox = (dossier / "sandbox_ai.py").read_text(encoding="utf-8")
 
-    assert "import sandbox_ai" in app, "la brique 'custom' a perdu son module"
+    assert "import sandbox_ai" in app, "the 'custom' brick lost its module"
     assert "def publier" in sandbox.lower(), (
-        f"la coquille de la fonction custom n'est pas écrite :\n{sandbox}")
+        f"the custom function's shell is not written:\n{sandbox}")
 
 
 def test_the_two_compilations_do_not_give_the_same_app(tmp_path):

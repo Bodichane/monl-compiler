@@ -91,8 +91,8 @@ def test_the_contract_names_the_fields_login_really_returns(tmp_path):
     auth = _contract(sortie)["api"]["auth"]
 
     assert "response" in auth["login"], (
-        "le contrat doit décrire la forme de la réponse, pas seulement dire "
-        "qu'il y a « un token »")
+        "the contract must describe the response shape, not only say "
+        "there is \"a token\"")
 
     with uvicorn_server(str(sortie)) as base:
         inscription = requests.post(
@@ -107,8 +107,8 @@ def test_the_contract_names_the_fields_login_really_returns(tmp_path):
         reponse_reelle = connexion.json()
         for champ in auth["login"]["response"]:
             assert champ in reponse_reelle, (
-                f"le contrat annonce le champ '{champ}' que /login ne renvoie "
-                f"pas — reçu : {sorted(reponse_reelle)}")
+                f"the contract announces the '{champ}' field that /login does not "
+                f"return — received: {sorted(reponse_reelle)}")
 
         # And the announced token must REALLY open a protected route: a key
         # present but empty would pass the loop above.
@@ -130,7 +130,7 @@ def test_the_contract_names_what_register_returns(tmp_path):
         assert reponse.status_code == 200, reponse.text
         for champ in auth["register"]["response"]:
             assert champ in reponse.json(), (
-                f"'{champ}' annoncé par le contrat, absent de /register")
+                f"'{champ}' announced by the contract, missing from /register")
 
 
 def test_with_refresh_tokens_the_response_gains_a_field(tmp_path):
@@ -144,8 +144,8 @@ def test_with_refresh_tokens_the_response_gains_a_field(tmp_path):
     reponse_contrat = _contract(sortie)["api"]["auth"]["login"]["response"]
     assert "refresh_token" in reponse_contrat
     assert "not a JWT" in reponse_contrat["refresh_token"], (
-        "le contrat doit dire que ce jeton est OPAQUE : envoyé en "
-        "'Authorization: Bearer', il serait refusé")
+        "the contract must say this token is OPAQUE: sent as "
+        "'Authorization: Bearer', it would be refused")
 
     with uvicorn_server(str(sortie)) as base:
         requests.post(base + "/register", timeout=10,
@@ -157,7 +157,7 @@ def test_with_refresh_tokens_the_response_gains_a_field(tmp_path):
         assert connexion.status_code == 200, connexion.text
         for champ in reponse_contrat:
             assert champ in connexion.json(), (
-                f"'{champ}' annoncé, absent de la vraie réponse")
+                f"'{champ}' announced, missing from the real response")
 
 
 def test_without_the_capability_no_refresh_token_is_promised(tmp_path):
@@ -178,9 +178,9 @@ def test_the_brief_names_access_token(tmp_path):
     """The JSON contract is not enough: the interface AI works from the brief."""
     brief = _brief(_compiler(tmp_path, SPEC))
     assert "access_token" in brief, (
-        "le brief doit NOMMER le champ du jeton — sans lui, l'IA devine, et "
-        "une mauvaise devinette produit un site où personne ne se connecte "
-        "sans qu'aucun vérificateur ne s'en aperçoive")
+        "the brief must NAME the token field — without it, the AI guesses, and "
+        "a bad guess produces a site where nobody logs in "
+        "without any checker noticing")
 
 
 @pytest.mark.parametrize("mot", ["status, user_id", "access_token, token_type"])

@@ -52,7 +52,7 @@ def plateforme(tmp_path, monkeypatch):
             except requests.RequestException:
                 time.sleep(0.02)
         else:
-            pytest.fail("la plateforme n'a pas démarré")
+            pytest.fail("the platform did not start")
         yield base
     finally:
         serveur.should_exit = True

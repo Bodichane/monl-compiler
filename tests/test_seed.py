@@ -126,7 +126,7 @@ def _serve(workdir, port):
         [sys.executable, "-m", "uvicorn", "app:app", "--port", str(port)],
         cwd=workdir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
-    assert _wait(port), "le serveur n'a pas démarré"
+    assert _wait(port), "the server did not start"
     return proc
 
 
@@ -157,6 +157,6 @@ def test_seed_populates_on_startup_and_is_idempotent():
         proc = _serve(workdir, port)
         try:
             data = requests.get(f"http://127.0.0.1:{port}/product?limit=10").json()
-            assert data["total"] == 2, "le seed a été réinséré (doublons)"
+            assert data["total"] == 2, "the seed was reinserted (duplicates)"
         finally:
             _stop(proc)

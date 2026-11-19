@@ -41,7 +41,7 @@ def plateforme(tmp_path):
             except requests.RequestException:
                 time.sleep(0.02)
         else:
-            pytest.fail("la plateforme n'a pas démarré")
+            pytest.fail("the platform did not start")
         yield "127.0.0.1", port
     finally:
         serveur.should_exit = True

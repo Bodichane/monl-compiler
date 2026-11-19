@@ -135,6 +135,6 @@ def corpus_hashes():
 
 if __name__ == "__main__":
     first = corpus_hashes()
-    assert first == corpus_hashes(), "Compilation non déterministe"
+    assert first == corpus_hashes(), "Non-deterministic compilation"
     BASELINE.write_text(json.dumps(first, ensure_ascii=False, indent=2) + "\n",
                         encoding="utf-8")

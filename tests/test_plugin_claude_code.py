@@ -54,7 +54,7 @@ def test_each_version_pinned_by_the_plugin_is_its_manifests():
                  for v in re.findall(r"monl-compiler==([0-9][^\s`\"']*)",
                                      chemin.read_text(encoding="utf-8"))]
     # Without a pin found, the rule would look at nothing.
-    assert len(epinglees) >= 2, "versions épinglées introuvables"
+    assert len(epinglees) >= 2, "pinned versions not found"
     assert set(epinglees) == {Version(MANIFESTE["version"])}, epinglees
 
 
@@ -70,7 +70,7 @@ def test_the_plugin_contains_no_symbolic_link():
     fichiers = list(PLUGIN.rglob("*"))
     assert len(fichiers) >= 20, fichiers
     liens = [str(p.relative_to(PLUGIN)) for p in fichiers if p.is_symlink()]
-    assert not liens, f"le répertoire d'Anthropic refuse un lien : {liens}"
+    assert not liens, f"Anthropic's directory refuses a link: {liens}"
 
 
 def test_the_plugin_copies_are_identical_to_their_original():
@@ -118,7 +118,7 @@ def test_each_plugin_path_cited_by_a_skill_exists():
     cites = [(chemin.parent.name, cite) for chemin in COMPETENCES
              for cite in re.findall(r"\$\{CLAUDE_PLUGIN_ROOT\}/([^\s`)]+)",
                                     chemin.read_text(encoding="utf-8"))]
-    assert cites, "aucun chemin ${CLAUDE_PLUGIN_ROOT} trouvé : la règle ne regarderait rien"
+    assert cites, "no ${CLAUDE_PLUGIN_ROOT} path found: the rule would look at nothing"
     for competence, cite in cites:
         trouves = list(PLUGIN.glob(cite)) if "*" in cite else [PLUGIN / cite]
         assert trouves and all(t.exists() for t in trouves), f"{competence} : {cite}"

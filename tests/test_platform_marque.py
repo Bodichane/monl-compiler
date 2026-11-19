@@ -77,8 +77,8 @@ def test_the_text_palette_holds_on_the_three_surfaces():
             for arriere in ("bg", "surface", "surface-2"):
                 ratio = contraste(palette[avant], palette[arriere])
                 assert ratio >= 4.5, (
-                    f"[{theme_nom}] {avant} ({palette[avant]}) sur {arriere} "
-                f"({palette[arriere]}) : {ratio:.2f}:1, il faut 4.5")
+                    f"[{theme_nom}] {avant} ({palette[avant]}) on {arriere} "
+                f"({palette[arriere]}): {ratio:.2f}:1, 4.5 required")
 
     check_each_case([(valeur,) for valeur in table], cas)
 
@@ -92,8 +92,8 @@ def test_the_text_meets_wcag_aa_contrast():
             assert avant in palette and arriere in palette, f"{avant}/{arriere} absent"
             ratio = contraste(palette[avant], palette[arriere])
             assert ratio >= 4.5, (
-                f"[{theme_nom}] {avant} ({palette[avant]}) sur {arriere} "
-            f"({palette[arriere]}) : {ratio:.2f}:1, il faut 4.5")
+                f"[{theme_nom}] {avant} ({palette[avant]}) on {arriere} "
+            f"({palette[arriere]}): {ratio:.2f}:1, 4.5 required")
 
     check_each_case([(valeur,) for valeur in table], cas)
 
@@ -109,8 +109,8 @@ def test_controls_stand_out_from_the_background():
         for avant, arriere in COUPLES_CONTROLE:
             ratio = contraste(palette[avant], palette[arriere])
             assert ratio >= 3.0, (
-                f"[{theme_nom}] bordure de contrôle {palette[avant]} sur "
-            f"{palette[arriere]} : {ratio:.2f}:1, il faut 3.0")
+                f"[{theme_nom}] control border {palette[avant]} on "
+            f"{palette[arriere]}: {ratio:.2f}:1, 3.0 required")
 
     check_each_case([(valeur,) for valeur in table], cas)
 
@@ -124,7 +124,7 @@ def test_both_themes_declare_the_same_roles():
     def cas(theme_nom):
         blocs = _blocs()
         manquants = set(blocs["clair"]) - set(blocs["sombre"])
-        assert not manquants, f"rôles absents du thème sombre : {sorted(manquants)}"
+        assert not manquants, f"roles missing from the dark theme: {sorted(manquants)}"
 
     check_each_case([(valeur,) for valeur in table], cas)
 
@@ -140,20 +140,20 @@ def test_no_hard_coded_color_outside_the_stylesheet():
         if trouvees:
             fautifs[module.name] = sorted(set(trouvees))
     assert not fautifs, (
-        f"couleurs écrites en dur hors de theme.py : {fautifs} — "
-        "employez une variable CSS (var(--brand), var(--code-muted)…)")
+        f"colors hard-coded outside theme.py: {fautifs} — "
+        "use a CSS variable (var(--brand), var(--code-muted)…)")
 
 
 def test_the_page_mark_follows_the_text_color():
     """The original defect: a mark carrying its own background disappeared on the
     dark theme. In `currentColor`, it no longer can."""
     assert "currentColor" in theme.LOGO_MARK
-    assert "<text" not in theme.LOGO_MARK, "un tracé ne dépend d'aucune police"
+    assert "<text" not in theme.LOGO_MARK, "a stroke depends on no font"
     # The mark is now entirely monochrome: no fixed color, and no background
     # that would make it disappear in one of the two themes.
-    assert "<rect" not in theme.LOGO_MARK, "le signe s'est remis un fond"
+    assert "<rect" not in theme.LOGO_MARK, "the mark gave itself a background again"
     figees = set(COULEUR.findall(theme.LOGO_MARK))
-    assert not figees, f"couleur figée inattendue : {figees}"
+    assert not figees, f"unexpected fixed color: {figees}"
 
 
 def test_the_favicon_carries_its_colors_as_it_has_nothing_to_inherit():
@@ -167,7 +167,7 @@ def test_the_favicon_carries_its_colors_as_it_has_nothing_to_inherit():
     # counts is the CONTRAST between the badge and its strokes — that holds for
     # any palette.
     couleurs = COULEUR.findall(theme.FAVICON)
-    assert len(couleurs) >= 2, f"il faut un fond et au moins un tracé : {couleurs}"
+    assert len(couleurs) >= 2, f"a background and at least one stroke are needed: {couleurs}"
     fond, traces = couleurs[0], couleurs[1:]
     ratios = [contraste(trace, fond) for trace in traces]
     # 3:1 is WCAG 2.2's threshold for a GRAPHICAL object (1.4.11) — an icon is
@@ -176,9 +176,9 @@ def test_the_favicon_carries_its_colors_as_it_has_nothing_to_inherit():
     # the icon become a low-contrast mush: we therefore ALSO require at least
     # one stroke to hold 4.5, the one carrying the reading.
     for trace, ratio in zip(traces, ratios, strict=True):
-        assert ratio >= 3.0, f"tracé {trace} sur {fond} : {ratio:.2f}:1"
+        assert ratio >= 3.0, f"stroke {trace} on {fond}: {ratio:.2f}:1"
     assert max(ratios) >= 4.5, (
-        f"aucun tracé ne porte l'icône : {[f'{r:.2f}' for r in ratios]}")
+        f"no stroke carries the icon: {[f'{r:.2f}' for r in ratios]}")
 
 
 def test_the_mark_file_and_the_stylesheet_draw_the_same_sign():
@@ -187,9 +187,9 @@ def test_the_mark_file_and_the_stylesheet_draw_the_same_sign():
     svg = (pathlib.Path(theme.__file__).parents[2] / "docs/brand/monl-mark.svg"
            ).read_text(encoding="utf-8")
     traces = re.findall(r'd="([^"]+)"', theme.LOGO_MARK)
-    assert traces, "le signe ne contient plus aucun tracé"
+    assert traces, "the mark no longer contains any stroke"
     for trace in traces:
-        assert trace in svg, f"tracé absent de docs/brand/monl-mark.svg : {trace}"
+        assert trace in svg, f"stroke missing from docs/brand/monl-mark.svg: {trace}"
 
 
 # ---------------------------------------------------------------------------
@@ -241,9 +241,9 @@ def test_touch_targets_are_at_least_44px():
         source = (PAQUET / module).read_text(encoding="utf-8")
         hauteur = _hauteur_declaree(source, selecteur)
         assert hauteur is not None, (
-            f"`{selecteur}` ne déclare plus de hauteur dans {module} — "
-        "si la règle a été renommée, mettez CIBLES à jour plutôt que de "
-        "supprimer la garantie")
+            f"`{selecteur}` no longer declares a height in {module} — "
+        "if the rule was renamed, update CIBLES rather than "
+        "removing the guarantee")
         assert hauteur >= MINIMUM, (
             f"`{selecteur}` ({module}) : {hauteur}px, il en faut {MINIMUM}")
 
@@ -259,16 +259,16 @@ def test_the_wordmark_follows_the_theme_instead_of_carrying_its_background():
     The test is therefore about the MEANS as much as the result: going back to an
     `<img>` tag would lose the guarantee again without any color changing."""
     assert "<img" not in theme.WORDMARK, (
-        "un raster ne suit aucun thème — le wordmark doit rester en SVG inline")
-    assert "currentColor" in theme.WORDMARK, "les lettres doivent hériter du texte"
+        "a raster follows no theme — the wordmark must stay inline SVG")
+    assert "currentColor" in theme.WORDMARK, "the letters must inherit the text"
     # No plate at all any more: the lockup is painted directly and the page
     # background shows through its openings. It is stronger than the old
     # guarantee, which hollowed the letters out of a banner.
-    assert "<rect" not in theme.WORDMARK, "le wordmark s'est remis un fond"
+    assert "<rect" not in theme.WORDMARK, "the wordmark gave itself a background again"
     figees = set(COULEUR.findall(theme.WORDMARK))
-    assert not figees, f"couleur figée dans le wordmark : {figees}"
+    assert not figees, f"fixed color in the wordmark: {figees}"
     assert theme.NAV_WORDMARK in theme.page(title="t", description="d", body=""), (
-        "le wordmark compact n'est pas servi dans la page")
+        "the compact wordmark is not served in the page")
 
 
 def test_the_wordmark_stays_readable_in_both_themes():
@@ -281,7 +281,7 @@ def test_the_wordmark_stays_readable_in_both_themes():
         palette = _blocs()[theme_nom]
         lettres = contraste(palette["ink"], palette["bg"])
         assert lettres >= 4.5, (
-            f"[{theme_nom}] lettres {palette['ink']} sur page {palette['bg']} : "
+            f"[{theme_nom}] letters {palette['ink']} on page {palette['bg']}: "
         f"{lettres:.2f}:1")
 
     check_each_case([(valeur,) for valeur in table], cas)
@@ -297,9 +297,9 @@ def test_mark_strokes_carry_no_color():
     source = pathlib.Path(brand.__file__).read_text(encoding="utf-8")
     assert not COULEUR.findall(source), COULEUR.findall(source)
     for nom in ("WORDMARK_PATH", "NAV_MARK_PATH", "NAV_TEXT_PATH", "MARK_PATH"):
-        assert getattr(brand, nom).startswith("M"), f"{nom} n'est pas un tracé"
+        assert getattr(brand, nom).startswith("M"), f"{nom} is not a stroke"
     assert isinstance(brand.VUE, tuple) and len(brand.VUE) == 2, (
-        "VUE porte le viewBox du mot : sans elle, theme.py le devinerait")
+        "VUE carries the word's viewBox: without it, theme.py would guess it")
 
 
 def test_the_share_tags_invent_no_address(monkeypatch):
@@ -309,7 +309,7 @@ def test_the_share_tags_invent_no_address(monkeypatch):
     public URL, monl stays silent rather than guessing."""
     monkeypatch.delenv("MONL_PLATFORM_PUBLIC_URL", raising=False)
     muet = theme.page(title="t", description="d", body="")
-    assert "og:image" not in muet, "une image de partage a été inventée"
+    assert "og:image" not in muet, "a share image was invented"
     assert 'name="twitter:card" content="summary"' in muet
 
     monkeypatch.setenv("MONL_PLATFORM_PUBLIC_URL", "https://exemple.test/")
@@ -343,7 +343,7 @@ def test_raster_images_do_not_drift_from_the_mark():
     from PIL import Image
 
     outil = pathlib.Path(theme.__file__).parents[2] / "outils" / "fabriquer_images.py"
-    assert outil.exists(), "l'outil qui fabrique les images a disparu"
+    assert outil.exists(), "the tool making the images disappeared"
     spec = importlib.util.spec_from_file_location("fabriquer_images", outil)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -368,16 +368,16 @@ def test_raster_images_do_not_drift_from_the_mark():
                               ("monl-wordmark.png", module.fabriquer_wordmark),
                               ("monl-social.png", module.fabriquer_social)):
             servi = PAQUET / "static" / nom
-            assert servi.exists(), f"{nom} n'existe pas"
+            assert servi.exists(), f"{nom} does not exist"
             refait = fabrique(temporaire / nom)
 
             attendu, obtenu = _pixels(refait), _pixels(servi)
             assert [t for t, _ in attendu] == [t for t, _ in obtenu], (
-                f"{nom} n'a plus les mêmes tailles d'image")
+                f"{nom} no longer has the same image sizes")
             for (taille, a), (_, b) in zip(attendu, obtenu, strict=True):
                 assert a == b, (
-                    f"{nom} en {taille[0]}x{taille[1]} ne correspond plus aux "
-                    "tracés de la marque — relancer outils/fabriquer_images.py")
+                    f"{nom} at {taille[0]}x{taille[1]} no longer matches the "
+                    "mark's strokes — rerun outils/fabriquer_images.py")
 
 
 def test_pages_declare_both_icons():
@@ -392,7 +392,7 @@ def test_pages_declare_both_icons():
     assert '<link rel="icon" href="/favicon.ico?v=' in html
     assert '<link rel="icon" href="/favicon.svg?v=' in html
     assert html.index("/favicon.ico") < html.index("/favicon.svg"), (
-        "le SVG doit être déclaré APRÈS le .ico pour rester préféré")
+        "the SVG must be declared AFTER the .ico to stay preferred")
 
 
 def test_the_icon_address_changes_with_its_content():
@@ -431,10 +431,10 @@ def test_only_the_versioned_address_is_kept_long():
     perimee = cache_icone("vieille-empreinte", VERSION_ICO)["Cache-Control"]
 
     assert "immutable" in versionnee and "max-age=31536000" in versionnee
-    assert "immutable" not in nue, "une adresse nue ne peut pas être immuable"
-    assert nue == perimee, "une empreinte fausse vaut une absence d'empreinte"
+    assert "immutable" not in nue, "a bare address cannot be immutable"
+    assert nue == perimee, "a wrong fingerprint is as good as no fingerprint"
     assert int(nue.rsplit("=", 1)[1]) <= 3600, (
-        f"l'adresse nue se garde {nue} — une icône périmée survivrait")
+        f"the bare address is kept {nue} — a stale icon would survive")
 
 
 def test_the_account_form_never_refuses_silently():
@@ -451,9 +451,9 @@ def test_the_account_form_never_refuses_silently():
     from monl_platform import account
 
     assert '<form id="auth-form" novalidate>' in account.AUTH_HTML, (
-        "sans novalidate, le navigateur bloque l'envoi et la bannière reste vide")
+        "without novalidate, the browser blocks submission and the banner stays empty")
     assert "validationMessage" in account.AUTH_HTML, (
-        "le refus client n'atteint pas la bannière de la page")
+        "the client refusal does not reach the page banner")
     assert "error.className='form-error show'" in account.AUTH_HTML
 
 
@@ -510,11 +510,11 @@ def test_the_strokes_look_like_the_provided_drawing():
     trop_loin = {n: f"{e:.2%}" for n, e in mesures.items()
                  if e > vectoriser_logo.TOLERANCE}
     assert not trop_loin, (
-        f"le tracé ne ressemble plus au dessin fourni : {trop_loin} "
-        f"(tolérance {vectoriser_logo.TOLERANCE:.0%})")
+        f"the stroke no longer looks like the provided drawing: {trop_loin} "
+        f"(tolerance {vectoriser_logo.TOLERANCE:.0%})")
     # The counterpart: a tolerance far above what we measure no longer refuses
     # anything. If the real gaps fell to zero, the MEASUREMENT would be suspect
     # — a pixel-identical rendering would assume the stroke is compared with
     # itself.
     assert max(mesures.values()) > 0, (
-        "écart nul : la mesure compare probablement le tracé avec lui-même")
+        "zero gap: the measurement probably compares the stroke with itself")

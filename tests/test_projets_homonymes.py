@@ -59,9 +59,9 @@ def test_one_account_can_name_two_projects_alike(plateforme):
     slugs = [_project(store, identites, compte["id"], "AtelierVitrine")[1]
              for _ in range(3)]
 
-    assert len(set(slugs)) == 3, f"deux projets partagent une adresse : {slugs}"
+    assert len(set(slugs)) == 3, f"two projects share an address: {slugs}"
     assert slugs[0] == "ateliervitrine", (
-        "le PREMIER doit garder l'adresse que son nom annonce")
+        "the FIRST must keep the address its name announces")
 
 
 def test_two_accounts_do_not_steal_an_address(plateforme):
@@ -73,10 +73,10 @@ def test_two_accounts_do_not_steal_an_address(plateforme):
     _, slug_a = _project(store, identites, a["id"], "AtelierVitrine")
     _, slug_b = _project(store, identites, b["id"], "AtelierVitrine")
 
-    assert slug_a != slug_b, "un inconnu a pris l'adresse du premier"
+    assert slug_a != slug_b, "a stranger took the first one's address"
     for slug in (slug_a, slug_b):
         projet = sites.project_for_host(f"{slug}.localhost")
-        assert projet is not None, f"{slug} ne désigne aucun projet"
+        assert projet is not None, f"{slug} designates no project"
 
 
 def test_hosting_stays_unambiguous(plateforme):
@@ -97,7 +97,7 @@ def test_hosting_stays_unambiguous(plateforme):
     for slug, project_id in attendu.items():
         projet = sites.project_for_host(f"{slug}.localhost")
         assert projet["project_id"] == project_id, (
-            f"{slug}.localhost mène au mauvais projet")
+            f"{slug}.localhost leads to the wrong project")
 
 
 def test_global_uniqueness_holds_even_with_two_concurrent_writes(plateforme):
@@ -152,6 +152,6 @@ def test_a_database_already_with_duplicates_does_not_block_startup(tmp_path, cap
     capsys.readouterr()
     rouvert = PlatformStore(tmp_path)
     sortie = capsys.readouterr().out
-    assert rouvert.list_all_projects(), "la plateforme refuse de démarrer"
+    assert rouvert.list_all_projects(), "the platform refuses to start"
     assert "ancien" in sortie.lower(), (
-        f"le doublon n'est pas NOMMÉ au démarrage :\n{sortie}")
+        f"the duplicate is not NAMED at startup:\n{sortie}")

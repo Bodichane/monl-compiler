@@ -118,7 +118,7 @@ class FailingImageProvider:
 
     def __call__(self, prompt):
         self.prompts.append(prompt)
-        raise ImageProviderError("YandexART indisponible pour cette construction")
+        raise ImageProviderError("YandexART unavailable for this build")
 
 
 class FakeTextProvider:
@@ -347,7 +347,7 @@ def test_yandexart_locally_refuses_a_prompt_above_its_ceiling(
 
     import requests
     monkeypatch.setattr(
-        requests, "post", lambda *_args, **_kwargs: pytest.fail("aucun HTTP attendu"))
+        requests, "post", lambda *_args, **_kwargs: pytest.fail("no HTTP expected"))
 
     provider = yandexart_provider()
     with pytest.raises(ImageProviderError, match="YandexART prompt is too long"):
@@ -549,7 +549,7 @@ def test_yandexart_refuses_an_invalid_aspect_ratio(
     monkeypatch.setenv("YANDEX_FOLDER_ID", "folder-image")
     import requests
     monkeypatch.setattr(requests, "post", lambda *_args, **_kwargs:
-                        pytest.fail("le rapport invalide doit être refusé avant HTTP"))
+                        pytest.fail("the invalid ratio must be refused before HTTP"))
 
     provider = yandexart_provider(model="art://folder-image/modele-special")
     assert provider.model == "modele-special"

@@ -52,9 +52,9 @@ def test_styled_rendering_without_color_or_unicode_stays_plain_text():
     # show the user's own accented input either.
     glyphes = "│❯○━✗→…"
     for sortie in sorties:
-        assert "\033" not in sortie, f"séquence ANSI émise sans couleur : {sortie!r}"
+        assert "\033" not in sortie, f"ANSI sequence emitted without color: {sortie!r}"
         for glyphe in glyphes:
-            assert glyphe not in sortie, f"glyphe {glyphe!r} non dégradé : {sortie!r}"
+            assert glyphe not in sortie, f"glyph {glyphe!r} not degraded: {sortie!r}"
 
 
 def test_styled_rendering_colors_and_frames_without_breaking_text():

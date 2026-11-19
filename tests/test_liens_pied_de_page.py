@@ -64,7 +64,7 @@ def test_console_and_server_complete_identically():
     """
     node = shutil.which("node")
     if not node:
-        pytest.skip("node absent : les deux couches ne peuvent pas être confrontées")
+        pytest.skip("node missing: the two layers cannot be compared")
 
     script = (
         _fonction_js("adresseDeLien")

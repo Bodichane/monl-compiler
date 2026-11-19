@@ -229,8 +229,8 @@ def test_the_total_is_not_a_request_field(application):
     champs = requests.get(f"{base}/openapi.json").json()[
         "components"]["schemas"]["CommandeSchema"]["properties"]
     assert "total" not in champs, (
-        "le client pourrait écrire le total d'un panier — la faille du point 77 "
-        "revenue par le panier")
+        "the client could write a cart's total — point 77's flaw "
+        "back through the cart")
     assert "libelle" in champs  # witness: the schema is not empty
 
 
@@ -308,7 +308,7 @@ def test_a_cart_emptied_of_its_lines_falls_back_to_zero(application, alice):
     ligne = _line(base, alice, commande, _id_article(dossier, PRIX_A),
                    2).json()["id"]
     requests.delete(f"{base}/ligne/{ligne}", headers=alice)
-    assert _total(base, alice, commande) == 0, "un panier vidé doit valoir 0"
+    assert _total(base, alice, commande) == 0, "an emptied cart must be worth 0"
 
 
 def test_the_sum_is_rounded(application, alice):
@@ -323,7 +323,7 @@ def test_the_sum_is_rounded(application, alice):
     # prove nothing with values that fall right.
     brute = round(PRIX_A * QTE_A, 2) + round(PRIX_B * QTE_B, 2)
     assert brute != round(brute, 2), (
-        "les prix du banc ne dérivent plus : ce test redevient tautologique")
+        "the bench prices no longer drift: this test becomes tautological")
     assert total == round(brute, 2), f"total non arrondi : {total!r}"
 
 
@@ -366,12 +366,12 @@ def test_the_charged_amount_is_the_cart_sum(application, alice, faux_stripe):
     reglement = requests.post(f"{base}/commande/{commande}/paiement",
                               headers=alice)
     assert reglement.status_code == 200, reglement.text
-    assert len(faux_stripe.recu) == avant + 1, "aucun appel au prestataire"
+    assert len(faux_stripe.recu) == avant + 1, "no call to the provider"
 
     demande = faux_stripe.recu[avant]
     assert demande["champs"][
         "line_items[0][price_data][unit_amount]"] == attendu_centimes, (
-        f"montant encaissé faux : {demande['champs']}")
+        f"wrong charged amount: {demande['champs']}")
     # The reference stays qualified by the entity (point 75).
     assert demande["champs"]["client_reference_id"] == f"Commande:{commande}"
 

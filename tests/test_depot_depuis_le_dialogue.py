@@ -119,7 +119,7 @@ def test_a_receipt_is_uploaded_and_read_back(two_accounts):
     relecture = requests.get(
         f"{base}/expense/{identifiant}/photo", headers=alice, timeout=10)
     assert relecture.status_code == 200, relecture.text
-    assert relecture.content == PNG, "les octets rendus ne sont pas ceux déposés"
+    assert relecture.content == PNG, "the returned bytes are not the uploaded ones"
 
 
 def test_another_accounts_receipt_stays_inaccessible(two_accounts):

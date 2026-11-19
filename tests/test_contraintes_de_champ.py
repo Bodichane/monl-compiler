@@ -320,7 +320,7 @@ def server(tmp_path):
         for _ in range(120):
             if processus.poll() is not None:
                 sortie = processus.stdout.read().decode("utf-8", "replace")
-                pytest.fail(f"le serveur s'est arrêté :\n{sortie[-2000:]}")
+                pytest.fail(f"the server stopped:\n{sortie[-2000:]}")
             try:
                 # /docs returns HTML: probing with _appel (which decodes JSON)
                 # would make a READY server pass for a silent one.
@@ -330,7 +330,7 @@ def server(tmp_path):
             except OSError:
                 time.sleep(0.25)
         else:
-            pytest.fail("le serveur n'a jamais répondu")
+            pytest.fail("the server never answered")
         _appel(base + "/register", {"username": "v", "password": "motdepasse1",
                                     "actor": "Visiteur"})
         _, corps = _appel(base + "/login", {"username": "v",
@@ -366,7 +366,7 @@ def test_unique_refuses_a_duplicate_on_creation(server):
             "SELECT COUNT(*) FROM membre WHERE pseudo = 'zoe'").fetchone()[0]
     finally:
         base_donnees.close()
-    assert lignes == 1, "l'unicité doit tenir EN BASE, pas seulement dans la réponse"
+    assert lignes == 1, "uniqueness must hold IN THE DATABASE, not only in the response"
 
 
 def test_unique_refuses_a_duplicate_on_update(server):
@@ -380,7 +380,7 @@ def test_unique_refuses_a_duplicate_on_update(server):
     code, corps = _appel(base + "/membre/1",
                          {"pseudo": "autre", "courriel": "z@x.fr", "age": 30},
                          jeton, methode="PUT")
-    assert code == 409, f"500 = la garde manque ou entoure le mauvais appel ({corps})"
+    assert code == 409, f"500 = the guard is missing or wraps the wrong call ({corps})"
     # Witness: a legitimate update still passes.
     code_ok, _ = _appel(base + "/membre/1",
                         {"pseudo": "zoe2", "courriel": "z@x.fr", "age": 31},
@@ -444,4 +444,4 @@ def test_a_database_with_duplicates_says_so_instead_of_hiding_it(tmp_path, capsy
         env={**os.environ, "PYTHONPATH": str(tmp_path)}, timeout=60)
     trace = sortie.stdout + sortie.stderr
     assert "pseudo" in trace and "duplicate" in trace, trace[-1500:]
-    assert sortie.returncode == 0, "le serveur doit continuer de démarrer"
+    assert sortie.returncode == 0, "the server must keep starting"

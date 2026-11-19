@@ -257,7 +257,7 @@ def test_deleting_with_confirm_erases_down_to_disk(tmp_path):
 
     rendu = admin(tmp_path, "supprimer-compte", "partant@exemple.test", "--confirmer")
     assert rendu.returncode == 0, rendu.stderr
-    assert not dossier.exists(), "le dossier compilé survit à la suppression"
+    assert not dossier.exists(), "the compiled folder survives the deletion"
 
     magasin = IdentityStore(_espace(tmp_path))
     with sqlite_db(magasin.path) as db:
@@ -286,7 +286,7 @@ def test_every_writing_gesture_leaves_a_trace(tmp_path):
     for evenement, arguments in gestes.items():
         rendu = admin(tmp_path, *arguments)
         assert rendu.returncode == 0, rendu.stderr
-        assert evenement in rendu.stderr, f"{evenement} absent du journal"
+        assert evenement in rendu.stderr, f"{evenement} missing from the log"
 
 
 def test_the_administration_log_gives_no_bare_identifier(tmp_path):
@@ -300,7 +300,7 @@ def test_the_administration_log_gives_no_bare_identifier(tmp_path):
         identifiant = db.execute("SELECT id FROM users").fetchone()[0]
 
     rendu = admin(tmp_path, "codes", "nu@exemple.test")
-    assert identifiant not in rendu.stderr, "l'identifiant complet est journalisé"
+    assert identifiant not in rendu.stderr, "the full identifier is logged"
     assert identifiant[:8] in rendu.stderr
     # And no recovery code must end up in the log.
     for code in corps["recovery_codes"]:

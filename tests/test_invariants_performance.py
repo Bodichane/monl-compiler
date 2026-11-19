@@ -67,7 +67,7 @@ def _literal_assignments(source):
                 and node.targets[0].id in wanted):
             assignments[node.targets[0].id] = ast.literal_eval(node.value)
     missing = wanted - assignments.keys()
-    assert not missing, f"constantes d'index absentes du code généré : {sorted(missing)}"
+    assert not missing, f"index constants missing from the generated code: {sorted(missing)}"
     return assignments, tree
 
 
@@ -124,7 +124,7 @@ def _filtered_columns(source):
         node for node in tree.body
         if isinstance(node, ast.FunctionDef) and node.name.startswith("list_")
     ]
-    assert list_routes, "aucune route de liste trouvée dans le code généré"
+    assert list_routes, "no list route found in the generated code"
     for function in list_routes:
         tables = {
             match.group(1).lower()
@@ -140,7 +140,7 @@ def _filtered_columns(source):
         if not route_tables:
             continue
         assert len(route_tables) == 1, (
-            f"plusieurs tables métier dans la route {function.name}: "
+            f"several business tables in route {function.name}: "
             f"{sorted(route_tables)}")
         table = next(iter(route_tables))
         for fragment in _route_sql_fragments(function):
@@ -186,13 +186,13 @@ def _assert_performance_invariant(path, *, minimum_witness=None):
     found, assignments = _filtered_columns(source)
     if minimum_witness is not None:
         assert found, (
-            f"aucune colonne filtrée trouvée dans {os.path.basename(path)}")
+            f"no filtered column found in {os.path.basename(path)}")
         assert len(found) >= minimum_witness, (
-            f"le témoin ne voit que {len(found)} colonne(s) filtrée(s) dans "
-            f"{os.path.basename(path)} ; minimum attendu : {minimum_witness}")
+            f"the witness only sees {len(found)} filtered column(s) in "
+            f"{os.path.basename(path)}; expected minimum: {minimum_witness}")
     missing = sorted(found - _indexed_columns(assignments))
     assert not missing, (
-        f"{os.path.basename(path)} : colonnes métier filtrées sans index : "
+        f"{os.path.basename(path)}: business columns filtered without index: "
         f"{missing}")
     return found
 

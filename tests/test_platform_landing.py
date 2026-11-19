@@ -31,7 +31,7 @@ class FakeProvider:
     model = "test-model"
 
     def __call__(self, _prompt):  # pragma: no cover - never called here
-        raise AssertionError("la page de présentation n'appelle aucune IA")
+        raise AssertionError("the presentation page calls no AI")
 
 
 def _free_port():
@@ -61,7 +61,7 @@ def platform(tmp_path):
             except requests.RequestException:
                 time.sleep(0.02)
         else:
-            pytest.fail("le serveur n'a pas démarré")
+            pytest.fail("the server did not start")
         yield base
     finally:
         server.should_exit = True
@@ -93,7 +93,7 @@ def test_the_page_loads_no_remote_resource(platform):
     reponse = requests.get(platform, timeout=10)
 
     faute = RESSOURCE_EXTERNE.search(reponse.text)
-    assert faute is None, f"ressource distante dans la page : {faute.group(0)}"
+    assert faute is None, f"remote resource in the page: {faute.group(0)}"
 
 
 def test_every_outgoing_url_is_a_link_and_nothing_else(platform):
@@ -165,7 +165,7 @@ def _bande_verticale(trace):
     """
     nombres = [float(n) for n in re.findall(r"-?\d+\.?\d*", trace)]
     ordonnees = nombres[1::2]
-    assert ordonnees, "tracé illisible : la mesure porterait sur du vide"
+    assert ordonnees, "unreadable path: the measurement would be about nothing"
     return min(ordonnees), max(ordonnees)
 
 
@@ -197,11 +197,11 @@ def test_the_bar_carries_the_short_form_and_its_label_says_so(platform):
     hauteur = brand.VUE[1]
 
     assert (bas_court - haut_court) < 0.5 * hauteur, (
-        "le texte de la barre occupe deux lignes : ce n'est plus la forme "
-        "courte que son intitulé annonce")
+        "the bar text takes two lines: it is no longer the short "
+        "form its label announces")
     assert (bas_long - haut_long) > 0.9 * hauteur, (
-        "le lockup a perdu sa seconde ligne — le logo choisi ne porte plus "
-        "COMPILER, et rien d'autre ne le garde")
+        "the lockup lost its second line — the chosen logo no longer carries "
+        "COMPILER, and nothing else guards it")
 
 
 def test_no_color_is_written_outside_the_theme():
@@ -254,8 +254,8 @@ def test_a_reveal_is_never_hidden_by_an_inline_style():
     for nom, page in (("accueil", LANDING_HTML), ("console", CONSOLE_HTML)):
         propre = sans_commentaires.sub("", page)
         assert not re.search(r"\.style\.opacity\s*=", propre), (
-            f"la page {nom} cache un bloc par un style en ligne : une classe "
-            "ne pourra pas le défaire"
+            f"the {nom} page hides a block with an inline style: a class "
+            "will not be able to undo it"
         )
 
 
@@ -291,8 +291,8 @@ def test_the_comparison_also_says_what_monl_does_not_bring():
     limites = next(nous for axe, _e, nous in COMPARAISON
                    if axe == "What it does not provide")
     for absent in ("hosting", "real-time", "storage"):
-        assert absent in limites, f"limite non énoncée : {absent}"
-    assert limites in LANDING_HTML, "la ligne des limites n'est pas servie"
+        assert absent in limites, f"limit not stated: {absent}"
+    assert limites in LANDING_HTML, "the limits line is not served"
 
 
 def test_no_value_judgment_in_the_comparison():
@@ -304,7 +304,7 @@ def test_no_value_judgment_in_the_comparison():
                  "better", "superior", "obsolete")
     texte = " ".join(f"{a} {b} {c}".lower() for a, b, c in COMPARAISON)
     fautifs = [mot for mot in interdits if mot in texte]
-    assert not fautifs, f"jugement de valeur dans la comparaison : {fautifs}"
+    assert not fautifs, f"value judgment in the comparison: {fautifs}"
 
 
 def test_the_sites_postgresql_promise_is_covered_by_a_test():
@@ -317,10 +317,10 @@ def test_the_sites_postgresql_promise_is_covered_by_a_test():
     assert "postgresql://" in "\n".join(montage["code"])
 
     epreuve = pathlib.Path(__file__).with_name("test_postgresql.py")
-    assert epreuve.exists(), "la promesse ne pointe sur aucune épreuve"
+    assert epreuve.exists(), "the promise points to no test"
     source = epreuve.read_text(encoding="utf-8")
     assert "MONL_DATABASE_URL" in source, (
-        "l'épreuve ne démarre pas les artefacts avec la variable annoncée")
+        "the test does not start the artifacts with the announced variable")
 
 
 def test_each_exploit_cites_the_point_documenting_it():
@@ -337,7 +337,7 @@ def test_each_exploit_cites_the_point_documenting_it():
         assert numeros, refus["point"]
         for numero in numeros:
             assert f"\n## {numero}." in journal, (
-                f"point {numero} cité par « {refus['titre']} » absent du journal")
+                f"point {numero} cited by \"{refus['titre']}\" missing from the journal")
         assert refus["titre"] in LANDING_HTML
 
 
@@ -350,7 +350,7 @@ def _specificite(selecteur: str) -> tuple:
     rather than returning a wrong figure.
     """
     for delegue in (":is(", ":not(", ":where(", ":has("):
-        assert delegue not in selecteur, f"poids délégué non calculé : {delegue}"
+        assert delegue not in selecteur, f"delegated weight not computed: {delegue}"
     reste, attributs = re.subn(r"\[[^\]]*\]", " ", selecteur)
     identifiants = len(re.findall(r"#[-\w]+", reste))
     classes = len(re.findall(r"\.[-\w]+", reste))
@@ -372,11 +372,11 @@ def test_the_sliding_marker_takes_the_tab_background():
     pose = '.case-tab[aria-selected="true"]'
     cede = '.case-tabs.glisse .case-tab[aria-selected="true"]'
 
-    assert LANDING_HTML.count(cede) == 1, "la règle qui cède le fond a disparu"
+    assert LANDING_HTML.count(cede) == 1, "the rule handing over the background disappeared"
     assert _specificite(cede) > _specificite(pose), (
-        f"{cede} ne l'emporte plus sur {pose}")
+        f"{cede} no longer beats {pose}")
     assert LANDING_HTML.index(cede) > LANDING_HTML.index(pose), (
-        "la règle qui cède le fond est passée AVANT celle qui le pose")
+        "the rule handing over the background moved BEFORE the one setting it")
 
 
 def test_the_marker_is_never_served_in_the_html(platform):
@@ -392,10 +392,10 @@ def test_the_marker_is_never_served_in_the_html(platform):
     # entirely out of reach — the test stayed green while serving the marker.
     balisage = re.sub(r"<(script|style)\b.*?</\1>", " ", page, flags=re.S | re.I)
 
-    assert "case-explorer" in balisage, "le découpage a emporté les onglets"
-    assert "case-repere" not in balisage, "le repère est servi dans le balisage"
-    assert "glisse" not in balisage, "la classe qui cède le fond est servie"
-    assert "case-repere" in page, "plus personne ne pose le repère"
+    assert "case-explorer" in balisage, "the cutting took the tabs with it"
+    assert "case-repere" not in balisage, "the marker is served in the markup"
+    assert "glisse" not in balisage, "the class handing over the background is served"
+    assert "case-repere" in page, "nobody sets the marker any more"
 
 
 def test_the_theme_toggle_does_not_animate_for_reduced_motion():
@@ -409,13 +409,13 @@ def test_the_theme_toggle_does_not_animate_for_reduced_motion():
         r"\s*\{\s*basculer\(\)\s*;\s*return\s*;\s*\}",
         LANDING_HTML,
     )
-    assert garde, "la bascule s'anime sans vérifier l'API ni le mouvement réduit"
+    assert garde, "the toggle animates without checking the API or reduced motion"
 
     nom = garde.group(1)
     assert re.search(
         rf"var\s+{nom}\s*=\s*window\.matchMedia\(\s*'\(prefers-reduced-motion: reduce\)'\s*\)",
         LANDING_HTML,
-    ), f"« {nom} » n'interroge pas le mouvement réduit"
+    ), f"\"{nom}\" does not query reduced motion"
 
 
 def _feuille(html: str) -> str:
@@ -445,14 +445,14 @@ def test_the_site_holds_on_a_single_background():
     detached, not a band.
     """
     css = _feuille(LANDING_HTML)
-    assert css, "la feuille n'est plus inlinée dans la page"
+    assert css, "the stylesheet is no longer inlined in the page"
 
     for bande in (".band", ".proof-rail", ".footer-wrap"):
         blocs = _declarations(css, bande)
-        assert blocs, f"la règle {bande} est introuvable : le test ne garde plus rien"
+        assert blocs, f"the {bande} rule cannot be found: the test no longer guards anything"
         for bloc in blocs:
             assert "background" not in bloc, (
-                f"{bande} repeint le fond — l'alternance de couleurs est revenue")
+                f"{bande} repaints the background — the color alternation is back")
 
 
 def test_favicon_ico_really_answers(platform):
@@ -465,8 +465,8 @@ def test_favicon_ico_really_answers(platform):
     """
     reponse = requests.get(platform + "/favicon.ico", timeout=10)
 
-    assert reponse.status_code == 200, "/favicon.ico ne répond plus"
-    assert reponse.content[:4] == b"\x00\x00\x01\x00", "ce n'est pas un vrai ICO"
+    assert reponse.status_code == 200, "/favicon.ico no longer answers"
+    assert reponse.content[:4] == b"\x00\x00\x01\x00", "it is not a real ICO"
     assert reponse.headers["content-type"] == "image/x-icon"
 
     # And the ROUTE does read the fingerprint: without the `v` parameter,
@@ -477,8 +477,8 @@ def test_favicon_ico_really_answers(platform):
         f"{platform}/favicon.ico?v={VERSION_ICO}", timeout=10)
     assert "immutable" in versionnee.headers["cache-control"]
     assert "immutable" not in reponse.headers["cache-control"], (
-        "l'adresse nue se garde comme une adresse versionnée")
-    assert versionnee.content == reponse.content, "deux icônes différentes"
+        "the bare address is cached like a versioned address")
+    assert versionnee.content == reponse.content, "two different icons"
 
 
 def test_no_command_overflows_its_card():
@@ -499,15 +499,15 @@ def test_no_command_overflows_its_card():
     from monl_platform.landing_pourquoi import SECTIONS
 
     blocs = re.findall(r"<pre><code>(.*?)</code></pre>", SECTIONS, re.S)
-    assert blocs, "plus aucun bloc de commande : le test ne garde plus rien"
+    assert blocs, "no command block any more: the test no longer guards anything"
 
     for bloc in blocs:
         for ligne in bloc.split("\n"):
             assert len(ligne) <= 41, (
-                f"{len(ligne)} caractères — la carte en tient 41 :\n  {ligne}")
+                f"{len(ligne)} characters — the card holds 41:\n  {ligne}")
             assert " · " not in ligne, (
-                "deux commandes sur une ligne, séparées par un point médian : "
-                "elles ne se copient pas")
+                "two commands on one line, separated by a middle dot: "
+                "they cannot be copied")
 
 
 def test_a_command_block_wraps_instead_of_being_cut():
@@ -519,9 +519,9 @@ def test_a_command_block_wraps_instead_of_being_cut():
     from monl_platform.landing_pourquoi import EXTRA_CSS
 
     regle = _declarations(EXTRA_CSS, ".montage pre")
-    assert regle, "la règle .montage pre est introuvable"
+    assert regle, "the .montage pre rule cannot be found"
     assert "pre-wrap" in regle[0], (
-        "une commande trop longue serait coupée au lieu d'être repliée")
+        "a too long command would be cut instead of wrapped")
 
 
 def test_the_three_position_cards_align_their_titles():
@@ -540,12 +540,12 @@ def test_the_three_position_cards_align_their_titles():
 
     titre = _declarations(EXTRA_CSS, ".flow-stage h3")
     tags = _declarations(EXTRA_CSS, ".flow-stage .stage-tags")
-    assert titre and tags, "les règles des cartes sont introuvables"
+    assert titre and tags, "the card rules cannot be found"
 
     assert "auto" not in titre[0], (
-        "le titre repousse encore : les trois cartes se désalignent")
+        "the title still pushes: the three cards misalign")
     assert "margin-top:auto" in tags[0].replace(" ", ""), (
-        "rien ne pousse les étiquettes en bas : elles suivent le paragraphe")
+        "nothing pushes the labels down: they follow the paragraph")
 
 
 def _css_rules(css: str) -> list:
@@ -615,10 +615,10 @@ def test_no_responsive_rule_is_overridden_by_a_bare_rule(platform):
     """
     page = requests.get(platform, timeout=10).text
     feuilles = re.findall(r"<style[^>]*>(.*?)</style>", page, re.S)
-    assert feuilles, "aucune feuille de style dans la page servie"
+    assert feuilles, "no stylesheet in the served page"
     regles = _css_rules("\n".join(feuilles))
-    assert len(regles) > 100, f"extracteur muet : {len(regles)} règles lues"
-    assert any(media for _, media, _, _ in regles), "aucune @media reconnue"
+    assert len(regles) > 100, f"mute extractor: {len(regles)} rules read"
+    assert any(media for _, media, _, _ in regles), "no @media recognized"
 
     ecrasees = []
     for rang, media, selecteur, proprietes in regles:
@@ -632,8 +632,8 @@ def test_no_responsive_rule_is_overridden_by_a_bare_rule(platform):
                 ecrasees.append(f"{selecteur} → {sorted(communes)}")
 
     assert not ecrasees, (
-        "règle(s) responsive écrasée(s) par une règle nue écrite plus tard, "
-        "à poids égal ou supérieur : " + " ; ".join(sorted(set(ecrasees))))
+        "responsive rule(s) overridden by a bare rule written later, "
+        "at equal or higher weight: " + " ; ".join(sorted(set(ecrasees))))
 
 
 def test_each_site_page_carries_a_title_naming_it():
@@ -672,8 +672,8 @@ def test_each_site_page_carries_a_title_naming_it():
     assert len(titres) > 5, f"extracteur muet : {len(titres)} titre(s) lu(s)"
     partages = {titre: len(pages) for titre, pages in titres.items() if len(pages) > 1}
     assert not partages, (
-        "des pages DIFFÉRENTES partagent un titre — un onglet ne dit plus "
-        f"laquelle est ouverte : {partages}")
+        "DIFFERENT pages share a title — a tab no longer says "
+        f"which one is open: {partages}")
 
 
 def test_the_top_bar_is_opaque(platform):
@@ -690,11 +690,11 @@ def test_the_top_bar_is_opaque(platform):
     """
     page = requests.get(platform, timeout=10).text
     feuilles = re.findall(r"<style[^>]*>(.*?)</style>", page, re.S)
-    assert feuilles, "aucune feuille de style dans la page servie"
+    assert feuilles, "no stylesheet in the served page"
     regles = _css_rules("\n".join(feuilles))
     topbars = [(sel, props) for _, _, sel, props in regles
                if sel.strip() == ".topbar"]
-    assert topbars, "règle .topbar introuvable : l'extracteur ne regarde rien"
+    assert topbars, ".topbar rule not found: the extractor looks at nothing"
     css = "\n".join(feuilles)
     bloc = re.search(r"\.topbar\s*\{([^}]*)\}", css, re.S)
     assert bloc, "corps de .topbar illisible"
@@ -764,14 +764,14 @@ def test_the_announced_figures_are_the_compilations(tmp_path):
     fichiers, routes, entites = _showcase_archive(tmp_path)
 
     assert entites == landing_vitrine.ENTITES, (
-        f"la carte annonce {landing_vitrine.ENTITES} entités, la compilation en "
-        f"produit {entites}")
+        f"the card announces {landing_vitrine.ENTITES} entities, compilation "
+        f"produces {entites}")
     assert routes == landing_vitrine.ROUTES, (
-        f"la carte annonce {landing_vitrine.ROUTES} routes, app.py en déclare "
+        f"the card announces {landing_vitrine.ROUTES} routes, app.py declares "
         f"{routes}")
     assert len(fichiers) == landing_vitrine.FICHIERS, (
-        f"la carte annonce {landing_vitrine.FICHIERS} fichiers, l'archive en "
-        f"contient {len(fichiers)} : {sorted(fichiers)}")
+        f"the card announces {landing_vitrine.FICHIERS} files, the archive "
+        f"contains {len(fichiers)}: {sorted(fichiers)}")
 
 
 def test_the_tree_names_no_missing_file(tmp_path):
@@ -786,10 +786,10 @@ def test_the_tree_names_no_missing_file(tmp_path):
 
     absents = [nom for nom in annonces if nom not in fichiers]
     assert not absents, (
-        f"la carte nomme des fichiers que le compilateur ne produit pas : "
+        f"the card names files the compiler does not produce: "
         f"{absents}")
     assert 0 < len(annonces) < len(fichiers), (
-        "l'arborescence doit rester un extrait lisible, pas l'archive entière")
+        "the tree must stay a readable excerpt, not the whole archive")
 
 
 def test_the_displayed_excerpt_is_taken_from_the_compiling_spec():
@@ -803,12 +803,12 @@ def test_the_displayed_excerpt_is_taken_from_the_compiling_spec():
     extrait = landing_vitrine.extrait_affiche()
     lignes = [ligne for ligne in extrait.splitlines() if ligne.strip()]
 
-    assert lignes, "l'extrait est vide"
+    assert lignes, "the excerpt is empty"
     for ligne in lignes:
         assert ligne in landing_vitrine.SPEC_VITRINE, (
-            f"l'extrait affiché contient une ligne absente de la spec : {ligne!r}")
+            f"the displayed excerpt contains a line absent from the spec: {ligne!r}")
     assert any(ligne.startswith("rule ") for ligne in lignes), (
-        "l'extrait ne montre aucune règle : la page ne montrerait que des champs")
+        "the excerpt shows no rule: the page would only show fields")
 
 
 def test_the_served_page_names_only_real_files(platform, tmp_path):
@@ -832,10 +832,10 @@ def test_the_served_page_names_only_real_files(platform, tmp_path):
 
     arbre = texte.split('class="tree"')[1].split("</div>")[0]
     noms = re.findall(r"[├└]──\s*([^\s<]+)", arbre)
-    assert noms, "l'arborescence servie est vide ou a changé de forme"
+    assert noms, "the served tree is empty or changed shape"
     absents = [nom for nom in noms if nom not in fichiers]
     assert not absents, (
-        f"la page servie nomme des fichiers que l'archive ne contient pas : "
+        f"the served page names files the archive does not contain: "
         f"{absents}")
 
 

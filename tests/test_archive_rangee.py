@@ -67,14 +67,14 @@ def project(tmp_path):
 def test_documents_live_in_docs_and_code_at_the_root(project):
     """(a) The rule in one sentence: `docs/` is read, the root is run."""
     for nom in DOCUMENTS:
-        assert (project / "docs" / nom).is_file(), f"{nom} n'est pas dans docs/"
-        assert not (project / nom).exists(), f"{nom} traîne encore à la racine"
+        assert (project / "docs" / nom).is_file(), f"{nom} is not in docs/"
+        assert not (project / nom).exists(), f"{nom} still lingers at the root"
 
     # The contract is the MACHINE interface: a tool opens it knowing nothing of
     # the tree. It stays where it is found without searching.
     assert (project / "frontend_contract.json").is_file()
     for nom in ("app.py", "schema.sql", "manage.py", "serve.py", "monl.json"):
-        assert (project / nom).is_file(), f"{nom} a quitté la racine"
+        assert (project / nom).is_file(), f"{nom} left the root"
 
 
 def test_the_project_memory_is_called_agents_and_the_readme_exists(project):
@@ -82,9 +82,9 @@ def test_the_project_memory_is_called_agents_and_the_readme_exists(project):
     agents = project / "AGENTS.md"
     readme = project / "README.md"
     assert agents.is_file(), "AGENTS.md absent"
-    assert readme.is_file(), "README.md absent — la page d'accueil le promet"
+    assert readme.is_file(), "README.md missing — the home page promises it"
     assert not (project / "CLAUDE.md").exists(), (
-        "CLAUDE.md est encore livré : deux mémoires, dont une périmée")
+        "CLAUDE.md is still shipped: two memories, one of them stale")
     assert PROJECT_CLAUDE_MD_MARKER in agents.read_text(encoding="utf-8")
     assert PROJECT_README_MARKER in readme.read_text(encoding="utf-8")
 
@@ -97,9 +97,9 @@ def test_the_readme_names_the_real_spec_and_the_backend_starts(project, tmp_path
     "executable" — applied to documentation.
     """
     readme = (project / "README.md").read_text(encoding="utf-8")
-    assert "spec.ml" in readme, "le README ne nomme pas la spec du projet"
-    assert "uvicorn serve:app" in readme, "le README ne dit pas comment démarrer"
-    assert "docs/" in readme, "le README ne dit pas ce que contient docs/"
+    assert "spec.ml" in readme, "the README does not name the project's spec"
+    assert "uvicorn serve:app" in readme, "the README does not say how to start"
+    assert "docs/" in readme, "the README does not say what docs/ contains"
 
     resultat = subprocess.run(
         [sys.executable, "-c", "import serve; assert serve.app is not None; print('ok')"],
@@ -107,7 +107,7 @@ def test_the_readme_names_the_real_spec_and_the_backend_starts(project, tmp_path
         env={**os.environ, "PYTHONPATH": str(project)},
     )
     assert resultat.returncode == 0, (
-        f"la commande du README ne charge pas l'application :\n"
+        f"the README command does not load the application:\n"
         f"{resultat.stderr[-1500:]}")
 
 
@@ -135,9 +135,9 @@ def test_an_already_compiled_project_is_tidied_without_losing_anything(project):
     compile_project(str(project / "spec.ml"), str(project))
 
     assert (project / "docs" / "DESIGN_SPEC.md").read_text(encoding="utf-8") == (
-        ecrit_a_la_main), "le travail humain a été écrasé par le rangement"
+        ecrit_a_la_main), "human work was overwritten by the tidying"
     for nom in DOCUMENTS:
-        assert not (project / nom).exists(), f"{nom} est resté à la racine"
+        assert not (project / nom).exists(), f"{nom} stayed at the root"
     assert (project / "AGENTS.md").is_file()
     assert not (project / "CLAUDE.md").exists()
 
@@ -157,9 +157,9 @@ def test_a_personal_claude_md_is_never_touched(project):
     compile_project(str(project / "spec.ml"), str(project))
 
     assert (project / "CLAUDE.md").read_text(encoding="utf-8") == a_lui, (
-        "le CLAUDE.md personnel de l'utilisateur a été déplacé ou réécrit")
+        "the user's personal CLAUDE.md was moved or rewritten")
     assert (project / "AGENTS.md").is_file(), (
-        "monl n'a pas déposé sa propre mémoire à côté")
+        "monl did not place its own memory next to it")
     assert PROJECT_CLAUDE_MD_MARKER in (project / "AGENTS.md").read_text(
         encoding="utf-8")
 

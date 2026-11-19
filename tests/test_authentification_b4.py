@@ -364,10 +364,10 @@ def _mesurer_bruit(appel_a, appel_b, *, nom):
             return ecart, duree, tours, reponse_a, reponse_b
         offset += tours
     raise AssertionError(
-        f"machine trop bruyante pour {nom}: témoin médian "
-        f"{abs(dernier_ecart) * 1000:.2f} ms après {TOURS_ESCALADE[-1]} "
-        f"tours, au-delà de {BRUIT_MAX_RESOLUBLE * 1000:.2f} ms; "
-        "impossible de conclure sur une fuite de 20 ms")
+        f"machine too noisy for {nom}: median witness "
+        f"{abs(dernier_ecart) * 1000:.2f} ms after {TOURS_ESCALADE[-1]} "
+        f"rounds, beyond {BRUIT_MAX_RESOLUBLE * 1000:.2f} ms; "
+        "cannot conclude about a 20 ms leak")
 
 
 def _tolerance_ecart(ecart_bruit):
@@ -400,9 +400,9 @@ def _mesurer_ecart_corrige(appel_a, appel_b, *, bruit, tours_depart,
         ecart, duree, reponse_a, reponse_b = mesure
         if not (reponse_a.status_code == reponse_b.status_code == statut_attendu):
             raise AssertionError(
-                f"mesure {nom} non concluante : réponses "
-                f"{reponse_a.status_code} et {reponse_b.status_code} après "
-                f"{total_appels_a} appels du premier chemin")
+                f"inconclusive {nom} measurement: responses "
+                f"{reponse_a.status_code} and {reponse_b.status_code} after "
+                f"{total_appels_a} calls of the first path")
         dernier = (*mesure, tours, total_appels_a)
         if abs(ecart - bruit) < tolerance:
             return dernier
@@ -547,10 +547,10 @@ def test_full_b4_authentication_on_both_engines(b4_application):
     ecart_corrige = ecart_verrou - bruit_verrou
     tolerance = _tolerance_ecart(bruit_verrou)
     assert abs(ecart_corrige) < tolerance, (
-        f"ecart median {ecart_verrou*1000:.2f} ms, témoin "
-        f"{bruit_verrou*1000:.2f} ms, pour un appel de "
-        f"{duree_verrou*1000:.2f} ms — au-dela de "
-        f"{tolerance*1000:.2f} ms ({tours_verrou_reel} tours)")
+        f"median gap {ecart_verrou*1000:.2f} ms, witness "
+        f"{bruit_verrou*1000:.2f} ms, for a call of "
+        f"{duree_verrou*1000:.2f} ms — beyond "
+        f"{tolerance*1000:.2f} ms ({tours_verrou_reel} rounds)")
     # 2. Reset really delivered by the message brick, with no response
     # difference between a known address and a missing one.
     bruit_reset, _, tours_reset, reset_control_a, reset_control_b = _mesurer_bruit(
@@ -577,10 +577,10 @@ def test_full_b4_authentication_on_both_engines(b4_application):
     ecart_corrige = ecart_reset - bruit_reset
     tolerance = _tolerance_ecart(bruit_reset)
     assert abs(ecart_corrige) < tolerance, (
-        f"ecart median {ecart_reset*1000:.2f} ms, témoin "
-        f"{bruit_reset*1000:.2f} ms, pour un appel de "
-        f"{duree_reset*1000:.2f} ms — au-dela de "
-        f"{tolerance*1000:.2f} ms ({tours_reset_reel} tours)")
+        f"median gap {ecart_reset*1000:.2f} ms, witness "
+        f"{bruit_reset*1000:.2f} ms, for a call of "
+        f"{duree_reset*1000:.2f} ms — beyond "
+        f"{tolerance*1000:.2f} ms ({tours_reset_reel} rounds)")
     # The "known address" path sent one email per round: the usable token is
     # the LAST one's, the previous ones possibly having been invalidated.
     alice_reset = _wait_for_message(smtp, reset_known_count)
@@ -705,7 +705,7 @@ def test_full_b4_authentication_on_both_engines(b4_application):
 def test_b4_does_not_break_a_historical_account(legacy_b4_application):
     base, directory, dsn, old_token = legacy_b4_application
     assert _call("GET", base, "/note", token=old_token).status_code == 200, (
-        "La migration doit préserver le jeton ancien du compte inchangé")
+        "The migration must preserve the unchanged account's old token")
     legacy = _login(base, "legacy-b4@example.invalid", "motdepasse8",
                     ip="legacy-login")
     assert legacy.status_code == 200, legacy.text
@@ -784,14 +784,14 @@ def test_b4_activation_requires_the_password(b4_application):
     code = _totp_code(setup.json()["secret"], pas)
     absent = _call("POST", base, "/totp/enable", token=session["access_token"],
                    body={"code": code})
-    assert absent.status_code >= 400, "Activation TOTP acceptée sans mot de passe"
+    assert absent.status_code >= 400, "TOTP activation accepted without password"
     wrong = _call("POST", base, "/totp/enable", token=session["access_token"],
                   body={"code": code, "password": "incorrect"})
-    assert wrong.status_code == 401, "Activation TOTP acceptée avec un mot de passe incorrect"
+    assert wrong.status_code == 401, "TOTP activation accepted with a wrong password"
     bad_code = _call("POST", base, "/totp/enable", token=session["access_token"],
                      body={"code": "invalide", "password": "motdepasse8"})
     assert wrong.json() == bad_code.json() == {"detail": "Invalid credentials."}, (
-        "Le code et le mot de passe incorrects doivent partager le refus générique")
+        "The wrong code and wrong password must share the generic refusal")
     assert _login(base, username, "motdepasse8", ip="victime-intacte").status_code == 200
 
 
@@ -807,7 +807,7 @@ def test_b4_activation_revokes_the_tokens(b4_application, jeton):
                          body={"refresh_token": session["refresh_token"]})
     else:
         response = _call("GET", base, "/note", token=session["access_token"])
-    assert response.status_code == 401, f"Ancien jeton {jeton} accepté après activation TOTP"
+    assert response.status_code == 401, f"Old token {jeton} accepted after TOTP activation"
     assert _call("GET", base, "/note", token=temoin["access_token"]).status_code == 200
     assert _login(base, username, "motdepasse8", ip="activation-sans-code").status_code == 401
     fresh = _login(base, username, "motdepasse8", ip="activation-legitime",
@@ -837,17 +837,17 @@ def test_b4_change_revokes_the_sessions(b4_application, changement):
                          body={"username": username, "token": reset, "password": password})
         assert response.status_code == 200, response.text
     assert _call("GET", base, "/note", token=session["access_token"]).status_code == 401, (
-        f"Ancien accès accepté après {changement}")
+        f"Old access accepted after {changement}")
     assert _call("POST", base, "/refresh", body={"refresh_token": session["refresh_token"]}).status_code == 401, (
-        f"Ancien rafraîchissement accepté après {changement}")
+        f"Old refresh accepted after {changement}")
     assert _call("GET", base, "/note", token=temoin["access_token"]).status_code == 200
     fresh = _login(base, username, password, ip="apres-recuperation")
     assert fresh.status_code == 200, (
-        f"Connexion légitime refusée après {changement} : {fresh.text}")
+        f"Legitimate login refused after {changement}: {fresh.text}")
     assert _call("GET", base, "/note", token=_token(fresh)).status_code == 200
     assert _call("POST", base, "/refresh", body={
         "refresh_token": fresh.json()["refresh_token"]}).status_code == 200, (
-        f"Rafraîchissement légitime refusé après {changement}")
+        f"Legitimate refresh refused after {changement}")
 
 
 def test_b4_email_reset_preserves_totp_and_signature(b4_application):
@@ -865,15 +865,15 @@ def test_b4_email_reset_preserves_totp_and_signature(b4_application):
     assert _call("POST", base, "/password-reset/confirm", body={
         "username": username, "token": reset, "password": "nouveau-motdepasse8"}).status_code == 200
     assert _login(base, username, "nouveau-motdepasse8", ip="reset-sans-code").status_code == 401, (
-        "La réinitialisation par e-mail a supprimé le double facteur")
+        "Email reset removed the second factor")
     assert _token(_login(base, username, "nouveau-motdepasse8", ip="reset-avec-code",
                          code=_totp_code(secret, pas)))
     contract = json.loads((directory / "frontend_contract.json").read_text())
     enable_route = next(route for route in contract["routes"]
                         if route["path"] == "/totp/enable")
     assert "password" in enable_route["request_fields"], (
-        "Le contrat oublie le mot de passe requis à l'activation TOTP")
+        "The contract forgets the password required at TOTP activation")
     old = copy.deepcopy(contract)
     del old["api"]["auth"]["features"]["totp"]["enable_body"]["password"]
     assert _contract_signature(old) != _contract_signature(contract), (
-        "La signature ignore le mot de passe requis à l'activation TOTP")
+        "The signature ignores the password required at TOTP activation")

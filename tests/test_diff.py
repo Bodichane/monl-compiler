@@ -150,7 +150,7 @@ def test_diff_and_update_say_exactly_the_same_thing(project, capsys):
     par_update = _delta_lines(capsys.readouterr().out)
 
     assert par_diff == par_update
-    assert par_diff, "le banc doit produire un delta, sinon il ne compare rien"
+    assert par_diff, "the bench must produce a delta, otherwise it compares nothing"
 
 
 def test_diff_stays_quiet_when_the_spec_did_not_move(project, capsys):
@@ -158,7 +158,7 @@ def test_diff_stays_quiet_when_the_spec_did_not_move(project, capsys):
     sortie = capsys.readouterr().out
     assert "no interface changes" in sortie
     assert "monl update" not in sortie, \
-        "ne pas envoyer appliquer un changement qui n'existe pas"
+        "do not send people to apply a change that does not exist"
 
 
 def test_diff_announces_it_wrote_nothing(project, capsys):

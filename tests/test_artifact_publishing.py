@@ -46,7 +46,7 @@ def test_publishing_restores_all_old_files_if_a_replacement_fails(
         nonlocal calls
         calls += 1
         if calls == 3:
-            raise OSError("disque plein simulé")
+            raise OSError("simulated full disk")
         real_replace(source, destination)
 
     monkeypatch.setattr(artifacts, "_replace", fail_on_second_replace)
@@ -96,7 +96,7 @@ workflow Gerer for Admin
     (tmp_path / "frontend" / "index.html").write_text("<h1>user</h1>", encoding="utf-8")
 
     def fail_publish(*args, **kwargs):
-        raise artifacts.ArtifactPublicationError("publication simulée")
+        raise artifacts.ArtifactPublicationError("simulated publication")
 
     monkeypatch.setattr("monl.cli.construction.publish_files", fail_publish)
 

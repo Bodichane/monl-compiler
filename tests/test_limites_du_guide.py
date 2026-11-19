@@ -113,8 +113,8 @@ def test_no_limit_denies_upload_at_runtime(tmp_path):
     for titre, texte in LIMITES:
         entier = f"{titre} {texte}".lower()
         assert "no upload" not in entier, (
-            f"la table nie le téléversement alors qu'une spec `Upload` "
-            f"compile : « {titre} »")
+            f"the table denies upload while an `Upload` spec "
+            f"compiles: \"{titre}\"")
 
 
 def test_the_file_limit_names_both_moments():
@@ -122,7 +122,7 @@ def test_the_file_limit_names_both_moments():
     accepts none — that is the reading that went stale."""
     ligne = next((f"{t} {x}" for t, x in LIMITES
                   if "compile" in t.lower()), None)
-    assert ligne, f"aucune ligne sur les fichiers de compilation : {LIMITES}"
+    assert ligne, f"no line on the compilation files: {LIMITES}"
     assert "Upload" in ligne
     assert "assets" in ligne
 
@@ -204,7 +204,7 @@ def test_an_installation_from_an_index_names_the_real_distribution():
         etrangers = [n for n in _names_installed_from_an_index(
             (RACINE / chemin).read_text(encoding="utf-8")) if n != nom]
         assert not etrangers, (
-            f"{chemin} fait installer depuis un index autre chose que {nom} : "
+            f"{chemin} installs from an index something other than {nom}: "
         f"{etrangers}")
 
     check_each_case([(valeur,) for valeur in table], cas)
@@ -217,4 +217,4 @@ def test_the_guide_only_installs_the_real_distribution():
     etrangers = [n for n in _names_installed_from_an_index(guide_html())
                  if n != nom]
     assert not etrangers, (
-        f"le guide servi fait installer autre chose que {nom} : {etrangers}")
+        f"the served guide installs something other than {nom}: {etrangers}")

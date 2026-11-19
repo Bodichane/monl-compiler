@@ -94,8 +94,8 @@ def test_security_md_and_backend_read_the_same_variables(tmp_path, capsys):
     # looking at nothing (point 161).
     assert len(lues) >= 15, lues
     assert len(documentees) >= 15, documentees
-    assert not lues - documentees, f"lues mais non documentées : {sorted(lues - documentees)}"
-    assert not documentees - lues, f"documentées mais jamais lues : {sorted(documentees - lues)}"
+    assert not lues - documentees, f"read but not documented: {sorted(lues - documentees)}"
+    assert not documentees - lues, f"documented but never read: {sorted(documentees - lues)}"
 
 
 def test_the_extractor_follows_a_constant_and_refuses_the_unreadable():
@@ -106,7 +106,7 @@ def test_the_extractor_follows_a_constant_and_refuses_the_unreadable():
     except AssertionError as erreur:
         assert "illisible" in str(erreur)
     else:
-        raise AssertionError("une lecture dynamique doit faire échouer l'extracteur")
+        raise AssertionError("a dynamic read must make the extractor fail")
 
 
 def test_the_document_extractor_reads_the_form_with_a_value():

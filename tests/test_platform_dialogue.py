@@ -39,7 +39,7 @@ def running_platform(tmp_path):
             except requests.RequestException:
                 time.sleep(0.02)
         else:
-            pytest.fail("le serveur de console n'a pas démarré")
+            pytest.fail("the console server did not start")
         yield base
     finally:
         server.should_exit = True
@@ -160,7 +160,7 @@ def test_three_typos_do_not_kill_the_dialogue(running_platform):
         assert reponse.status_code == 200, f"faute {essai + 1} : {reponse.text}"
         data = reponse.json()
         assert data["accepted"] is False
-        assert data["answers"] == [], "une réponse refusée ne doit JAMAIS être retenue"
+        assert data["answers"] == [], "a refused answer must NEVER be kept"
         # The user must know WHY: without the message, their question comes
         # back unexplained and they make the same mistake again.
         assert any("✗" in ligne for ligne in data["messages"]), data["messages"]

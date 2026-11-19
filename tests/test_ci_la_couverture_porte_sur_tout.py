@@ -37,7 +37,7 @@ from support.ci_workflow import (
 
 def _orders(texte):
     commandes = pytest_commands(texte)
-    assert commandes, "aucune invocation pytest trouvée"
+    assert commandes, "no pytest invocation found"
     return commandes
 
 
@@ -72,7 +72,7 @@ def barrieres_par_paquet(texte):
     """
     paquets = {d.name for d in (RACINE / "src").iterdir()
                if d.is_dir() and (d / "__init__.py").exists()}
-    assert paquets, "aucun paquet trouvé sous src/"
+    assert paquets, "no package found under src/"
     barrieres = {}
     for commande in coverage_commands(texte):
         seuils = [j for j in commande.split() if j.startswith("--fail-under=")]
@@ -94,10 +94,10 @@ def test_a_coverage_gate_covers_the_whole_suite():
     next test filed elsewhere will silently leave it."""
     hors = unmeasured_files(CI.read_text(encoding="utf-8"))
     assert not hors, (
-        "une barrière de couverture ne doit pas être mesurée sur une "
-        "sélection de fichiers : les tests hors sélection exercent le paquet "
-        "sans compter dans la mesure, et le prochain test rangé sous un autre "
-        f"nom en sortira sans un mot (point 169). {hors}")
+        "a coverage gate must not be measured on a "
+        "selection of files: tests outside the selection exercise the package "
+        "without counting in the measure, and the next test stored under another "
+        f"name will leave it without a word (point 169). {hors}")
 
 
 def test_ci_runs_every_test_file():
@@ -107,7 +107,7 @@ def test_ci_runs_every_test_file():
     167bis)."""
     oublies = files_never_run(CI.read_text(encoding="utf-8"))
     assert not oublies, (
-        f"aucune commande de ci.yml n'exécute ces fichiers : {oublies}")
+        f"no ci.yml command runs these files: {oublies}")
 
 
 def test_each_repository_package_carries_its_gate():
@@ -116,13 +116,13 @@ def test_each_repository_package_carries_its_gate():
     paquets, barrieres = barrieres_par_paquet(CI.read_text(encoding="utf-8"))
     manquants = sorted(paquets - set(barrieres))
     assert not manquants, (
-        f"ces paquets de src/ n'ont plus de barrière de couverture dans "
-        f"ci.yml : {manquants}")
+        f"these src/ packages no longer have a coverage gate in "
+        f"ci.yml: {manquants}")
     plancher = project_coverage_threshold()
     faibles = {p: v for p, v in barrieres.items() if v < plancher}
     assert not faibles, (
-        f"`pyproject.toml` déclare une barrière à {plancher} % ; ci.yml mesure "
-        f"moins que ça : {faibles}")
+        f"`pyproject.toml` declares a gate at {plancher} %; ci.yml measures "
+        f"less than that: {faibles}")
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -165,7 +165,7 @@ def test_the_rule_bites_on_the_form_ci_carried():
 
 def test_the_two_other_rules_bite_on_a_truncated_workflow():
     oublies = files_never_run(CI_AMPUTE)
-    assert oublies, "un workflow qui n'exécute qu'un motif doit être dénoncé"
+    assert oublies, "a workflow running only a pattern must be denounced"
     assert "tests/test_golden_artifacts.py" in oublies
 
     paquets, barrieres = barrieres_par_paquet(CI_AMPUTE)
@@ -190,7 +190,7 @@ def test_the_extractor_expands_patterns_folders_and_missing_target():
 def test_the_extractor_raises_on_a_target_it_cannot_read():
     """A target that cannot be resolved must never evaporate: ignored, it would
     make a narrow command pass for a wide one."""
-    with pytest.raises(AssertionError, match="aucun fichier existant"):
+    with pytest.raises(AssertionError, match="no existing file"):
         order_selection("run: python -m pytest tests/test_inexistant.py")
 
 

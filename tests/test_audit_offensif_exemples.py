@@ -107,7 +107,7 @@ def _token(base, identifiant, acteur):
 def test_the_offensive_audit_fails_on_every_example(spec, tmp_path):
     ast = _compiler(spec, tmp_path / "projet")
     creation, elevation = _cibles(ast)
-    assert creation, "aucune création protégée : rien à attaquer sur cet exemple"
+    assert creation, "no protected creation: nothing to attack on this example"
     route = "/" + creation["entite"].lower()
 
     with uvicorn_server(str(tmp_path / "projet")) as base:

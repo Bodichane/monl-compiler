@@ -211,10 +211,10 @@ def test_the_stored_order_is_the_one_requested(application, alice):
         stocke = cnx.execute('SELECT commande_id FROM ligne WHERE id = ?',
                              (ligne_id,)).fetchone()[0]
     compte = _account_id(dossier, "alice")
-    assert stocke == commande, "la commande désignée n'a pas été enregistrée"
+    assert stocke == commande, "the designated order was not recorded"
     # The assertion that counts: the two values DIVERGE, so the equality above
     # cannot be chance.
-    assert commande != compte, "identifiants confondus : le test ne prouve rien"
+    assert commande != compte, "ids conflated: the test proves nothing"
     assert stocke != compte
 
 
@@ -246,7 +246,7 @@ def test_attaching_a_line_to_someone_elses_order_is_refused(application, alice, 
         compte = cnx.execute(
             'SELECT COUNT(*) FROM ligne WHERE commande_id = ?',
             (commande_alice,)).fetchone()[0]
-    assert compte == 0, "la ligne a été écrite malgré le refus"
+    assert compte == 0, "the line was written despite the refusal"
 
 
 def test_a_nonexistent_order_gives_the_same_answer(application, bob):
@@ -311,7 +311,7 @@ def test_updating_someone_elses_line_is_refused(application, alice, bob):
     with _base_spec(dossier) as cnx:
         quantite = cnx.execute('SELECT quantite FROM ligne WHERE id = ?',
                                (ligne_id,)).fetchone()[0]
-    assert quantite == 1, "la ligne a été modifiée malgré le refus"
+    assert quantite == 1, "the line was modified despite the refusal"
 
 
 def test_deleting_someone_elses_line_is_refused(application, alice, bob):
@@ -325,7 +325,7 @@ def test_deleting_someone_elses_line_is_refused(application, alice, bob):
     with _base_spec(dossier) as cnx:
         reste = cnx.execute('SELECT COUNT(*) FROM ligne WHERE id = ?',
                             (ligne_id,)).fetchone()[0]
-    assert reste == 1, "la ligne a été supprimée malgré le refus"
+    assert reste == 1, "the line was deleted despite the refusal"
 
 
 def test_the_owner_updates_and_deletes_their_own_line(application, alice):

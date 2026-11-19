@@ -157,7 +157,7 @@ def test_private_messaging_end_to_end():
             cwd=workdir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
         try:
-            assert _wait_for_server(port), "le serveur n'a pas démarré"
+            assert _wait_for_server(port), "the server did not start"
             base = f"http://127.0.0.1:{port}"
 
             alice_id, alice = _register_and_login(base, "alice")
@@ -322,7 +322,7 @@ def test_supervisor_moderates_private_messages_end_to_end():
             cwd=workdir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
         try:
-            assert _wait_for_server(port), "le serveur n'a pas démarré"
+            assert _wait_for_server(port), "the server did not start"
             base = f"http://127.0.0.1:{port}"
 
             alice_id, alice = _register_and_login(base, "alice")

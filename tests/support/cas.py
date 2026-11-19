@@ -26,7 +26,7 @@ def check_each_case(table: Iterable[tuple], verifier: Callable, *,
     convert a body that contains one.
     """
     table = [tuple(cas) for cas in table]
-    assert table, "table de cas vide : ce test ne vérifierait rien"
+    assert table, "empty case table: this test would check nothing"
     if ids is not None:
         assert len(ids) == len(table), "un nom par cas"
     echecs = []
@@ -37,5 +37,5 @@ def check_each_case(table: Iterable[tuple], verifier: Callable, *,
             nom = ids[rang] if ids is not None else repr(cas)[:160]
             echecs.append(f"- {nom} : {type(exc).__name__}: {exc}")
     if echecs:
-        pytest.fail(f"{len(echecs)}/{len(table)} cas en échec :\n" + "\n".join(echecs),
+        pytest.fail(f"{len(echecs)}/{len(table)} cases failed:\n" + "\n".join(echecs),
                     pytrace=False)

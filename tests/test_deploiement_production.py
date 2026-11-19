@@ -74,12 +74,12 @@ def test_each_service_comes_back_after_a_machine_reboot():
         for nom, service in compose["services"].items()
     }
 
-    assert politiques, "aucun service lu : le témoin ne garderait rien"
+    assert politiques, "no service read: the witness would guard nothing"
     fautifs = {nom: valeur for nom, valeur in politiques.items()
                if valeur != "always"}
     assert not fautifs, (
-        f"ces services ne remonteront pas après un redémarrage : {fautifs} — "
-        f"seul `always` entre dans le filtre de podman-restart.service"
+        f"these services will not come back after a restart: {fautifs} — "
+        f"only `always` enters podman-restart.service's filter"
     )
 
 
@@ -115,16 +115,16 @@ def test_proxy_does_not_cap_uploads_below_what_the_app_accepts():
         encoding="utf-8"
     )
     correspondance = re.search(r"client_max_body_size\s+([0-9]+)([kKmMgG]?);", contenu)
-    assert correspondance, "aucun client_max_body_size déclaré"
+    assert correspondance, "no client_max_body_size declared"
     valeur, unite = correspondance.groups()
     multiplicateur = {"": 1, "k": 1024, "m": 1024**2, "g": 1024**3}[unite.lower()]
     octets = int(valeur) * multiplicateur
 
     LIMITE_DEPOT_MAX_TESTEE = 32 * 1024 * 1024
     assert octets >= LIMITE_DEPOT_MAX_TESTEE, (
-        f"client_max_body_size ({octets} octets) est sous une limite d'upload "
-        f"déjà exercée par la suite ({LIMITE_DEPOT_MAX_TESTEE} octets) : "
-        "un dépôt valide pour l'application serait refusé par le proxy.")
+        f"client_max_body_size ({octets} bytes) is below an upload limit "
+        f"already exercised by the suite ({LIMITE_DEPOT_MAX_TESTEE} bytes): "
+        "an upload valid for the application would be refused by the proxy.")
 
 
 def test_smoke_platform_probes_both_endpoints_and_is_executable():
@@ -271,7 +271,7 @@ def test_runbook_documents_dns_tls_and_offsite_backups():
                     # symptom.
                     "podman-restart.service", "restart-policy=always",
                     "enable-linger", 'export PATH="$HOME/.local/bin:$PATH"'):
-        assert attendu in contenu, f"le runbook ne dit plus : {attendu}"
+        assert attendu in contenu, f"the runbook no longer says: {attendu}"
 
 
 def test_ci_builds_and_probes_the_platform_image():

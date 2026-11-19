@@ -22,7 +22,7 @@ def replacement(base, smtp, tokens, directory):
     from tests.test_verification_email import _register_two
     original = _register_two.responses[0]
     response = register(base, ACCOUNTS[0].upper())
-    assert response.status_code == 200, 'remplacement désarmé'
+    assert response.status_code == 200, 'replacement disarmed'
     assert {k: type(v) for k, v in response.json().items()} == {k: type(v) for k, v in original.items()}
     assert response.json()['status'] == original['status'] == 'pending'
     latest = _token(smtp, ACCOUNTS[0], 3)
@@ -40,8 +40,8 @@ def confirmed(base, smtp, tokens, directory):
         assert _confirm(base, account, token).status_code == 200
     for account in ACCOUNTS:
         response = register(base, account)
-        assert _login(base, account, PASSWORD).status_code == 200, 'garde confirmé désarmée : mot de passe pris'
-        assert response.status_code == 409, 'garde confirmé désarmée'
+        assert _login(base, account, PASSWORD).status_code == 200, 'confirmed guard disarmed: password taken'
+        assert response.status_code == 409, 'confirmed guard disarmed'
         assert _login(base, account, NEW_PASSWORD).status_code == 401
     assert _sql(directory, 'SELECT COUNT(*) FROM _monl_verify_email_tokens') == [(2,)]
     _messages(smtp, 2)
@@ -53,7 +53,7 @@ def quota(base, smtp, tokens, directory):
     latest = _token(smtp, ACCOUNTS[0], 5)
     response = register(base, ACCOUNTS[0].upper())
     assert response.status_code == 200 and response.json()['status'] == 'pending'
-    assert _login(base, ACCOUNTS[0], PASSWORD).status_code == 403, 'quota remplacement désarmé'
+    assert _login(base, ACCOUNTS[0], PASSWORD).status_code == 403, 'replacement quota disarmed'
     assert _login(base, ACCOUNTS[0], NEW_PASSWORD).status_code == 401
     assert _sql(directory, 'SELECT COUNT(*) FROM _monl_verify_email_tokens') == [(5,)]
     _messages(smtp, 5)
@@ -95,5 +95,5 @@ MUTATIONS = {
     'replacement': ('if row and row[1]:', 'if row:'),
     'quota': ('if not _verification_quota(cursor, identifier):', 'if False:'),
 }
-ERRORS = {'confirmed': 'garde confirmé désarmée', 'replacement': 'remplacement désarmé',
-          'quota': 'quota remplacement désarmé'}
+ERRORS = {'confirmed': 'confirmed guard disarmed', 'replacement': 'replacement disarmed',
+          'quota': 'replacement quota disarmed'}

@@ -169,7 +169,7 @@ def test_the_generated_field_cannot_be_forged_by_the_client(application):
 
     corps = _post(base, identifiant)
     assert corps["author"] != "Administration", (
-        f"l'auteur fourni par le client a été retenu : {corps}")
+        f"the author provided by the client was kept: {corps}")
     assert corps["author"].startswith("Anon#"), corps
 
     # And not only on display: the forged value is not in the database either,
@@ -226,7 +226,7 @@ def test_the_generated_field_is_absent_from_the_creation_schema(application):
     proprietes = modele["properties"]
     assert "content" in proprietes and "likes" not in proprietes, proprietes
     assert "author" not in proprietes, (
-        f"le champ 'generated' est proposé en entrée : {proprietes}")
+        f"the 'generated' field is offered as input: {proprietes}")
 
 
 # ----------------------------------- briques 3 et 4 : compteurs transactionnels --
@@ -246,7 +246,7 @@ def test_increments_touches_the_right_record_and_only_it(application):
         valeurs = dict(cnx.execute(
             "SELECT id, likes FROM post WHERE id IN (?, ?)", (vise, temoin)))
     assert valeurs[vise] == 1, valeurs
-    assert valeurs[temoin] == 0, f"le voisin a bougé : {valeurs}"
+    assert valeurs[temoin] == 0, f"the neighbor moved: {valeurs}"
 
 
 def test_decrements_removes_the_declared_amount_from_the_target(application):
@@ -284,7 +284,7 @@ def test_a_nonexistent_target_cancels_the_whole_creation(application):
         orphelin = cnx.execute(
             'SELECT COUNT(*) FROM "like" WHERE note = ?', ("sur du vide",)
         ).fetchone()[0]
-    assert apres == avant, f"{apres - avant} ligne(s) laissée(s) par un refus"
+    assert apres == avant, f"{apres - avant} row(s) left by a refusal"
     assert orphelin == 0
 
 
@@ -301,12 +301,12 @@ def test_categorized_replaces_the_value_in_list_and_detail(application):
     _peupler_compteur(dossier, identifiant, 137)
     detail = _post(base, identifiant)
     assert detail["likes_category"] == "viral", detail
-    assert "likes" not in detail, f"la valeur exacte fuit en détail : {detail}"
+    assert "likes" not in detail, f"the exact value leaks in detail: {detail}"
 
     ligne = next(r for r in requests.get(f"{base}/post").json()["data"]
                  if r["id"] == identifiant)
     assert ligne["likes_category"] == "viral", ligne
-    assert "likes" not in ligne, f"la valeur exacte fuit en liste : {ligne}"
+    assert "likes" not in ligne, f"the exact value leaks in list: {ligne}"
 
 
 def test_categorized_treats_below_as_a_strict_bound(application):
@@ -322,8 +322,8 @@ def test_categorized_treats_below_as_a_strict_bound(application):
                             {"content": f"likes={valeur}", "score": 0})
         _peupler_compteur(dossier, identifiant, valeur)
         assert _post(base, identifiant)["likes_category"] == libelle, (
-            f"{valeur} classé {_post(base, identifiant)['likes_category']}, "
-            f"attendu {libelle}")
+            f"{valeur} classified {_post(base, identifiant)['likes_category']}, "
+            f"expected {libelle}")
 
 
 def test_categorized_does_not_touch_the_stored_value(application):

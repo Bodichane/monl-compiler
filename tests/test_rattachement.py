@@ -179,7 +179,7 @@ def test_the_actor_parent_did_not_move(tmp_path, capsys):
     assert '"client_id"' in insertion
     debut = genere.index("class CommandeSchema")
     assert "client_id" not in genere[debut:debut + 300], \
-        "la colonne du propriétaire ne doit JAMAIS entrer dans le corps de requête"
+        "the owner column must NEVER enter the request body"
 
 
 def test_a_counter_target_stays_designated_by_the_client(tmp_path, capsys):
@@ -447,7 +447,7 @@ def boutique(tmp_path):
             except OSError:
                 time.sleep(0.25)
         else:
-            pytest.fail("le serveur n'a jamais répondu")
+            pytest.fail("the server never answered")
         # The seller registers LAST, after three other accounts: their id (4)
         # then coincides with NONE of the three products'. Without this
         # divergence, "account id" and "product id" are equivalent and the
@@ -488,7 +488,7 @@ def test_the_variant_attaches_to_its_product(boutique):
     comptes = _in_database(tmp_path, "SELECT id FROM _monl_users WHERE username = 'victor'")
     id_compte = comptes[0][0]
     assert id_compte != deck["id"], \
-        "les deux identifiants doivent DIVERGER, sinon le test ne prouve rien"
+        "the two ids must DIVERGE, otherwise the test proves nothing"
 
     code, variante = _appel(base + "/variante",
                             {"taille": "42", "stock": 5, "produit_id": deck["id"]},
@@ -498,7 +498,7 @@ def test_the_variant_attaches_to_its_product(boutique):
                             (variante["id"],))[0][0]
     assert rattachement == deck["id"]
     assert rattachement != id_compte, \
-        "la colonne portait l'id du COMPTE créateur, jamais celui du produit"
+        "the column carried the creating ACCOUNT's id, never the product's"
 
 
 def test_the_designated_product_is_the_requested_one(boutique):
@@ -541,7 +541,7 @@ def test_stock_is_counted_per_variant(boutique):
     _, apres_43 = _appel(f"{base}/variante/{quarante_trois['id']}")
     assert apres_42["data"]["stock"] == 1
     assert apres_43["data"]["stock"] == 4, \
-        "deux tailles du même produit ont des stocks INDÉPENDANTS"
+        "two sizes of the same product have INDEPENDENT stocks"
 
 
 def test_the_floor_holds_per_variant(boutique):
@@ -560,7 +560,7 @@ def test_the_floor_holds_per_variant(boutique):
     assert code == 409
     assert "insufficient" in json.dumps(reponse)
     _, apres = _appel(f"{base}/variante/{variante['id']}")
-    assert apres["data"]["stock"] == 2, "un refus ne doit rien avoir consommé"
+    assert apres["data"]["stock"] == 2, "a refusal must have consumed nothing"
 
 
 def test_a_nonexistent_product_creates_no_orphan_variant(boutique):

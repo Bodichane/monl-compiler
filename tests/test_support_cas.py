@@ -14,16 +14,16 @@ def test_every_case_runs_and_every_failure_is_named():
 
     def cas(n):
         vus.append(n)
-        assert n % 2 == 0, f"{n} est impair"
+        assert n % 2 == 0, f"{n} is odd"
         if n == 4:
-            pytest.fail("échec explicite sur 4")
+            pytest.fail("explicit failure on 4")
 
     with pytest.raises(pytest.fail.Exception) as echec:
         check_each_case([(1,), (2,), (3,), (4,), (6,)], cas,
                             ids=["un", "deux", "trois", "quatre", "six"])
-    assert vus == [1, 2, 3, 4, 6], "un échec a interrompu les cas suivants"
+    assert vus == [1, 2, 3, 4, 6], "a failure interrupted the following cases"
     message = str(echec.value)
-    assert "3/5 cas en échec" in message
+    assert "3/5 cases failed" in message
     for nom in ("un", "trois", "quatre"):
         assert f"- {nom} :" in message
     for nom in ("deux", "six"):
@@ -31,7 +31,7 @@ def test_every_case_runs_and_every_failure_is_named():
 
 
 def test_an_empty_table_does_not_pass():
-    with pytest.raises(AssertionError, match="vide"):
+    with pytest.raises(AssertionError, match="empty"):
         check_each_case([], lambda: None)
 
 

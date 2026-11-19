@@ -117,7 +117,7 @@ def test_the_contract_contains_no_hard_coded_color():
     with tempfile.TemporaryDirectory() as workdir:
         contrat = _contract(BASE, workdir)
     trouvees = HEX.findall(str(contrat))
-    assert not trouvees, f"couleurs imposées par le compilateur : {trouvees}"
+    assert not trouvees, f"colors imposed by the compiler: {trouvees}"
 
 
 def test_the_brief_prescribes_neither_color_nor_font():
@@ -127,10 +127,10 @@ def test_the_brief_prescribes_neither_color_nor_font():
         _contrat_, brief = _brief(BASE, workdir)
 
     couleurs = HEX.findall(brief)
-    assert not couleurs, f"le brief impose des couleurs : {couleurs}"
+    assert not couleurs, f"the brief imposes colors: {couleurs}"
 
     citees = [p for p in POLICES if p.lower() in brief.lower()]
-    assert not citees, f"le brief impose des familles typographiques : {citees}"
+    assert not citees, f"the brief imposes typeface families: {citees}"
 
 
 # ------------------------------------------ what the brief must keep saying --
@@ -199,7 +199,7 @@ def test_a_ui_block_stays_accepted_but_without_effect():
     with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
         sans = _contract(BASE, a)
         avec = _contract(AVEC_UI, b)
-    assert sans == avec, "le bloc 'ui' influence encore le contrat"
+    assert sans == avec, "the 'ui' block still influences the contract"
 
 
 def test_two_projects_of_opposite_domains_get_the_same_silence():
@@ -218,7 +218,7 @@ def test_two_projects_of_opposite_domains_get_the_same_silence():
     extrait = "## Design direction — it does NOT come from monl"
     bloc1 = b1[b1.index(extrait):b1.index("## Non-negotiable rules")]
     bloc2 = b2[b2.index(extrait):b2.index("## Non-negotiable rules")]
-    assert bloc1 == bloc2, "la direction de design dépend encore du domaine"
+    assert bloc1 == bloc2, "the design direction still depends on the domain"
 
 
 def test_the_touch_up_instruction_recalls_the_icon_means():
@@ -239,4 +239,4 @@ def test_the_touch_up_instruction_recalls_the_icon_means():
     continu = " ".join(texte.split())
     assert "SVG" in continu
     assert "not an instruction" in continu, \
-        "le rappel doit dire que c'est un MOYEN, jamais une prescription"
+        "the reminder must say it is a MEANS, never a prescription"

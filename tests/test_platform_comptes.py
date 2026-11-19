@@ -67,7 +67,7 @@ def test_the_slug_is_GLOBALLY_unique_and_homonyms_step_aside(tmp_path):
     troisieme = platform.create_project(alice["id"], duplicate_id, "BOUTIQUE")
 
     assert platform.get_project(premier)["slug"] == "boutique", (
-        "le premier a perdu l'adresse que son nom annonce")
+        "the first lost the address its name announces")
     assert platform.get_project(vole)["slug"] == "boutique-2"
     assert troisieme == "boutique-3"
 

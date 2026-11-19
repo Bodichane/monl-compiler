@@ -377,7 +377,7 @@ def test_the_stored_link_is_the_one_requested(application, alice):
         stocke = cnx.execute('SELECT bloc_id FROM ligne WHERE id = ?',
                              (ligne_id,)).fetchone()[0]
     compte = _account_id(dossier, "alice_prof")
-    assert stocke == bloc, "le maillon désigné n'a pas été enregistré"
+    assert stocke == bloc, "the designated link was not recorded"
     assert bloc != compte and stocke != compte, "maillon et compte confondus"
 
 
@@ -414,7 +414,7 @@ def test_updating_someone_elses_line_is_refused(application, alice, bob):
     with _base_spec(dossier) as cnx:
         quantite = cnx.execute('SELECT quantite FROM ligne WHERE id = ?',
                                (ligne_id,)).fetchone()[0]
-    assert quantite == 1, "la ligne a été modifiée malgré le refus"
+    assert quantite == 1, "the line was modified despite the refusal"
 
 
 def test_deleting_someone_elses_line_is_refused(application, alice, bob):
@@ -427,7 +427,7 @@ def test_deleting_someone_elses_line_is_refused(application, alice, bob):
     with _base_spec(dossier) as cnx:
         reste = cnx.execute('SELECT COUNT(*) FROM ligne WHERE id = ?',
                             (ligne_id,)).fetchone()[0]
-    assert reste == 1, "la ligne a été supprimée malgré le refus"
+    assert reste == 1, "the line was deleted despite the refusal"
 
 
 def test_the_owner_updates_and_deletes_their_line(application, alice):

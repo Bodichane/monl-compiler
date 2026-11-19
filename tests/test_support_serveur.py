@@ -46,10 +46,10 @@ def echec_attendu(**kwargs):
         with uvicorn_server(**kwargs):
             pass
     except pytest.skip.Exception as saut:
-        pytest.fail(f"serveur mort SAUTÉ au lieu d'échouer : {saut}")
+        pytest.fail(f"dead server SKIPPED instead of failing: {saut}")
     except pytest.fail.Exception as echec:
         return str(echec)
-    pytest.fail("un serveur qui ne démarre pas doit faire échouer le test")
+    pytest.fail("a server that does not start must make the test fail")
 
 
 def test_a_server_that_does_not_start_fails_and_never_skips(tmp_path):
@@ -62,7 +62,7 @@ def test_a_server_that_does_not_start_fails_and_never_skips(tmp_path):
     """
     (tmp_path / "app.py").write_text(APP_EN_PANNE, encoding="utf-8")
     message = echec_attendu(directory=str(tmp_path), attempts=8)
-    assert "s'est arrêté avant de répondre" in message
+    assert "stopped before answering" in message
     # The cause must be IN the message: that is the whole point of taking
     # uvicorn's output out of DEVNULL.
     assert "panne volontaire du harnais" in message, message
@@ -81,8 +81,8 @@ def test_a_missing_module_is_reported_with_its_cause(tmp_path):
     """The other way to die: the module does not import at all."""
     message = echec_attendu(directory=str(tmp_path), module="absent:app", attempts=8)
     assert "absent:app" in message
-    assert "(le serveur n a rien ecrit)" not in message, (
-        "la sortie d'uvicorn doit être rapportée, pas perdue")
+    assert "(the server wrote nothing)" not in message, (
+        "uvicorn's output must be reported, not lost")
 
 
 def test_a_healthy_server_answers_and_its_port_is_held(tmp_path):
@@ -117,7 +117,7 @@ def test_the_server_no_longer_goes_through_free_port(tmp_path, monkeypatch):
     (tmp_path / "app.py").write_text(APP_SAINE, encoding="utf-8")
     with uvicorn_server(str(tmp_path)) as base:
         assert base.startswith("http://127.0.0.1:")
-        assert not base.endswith(":65535"), "le port vient encore de free_port"
+        assert not base.endswith(":65535"), "the port still comes from free_port"
     assert appels == [], "uvicorn_server appelle encore free_port"
 
 

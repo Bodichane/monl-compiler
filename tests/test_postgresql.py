@@ -48,7 +48,7 @@ def database_url(request):
 def postgres_dsn():
     base = os.environ.get("MONL_TEST_DATABASE_URL", "").strip()
     if not base:
-        pytest.skip("MONL_TEST_DATABASE_URL absent : PostgreSQL d'intégration non demandé")
+        pytest.skip("MONL_TEST_DATABASE_URL missing: integration PostgreSQL not requested")
     psycopg = _psycopg()
     schema = f"monl_test_{uuid4().hex[:12]}"
     admin = psycopg.connect(base)
@@ -98,7 +98,7 @@ def _server_expected_failure(directory: str, env: dict[str, str]):
     except subprocess.TimeoutExpired:
         process.kill()
         output, _ = process.communicate()
-        raise AssertionError("PostgreSQL : le serveur a démarré malgré le schéma non migré") from None
+        raise AssertionError("PostgreSQL: the server started despite the unmigrated schema") from None
     return process.returncode, output
 
 

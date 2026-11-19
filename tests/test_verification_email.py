@@ -83,7 +83,7 @@ def _messages(smtp, count):
     deadline = time.monotonic() + 10
     while len(smtp.messages) < count and time.monotonic() < deadline:
         time.sleep(0.02)
-    assert len(smtp.messages) == count, 'message SMTP non reçu'
+    assert len(smtp.messages) == count, 'SMTP message not received'
 
 def _token(smtp, account, count):
     _messages(smtp, count)
@@ -111,7 +111,7 @@ def _application(directory, smtp, mutation=None, spec=SPEC):
         path = directory / 'app.py'
         original = path.read_text()
         before, after = mutation
-        assert before in original, 'contre-épreuve sans cible'
+        assert before in original, 'counter-proof without target'
         path.write_text(original.replace(before, after))
     with uvicorn_server(directory, env=_env(smtp)) as base:
         tokens = _register_two(base, smtp, contract["self_register_actors"][0])
@@ -120,7 +120,7 @@ def _application(directory, smtp, mutation=None, spec=SPEC):
 def _assert_login(base):
     for account in ACCOUNTS:
         good = _login(base, account)
-        assert good.status_code == 403, 'garde 403 désarmée'
+        assert good.status_code == 403, '403 guard disarmed'
         assert good.json()['detail']['code'] == 'email_not_verified'
         assert not {'access_token', 'refresh_token', 'token'} & good.json().keys()
         wrong = _login(base, account, 'mot-de-passe-faux')
@@ -133,14 +133,14 @@ def _confirm(base, account, token):
 
 def _assert_replay(base, tokens):
     assert _confirm(base, ACCOUNTS[0], tokens[0]).status_code == 200
-    assert _confirm(base, ACCOUNTS[0], tokens[0]).status_code == 400, 'consommation désarmée'
+    assert _confirm(base, ACCOUNTS[0], tokens[0]).status_code == 400, 'consumption disarmed'
     assert _login(base, ACCOUNTS[0]).status_code == 200
     assert _login(base, ACCOUNTS[1]).status_code == 403
 
 def _assert_expiration(base, tokens, directory):
     _sql(directory, 'UPDATE _monl_verify_email_tokens SET expires_at = 0 WHERE token_hash = ?',
          (hashlib.sha256(tokens[0].encode()).hexdigest(),))
-    assert _confirm(base, ACCOUNTS[0], tokens[0]).status_code == 400, 'expiration désarmée'
+    assert _confirm(base, ACCOUNTS[0], tokens[0]).status_code == 400, 'expiration disarmed'
     assert _login(base, ACCOUNTS[0]).status_code == 403
     assert _confirm(base, ACCOUNTS[1], tokens[1]).status_code == 200
     assert _login(base, ACCOUNTS[1]).status_code == 200
@@ -157,7 +157,7 @@ def _assert_limit(base, smtp, directory):
         if attempt < 3:
             _messages(smtp, 3 + attempt)
     count = _sql(directory, 'SELECT COUNT(*) FROM _monl_verify_email_tokens WHERE user_id = 1')[0][0]
-    assert count == 4, 'limite de renvoi désarmée'  # inscription + trois renvois
+    assert count == 4, 'resend limit disarmed'  # inscription + trois renvois
     _messages(smtp, 5)
     assert _login(base, ACCOUNTS[0]).status_code == 403
     assert _login(base, ACCOUNTS[1]).status_code == 403
@@ -210,8 +210,8 @@ MUTATIONS = {
 def test_contre_epreuves(guard, tmp_path, faux_smtp):
     with _application(tmp_path, faux_smtp, MUTATIONS[guard]) as (base, tokens):
         with pytest.raises(AssertionError, match={
-                '403': 'garde 403 désarmée', 'consommation': 'consommation désarmée',
-                'expiration': 'expiration désarmée', 'limite': 'limite de renvoi désarmée'}[guard]) as red:
+                '403': '403 guard disarmed', 'consommation': 'consumption disarmed',
+                'expiration': 'expiration disarmed', 'limite': 'resend limit disarmed'}[guard]) as red:
             if guard == '403':
                 _assert_login(base)
             elif guard == 'consommation':

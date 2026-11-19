@@ -258,7 +258,7 @@ def _no_useless_custom_module(project_dir: Path):
     emitting it again would make both files green while killing the brick.
     """
     assert not (project_dir / "sandbox_ai.py").exists(), (
-        "un module 'custom' vide est livré alors que la spec n'en déclare aucun")
+        "an empty 'custom' module is shipped while the spec declares none")
 
 
 # D3–D5: only the B4 artifacts carry the session version, the password required

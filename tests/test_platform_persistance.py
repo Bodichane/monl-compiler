@@ -13,7 +13,7 @@ from monl_platform.store import PlatformStore
 def _descriptors_on(chemin):
     dossier = "/proc/self/fd"
     if not os.path.isdir(dossier):
-        pytest.skip("le décompte de descripteurs demande /proc")
+        pytest.skip("descriptor counting requires /proc")
     chemin = str(chemin)
     ouverts = 0
     with os.scandir(dossier) as entrees:
@@ -65,7 +65,7 @@ def test_the_builder_reads_close_their_connections(tmp_path):
 
     apres = _descriptors_on(platform.database)
     assert apres - avant == 0, (
-        f"{apres - avant} descripteur(s) restent ouverts après 500 lectures"
+        f"{apres - avant} descriptor(s) stay open after 500 reads"
     )
 
 

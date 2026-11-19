@@ -220,7 +220,7 @@ def boutique(tmp_path):
             except OSError:
                 time.sleep(0.25)
         else:
-            pytest.fail("le serveur n'a jamais répondu")
+            pytest.fail("the server never answered")
         _appel(base + "/register", {"username": "zoe", "password": "motdepasse1",
                                     "actor": "Client"})
         _, jeton = _appel(base + "/login", {"username": "zoe",
@@ -259,7 +259,7 @@ def test_an_order_counts_down_the_stock(boutique):
     code, _ = _appel(base + "/ligne", {"quantite": 2, "commande_id": commande,
                                        "produit_id": halo}, jeton)
     assert code == 200
-    assert _stock(base, halo) == 1, "le décompte doit valoir la QUANTITÉ, pas 1"
+    assert _stock(base, halo) == 1, "the count must equal the QUANTITY, not 1"
 
 
 def test_ordering_more_than_the_stock_is_refused(boutique):
@@ -272,7 +272,7 @@ def test_ordering_more_than_the_stock_is_refused(boutique):
                                              "produit_id": halo}, jeton)
     assert code == 409
     assert "insufficient" in reponse["detail"]
-    assert _stock(base, halo) == 3, "un refus ne doit rien avoir décompté"
+    assert _stock(base, halo) == 3, "a refusal must have counted nothing"
     # And the line must not exist: the refusal comes INSIDE the transaction.
     base_donnees = sqlite3.connect(dossier / "app.db")
     try:
@@ -307,12 +307,12 @@ def test_counting_targets_the_requested_product_and_no_other(boutique):
     counting down the wrong row would show."""
     base, jeton, commande, produits, _ = boutique
     halo, deck = produits["Halo RS"]["id"], produits["Deck Low"]["id"]
-    assert halo != commande, "identifiants confondus : le test ne prouve rien"
+    assert halo != commande, "ids conflated: the test proves nothing"
 
     _appel(base + "/ligne", {"quantite": 1, "commande_id": commande,
                              "produit_id": halo}, jeton)
     assert _stock(base, halo) == 2
-    assert _stock(base, deck) == 0, "aucun autre produit ne doit avoir bougé"
+    assert _stock(base, deck) == 0, "no other product must have moved"
 
 
 # ---------------------------------------------------------------------------
@@ -342,7 +342,7 @@ def test_increasing_the_quantity_counts_the_difference(boutique):
     assert code == 200, reponse
     # 3 at the start, 3 ordered: the DELTA of 2 is added to the 1 already
     # counted.
-    assert _stock(base, halo) == 0, "le PUT doit décompter la différence"
+    assert _stock(base, halo) == 0, "the PUT must count the difference"
 
 
 def test_reducing_the_quantity_gives_stock_back(boutique):
@@ -373,10 +373,10 @@ def test_a_quantity_exceeding_the_stock_is_refused_on_put(boutique):
 
     assert code == 409, reponse
     assert "insufficient" in reponse["detail"]
-    assert _stock(base, halo) == 2, "un refus ne doit rien avoir décompté"
+    assert _stock(base, halo) == 2, "a refusal must have counted nothing"
     _, relue = _appel(f"{base}/ligne/{ligne}", jeton=jeton)
     assert relue["data"]["quantite"] == 1, (
-        "la ligne ne doit pas être écrite quand le stock refuse")
+        "the line must not be written when the stock refuses")
 
 
 # --------------------------------------------------------------------------
@@ -400,7 +400,7 @@ def test_deleting_a_line_gives_the_stock_back(boutique):
     code, reponse = _appel(f"{base}/ligne/{ligne}", jeton=jeton, methode="DELETE")
 
     assert code == 200, reponse
-    assert _stock(base, halo) == depart, "la ligne supprimée n'a pas rendu son stock"
+    assert _stock(base, halo) == depart, "the deleted line did not give its stock back"
 
 
 def test_restitution_gives_back_the_CURRENT_quantity_not_the_creation_one(boutique):
@@ -433,7 +433,7 @@ def test_restitution_targets_the_lines_product_and_no_other(boutique):
     _appel(f"{base}/ligne/{ligne}", jeton=jeton, methode="DELETE")
 
     assert _stock(base, halo) == depart_halo
-    assert _stock(base, deck) == depart_deck, "le stock d'un autre produit a bougé"
+    assert _stock(base, deck) == depart_deck, "another product's stock moved"
 
 
 def test_emptying_then_reordering_loses_no_unit(boutique):
@@ -460,7 +460,7 @@ def test_restitution_carries_no_floor(tmp_path, capsys):
     genere = (tmp_path / "app.py").read_text(encoding="utf-8")
     bloc = genere.split("def delete_ligne(")[1].split("\n@app.")[0]
     rendu = next(li for li in bloc.splitlines() if '"stock" + ?' in li)
-    assert ">= ?" not in rendu, "la restitution ne doit porter aucune condition"
+    assert ">= ?" not in rendu, "restitution must carry no condition"
     # And it gives back to the line's product: the column is named in the
     # preceding read, restitution reuses its value.
     assert 'SELECT "quantite", "produit_id"' in bloc
@@ -477,7 +477,7 @@ def test_restitution_reads_the_line_before_deleting_it(tmp_path, capsys):
             .split("def delete_ligne(")[1].split("\n@app.")[0])
     lecture = bloc.index('SELECT "quantite", "produit_id"')
     suppression = bloc.index('DELETE FROM "ligne"')
-    assert lecture < suppression, "la quantité est lue après la suppression"
+    assert lecture < suppression, "the quantity is read after the deletion"
 
 
 # --------------------------------------------------------------------------

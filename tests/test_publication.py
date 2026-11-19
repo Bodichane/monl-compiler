@@ -34,7 +34,7 @@ def _extras_installes(job):
     """
     commandes = "\n".join(etape.get("run", "") for etape in job["steps"])
     trouves = re.findall(r'pip install -e "\.\[([^\]]*)\]"', commandes)
-    assert len(trouves) == 1, f"installation du paquet introuvable ou multiple : {trouves}"
+    assert len(trouves) == 1, f"package installation not found or multiple: {trouves}"
     return {extra.strip() for extra in trouves[0].split(",")}
 
 
@@ -95,14 +95,14 @@ def test_the_guide_empties_dist_before_building():
     guide = _guide()
 
     assert "rm -rf dist/" in guide, (
-        "le guide construit sans vider dist/ : une version périmée déjà "
-        "présente serait publiée avec la nouvelle")
+        "the guide builds without emptying dist/: a stale version already "
+        "present would be published with the new one")
     assert guide.index("rm -rf dist/") < guide.index("python -m build"), (
-        "le nettoyage est écrit APRÈS la construction : il ne protège de rien")
+        "cleaning is written AFTER building: it protects from nothing")
     # The consequence must be written, otherwise the command looks like a fad
     # and the first person publishing under pressure skips it.
     assert "cannot be reused" in guide or "does not allow republishing" in guide, (
-        "le guide ne dit pas qu'un numéro de version envoyé est définitif")
+        "the guide does not say an uploaded version number is final")
 
 
 def test_the_matching_tag_is_accepted():
@@ -213,7 +213,7 @@ def test_the_trusted_publisher_table_names_the_real_repository():
     depot = project["urls"]["Repository"]
     correspondance = re.fullmatch(
         r"https://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?", depot)
-    assert correspondance, f"URL de dépôt illisible : {depot!r}"
+    assert correspondance, f"unreadable repository URL: {depot!r}"
     proprietaire, nom_du_depot = correspondance.groups()
 
     guide = _guide()
@@ -227,9 +227,9 @@ def test_the_trusted_publisher_table_names_the_real_repository():
     ):
         ligne = f"| {etiquette} | `{valeur}` |"
         assert guide.count(ligne) == 2, (
-            f"le guide devrait porter deux fois {ligne!r} (PyPI et TestPyPI), "
-            f"il le porte {guide.count(ligne)} fois — l'éditeur de confiance "
-            f"refuserait l'envoi sans dire quel champ est faux")
+            f"the guide should carry {ligne!r} twice (PyPI and TestPyPI), "
+            f"it carries it {guide.count(ligne)} times — the trusted publisher "
+            f"would refuse the upload without saying which field is wrong")
 
 
 def test_publishing_tests_the_tag_in_the_ci_environment():
@@ -247,7 +247,7 @@ def test_publishing_tests_the_tag_in_the_ci_environment():
     publication = _workflow()["jobs"]["tests"]
 
     extras_ci = _extras_installes(ci)
-    assert "postgres" in extras_ci, "prémisse : la CI éprouve PostgreSQL"
+    assert "postgres" in extras_ci, "premise: CI tests PostgreSQL"
     assert _extras_installes(publication) == extras_ci
     assert publication.get("services") == ci.get("services")
     assert publication.get("env") == ci.get("env")

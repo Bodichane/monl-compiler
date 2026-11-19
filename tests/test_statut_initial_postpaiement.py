@@ -259,7 +259,7 @@ def _start_with_log(dossier, env):
         except requests.RequestException:
             time.sleep(0.25)
     arreter_processus(processus)
-    pytest.fail("le serveur n'a jamais répondu")
+    pytest.fail("the server never answered")
 
 
 def test_an_old_null_row_is_counted_not_backfilled(

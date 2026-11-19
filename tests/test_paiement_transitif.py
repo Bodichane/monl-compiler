@@ -231,8 +231,8 @@ def test_a_third_party_cannot_pay(application, alice, bob):
     with _base_spec(dossier) as cnx:
         compte_alice = cnx.execute(
             "SELECT id FROM _monl_users WHERE username = 'alice'").fetchone()[0]
-    assert commande != compte_alice, "identifiants confondus : le test ne prouve rien"
-    assert ligne != compte_alice, "identifiants confondus : le test ne prouve rien"
+    assert commande != compte_alice, "ids conflated: the test proves nothing"
+    assert ligne != compte_alice, "ids conflated: the test proves nothing"
 
     refuse = requests.post(f"{base}/ligne/{ligne}/paiement", headers=bob, timeout=15)
     assert refuse.status_code == 403, refuse.text

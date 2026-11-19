@@ -77,13 +77,13 @@ def test_the_hidden_field_disappears_from_reads_and_stays_stored(application):
     assert lignes, liste
     for ligne in lignes:
         assert "title" in ligne
-        assert "internalNote" not in ligne, f"champ masqué exposé en liste : {ligne}"
+        assert "internalNote" not in ligne, f"hidden field exposed in list: {ligne}"
 
     # 2. Nor does the DETAIL.
     detail = requests.get(f"{base}/note/{note_id}", headers=entetes).json()
     corps = detail.get("data", detail)
     assert corps.get("title") == "Devis Aurora", detail
-    assert "internalNote" not in corps, f"champ masqué exposé en détail : {detail}"
+    assert "internalNote" not in corps, f"hidden field exposed in detail: {detail}"
 
     # 3. Nor without an account (reading is public here): masking does not
     # depend on the caller, unlike ownedBy.
@@ -116,6 +116,6 @@ def test_the_hidden_field_is_absent_from_the_read_contract(application):
     base, _dossier = application
     schema = requests.get(f"{base}/openapi.json").json()
     texte = str(schema)
-    assert "internalNote" in texte, "le champ doit exister en écriture"
+    assert "internalNote" in texte, "the field must exist for writing"
     lecture = schema["paths"]["/note/{id}"]["get"]
     assert "internalNote" not in str(lecture), lecture

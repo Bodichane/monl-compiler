@@ -63,7 +63,7 @@ def upload_database_url(request):
         return
     base = os.environ.get("MONL_TEST_DATABASE_URL", "").strip()
     if not base:
-        pytest.skip("MONL_TEST_DATABASE_URL absent : PostgreSQL d'intégration non demandé")
+        pytest.skip("MONL_TEST_DATABASE_URL missing: integration PostgreSQL not requested")
     try:
         import psycopg
     except ImportError:

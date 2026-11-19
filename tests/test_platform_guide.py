@@ -30,7 +30,7 @@ def _grammar_types():
     from monl.parser import grammar
 
     ligne = re.search(r'^\s*TYPE:\s*(.+)$', grammar, re.MULTILINE)
-    assert ligne, "la règle TYPE a disparu de la grammaire"
+    assert ligne, "the TYPE rule disappeared from the grammar"
     return set(re.findall(r'"([A-Za-z]+)"', ligne.group(1)))
 
 
@@ -44,8 +44,8 @@ def test_the_guide_documents_exactly_the_grammar_types():
     documentes = {nom for nom, _ in guide_data.TYPES}
     reels = _grammar_types()
     assert documentes == reels, (
-        f"documentés en trop : {sorted(documentes - reels)} · "
-        f"absents du guide : {sorted(reels - documentes)}"
+        f"documented in excess: {sorted(documentes - reels)} · "
+        f"missing from the guide: {sorted(reels - documentes)}"
     )
 
 
@@ -59,7 +59,7 @@ def test_the_guide_documents_the_really_mounted_routes(tmp_path):
         if methode in {"GET", "POST", "DELETE"}
     }
     for verbe, chemin, _ in guide.ROUTES_API:
-        assert (verbe, chemin) in montees, f"le guide annonce {verbe} {chemin}, absent de l'app"
+        assert (verbe, chemin) in montees, f"the guide announces {verbe} {chemin}, missing from the app"
 
     publiques = {
         (methode, route.path)
@@ -72,7 +72,7 @@ def test_the_guide_documents_the_really_mounted_routes(tmp_path):
     }
     documentees = {(verbe, chemin) for verbe, chemin, _ in guide.ROUTES_API}
     assert publiques == documentees, (
-        f"routes non documentées : {sorted(publiques - documentees)}"
+        f"undocumented routes: {sorted(publiques - documentees)}"
     )
 
 
@@ -160,7 +160,7 @@ def test_the_rules_cited_by_the_guide_all_carry_a_known_keyword():
     paquet = racine / "ast_validator"
     fichiers = (sorted(paquet.glob("*.py")) if paquet.is_dir()
                 else [racine / "ast_validator.py"])
-    assert fichiers, "source du validateur introuvable"
+    assert fichiers, "validator source not found"
     validateur = "\n".join(f.read_text(encoding="utf-8") for f in fichiers)
     tableaux = (guide_data.REGLES_ACCES + guide_data.REGLES_CHAMPS
                 + guide_data.REGLES_SERVEUR + guide_data.REGLES_COMMERCE)
@@ -169,7 +169,7 @@ def test_the_rules_cited_by_the_guide_all_carry_a_known_keyword():
                           r"requiresOwn|min|max|unique|required|oneOf|generated|timestamp|"
                           r"numbered|derivedFrom|sumOf|hidden|categorized|decrements|"
                           r"increments|payable|releases|writableAfterPayment)\b", regle)
-        assert mots, f"règle sans mot-clé identifiable : {regle}"
+        assert mots, f"rule without identifiable keyword: {regle}"
         for mot in mots:
             assert f'"{mot}"' in validateur or f"'{mot}'" in validateur, (
-                f"le guide cite `{mot}`, que le validateur ne connaît pas")
+                f"the guide cites `{mot}`, which the validator does not know")

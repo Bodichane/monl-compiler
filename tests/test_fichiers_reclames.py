@@ -134,7 +134,7 @@ def test_an_imported_archive_loses_its_images_and_the_smoke_test_says_so(project
         z.writestr("photo.jpg", "�� pas du texte")
     ok, errors = import_and_verify(str(project), str(archive), say=_quiet)
     assert not (project / "frontend" / "photo.jpg").exists(), (
-        "l'archive a conservé la photo : le scénario testé n'existe plus")
+        "the archive kept the photo: the tested scenario no longer exists")
     assert not ok
     assert any("photo.jpg" in e for e in errors), errors
 

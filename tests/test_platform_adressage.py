@@ -77,9 +77,9 @@ def test_two_cases_of_one_name_do_not_make_two_addresses(store):
     retenu = store.create_project(user_id, second, "MYOWN")
 
     assert retenu == "myown-2", (
-        f"la casse a refabriqué une adresse déjà prise : {retenu!r}")
+        f"case rebuilt an address already taken: {retenu!r}")
     assert len(store.list_projects_by_slug("myown")) == 1, (
-        "l'hôte myown désigne deux projets : il ne serait plus servi du tout")
+        "the myown host designates two projects: it would no longer be served at all")
 
 
 def test_an_address_already_in_capitals_is_seen_as_taken(store):
@@ -104,7 +104,7 @@ def test_an_address_already_in_capitals_is_seen_as_taken(store):
     retenu = store.create_project(user_id, second, "myown")
 
     assert retenu == "myown-2", (
-        f"la ligne 'myOwn' n'a pas été vue comme prise : {retenu!r}")
+        f"the 'myOwn' row was not seen as taken: {retenu!r}")
 
 
 def test_the_canonical_form_is_named_and_shared():

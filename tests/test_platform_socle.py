@@ -76,7 +76,7 @@ def test_compiling_a_project_produces_its_backend_in_the_private_folder(platform
     assert (directory / "app.py").is_file()
     assert (directory / "serve.py").is_file()
     assert (directory / "frontend_contract.json").is_file()
-    assert resultat["contract"]["routes"], "le contrat doit décrire des routes"
+    assert resultat["contract"]["routes"], "the contract must describe routes"
     # The heading: the platform builds NO interface.
     assert not (directory / "frontend").exists()
     assert ".jwt_secret" not in resultat["files"]

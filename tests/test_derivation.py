@@ -282,7 +282,7 @@ def test_declaring_another_item_on_put_does_not_lower_the_total(application):
     assert reponse.status_code == 200, reponse.text
     ligne = _read(base, entetes, identifiant)
     assert ligne["total"] == PRIX_CHER, (
-        "le montant a suivi l'article DÉCLARÉ au lieu de l'article stocké")
+        "the amount followed the DECLARED item instead of the stored item")
     assert ligne["article_id"] == cher
 
 

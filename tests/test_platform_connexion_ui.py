@@ -196,9 +196,9 @@ async function inclinaison(base, reduit) {
 @pytest.fixture()
 def rapport_connexion_jsdom(tmp_path, plateforme):
     if shutil.which("node") is None:
-        pytest.fail("node est requis : un saut ne dirait pas « rien à vérifier »")
+        pytest.fail("node is required: a skip would not say \"nothing to check\"")
     assert _ensure_jsdom(str(tmp_path), lambda *_: None), (
-        "jsdom introuvable et non installable dans ~/.monl/jsdom")
+        "jsdom not found and not installable in ~/.monl/jsdom")
     runner = tmp_path / "runner.js"
     runner.write_text(RUNNER, encoding="utf-8")
     env = dict(os.environ)

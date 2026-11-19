@@ -48,7 +48,7 @@ def test_each_contents_link_reaches_a_heading():
     ancres = {ancre_github(titre) for _, titre in titres}
     pendants = [f"[{num}](#{lien})" for num, lien in liens if lien not in ancres]
     assert not pendants, (
-        f"{len(pendants)} lien(s) du sommaire ne mènent nulle part : {pendants}")
+        f"{len(pendants)} contents link(s) lead nowhere: {pendants}")
 
 
 # Point 6 is a RESERVED duplicate of point 1, empty, kept so as not to shift
@@ -66,7 +66,7 @@ def test_each_journal_point_is_in_the_contents():
     titres, liens = _titles_and_links()
     listes = {num for num, _ in liens}
     absents = sorted({num for num, _ in titres} - listes - SANS_CONTENU, key=int)
-    assert not absents, f"points absents du sommaire : {absents}"
+    assert not absents, f"points missing from the contents: {absents}"
 
 
 def test_the_anchor_rule_is_githubs():
@@ -98,8 +98,8 @@ def test_the_english_summary_follows_the_journal_contents():
     """
     _, liens = _titles_and_links()
     resume = _summary_links()
-    assert liens, "aucun lien lu dans le sommaire : l'extracteur ne regarde plus rien"
+    assert liens, "no link read in the contents: the extractor no longer looks at anything"
     manquants = sorted(set(liens) - set(resume), key=lambda lien: int(lien[0]))
     orphelins = sorted(set(resume) - set(liens), key=lambda lien: int(lien[0]))
-    assert not manquants, f"points du journal absents du résumé anglais : {manquants}"
-    assert not orphelins, f"liens du résumé anglais hors du sommaire : {orphelins}"
+    assert not manquants, f"journal points missing from the English summary: {manquants}"
+    assert not orphelins, f"English summary links outside the contents: {orphelins}"

@@ -45,7 +45,7 @@ def _node():
         # No `skip`: a skip would say "nothing to check here", while it would
         # mean "I did not check" (point 140). Node is declared in
         # .github/workflows/ci.yml for that reason.
-        pytest.fail("node est requis pour analyser le JavaScript servi")
+        pytest.fail("node is required to analyze the served JavaScript")
     return chemin
 
 
@@ -77,7 +77,7 @@ def client(tmp_path_factory):
             except requests.RequestException:
                 time.sleep(0.02)
         else:
-            pytest.fail("le serveur n'a pas démarré")
+            pytest.fail("the server did not start")
         inscription = session.post(
             f"{base}/api/auth/register",
             json={"email": "js@example.test", "password": "MotDePasse-123"},
@@ -101,7 +101,7 @@ def _scripts_of(client, chemin):
 def test_the_served_javascript_parses_without_error(client, chemin, tmp_path):
     node = _node()
     blocs = _scripts_of(client, chemin)
-    assert blocs, f"{chemin} ne sert aucun script : cette entrée est périmée"
+    assert blocs, f"{chemin} serves no script: this entry is stale"
     for index, bloc in enumerate(blocs):
         fichier = tmp_path / f"{chemin.strip('/') or 'racine'}-{index}.js"
         fichier.write_text(bloc, encoding="utf-8")
@@ -110,8 +110,8 @@ def test_the_served_javascript_parses_without_error(client, chemin, tmp_path):
             capture_output=True, text=True, check=False,
         )
         assert resultat.returncode == 0, (
-            f"{chemin}, script #{index} : JavaScript invalide — la page est "
-            f"morte dans un navigateur.\n{resultat.stderr}"
+            f"{chemin}, script #{index}: invalid JavaScript — the page is "
+            f"dead in a browser.\n{resultat.stderr}"
         )
 
 
@@ -120,10 +120,10 @@ def test_the_console_serves_the_start_button_with_its_apostrophe(client):
     node = _node()
     blocs = _scripts_of(client, "/console")
     entier = "\n".join(blocs)
-    assert "Start the project" in entier, "le bouton a disparu du script servi"
+    assert "Start the project" in entier, "the button disappeared from the served script"
     # The apostrophe must be ESCAPED in the literal, not bare.
     assert "Start the project\\'s API" in entier, (
-        "l'apostrophe est nue dans le littéral JavaScript servi : "
-        "une couche de templating Python a mangé l'antislash"
+        "the apostrophe is bare in the served JavaScript literal: "
+        "a Python templating layer ate the backslash"
     )
     assert node

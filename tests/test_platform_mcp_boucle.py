@@ -80,7 +80,7 @@ def plateforme(tmp_path):
             except requests.RequestException:
                 time.sleep(0.02)
         else:
-            pytest.fail("le serveur de plateforme n'a pas démarré")
+            pytest.fail("the platform server did not start")
         yield base
     finally:
         serveur.should_exit = True
@@ -139,12 +139,12 @@ def test_security_change_on_all_accesses(plateforme, tmp_path, capsys, action):
     magasin = IdentityStore(tmp_path / "projects")
     if action == "regenerer":
         refus = session.post(f"{base}/api/auth/recovery-codes", json={}, timeout=10)
-        assert refus.status_code == 403, "Régénération sans mot de passe acceptée"
+        assert refus.status_code == 403, "Regeneration without password accepted"
         assert magasin.count_recovery_codes(compte["user"]["id"]) == 8
         codes = session.post(f"{base}/api/auth/recovery-codes", json={
             "password": "MotDePasse-123"}, timeout=10).json()["recovery_codes"]
         assert session.get(f"{base}/api/auth/me", timeout=10).status_code == 200
-        assert autre.get(f"{base}/api/auth/me", timeout=10).status_code == 401, "Autre session conservée après régénération"
+        assert autre.get(f"{base}/api/auth/me", timeout=10).status_code == 401, "Other session kept after regeneration"
         assert requests.get(archive, headers=entetes, timeout=10).status_code == 200
         assert requests.post(f"{base}/api/auth/recover", json={
             "email": "preuve@exemple.test", "code": codes[0],
@@ -155,16 +155,16 @@ def test_security_change_on_all_accesses(plateforme, tmp_path, capsys, action):
         site = session.post(f"{base}/api/projects/{projet}/start", timeout=30).json()
         assert requests.get(f"{base}/openapi.json", headers={"Host": site["host"]}, timeout=30).status_code == 200
         magasin.deplacer_echeance(projet, -1)
-        assert requests.get(archive, headers=entetes, timeout=10).status_code == 404, "Archive expirée encore accessible avant purge"
+        assert requests.get(archive, headers=entetes, timeout=10).status_code == 404, "Expired archive still accessible before purge"
         assert session.get(archive, timeout=10).status_code == 404
         assert session.get(f"{base}/api/projects/{projet}", timeout=10).status_code == 404
         assert session.post(f"{base}/api/projects/{projet}/compiler", timeout=10).status_code == 404
         assert session.post(f"{base}/api/projects/{projet}/start", timeout=10).status_code == 404
-        assert requests.get(f"{base}/openapi.json", headers={"Host": site["host"]}, timeout=10).status_code == 404, "Site expiré encore relayé"
+        assert requests.get(f"{base}/openapi.json", headers={"Host": site["host"]}, timeout=10).status_code == 404, "Expired site still relayed"
         reponse = requests.post(f"{base}/mcp", headers=entetes, json={
             "jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
                 "name": "monl_inspect_contract", "arguments": {"project_id": projet}}}, timeout=10)
-        assert reponse.json()["result"]["isError"], "Projet expiré encore accessible par MCP"
+        assert reponse.json()["result"]["isError"], "Expired project still accessible through MCP"
         return
     if action == "administrer":
         assert administrer(["codes", "preuve@exemple.test", "--workspace", str(tmp_path / "projects")]) == 0
@@ -176,9 +176,9 @@ def test_security_change_on_all_accesses(plateforme, tmp_path, capsys, action):
         assert requests.post(f"{base}/api/auth/recover", json={
             "email": "preuve@exemple.test", "code": compte["recovery_codes"][0],
             "password": "NouveauMotDePasse-123"}, timeout=10).status_code == 204
-    assert session.get(f"{base}/api/auth/me", timeout=10).status_code == 401, "Session conservée après reprise du compte"
+    assert session.get(f"{base}/api/auth/me", timeout=10).status_code == 401, "Session kept after account takeover recovery"
     assert autre.get(f"{base}/api/auth/me", timeout=10).status_code == 401
-    assert requests.post(f"{base}/mcp", headers=entetes, json={}, timeout=10).status_code == 401, "Clé MCP conservée après reprise du compte"
+    assert requests.post(f"{base}/mcp", headers=entetes, json={}, timeout=10).status_code == 401, "MCP key kept after account takeover recovery"
     assert requests.get(archive, headers=entetes, timeout=10).status_code == 401
     if action == "administrer":
         assert requests.post(f"{base}/api/auth/recover", json={
@@ -200,7 +200,7 @@ def test_oauth_without_recovery_codes(plateforme, tmp_path):
     session.cookies.set("monl_session", magasin.create_session(compte))
     refus = session.post(f"{plateforme}/api/auth/recovery-codes", json={
         "password": "MotDePasse-123"}, timeout=10)
-    assert refus.status_code == 403, "Régénération OAuth acceptée"
+    assert refus.status_code == 403, "OAuth regeneration accepted"
     assert "OAuth" in refus.json()["detail"]
     assert magasin.count_recovery_codes(compte) == 0
 
@@ -211,10 +211,10 @@ def test_refused_regeneration_keeps_the_victims_code(plateforme):
         "email": "victime@exemple.test", "password": "MotDePasse-123"}, timeout=10).json()
     for contenu in ({}, {"password": "MotDePasse-Incorrect"}):
         assert session.post(f"{plateforme}/api/auth/recovery-codes", json=contenu,
-                            timeout=10).status_code == 403, "Régénération sans secret valide acceptée"
+                            timeout=10).status_code == 403, "Regeneration without valid secret accepted"
     assert requests.post(f"{plateforme}/api/auth/recover", json={
         "email": "victime@exemple.test", "code": compte["recovery_codes"][0],
-        "password": "NouveauMotDePasse-123"}, timeout=10).status_code == 204, "Code de la victime détruit par une régénération refusée"
+        "password": "NouveauMotDePasse-123"}, timeout=10).status_code == 204, "Victim's code destroyed by a refused regeneration"
 
 
 def test_recovery_refuses_an_already_started_key_creation(plateforme, monkeypatch):
@@ -227,7 +227,7 @@ def test_recovery_refuses_an_already_started_key_creation(plateforme, monkeypatc
 
     def creation_differee(magasin, *arguments, **options):
         entree.set()
-        assert terminer.wait(10), "La récupération n'a pas libéré la création différée"
+        assert terminer.wait(10), "Recovery did not release the deferred creation"
         return creer(magasin, *arguments, **options)
 
     monkeypatch.setattr(IdentityStore, "create_api_key", creation_differee)
@@ -235,7 +235,7 @@ def test_recovery_refuses_an_already_started_key_creation(plateforme, monkeypatc
         f"{plateforme}/api/keys", json={"name": "différée"}, timeout=15)))
     fil.start()
     try:
-        assert entree.wait(10), "La création de clé n'a pas atteint le registre"
+        assert entree.wait(10), "Key creation did not reach the registry"
         assert requests.post(f"{plateforme}/api/auth/recover", json={
             "email": "differee@exemple.test", "code": compte["recovery_codes"][0],
             "password": "NouveauMotDePasse-123"}, timeout=10).status_code == 204
@@ -243,7 +243,7 @@ def test_recovery_refuses_an_already_started_key_creation(plateforme, monkeypatc
         terminer.set()
         fil.join(20)
     assert not fil.is_alive()
-    assert reponses[0].status_code == 401, "Une session révoquée a créé une nouvelle clé MCP"
+    assert reponses[0].status_code == 401, "A revoked session created a new MCP key"
 
 
 def test_an_agent_compiles_lists_and_downloads_without_ever_opening_a_session(plateforme):
@@ -325,7 +325,7 @@ def test_the_update_recompiles_in_place_and_keeps_the_address(plateforme):
     rapport = _appel(base, cle, "monl_update_backend",
                      {"project_id": project_id, "spec": SPEC_EVOLUEE})
 
-    assert rapport["project_id"] == project_id, "l'identifiant doit SURVIVRE"
+    assert rapport["project_id"] == project_id, "the identifier must SURVIVE"
     assert rapport["ecrit"] is True
     assert "Note.etiquette" in rapport["delta"]["champs"]["ajoutes"]
 

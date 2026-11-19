@@ -27,7 +27,7 @@ class FakeProvider:
     model = "test-model"
 
     def __call__(self, _prompt):  # pragma: no cover - never called here
-        raise AssertionError("le téléchargement n'appelle aucune IA")
+        raise AssertionError("download calls no AI")
 
 
 @pytest.fixture()
@@ -71,7 +71,7 @@ def platform(tmp_path, dist):
             except requests.RequestException:
                 time.sleep(0.02)
         else:
-            pytest.fail("le serveur n'a pas démarré")
+            pytest.fail("the server did not start")
         yield base
     finally:
         server.should_exit = True

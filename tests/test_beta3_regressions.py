@@ -86,7 +86,7 @@ class _Server:
                 return self
             except requests.RequestException:
                 time.sleep(0.2)
-        raise RuntimeError("le serveur éphémère n'a jamais répondu")
+        raise RuntimeError("the ephemeral server never answered")
 
     def __exit__(self, *exc):
         self.proc.terminate()
@@ -227,7 +227,7 @@ def _mesurer_canal_temporel(server, workdir):
         t0 = time.perf_counter()
         reponse = requests.post(server.base + "/login",
                                 json={"username": username, "password": "mauvais-mot-de-passe"})
-        assert reponse.status_code == 401, f"quota atteint pendant la mesure ({reponse.status_code})"
+        assert reponse.status_code == 401, f"quota reached during the measurement ({reponse.status_code})"
         return time.perf_counter() - t0
 
     def groupe(username, echantillons=5):
@@ -244,9 +244,9 @@ def _mesurer_canal_temporel(server, workdir):
             break
 
     assert min(ecarts) < hash_cost / 2, (
-        f"écart de {min(ecarts) * 1000:.0f} ms entre compte existant et inexistant "
-        f"sur {len(ecarts)} mesures indépendantes (coût d'un hachage : "
-        f"{hash_cost * 1000:.0f} ms) — canal temporel exploitable")
+        f"{min(ecarts) * 1000:.0f} ms gap between existing and nonexistent account "
+        f"over {len(ecarts)} independent measurements (cost of a hash: "
+        f"{hash_cost * 1000:.0f} ms) — exploitable timing channel")
 
 
 # -------------------------------------------------------------------------- 3.
@@ -267,8 +267,8 @@ def test_quota_non_contournable_en_parallele():
 
             acceptees = sum(1 for c in codes if c != 429)
             assert acceptees <= 5, (
-                f"{acceptees} tentatives ont franchi un quota fixé à 5 : le comptage "
-                "et l'enregistrement ne sont pas atomiques")
+                f"{acceptees} attempts got past a quota set to 5: counting "
+                "and recording are not atomic")
 
 
 # -------------------------------------------------------------------------- 4
@@ -279,7 +279,7 @@ def test_jwt_secret_readable_only_by_its_owner():
     with tempfile.TemporaryDirectory() as workdir:
         _compile(workdir)
         mode = os.stat(os.path.join(workdir, ".jwt_secret")).st_mode & 0o777
-        assert mode == 0o600, f"permissions {oct(mode)} : le secret est lisible par d'autres comptes"
+        assert mode == 0o600, f"permissions {oct(mode)}: the secret is readable by other accounts"
 
 
 def test_token_blacklist_is_purgeable():
@@ -338,8 +338,8 @@ def test_compilation_reproductible_entre_processus():
             }
     for name in sources["0"]:
         assert sources["0"][name] == sources["1"][name], (
-            f"{name} diffère entre deux compilations de la même spec : "
-            "la sortie dépend de l'ordre d'itération d'un ensemble Python")
+            f"{name} differs between two compilations of the same spec: "
+            "the output depends on a Python set's iteration order")
 
 
 # -------------------------------------------------------------------------- 7.

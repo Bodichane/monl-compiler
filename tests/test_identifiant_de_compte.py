@@ -162,7 +162,7 @@ def server(tmp_path):
             except OSError:
                 time.sleep(0.25)
         else:
-            pytest.fail("le serveur n'a jamais répondu")
+            pytest.fail("the server never answered")
         yield base, tmp_path
     finally:
         proc.terminate()
@@ -231,7 +231,7 @@ def test_two_spellings_of_the_same_number_are_ONE_account(server):
     assert _inscrire(base, dossier, "+33 6 12 34 56 78")[0] == 200
     for variante in ["+33612345678", "+33-6-12-34-56-78", "+33 (6) 12.34.56.78"]:
         code, reponse = _inscrire(base, dossier, variante)
-        assert code == 409, f"{variante} a créé un second compte : {reponse}"
+        assert code == 409, f"{variante} created a second account: {reponse}"
 
 
 @pytest.mark.parametrize("variante", ["alice@exemple.fr", "Alice@Exemple.FR",
@@ -282,7 +282,7 @@ def test_manage_py_normalizes_like_the_server(server):
             "SELECT username FROM _monl_users WHERE actor = 'Patron'").fetchone()[0]
     finally:
         connexion.close()
-    assert stocke == "patron@exemple.fr", "manage.py a stocké la forme tapée"
+    assert stocke == "patron@exemple.fr", "manage.py stored the typed form"
     code, reponse = _connecter(base, dossier, "Patron@Exemple.FR")
     assert code == 200, reponse
 
@@ -308,11 +308,11 @@ def test_an_earlier_account_keeps_working(server):
         " FROM _monl_users WHERE username = 'alice@exemple.fr'").rowcount
     conn.commit()
     conn.close()
-    assert copies == 1, "le compte antérieur n'a pas été créé : le test ne prouverait rien"
+    assert copies == 1, "the earlier account was not created: the test would prove nothing"
 
     code, reponse = _connecter(base, dossier, "ancien_pseudo")
 
-    assert code == 200, f"un compte antérieur doit continuer de se connecter : {reponse}"
+    assert code == 200, f"an earlier account must keep logging in: {reponse}"
 
 
 def test_the_smoke_test_respects_the_form_it_enforces(tmp_path, capsys):
@@ -413,7 +413,7 @@ def prefixed_server(tmp_path):
             except OSError:
                 time.sleep(0.25)
         else:
-            pytest.fail("le serveur n'a jamais répondu")
+            pytest.fail("the server never answered")
         yield base, tmp_path
     finally:
         proc.terminate()
@@ -434,7 +434,7 @@ def test_national_and_international_are_ONE_account(prefixed_server):
     assert _inscrire(base, dossier, "06 12 34 56 78")[0] == 200
     for variante in ["+33612345678", "+33 6 12 34 56 78", "0612345678"]:
         code, reponse = _inscrire(base, dossier, variante)
-        assert code == 409, f"{variante} a créé un second compte : {reponse}"
+        assert code == 409, f"{variante} created a second account: {reponse}"
 
 
 def test_the_stored_form_is_the_international_one(prefixed_server):
@@ -510,7 +510,7 @@ def benin_server(tmp_path):
             except OSError:
                 time.sleep(0.25)
         else:
-            pytest.fail("le serveur n'a jamais répondu")
+            pytest.fail("the server never answered")
         yield base, tmp_path
     finally:
         proc.terminate()

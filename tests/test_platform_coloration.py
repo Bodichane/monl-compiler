@@ -74,7 +74,7 @@ def _palette():
     css = "\n".join(re.findall(r"<style[^>]*>(.*?)</style>", LANDING_HTML, re.S | re.I))
     palette = dict(re.findall(r"--(s-\w+):\s*(#[0-9a-fA-F]{6})", css))
     encre = re.search(r"--code-ink:\s*(#[0-9a-fA-F]{6})", css)
-    assert palette, "aucune couleur --s-* dans la feuille : le test ne garde plus rien"
+    assert palette, "no --s-* color in the stylesheet: the test no longer guards anything"
     assert encre, "--code-ink introuvable"
     return palette, encre.group(1)
 
@@ -90,9 +90,9 @@ def test_keywords_are_derived_from_the_grammar():
                "writableAfterPayment", "requiresOwn", "derivedFrom", "sumOf")
 
     for mot in tardifs:
-        assert coloration._classe_du_mot(mot) == "s-kw", f"{mot} n'est plus coloré"
+        assert coloration._classe_du_mot(mot) == "s-kw", f"{mot} is no longer highlighted"
         assert mot not in SOURCE, (
-            f"{mot} est ÉCRIT dans coloration.py : la liste est redevenue une copie")
+            f"{mot} is WRITTEN in coloration.py: the list became a copy again")
 
 
 def test_a_word_absent_from_the_grammar_takes_no_color():
@@ -104,7 +104,7 @@ def test_a_word_absent_from_the_grammar_takes_no_color():
     assert coloration._classe_du_mot("entity") == "s-kw"
     assert coloration._classe_du_mot("courriel") is None
     assert coloration._classe_du_mot("libelle") is None
-    assert coloration._classe_du_mot("Commande") == "s-nom", "un nom déclaré"
+    assert coloration._classe_du_mot("Commande") == "s-nom", "a declared name"
 
 
 def test_each_token_color_reads_on_both_code_backgrounds():
@@ -114,8 +114,8 @@ def test_each_token_color_reads_on_both_code_backgrounds():
         for fond in (FOND_CLAIR, FOND_SOMBRE):
             mesure = _contraste(couleur, fond)
             assert mesure >= SEUIL_TEXTE, (
-                f"--{nom} ({couleur}) tombe à {mesure:.2f}:1 sur {fond} — "
-                f"sous le seuil du texte ({SEUIL_TEXTE}:1)")
+                f"--{nom} ({couleur}) drops to {mesure:.2f}:1 on {fond} — "
+                f"below the text threshold ({SEUIL_TEXTE}:1)")
 
 
 def test_no_color_pair_is_indistinguishable():
@@ -146,7 +146,7 @@ def test_no_color_pair_is_indistinguishable():
                             f"{_contraste(ca, cb):.2f}:1, "
                             f"Δchroma {abs(_chroma(ca) - _chroma(cb))}")
 
-    assert not confuses, "couleurs proches sur les trois axes : " + " ; ".join(confuses)
+    assert not confuses, "colors close on the three axes: " + " ; ".join(confuses)
 
 
 def test_the_home_page_spec_really_uses_several_families():
@@ -158,8 +158,8 @@ def test_the_home_page_spec_really_uses_several_families():
     familles = set(re.findall(r'class="(s-\w+)"', LANDING_HTML))
     jetons = len(re.findall(r'class="s-\w+"', LANDING_HTML))
 
-    assert len(familles) >= 5, f"seulement {sorted(familles)} sur la page d'accueil"
-    assert jetons >= 40, f"{jetons} jetons colorés : la spec n'est plus colorée"
+    assert len(familles) >= 5, f"only {sorted(familles)} on the home page"
+    assert jetons >= 40, f"{jetons} colored tokens: the spec is no longer highlighted"
 
 
 # The classes that put a phrase BEFORE a title. Two and not one: the first pass
@@ -181,10 +181,10 @@ def test_no_section_carries_an_overline_any_more():
 
     for nom, page in pages.items():
         assert "<section" in page or "<main" in page, (
-            f"la page {nom} n'a plus de section : le test ne garde plus rien")
+            f"the {nom} page no longer has a section: the test no longer guards anything")
         for classe in SURTITRES:
             assert f'class="{classe}"' not in page, (
-                f"un surtitre .{classe} est revenu sur la page {nom}")
+                f"an .{classe} overline came back on the {nom} page")
 
 
 def test_no_rule_dresses_a_vanished_overline():
@@ -196,6 +196,6 @@ def test_no_rule_dresses_a_vanished_overline():
     """
     feuille = "\n".join(re.findall(r"<style[^>]*>(.*?)</style>",
                                    LANDING_HTML, re.S | re.I))
-    assert feuille, "la feuille n'est plus inlinée"
+    assert feuille, "the stylesheet is no longer inlined"
     assert "stage-no" not in feuille, (
-        "une règle habille encore un surtitre qui n'existe plus")
+        "a rule still styles an overline that no longer exists")

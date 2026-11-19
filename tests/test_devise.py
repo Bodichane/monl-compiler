@@ -177,7 +177,7 @@ def _pay_an_order_of(spec, faux_prestataire, montant, identifiant):
             f"{base}/commande/{identifiant_commande}/paiement",
             headers=entetes, timeout=10)
         assert reglement.status_code == 200, reglement.text
-        assert faux_prestataire.recu, "le prestataire n'a rien reçu"
+        assert faux_prestataire.recu, "the provider received nothing"
         return faux_prestataire.recu[-1]["champs"], reglement.json()
 
 
@@ -188,8 +188,8 @@ def test_in_cfa_franc_the_amount_goes_as_is(faux_prestataire):
 
     assert champs["line_items[0][price_data][currency]"] == "xof"
     assert champs["line_items[0][price_data][unit_amount]"] == "5000", (
-        "le franc CFA n'a pas de sous-unité : multiplier par cent facturerait "
-        "cent fois le prix")
+        "the CFA franc has no subunit: multiplying by a hundred would bill "
+        "a hundred times the price")
     assert reponse["devise"] == "XOF"
     assert reponse["montant"] == 5000
 

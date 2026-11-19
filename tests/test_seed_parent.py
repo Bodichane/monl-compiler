@@ -263,7 +263,7 @@ def _demarrer(dossier, port):
         except OSError:
             time.sleep(0.25)
     arreter_processus(processus)
-    pytest.fail("le serveur n'a jamais répondu")
+    pytest.fail("the server never answered")
 
 
 def _arreter(processus):

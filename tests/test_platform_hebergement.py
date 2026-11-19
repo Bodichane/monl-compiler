@@ -95,7 +95,7 @@ def application_hebergement(tmp_path, request):
             pids = [site.process.pid for site in sites._running.values()]
             sites.stop_all()
             if request.node.name == "test_the_fixture_stops_a_site_that_answered":
-                assert pids, "le témoin de nettoyage n'a vu aucun site démarrer"
+                assert pids, "the cleanup witness saw no site start"
             for pid in pids:
                 with pytest.raises(ProcessLookupError):
                     os.kill(pid, 0)
@@ -164,7 +164,7 @@ def _platform_server(application):
         fil = threading.Thread(target=server.run, daemon=True)
         fil.start()
         while not server.started:
-            assert fil.is_alive(), "uvicorn s'est arrêté avant de démarrer"
+            assert fil.is_alive(), "uvicorn stopped before starting"
             time.sleep(0.01)
         port = server.servers[0].sockets[0].getsockname()[1]
         try:
@@ -352,7 +352,7 @@ def test_a_compiled_project_starts_and_its_api_answers(plateforme, capsys):
 
     statut, corps = _get(running.port, "/openapi.json")
     assert statut == 200, corps[:200]
-    assert b"/note" in corps.lower(), "les routes de la spec doivent être servies"
+    assert b"/note" in corps.lower(), "the spec's routes must be served"
     assert sites.is_running(projet["project_id"])
 
 
@@ -481,15 +481,15 @@ def test_the_log_bound_holds_DURING_compaction(tmp_path, monkeypatch):
     )
     fil.start()
     try:
-        assert entre.wait(10), "aucun compactage : le témoin ne mesurerait rien"
+        assert entre.wait(10), "no compaction: the witness would measure nothing"
         pic = journal.stat().st_size
     finally:
         sortir.set()
         fil.join(10)
 
     assert pic <= SITE_LOG_COMPACT_BYTES, (
-        f"le journal occupe {pic} octets pendant le compactage, "
-        f"pour une borne annoncée à {SITE_LOG_COMPACT_BYTES}"
+        f"the log occupies {pic} bytes during compaction, "
+        f"for an announced bound of {SITE_LOG_COMPACT_BYTES}"
     )
 
 
@@ -513,8 +513,8 @@ def test_the_bounded_log_keeps_the_END_never_the_beginning():
 
         contenu = journal.read_bytes()
         assert len(contenu) <= SITE_LOG_COMPACT_BYTES, len(contenu)
-        assert len(contenu) < len(bavardage), "aucun compactage n'a eu lieu"
-        assert b"TRACE-DU-PLANTAGE" in contenu, "la trace du plantage est perdue"
+        assert len(contenu) < len(bavardage), "no compaction happened"
+        assert b"TRACE-DU-PLANTAGE" in contenu, "the crash trace is lost"
         assert contenu.rstrip(b"\n").split(b"\n")[-1].startswith(b"TRACE-DU-PLANTAGE")
         # No fragment at the head: it would be taken for a message truncated by
         # the site itself rather than by the bound.
