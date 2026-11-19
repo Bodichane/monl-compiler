@@ -1,4 +1,4 @@
-"""Issue #73 : un statut après-paiement naît dans le premier état du oneOf."""
+"""Issue #73: an after-payment status is born in the oneOf's first state."""
 
 import contextlib
 import hashlib
@@ -76,7 +76,7 @@ CLE_WEBHOOK = "whsec_statut_initial"
 
 
 class _PrestataireFactice(BaseHTTPRequestHandler):
-    def do_POST(self):  # nom imposé par BaseHTTPRequestHandler
+    def do_POST(self):  # name imposed by BaseHTTPRequestHandler
         brut = self.rfile.read(int(self.headers.get("Content-Length", 0)))
         self.server.recu.append(urllib.parse.parse_qs(brut.decode()))
         corps = json.dumps({
@@ -179,7 +179,7 @@ def application(faux_stripe):
             yield base, dossier, client, gestionnaire
 
 
-def test_creation_prend_le_premier_oneof_et_laisse_le_texte_vide(application):
+def test_creation_takes_the_first_oneof_and_leaves_text_empty(application):
     base, dossier, client, _gestionnaire = application
     creation = requests.post(f"{base}/commande", headers=client, json={}, timeout=10)
     assert creation.status_code == 200, creation.text
@@ -196,7 +196,7 @@ def test_creation_prend_le_premier_oneof_et_laisse_le_texte_vide(application):
         ).fetchone() == ("panier", None)
 
 
-def test_apres_paiement_change_le_statut(application):
+def test_after_payment_changes_the_status(application):
     base, dossier, client, gestionnaire = application
     commande = requests.post(
         f"{base}/commande", headers=client, json={}, timeout=10).json()["id"]
@@ -221,7 +221,7 @@ def test_apres_paiement_change_le_statut(application):
         ).fetchone()[0] == "expédiée"
 
 
-def test_premier_etat_de_liberation_est_refuse(capsys):
+def test_a_release_first_state_is_refused(capsys):
     spec = SPEC.replace(
         'rule Commande.statut oneOf "panier", "expédiée", "annulée"',
         'rule Commande.statut oneOf "annulée", "panier", "expédiée"',
@@ -240,7 +240,7 @@ def test_premier_etat_de_liberation_est_refuse(capsys):
     capsys.readouterr()
 
 
-def _lancer_avec_journal(dossier, env):
+def _start_with_log(dossier, env):
     port = free_port()
     processus = subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "app:app", "--host", "127.0.0.1",
@@ -262,7 +262,7 @@ def _lancer_avec_journal(dossier, env):
     pytest.fail("le serveur n'a jamais répondu")
 
 
-def test_une_ancienne_ligne_null_est_comptee_sans_etre_rattrapee(
+def test_an_old_null_row_is_counted_not_backfilled(
         tmp_path, faux_stripe):
     ast = MonlAST(parse_monl_string(SPEC)).validate_and_audit()
     MonlSecureGenerator(ast, output_dir=str(tmp_path)).generate_all()
@@ -271,7 +271,7 @@ def test_une_ancienne_ligne_null_est_comptee_sans_etre_rattrapee(
         connexion.execute(
             "INSERT INTO commande (total, statut, suivi) VALUES (0, NULL, NULL)")
 
-    processus = _lancer_avec_journal(str(tmp_path), env)
+    processus = _start_with_log(str(tmp_path), env)
     processus.terminate()
     sortie, _ = processus.communicate(timeout=10)
     journal = sortie.decode("utf-8", "replace")
@@ -282,7 +282,7 @@ def test_une_ancienne_ligne_null_est_comptee_sans_etre_rattrapee(
             "SELECT statut FROM commande WHERE id = 1").fetchone()[0] is None
 
 
-def test_exemple_boutique_cree_une_commande_au_statut_panier(tmp_path):
+def test_shop_example_creates_an_order_in_cart_status(tmp_path):
     racine = Path(__file__).parents[1]
     compile_project(str(racine / "exemples" / "02_boutique.ml"), str(tmp_path))
     with uvicorn_server(str(tmp_path)) as base:

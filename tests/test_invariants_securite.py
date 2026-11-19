@@ -1,20 +1,20 @@
-"""Invariant de sécurité à l'échelle du projet : sur le code RÉELLEMENT généré,
-aucune valeur client ou d'exécution ne vit dans le texte d'une requête SQL.
+"""Project-wide security invariant: on the REALLY generated code, no client
+or runtime value lives in the text of a SQL query.
 
-Le point 107 (brique 24) a livré un contrôle d'accès qui collait `data.<fk>`
-dans le texte SQL — 500 à chaque création. Le point 108 a rendu le défaut
-difficile à écrire (émission typée) ; ce test le rend inexpédiable, et pas
-seulement sur l'exemple qui l'avait révélé : il compile CHAQUE spec du dépôt et
-vérifie l'invariant sur chacune.
+Point 107 (brick 24) shipped an access control that pasted `data.<fk>` into
+the SQL text — 500 on every creation. Point 108 made the defect hard to write
+(typed emission); this test makes it unshippable, and not only on the example
+that revealed it: it compiles EVERY spec of the repository and checks the
+invariant on each.
 
-La méthode est en AST, pas en sous-chaîne : on ne regarde QUE les littéraux de
-chaîne qui sont du SQL. Un `x = data.y` en Python n'est pas un littéral de
-chaîne, donc jamais un faux positif — seul un `'... = data.y ...'` DANS une
-requête est fautif. C'est exactement la forme du défaut du point 107.
+The method is AST, not substring: we look ONLY at string literals that are
+SQL. An `x = data.y` in Python is not a string literal, hence never a false
+positive — only a `'... = data.y ...'` INSIDE a query is faulty. That is
+exactly the shape of point 107's defect.
 
-Ce que le générateur doit toujours faire à la place : `... WHERE col = ?` avec
-la valeur dans le tuple passé à `cursor.execute`. Une valeur liée ne laisse
-aucune trace dans le texte.
+What the generator must always do instead: `... WHERE col = ?` with the value
+in the tuple passed to `cursor.execute`. A bound value leaves no trace in the
+text.
 """
 
 import ast
@@ -29,17 +29,17 @@ from tests.support.cas import verifier_chaque_cas
 
 EXEMPLES_DIR = os.path.join(os.path.dirname(__file__), "../exemples")
 
-# Expressions Python (valeur client ou d'exécution) qui doivent TOUJOURS être
-# liées en paramètre, donc ne jamais apparaître dans le texte d'une requête.
+# Python expressions (client or runtime value) that must ALWAYS be bound as a
+# parameter, hence never appear in a query's text.
 INTERDITS_EN_SQL = ("data.", "named_row", "current_user_id")
 
-# Un littéral est « du SQL » dès qu'il porte un de ces jalons — assez pour
-# attraper toute requête de lecture, d'écriture ou de contrôle d'accès.
+# A literal is "SQL" as soon as it carries one of these markers — enough to
+# catch any read, write or access-control query.
 JALONS_SQL = ("SELECT ", "INSERT ", "UPDATE ", "DELETE ", " FROM ", " WHERE ")
 
 
 def _litteraux_sql(source):
-    """Tous les littéraux de chaîne du module qui sont du SQL, via l'AST."""
+    """Every string literal of the module that is SQL, through the AST."""
     arbre = ast.parse(source)
     for noeud in ast.walk(arbre):
         if isinstance(noeud, ast.Constant) and isinstance(noeud.value, str):
@@ -59,10 +59,10 @@ def _app_source(spec_ou_chemin, depuis_fichier, base_dir):
             return fichier.read()
 
 
-# Une spec taillée pour exercer TOUTE la surface du contrôle d'accès transitif
-# (profondeur 2 : liste, détail, création, Update, Delete), là où le point 107
-# vivait. Les exemples couvrent la profondeur 1 (02_boutique) ; celle-ci garantit
-# que la profondeur 2 est éprouvée par l'invariant elle aussi.
+# A spec cut to exercise the WHOLE transitive access-control surface (depth 2:
+# list, detail, create, Update, Delete), where point 107 lived. The examples
+# cover depth 1 (02_boutique); this one guarantees depth 2 is tested by the
+# invariant too.
 SPEC_PROFONDEUR = """app Inv
 
 entity Commande
@@ -100,7 +100,7 @@ workflow W for Client
 EXEMPLES = sorted(glob.glob(os.path.join(EXEMPLES_DIR, "*.ml")))
 
 
-def test_aucun_exemple_ne_colle_de_valeur_dans_le_sql():
+def test_no_example_pastes_a_value_into_sql():
     table = EXEMPLES
     noms = [os.path.basename(p) for p in EXEMPLES]
 
@@ -115,7 +115,7 @@ def test_aucun_exemple_ne_colle_de_valeur_dans_le_sql():
     verifier_chaque_cas([(valeur,) for valeur in table], cas, ids=noms)
 
 
-def test_la_profondeur_2_ne_colle_aucune_valeur_dans_le_sql():
+def test_depth_2_pastes_no_value_into_sql():
     source = _app_source(SPEC_PROFONDEUR, depuis_fichier=False, base_dir=None)
     for requete in _litteraux_sql(source):
         for interdit in INTERDITS_EN_SQL:
@@ -124,11 +124,11 @@ def test_la_profondeur_2_ne_colle_aucune_valeur_dans_le_sql():
                 f"(point 107) — {requete!r}")
 
 
-def test_l_invariant_voit_vraiment_du_controle_dacces():
-    """Garde-fou du garde-fou : un invariant qui ne scrute aucune requête de
-    contrôle d'accès passerait toujours, et ne dirait plus rien. La spec
-    profondeur DOIT produire des requêtes de contrôle d'accès (jointure de
-    propriété), et elles DOIVENT lier leurs valeurs (`= ?`)."""
+def test_the_invariant_really_sees_access_control():
+    """Safeguard of the safeguard: an invariant that scans no access-control
+    query would always pass, and would no longer say anything. The depth spec
+    MUST produce access-control queries (ownership join), and they MUST bind
+    their values (`= ?`)."""
     requetes = list(_litteraux_sql(
         _app_source(SPEC_PROFONDEUR, depuis_fichier=False, base_dir=None)))
     controle = [r for r in requetes if "IN (SELECT id FROM" in r or
@@ -138,7 +138,7 @@ def test_l_invariant_voit_vraiment_du_controle_dacces():
         "le contrôle d'accès ne lie aucune valeur — régression du point 107"
 
 
-def test_b4_ne_colle_aucune_valeur_dans_le_sql():
+def test_b4_pastes_no_value_into_sql():
     from tests.test_authentification_b4 import SPEC_B4
 
     source = _app_source(SPEC_B4, depuis_fichier=False, base_dir=None)

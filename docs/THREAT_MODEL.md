@@ -69,7 +69,7 @@ including intentionally public actions, rather than universal authentication.
 | --- | --- | --- |
 | Forged/unsigned JWT or self-assigned privileged role (S, E) | Explicit HS256 verification; registration limited to `selfRegister` actors. | tests/test_temoins_securite.py::test_the_server_refuses_unsigned_or_differently_signed_tokens; tests/test_beta3_regressions.py::test_role_provisionne_refuse_a_inscription |
 | Cross-record private messaging access (I, T, E) | Party filtering and route authorization; supervisor access is separately declared. | tests/test_access_parties.py::test_private_messaging_end_to_end; tests/test_access_parties.py::test_supervisor_moderates_private_messages_end_to_end |
-| Injection of SQL values (T, I, E) | Parameterized values; grammar-constrained identifiers. This witness checks emitted SQL, not arbitrary handwritten code. | tests/test_invariants_securite.py::test_aucun_exemple_ne_colle_de_valeur_dans_le_sql |
+| Injection of SQL values (T, I, E) | Parameterized values; grammar-constrained identifiers. This witness checks emitted SQL, not arbitrary handwritten code. | tests/test_invariants_securite.py::test_no_example_pastes_a_value_into_sql |
 | Account enumeration/brute force (I, D) | Dummy password hash for unknown identifiers; atomic database-backed authentication quota. | tests/test_beta3_regressions.py::test_login_ne_revele_pas_l_existence_du_compte; tests/test_beta3_regressions.py::test_quota_non_contournable_en_parallele |
 | Stolen logged-out token remains usable (S) | JWT `jti` blacklist and logout revocation. | tests/test_beta3_regressions.py::test_logout_revoque_le_jeton |
 | Local disclosure of fallback JWT key (I) | Secret file created owner-only (0600); production environment injection is documented separately. | tests/test_beta3_regressions.py::test_secret_jwt_lisible_par_le_seul_proprietaire |
@@ -105,7 +105,7 @@ environment. Browser account isolation and process isolation are distinct.
 
 | Threat (STRIDE) | Existing mitigation | Test evidence |
 | --- | --- | --- |
-| Another tenant obtains private project records (S, I, E) | Identity store checks project ownership. Witness covers store authorization, not hostile process reads. | tests/test_platform_identity.py::test_projets_appartiennent_a_un_seul_compte |
+| Another tenant obtains private project records (S, I, E) | Identity store checks project ownership. Witness covers store authorization, not hostile process reads. | tests/test_platform_identity.py::test_projects_belong_to_a_single_account |
 | One tenant exhausts site slots / oversized relay body (D) | Global/per-account admission and relay byte limit. | tests/test_platform_hebergement.py::test_plafond_par_compte_nempeche_pas_un_autre_compte; tests/test_platform_hebergement.py::test_relais_borne_le_corps_et_transmet_un_corps_legitime_intact |
 | Deleted tenant leaves a live site or private database (I, T) | Shared deletion path stops sites and removes owned directories and rows. | tests/test_platform_exploitation.py::test_supprimer_son_compte_efface_tout_y_compris_sur_le_disque |
 | Hosted code reads platform/provider secrets or modifies another tenant (I, T, E) | No dedicated OS/environment sandbox in the inspected launcher. | No containment test: see Known gaps. |

@@ -26,7 +26,7 @@ def test_compte_session_et_mot_de_passe_hache(tmp_path):
     assert len(password_hash) == 32 and len(salt) == 16
 
 
-def test_email_duplique_et_secret_court_sont_refuses(tmp_path):
+def test_duplicate_email_and_short_secret_are_refused(tmp_path):
     store = IdentityStore(tmp_path)
     with pytest.raises(IdentityError, match="10 characters"):
         store.register("a@example.com", "court")
@@ -35,7 +35,7 @@ def test_email_duplique_et_secret_court_sont_refuses(tmp_path):
         store.register("A@EXAMPLE.COM", "autre-secret-123")
 
 
-def test_projets_appartiennent_a_un_seul_compte(tmp_path):
+def test_projects_belong_to_a_single_account(tmp_path):
     store = IdentityStore(tmp_path)
     alice = store.register("alice@example.com", "secret-alice-123")
     bob = store.register("bob@example.com", "secret-bob-12345")
@@ -57,7 +57,7 @@ def test_projets_appartiennent_a_un_seul_compte(tmp_path):
     assert reopened.projects(alice["id"]) == []
 
 
-def test_cle_api_affichee_une_fois_hachee_et_revocable(tmp_path):
+def test_api_key_shown_once_hashed_and_revocable(tmp_path):
     store = IdentityStore(tmp_path)
     user = store.register("mcp@example.com", "secret-mcp-12345")
     created = store.create_api_key(user["id"], "Codex portable")
@@ -88,13 +88,13 @@ def test_limite_de_debit_persistante_et_atomique(tmp_path):
     assert reopened.consume_limit(
         "login", "127.0.0.1", limit=2, window=60, now=160
     ) is None
-    # Une autre portée et un autre sujet disposent de compteurs indépendants.
+    # Another scope and another subject have independent counters.
     assert reopened.consume_limit("register", "127.0.0.1", limit=1, window=60, now=102) is None
     assert reopened.consume_limit("login", "127.0.0.2", limit=1, window=60, now=102) is None
 
 
 @pytest.mark.parametrize("generated", [False, True], ids=["platform", "generated"])
-def test_wal_attend_la_fin_du_verrou_sur_base_neuve(tmp_path, monkeypatch, generated):
+def test_wal_waits_for_the_lock_on_a_new_database(tmp_path, monkeypatch, generated):
     import threading
     import time
 
@@ -149,8 +149,8 @@ def test_wal_attend_la_fin_du_verrou_sur_base_neuve(tmp_path, monkeypatch, gener
         blocker.close()
 
 
-def test_wal_remonte_le_verrou_a_echeance(tmp_path, monkeypatch):
-    """Plateforme : à l'échéance, l'erreur remonte comme toute autre requête."""
+def test_wal_reports_the_lock_at_deadline(tmp_path, monkeypatch):
+    """Platform: at the deadline, the error comes up like any other request."""
     import time
 
     from monl_platform import identity_database
@@ -181,9 +181,9 @@ def test_wal_remonte_le_verrou_a_echeance(tmp_path, monkeypatch):
 
 
 
-def test_wal_genere_renonce_sans_erreur_a_echeance(tmp_path):
-    """Backend généré : à l'échéance, il renonce au WAL SANS faire échouer le
-    démarrage — la base reste sur le journal par défaut, aucune donnée perdue."""
+def test_generated_wal_gives_up_without_error_at_deadline(tmp_path):
+    """Generated backend: at the deadline, it gives up WAL WITHOUT failing
+    startup — the database stays on the default journal, no data lost."""
     import time
 
     activate = _wal_initializer(True)

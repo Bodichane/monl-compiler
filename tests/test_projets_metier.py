@@ -1,10 +1,11 @@
-"""Modèles métier du catalogue : compilation réelle et promesses du contrat.
+"""Business templates of the catalog: real compilation and contract promises.
 
-AUTONOMES par construction. La première version lisait `projets/CommunauteHub`
-et `projets/GestionPro` — or `/projets/` est ignoré par git : la suite passait
-sur le poste de son auteur et échouait sur tout clone neuf, CI comprise
-(6 `FileNotFoundError`). Un test ne peut pas dépendre de ce que le dépôt ne
-transporte pas. Les specs vivent donc ici, et chaque test compile la sienne.
+SELF-CONTAINED by construction. The first version read
+`projets/CommunauteHub` and `projets/GestionPro` — but `/projets/` is ignored
+by git: the suite passed on its author's machine and failed on any fresh
+clone, CI included (6 `FileNotFoundError`). A test cannot depend on what the
+repository does not carry. The specs therefore live here, and each test
+compiles its own.
 """
 
 import json
@@ -191,7 +192,7 @@ landing
 
 
 def _compiler(source, chemin):
-    """Le vrai pipeline : parseur → validateur → générateur → contrat."""
+    """The real pipeline: parser → validator → generator → contract."""
     normalise = MonlAST(parse_monl_string(source), base_dir=str(chemin)).validate_and_audit()
     generateur = MonlSecureGenerator(normalise, output_dir=str(chemin))
     generateur.generate_all()
@@ -221,7 +222,7 @@ def test_chaque_modele_metier_produit_un_backend_valide(source, tmp_path):
     assert (tmp_path / "frontend_contract.json").exists()
 
 
-def test_communaute_filtre_les_contenus_et_modere(communaute):
+def test_community_filters_content_and_moderates(communaute):
     normalise, _contrat, _chemin = communaute
     securite = normalise["security"]
     assert securite["public_conditions"]["Article.Read"] == {
@@ -231,9 +232,9 @@ def test_communaute_filtre_les_contenus_et_modere(communaute):
     assert {"ArticleReport", "PostReport"} <= set(normalise["schema"]["entities"])
 
 
-def test_le_moderateur_transperce_la_condition_de_publication(communaute):
-    """POINT 116 : sans cette exemption, masquer un contenu le retirait aussi
-    au modérateur qui venait de le masquer."""
+def test_the_moderator_pierces_the_publication_condition(communaute):
+    """POINT 116: without this exemption, hiding content also took it away from
+    the moderator who had just hidden it."""
     normalise, _contrat, chemin = communaute
     assert normalise["security"]["access_supervisors"]["Post.Read"] == ["Moderator"]
     genere = (chemin / "app.py").read_text(encoding="utf-8")
@@ -241,7 +242,7 @@ def test_le_moderateur_transperce_la_condition_de_publication(communaute):
     assert '_ident.get(\'actor\') in {"Moderator"}' in genere
 
 
-def test_les_likes_sont_uniques_par_compte_et_par_cible(communaute):
+def test_likes_are_unique_per_account_and_target(communaute):
     normalise, _contrat, chemin = communaute
     regles = {r["trigger_entity"]: r["parents"]
               for r in normalise["security"]["once_per"]}
@@ -249,7 +250,7 @@ def test_les_likes_sont_uniques_par_compte_et_par_cible(communaute):
     assert "idx_once_per_like" in (chemin / "app.py").read_text(encoding="utf-8")
 
 
-def test_gestion_porte_les_calculs_metier(gestion):
+def test_management_carries_business_calculations(gestion):
     normalise, _contrat, _chemin = gestion
     inventaire = normalise["security"]["reputation_rules"]
     assert {(r["trigger_entity"], r["direction"], r["amount_field"])
@@ -276,7 +277,7 @@ def test_achat_expose_calcul_paiement_et_livraison_post_paiement(gestion):
         (chemin / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
 
 
-def test_le_contrat_de_communaute_transporte_les_deux_regles_metier(communaute):
+def test_the_community_contract_carries_both_business_rules(communaute):
     _normalise, _contrat, chemin = communaute
     contrat = json.loads(
         (chemin / "frontend_contract.json").read_text(encoding="utf-8"))
