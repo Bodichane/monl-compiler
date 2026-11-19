@@ -1,13 +1,12 @@
-"""Un pied de page sans liens est le dernier aveu qu'un site est une maquette.
+"""A footer without links is the last admission that a site is a mockup.
 
-Deux mots gris, aucun réseau, aucune mention, aucun contact : c'est ce que
-produisaient tous les sites, parce que le pied de page n'était exigé NULLE
-PART — le plancher du point 143 comptait quatre sections et s'arrêtait
-au-dessus de lui.
+Two gray words, no network, no notice, no contact: that is what every site
+produced, because the footer was required NOWHERE — point 143's floor counted
+four sections and stopped above it.
 
-monl ne peut pas DEVINER une adresse : une page Instagram inventée mène chez
-quelqu'un d'autre. Il la fait donc DÉCLARER, puis il l'exige — même arbitrage
-qu'aux points 83 (les assets) et 86 (le stock).
+monl cannot GUESS an address: an invented Instagram page leads to someone
+else's. It therefore makes it DECLARED, then requires it — the same ruling as
+at points 83 (assets) and 86 (stock).
 """
 
 import contextlib
@@ -47,9 +46,9 @@ def _valider(liens):
     return MonlAST(parse_monl_string(spec)).validate_and_audit()
 
 
-# ─────────────────────────────────────────────── ce que la spec accepte ──
-def test_les_liens_traversent_dans_l_ordre_declare():
-    """Dans un pied de page, l'ordre est celui qu'on veut voir."""
+# ──────────────────────────────────────────────────── what the spec accepts ──
+def test_links_go_through_in_declared_order():
+    """In a footer, the order is the one we want to see."""
     ast = _valider([
         'link "Instagram": "https://instagram.com/atelier"',
         'link "Nous ecrire": "mailto:bonjour@atelier.fr"',
@@ -62,17 +61,17 @@ def test_les_liens_traversent_dans_l_ordre_declare():
     assert liens[0]["url"] == "https://instagram.com/atelier"
 
 
-def test_une_spec_sans_lien_compile_a_l_identique():
-    """Une spec écrite avant cette brique ne doit pas changer de sens."""
+def test_a_spec_without_links_compiles_identically():
+    """A spec written before this brick must not change meaning."""
     assert _valider([])["landing"]["links"] == []
 
 
-# ──────────────────────────────────────────────────── ce qu'elle refuse ──
-def test_une_adresse_inutilisable_est_refusee():
-    """Un lien qui ne marche pas est pire qu'un lien absent : il se voit.
+# ────────────────────────────────────────────────────────── what it refuses ──
+def test_an_unusable_address_is_refused():
+    """A link that does not work is worse than a missing link: it shows.
 
-    Sans schéma, le navigateur lit « instagram.com/atelier » comme un chemin
-    RELATIF et mène à une page inexistante du site.
+    Without a scheme, the browser reads "instagram.com/atelier" as a RELATIVE
+    path and leads to a nonexistent page of the site.
     """
     table = [
         ('link "Instagram": "instagram.com/atelier"', "path on the site itself"),
@@ -88,7 +87,7 @@ def test_une_adresse_inutilisable_est_refusee():
     verifier_chaque_cas(table, cas)
 
 
-def test_deux_liens_au_meme_libelle_sont_refuses():
+def test_two_links_with_the_same_label_are_refused():
     with pytest.raises(ValueError, match="have the label"):
         _valider([
             'link "Instagram": "https://instagram.com/a"',
@@ -96,7 +95,7 @@ def test_deux_liens_au_meme_libelle_sont_refuses():
         ])
 
 
-def test_la_meme_adresse_deux_fois_est_refusee():
+def test_the_same_address_twice_is_refused():
     with pytest.raises(ValueError, match="declared twice"):
         _valider([
             'link "Notre page": "https://exemple.fr"',
@@ -104,7 +103,7 @@ def test_la_meme_adresse_deux_fois_est_refusee():
         ])
 
 
-# ─────────────────────────────────────── ce que le projet compilé exige ──
+# ─────────────────────────────────────── what the compiled project requires ──
 @pytest.fixture()
 def projet(tmp_path):
     spec = tmp_path / "spec.ml"
@@ -140,23 +139,23 @@ def projet(tmp_path):
     return livrer, manifest
 
 
-def test_le_pied_de_page_est_une_section_obligatoire(projet):
+def test_the_footer_is_a_required_section(projet):
     _livrer, manifest = projet
 
     assert 'data-monl-section="footer"' in manifest["required_markers"]["index.html"]
     assert 'data-monl-section="footer"' in manifest["section_substance"]["index.html"]
 
 
-def test_le_pied_de_page_n_exige_pas_de_titre():
-    """Lui en imposer un ferait écrire « Pied de page » en gros, ce qu'aucun
-    site réel ne fait."""
+def test_the_footer_requires_no_title():
+    """Imposing one would make "Footer" written in large type, which no real site
+    does."""
     regle = rule_for("footer")
 
     assert not regle.get("heading")
     assert regle["action"] and regle["text"]
 
 
-def test_un_lien_declare_absent_du_site_est_refuse(projet):
+def test_a_declared_link_missing_from_the_site_is_refused(projet):
     livrer, _ = projet
 
     fautes = livrer(avec_liens=False)
@@ -167,14 +166,14 @@ def test_un_lien_declare_absent_du_site_est_refuse(projet):
     assert "mailto:bonjour@atelier.fr" in " ".join(manquants)
 
 
-def test_le_meme_site_avec_ses_liens_est_accepte(projet):
-    """Contre-épreuve : sans elle, un contrôle qui refuse tout passerait."""
+def test_the_same_site_with_its_links_is_accepted(projet):
+    """Counter-proof: without it, a check refusing everything would pass."""
     livrer, _ = projet
 
     assert livrer(avec_liens=True) == []
 
 
-def test_le_brief_dit_quoi_mettre_dans_le_pied_de_page(tmp_path):
+def test_the_brief_says_what_to_put_in_the_footer(tmp_path):
     spec = tmp_path / "spec.ml"
     spec.write_text(BASE.format(
         liens='    link "Instagram": "https://instagram.com/atelier"\n'), encoding="utf-8")
@@ -185,7 +184,7 @@ def test_le_brief_dit_quoi_mettre_dans_le_pied_de_page(tmp_path):
 
     assert "## Footer" in brief
     assert "https://instagram.com/atelier" in brief
-    # Une barrière que l'IA ne connaît pas ne produit pas de la qualité, elle
-    # produit des reprises facturées.
+    # A barrier the AI does not know produces no quality, it produces billed
+    # retries.
     assert "makes the build fail" in brief
     assert "NEVER invent" in brief

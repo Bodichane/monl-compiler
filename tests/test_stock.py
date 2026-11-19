@@ -323,7 +323,7 @@ def test_le_decompte_vise_le_produit_demande_et_pas_un_autre(boutique):
 # décomptait qu'une. C'est le défaut du point 78 déplacé de l'argent vers la
 # marchandise, et il vivait dans la brique depuis le point 86.
 
-def _ligne_de(base, jeton, commande, produit, quantite):
+def _line_of(base, jeton, commande, produit, quantite):
     code, reponse = _appel(base + "/ligne", {"quantite": quantite,
                                              "commande_id": commande,
                                              "produit_id": produit}, jeton)
@@ -334,7 +334,7 @@ def _ligne_de(base, jeton, commande, produit, quantite):
 def test_augmenter_la_quantite_decompte_la_difference(boutique):
     base, jeton, commande, produits, _ = boutique
     halo = produits["Halo RS"]["id"]
-    ligne = _ligne_de(base, jeton, commande, halo, 1)
+    ligne = _line_of(base, jeton, commande, halo, 1)
     assert _stock(base, halo) == 2
 
     code, reponse = _appel(f"{base}/ligne/{ligne}",
@@ -351,7 +351,7 @@ def test_reduire_la_quantite_rend_du_stock(boutique):
     repasse au-dessus du plancher, donc la même instruction suffit."""
     base, jeton, commande, produits, _ = boutique
     halo = produits["Halo RS"]["id"]
-    ligne = _ligne_de(base, jeton, commande, halo, 3)
+    ligne = _line_of(base, jeton, commande, halo, 3)
     assert _stock(base, halo) == 0
 
     code, reponse = _appel(f"{base}/ligne/{ligne}",
@@ -367,7 +367,7 @@ def test_une_quantite_qui_depasse_le_stock_est_refusee_au_put(boutique):
     facturées, une seule décomptée."""
     base, jeton, commande, produits, _ = boutique
     halo = produits["Halo RS"]["id"]
-    ligne = _ligne_de(base, jeton, commande, halo, 1)
+    ligne = _line_of(base, jeton, commande, halo, 1)
 
     code, reponse = _appel(f"{base}/ligne/{ligne}",
                            {"quantite": 9, "commande_id": commande,
@@ -396,7 +396,7 @@ def test_supprimer_une_ligne_rend_le_stock(boutique):
     base, jeton, commande, produits, _ = boutique
     halo = produits["Halo RS"]["id"]
     depart = _stock(base, halo)
-    ligne = _ligne_de(base, jeton, commande, halo, 2)
+    ligne = _line_of(base, jeton, commande, halo, 2)
     assert _stock(base, halo) == depart - 2
 
     code, reponse = _appel(f"{base}/ligne/{ligne}", jeton=jeton, methode="DELETE")
@@ -412,7 +412,7 @@ def test_la_restitution_rend_la_quantite_COURANTE_pas_celle_de_la_creation(bouti
     base, jeton, commande, produits, _ = boutique
     halo = produits["Halo RS"]["id"]
     depart = _stock(base, halo)
-    ligne = _ligne_de(base, jeton, commande, halo, 1)
+    ligne = _line_of(base, jeton, commande, halo, 1)
     _appel(f"{base}/ligne/{ligne}", {"quantite": 3, "commande_id": commande,
                                      "produit_id": halo}, jeton, methode="PUT")
     assert _stock(base, halo) == depart - 3
@@ -430,7 +430,7 @@ def test_la_restitution_vise_le_produit_de_la_ligne_et_pas_un_autre(boutique):
     base, jeton, commande, produits, _ = boutique
     halo, deck = produits["Halo RS"]["id"], produits["Deck Low"]["id"]
     depart_halo, depart_deck = _stock(base, halo), _stock(base, deck)
-    ligne = _ligne_de(base, jeton, commande, halo, 2)
+    ligne = _line_of(base, jeton, commande, halo, 2)
 
     _appel(f"{base}/ligne/{ligne}", jeton=jeton, methode="DELETE")
 
@@ -446,7 +446,7 @@ def test_vider_puis_recommander_ne_perd_aucune_unite(boutique):
     halo = produits["Halo RS"]["id"]
     depart = _stock(base, halo)
     for _ in range(3):
-        ligne = _ligne_de(base, jeton, commande, halo, 3)
+        ligne = _line_of(base, jeton, commande, halo, 3)
         _appel(f"{base}/ligne/{ligne}", jeton=jeton, methode="DELETE")
     assert _stock(base, halo) == depart
 

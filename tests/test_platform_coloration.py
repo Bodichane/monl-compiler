@@ -1,17 +1,17 @@
-"""La coloration syntaxique des spécifications, et ce qui la garde honnête.
+"""Syntax highlighting of specifications, and what keeps it honest.
 
-Trois garanties y vivent, chacune née d'un défaut mesuré :
+Three guarantees live here, each born from a measured defect:
 
-1. **Les mots-clés sont DÉRIVÉS de la grammaire.** Une liste recopiée aurait
-   divergé au premier point de journal — et une coloration qui manque ne
-   ressemble pas à une panne, elle ressemble à un choix.
-2. **Chaque couleur se lit, et aucune paire n'est confusable.** Les noms
-   déclarés étaient crème, donc à 1,1:1 de l'encre du bloc : une classe qui ne
-   distinguait rien. Le rose des mots-clés et l'olive des chaînes tombaient
-   chacun à 32° de l'or.
-3. **Aucune section ne porte plus de surtitre.** « Le backend est compilé, pas
-   improvisé », « Voyez le résultat » : des phrases posées AVANT le titre,
-   qu'il fallait lire pour arriver au titre.
+1. **Keywords are DERIVED from the grammar.** A copied list would have
+   diverged at the first journal point — and missing highlighting does not
+   look like a failure, it looks like a choice.
+2. **Every color is readable, and no pair is confusable.** Declared names
+   were cream, hence at 1.1:1 from the block's ink: a class that
+   distinguished nothing. The keywords' pink and the strings' olive each fell
+   32° from gold.
+3. **No section carries an overline any more.** "The backend is compiled,
+   not improvised", "See the result": phrases put BEFORE the title, which had
+   to be read to reach the title.
 """
 
 import colorsys
@@ -28,16 +28,16 @@ from monl_platform.security import SECURITY_HTML
 
 SOURCE = pathlib.Path(coloration.__file__).read_text(encoding="utf-8")
 
-# Les fonds de code, l'un par thème. Le CLAIR est le plus dur : c'est sur lui
-# que les seuils sont tenus.
+# The code backgrounds, one per theme. The LIGHT one is the hardest: the
+# thresholds are held on it.
 FOND_CLAIR = "#2e2b25"
 FOND_SOMBRE = "#0f0e0c"
 
-SEUIL_TEXTE = 4.5       # WCAG 1.4.3 — du code se lit, ce n'est pas un graphique
-ECART_TEINTE = 35       # degrés
+SEUIL_TEXTE = 4.5       # WCAG 1.4.3 — code is read, it is not a graphic
+ECART_TEINTE = 35       # degrees
 ECART_CLARTE = 1.35     # rapport de contraste entre deux jetons
-ECART_CHROMA = 40       # sur 255 — ce qui sépare un gris d'une couleur franche
-CHROMA_COLORE = 30      # en dessous, la teinte ne porte plus rien
+ECART_CHROMA = 40       # out of 255 — what separates a gray from a clear color
+CHROMA_COLORE = 30      # below this, hue carries nothing any more
 
 
 def _rvb(couleur):
@@ -66,10 +66,10 @@ def _contraste(a, b):
 
 
 def _palette():
-    """Les couleurs LIVRÉES, relues dans la feuille inlinée de la page.
+    """The SHIPPED colors, reread in the page's inlined sheet.
 
-    Relire le source Python passerait à côté d'une surcharge écrite plus bas
-    dans la feuille : ce que le test doit juger est ce que le navigateur reçoit.
+    Rereading the Python source would miss an override written further down in
+    the sheet: what the test must judge is what the browser receives.
     """
     css = "\n".join(re.findall(r"<style[^>]*>(.*?)</style>", LANDING_HTML, re.S | re.I))
     palette = dict(re.findall(r"--(s-\w+):\s*(#[0-9a-fA-F]{6})", css))
@@ -79,12 +79,12 @@ def _palette():
     return palette, encre.group(1)
 
 
-def test_les_mots_cles_sont_derives_de_la_grammaire():
-    """Aucun mot-clé n'est ÉCRIT dans le module de coloration.
+def test_keywords_are_derived_from_the_grammar():
+    """No keyword is WRITTEN in the highlighting module.
 
-    Le témoin porte sur des mots arrivés tard dans le projet (points 90 à 116).
-    S'ils sont colorés SANS figurer dans le source, c'est que la dérivation
-    tient. Recopier une liste ferait apparaître les noms : le test tombe.
+    The witness is about words that arrived late in the project (points 90 to
+    116). If they are colored WITHOUT appearing in the source, the derivation
+    holds. Copying a list would make the names appear: the test fails.
     """
     tardifs = ("publicWhen", "oncePer", "numbered", "releases",
                "writableAfterPayment", "requiresOwn", "derivedFrom", "sumOf")
@@ -95,11 +95,11 @@ def test_les_mots_cles_sont_derives_de_la_grammaire():
             f"{mot} est ÉCRIT dans coloration.py : la liste est redevenue une copie")
 
 
-def test_un_mot_absent_de_la_grammaire_ne_prend_aucune_couleur():
-    """La contre-épreuve de la dérivation.
+def test_a_word_absent_from_the_grammar_takes_no_color():
+    """The counter-proof of the derivation.
 
-    Sans elle, une fonction qui colorerait TOUT rendrait le test précédent vert
-    sans rien dériver du tout.
+    Without it, a function coloring EVERYTHING would make the previous test
+    green without deriving anything at all.
     """
     assert coloration._classe_du_mot("entity") == "s-kw"
     assert coloration._classe_du_mot("courriel") is None
@@ -107,7 +107,7 @@ def test_un_mot_absent_de_la_grammaire_ne_prend_aucune_couleur():
     assert coloration._classe_du_mot("Commande") == "s-nom", "un nom déclaré"
 
 
-def test_chaque_couleur_de_jeton_se_lit_sur_les_deux_fonds_de_code():
+def test_each_token_color_reads_on_both_code_backgrounds():
     palette, encre = _palette()
 
     for nom, couleur in sorted(palette.items()):
@@ -118,16 +118,15 @@ def test_chaque_couleur_de_jeton_se_lit_sur_les_deux_fonds_de_code():
                 f"sous le seuil du texte ({SEUIL_TEXTE}:1)")
 
 
-def test_aucune_paire_de_couleurs_n_est_indistinguable():
-    """Deux jetons se distinguent par la teinte, la clarté OU la franchise.
+def test_no_color_pair_is_indistinguishable():
+    """Two tokens are distinguished by hue, lightness OR vividness.
 
-    Le contraste ENTRE deux jetons n'est PAS la mesure de WCAG (qui parle du
-    fond) : deux couleurs de même clarté séparées par la teinte se lisent très
-    bien. Ce qu'on refuse est qu'une paire soit proche sur les TROIS axes —
-    c'est ainsi que les noms déclarés en crème (#f0e6d8) ne se distinguaient
-    pas de l'encre du bloc, mesurés à 1,1:1 pour 12 de chroma d'écart.
-    L'encre entre dans la comparaison : un jeton qui ressemble au texte nu ne
-    colore rien.
+    Contrast BETWEEN two tokens is NOT WCAG's measure (which is about the
+    background): two colors of the same lightness separated by hue read very
+    well. What is refused is a pair close on all THREE axes — that is how the
+    declared names in cream (#f0e6d8) could not be told from the block's ink,
+    measured at 1.1:1 with 12 chroma apart. The ink enters the comparison: a
+    token resembling bare text colors nothing.
     """
     palette, encre = _palette()
     toutes = dict(palette, encre=encre)
@@ -150,11 +149,11 @@ def test_aucune_paire_de_couleurs_n_est_indistinguable():
     assert not confuses, "couleurs proches sur les trois axes : " + " ; ".join(confuses)
 
 
-def test_la_spec_de_l_accueil_emploie_vraiment_plusieurs_familles():
-    """Avant, deux classes en tout — `.kw` en or et `.cm` en gris.
+def test_the_home_page_spec_really_uses_several_families():
+    """Before, two classes in all — `.kw` in gold and `.cm` in gray.
 
-    Sans ce compte, remplacer la coloration par un `<span class="s-kw">` posé
-    sur tout laisserait la page « colorée » et le site monochrome.
+    Without this count, replacing the highlighting with a `<span class="s-kw">`
+    put on everything would leave the page "colored" and the site monochrome.
     """
     familles = set(re.findall(r'class="(s-\w+)"', LANDING_HTML))
     jetons = len(re.findall(r'class="s-\w+"', LANDING_HTML))
@@ -163,18 +162,18 @@ def test_la_spec_de_l_accueil_emploie_vraiment_plusieurs_familles():
     assert jetons >= 40, f"{jetons} jetons colorés : la spec n'est plus colorée"
 
 
-# Les classes qui posent une phrase AVANT un titre. Deux et non une : le
-# premier passage n'avait retiré que `.eyebrow`, et les trois cartes de
-# positionnement portaient leur surtitre sous un autre nom (`01 ·
-# INFRASTRUCTURE`). Chercher un seul nom, c'était garder la moitié de la règle.
+# The classes that put a phrase BEFORE a title. Two and not one: the first pass
+# had only removed `.eyebrow`, and the three positioning cards carried their
+# overline under another name (`01 · INFRASTRUCTURE`). Looking for a single
+# name kept half of the rule.
 SURTITRES = ("eyebrow", "stage-no")
 
 
-def test_aucune_section_ne_porte_plus_de_surtitre():
-    """« Le backend est compilé, pas improvisé » se lisait AVANT le titre.
+def test_no_section_carries_an_overline_any_more():
+    """"The backend is compiled, not improvised" was read BEFORE the title.
 
-    Le seul survivant assumé est la page d'erreur, où le surtitre EST le
-    titre — « Erreur 404 » n'annonce pas une section, il la nomme.
+    The only deliberate survivor is the error page, where the overline IS the
+    title — "Error 404" does not announce a section, it names it.
     """
     pages = {"accueil": LANDING_HTML, "docs": DOCS_HTML, "mcp": MCP_HTML,
              "sécurité": SECURITY_HTML, "connexion": AUTH_HTML,
@@ -188,13 +187,12 @@ def test_aucune_section_ne_porte_plus_de_surtitre():
                 f"un surtitre .{classe} est revenu sur la page {nom}")
 
 
-def test_aucune_regle_n_habille_un_surtitre_disparu():
-    """Une règle CSS orpheline fait croire que le surtitre peut revenir.
+def test_no_rule_dresses_a_vanished_overline():
+    """An orphan CSS rule suggests the overline can come back.
 
-    C'est la forme du point 154 : une garantie qui ne porte plus sur rien ne
-    fait aucun bruit. `.flow-stage .stage-no` est partie avec le balisage
-    qu'elle habillait ; l'exception assumée est `.eyebrow`, qui sert encore à
-    la page d'erreur.
+    It is point 154's shape: a guarantee that no longer applies to anything makes
+    no noise. `.flow-stage .stage-no` left with the markup it dressed; the
+    deliberate exception is `.eyebrow`, still used by the error page.
     """
     feuille = "\n".join(re.findall(r"<style[^>]*>(.*?)</style>",
                                    LANDING_HTML, re.S | re.I))

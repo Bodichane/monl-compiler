@@ -1,4 +1,4 @@
-"""Régressions de la génération séquentielle avec fournisseur factice réel."""
+"""Regressions of sequential generation with a real fake provider."""
 
 import json
 import re
@@ -22,8 +22,8 @@ SPEC = """app ChunkRetryApp
 entity Item
     label: String
 
-# Le back-office est provisionné hors ligne ; ces tests vérifient le découpage
-# de génération, pas une vitrine publique complète.
+# The back office is provisioned offline; these tests check the generation
+# splitting, not a complete public showcase.
 actor Admin
 
 rule Item.label required
@@ -65,7 +65,7 @@ def _target(prompt):
     return line.rsplit(": ", 1)[1]
 
 
-def test_le_contexte_conserve_tous_les_selecteurs_sans_rejouer_les_contenus():
+def test_the_context_keeps_all_selectors_without_replaying_contents():
     html = (
         '<main id="app" class="shell dark" data-page="home">'
         '<h1 class="hero-title">Prose éditoriale à ne pas recopier</h1>'
@@ -107,7 +107,7 @@ def test_le_contexte_conserve_tous_les_selecteurs_sans_rejouer_les_contenus():
     assert "ce JavaScript ne doit pas être recopié" not in app_prompt
 
 
-def test_la_generation_decoupee_reduit_l_entree_cumulee(tmp_path):
+def test_split_generation_reduces_cumulative_input(tmp_path):
     generated = {
         "index.html": (
             '<main id="app" class="shell dark" data-page="home">'
@@ -191,7 +191,7 @@ class TruncateStylesOnce:
         return json.dumps({"files": {target: GOOD_FILES[target]}})
 
 
-def test_un_morceau_tronque_est_repris_sans_regenerer_les_precedents(project):
+def test_a_truncated_chunk_is_resumed_without_regenerating_previous_ones(project):
     provider = TruncateStylesOnce()
 
     ok, errors = generate_and_verify(str(project), provider, say=lambda _msg: None)
@@ -239,7 +239,7 @@ class AlwaysTruncated:
         return json.dumps({"files": {target: "incomplet"}})[:-1]
 
 
-def test_un_morceau_toujours_tronque_n_effectue_pas_une_seconde_generation_complete(project):
+def test_an_always_truncated_chunk_does_not_run_a_second_full_generation(project):
     provider = AlwaysTruncated()
 
     ok, errors = generate_and_verify(str(project), provider, say=lambda _msg: None)
@@ -248,9 +248,9 @@ def test_un_morceau_toujours_tronque_n_effectue_pas_une_seconde_generation_compl
     assert errors
     assert len(provider.calls) == 3
     assert [target for target, _limit in provider.calls] == ["index.html"] * 3
-    # Les paliers sont DÉRIVÉS des constantes, jamais recopiés : figés ici en
-    # dur, ils avaient laissé l'échelle monter 8 000 → 12 000 → 18 000 pendant
-    # que le code annonçait une borne de 32 000 que rien n'atteignait.
+    # The steps are DERIVED from the constants, never copied: hard-coded here,
+    # they had let the ladder climb 8,000 → 12,000 → 18,000 while the code
+    # announced a 32,000 bound nothing reached.
     paliers = [limit for _target_name, limit in provider.calls]
     attendus = [DEFAULT_CHUNK_MAX_OUTPUT_TOKENS]
     while len(attendus) <= CHUNK_MAX_RETRIES:
@@ -296,7 +296,7 @@ class AppTimeoutAfterValidChunks:
         return json.dumps({"files": {target: GOOD_FILES[target]}})
 
 
-def test_timeout_d_un_morceau_ne_rejoue_pas_les_fichiers_deja_payes(project):
+def test_a_chunk_timeout_does_not_replay_already_paid_files(project):
     provider = AppTimeoutAfterValidChunks()
 
     ok, errors = generate_and_verify(str(project), provider, say=lambda _msg: None)
@@ -309,7 +309,7 @@ def test_timeout_d_un_morceau_ne_rejoue_pas_les_fichiers_deja_payes(project):
     ]
 
 
-# ---- Le budget demandé suit le contrat (point 149) ----
+# ---- The requested budget follows the contract (point 149) ----
 
 def _contrat(tmp_path, nb_routes, nb_entites=3):
     tmp_path.mkdir(parents=True, exist_ok=True)
@@ -320,13 +320,13 @@ def _contrat(tmp_path, nb_routes, nb_entites=3):
     return str(tmp_path)
 
 
-def test_le_budget_d_app_js_suit_le_nombre_de_routes(tmp_path):
-    """monl demandait « environ 1 500 tokens » quel que soit le contrat.
+def test_the_app_js_budget_follows_the_number_of_routes(tmp_path):
+    """monl asked for "about 1,500 tokens" whatever the contract.
 
-    Mesuré contre le vrai service : le modèle obéit au jeton près — 1 698 de
-    sortie pour une boutique à quinze routes — puis monl refuse le fichier
-    pour incomplétude. On demandait l'impossible, puis on le rejetait. Les
-    frontends complets du dépôt pèsent 26 à 43 Ko, soit 7 000 à 11 000 jetons.
+    Measured against the real service: the model obeys to the token — 1,698 of
+    output for a fifteen-route shop — then monl refuses the file as incomplete.
+    We asked for the impossible, then rejected it. The repository's complete
+    frontends weigh 26 to 43 KB, that is 7,000 to 11,000 tokens.
     """
     from monl.frontend_ai import ampleur_du_contrat
 
@@ -340,9 +340,9 @@ def test_le_budget_d_app_js_suit_le_nombre_de_routes(tmp_path):
     assert "1,500 tokens" not in grand and "1500 tokens" not in grand
 
 
-def test_le_budget_ne_depasse_jamais_le_plafond_de_l_etage(tmp_path):
-    """Demander plus que ce que l'étage peut rendre produirait une troncature
-    à chaque construction : le plafond de sortie est la vraie borne."""
+def test_the_budget_never_exceeds_the_stage_ceiling(tmp_path):
+    """Asking more than the stage can return would produce a truncation on every
+    build: the output ceiling is the real bound."""
     from monl.frontend_ai import DEFAULT_CHUNK_MAX_OUTPUT_TOKENS, ampleur_du_contrat
 
     enorme = _build_chunk_prompt("brief", "app.js", {},
@@ -351,8 +351,8 @@ def test_le_budget_ne_depasse_jamais_le_plafond_de_l_etage(tmp_path):
     assert _vise(enorme) <= DEFAULT_CHUNK_MAX_OUTPUT_TOKENS
 
 
-def test_la_limite_dure_ne_contredit_plus_le_budget(tmp_path):
-    """Elle valait 12 000 caractères pour un fichier de 26 à 43 Ko."""
+def test_the_hard_limit_no_longer_contradicts_the_budget(tmp_path):
+    """It was 12,000 characters for a 26 to 43 KB file."""
     from monl.frontend_ai import ampleur_du_contrat
 
     prompt = _build_chunk_prompt("brief", "app.js", {},
@@ -364,9 +364,9 @@ def test_la_limite_dure_ne_contredit_plus_le_budget(tmp_path):
         "petite des deux, et c'est elle qui décide de la complétude")
 
 
-def test_le_plancher_de_routes_est_ENONCE_au_modele(tmp_path):
-    """Le brief disait « n'appeler QUE les routes listées » — un plafond.
-    Le refus, lui, porte sur un plancher que rien n'énonçait à l'étage."""
+def test_the_route_floor_is_STATED_to_the_model(tmp_path):
+    """The brief said "call ONLY the listed routes" — a ceiling. The refusal,
+    however, is about a floor nothing stated at the stage."""
     from monl.frontend_ai import ampleur_du_contrat
 
     prompt = _build_chunk_prompt("brief", "app.js", {},
@@ -376,8 +376,8 @@ def test_le_plancher_de_routes_est_ENONCE_au_modele(tmp_path):
     assert "REFUSED" in prompt
 
 
-def test_sans_contrat_lisible_le_dimensionnement_ne_casse_pas(tmp_path):
-    """Les tests et les appels historiques n'ont pas de contrat sous la main."""
+def test_without_readable_contract_sizing_does_not_break(tmp_path):
+    """Tests and historical calls have no contract at hand."""
     from monl.frontend_ai import ampleur_du_contrat
 
     assert ampleur_du_contrat(str(tmp_path / "nulle-part")) is None

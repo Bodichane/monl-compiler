@@ -1,13 +1,13 @@
-"""La boucle MCP se ferme SANS navigateur — preuve HTTP contre un vrai serveur.
+"""The MCP loop closes WITHOUT a browser — HTTP proof against a real server.
 
-POINT 162. Un agent pouvait valider et compiler par MCP, puis butait sur trois
-murs : l'archive n'était ouverte que par le cookie `monl_session`, il n'existait
-aucun moyen de retrouver ses projets, et aucun équivalent de `monl update` ni de
-`monl diff` — or c'est TOUT le geste après la première compilation.
+POINT 162. An agent could validate and compile over MCP, then hit three
+walls: the archive was only opened by the `monl_session` cookie, there was no
+way to find one's projects again, and no equivalent of `monl update` nor
+`monl diff` — yet that is THE WHOLE gesture after the first compilation.
 
-Ce fichier fait le parcours entier avec UNE clé MCP et rien d'autre : compiler,
-lister, télécharger les octets de l'archive, mesurer ce qu'une spec nouvelle
-changerait, puis recompiler en place. Le compte n'ouvre jamais de session.
+This file walks the whole journey with ONE MCP key and nothing else: compile,
+list, download the archive bytes, measure what a new spec would change, then
+recompile in place. The account never opens a session.
 """
 
 import io
@@ -89,7 +89,7 @@ def plateforme(tmp_path):
 
 
 def _cle(base, identifiant="agent@example.test"):
-    """Crée un compte, en tire une clé MCP, PUIS oublie la session."""
+    """Creates an account, draws an MCP key from it, THEN forgets the session."""
     inscription = requests.post(
         f"{base}/api/auth/register",
         json={"email": identifiant, "password": "MotDePasse-123"},
@@ -123,7 +123,7 @@ def _appel(base, cle, outil, arguments=None, identifiant=1):
 
 
 @pytest.mark.parametrize("action", ["regenerer", "recuperer", "administrer", "expirer"])
-def test_changement_securite_sur_tous_les_acces(plateforme, tmp_path, capsys, action):
+def test_security_change_on_all_accesses(plateforme, tmp_path, capsys, action):
     base = plateforme
     session = requests.Session()
     compte = session.post(f"{base}/api/auth/register", json={
@@ -192,7 +192,7 @@ def test_changement_securite_sur_tous_les_acces(plateforme, tmp_path, capsys, ac
     assert _appel(base, neuve, "monl_list_projects")["projects"]
 
 
-def test_oauth_sans_codes_de_secours(plateforme, tmp_path):
+def test_oauth_without_recovery_codes(plateforme, tmp_path):
     magasin = IdentityStore(tmp_path / "projects")
     compte, _ = magasin.upsert_oauth_account("github:4242", "github")
     assert magasin.count_recovery_codes(compte) == 0
@@ -205,7 +205,7 @@ def test_oauth_sans_codes_de_secours(plateforme, tmp_path):
     assert magasin.count_recovery_codes(compte) == 0
 
 
-def test_refus_regeneration_preserve_le_code_de_la_victime(plateforme):
+def test_refused_regeneration_keeps_the_victims_code(plateforme):
     session = requests.Session()
     compte = session.post(f"{plateforme}/api/auth/register", json={
         "email": "victime@exemple.test", "password": "MotDePasse-123"}, timeout=10).json()
@@ -217,7 +217,7 @@ def test_refus_regeneration_preserve_le_code_de_la_victime(plateforme):
         "password": "NouveauMotDePasse-123"}, timeout=10).status_code == 204, "Code de la victime détruit par une régénération refusée"
 
 
-def test_reprise_refuse_une_creation_de_cle_deja_engagee(plateforme, monkeypatch):
+def test_recovery_refuses_an_already_started_key_creation(plateforme, monkeypatch):
     session = requests.Session()
     compte = session.post(f"{plateforme}/api/auth/register", json={
         "email": "differee@exemple.test", "password": "MotDePasse-123"}, timeout=10).json()
@@ -246,7 +246,7 @@ def test_reprise_refuse_une_creation_de_cle_deja_engagee(plateforme, monkeypatch
     assert reponses[0].status_code == 401, "Une session révoquée a créé une nouvelle clé MCP"
 
 
-def test_un_agent_compile_liste_et_telecharge_sans_jamais_ouvrir_de_session(plateforme):
+def test_an_agent_compiles_lists_and_downloads_without_ever_opening_a_session(plateforme):
     base = plateforme
     cle = _cle(base)
 
@@ -258,7 +258,7 @@ def test_un_agent_compile_liste_et_telecharge_sans_jamais_ouvrir_de_session(plat
     projets = _appel(base, cle, "monl_list_projects")["projects"]
     assert [p["project_id"] for p in projets] == [project_id]
 
-    # LE MUR D'AVANT : sans cookie, cette requête répondait 401.
+    # THE WALL OF BEFORE: without a cookie, this request answered 401.
     archive = requests.get(
         f"{base}{compile['download_path']}",
         headers={"authorization": f"Bearer {cle}"},
@@ -272,8 +272,8 @@ def test_un_agent_compile_liste_et_telecharge_sans_jamais_ouvrir_de_session(plat
     assert ".jwt_secret" not in noms
 
 
-def test_sans_cle_ni_session_l_archive_reste_fermee(plateforme):
-    """La contre-épreuve : ouvrir la porte à la clé ne l'ouvre pas à tous."""
+def test_without_key_or_session_the_archive_stays_closed(plateforme):
+    """The counter-proof: opening the door to the key does not open it to all."""
     base = plateforme
     cle = _cle(base, "proprietaire@example.test")
     project_id = _appel(base, cle, "monl_compile_backend", {"spec": SPEC})["project_id"]
@@ -283,15 +283,15 @@ def test_sans_cle_ni_session_l_archive_reste_fermee(plateforme):
     assert requests.get(
         chemin, headers={"authorization": "Bearer monl_inexistante"}, timeout=10
     ).status_code == 401
-    # Une clé VALIDE d'un autre compte ne vaut pas mieux : 404, jamais 403 —
-    # l'identifiant opaque ne devient pas un oracle d'existence.
+    # A VALID key of another account is no better: 404, never 403 — the opaque
+    # identifier does not become an existence oracle.
     autre = _cle(base, "intrus@example.test")
     assert requests.get(
         chemin, headers={"authorization": f"Bearer {autre}"}, timeout=10
     ).status_code == 404
 
 
-def test_le_diff_annonce_le_delta_sans_rien_ecrire(plateforme):
+def test_the_diff_announces_the_delta_without_writing_anything(plateforme):
     base = plateforme
     cle = _cle(base, "diff@example.test")
     project_id = _appel(base, cle, "monl_compile_backend", {"spec": SPEC})["project_id"]
@@ -307,17 +307,17 @@ def test_le_diff_annonce_le_delta_sans_rien_ecrire(plateforme):
     assert evolue["ecrit"] is False
     assert evolue["delta"]["interface_inchangee"] is False
     assert "Note.etiquette" in evolue["delta"]["champs"]["ajoutes"]
-    # Le choix parmi une liste vit dans « contenus » (point 96) : sans lui,
-    # l'IA dessinerait un champ texte au lieu d'un menu déroulant.
+    # Choosing from a list lives in "contents" (point 96): without it, the AI
+    # would draw a text field instead of a dropdown menu.
     assert any("Note.etiquette" in cle_contenu
                for cle_contenu in evolue["delta"]["contenus"]["ajoutes"])
 
-    # RIEN n'a été écrit : le contrat du projet n'a pas bougé.
+    # NOTHING was written: the project's contract did not move.
     apres = _appel(base, cle, "monl_inspect_contract", {"project_id": project_id})
     assert apres["contract"] == avant["contract"]
 
 
-def test_la_mise_a_jour_recompile_en_place_et_garde_l_adresse(plateforme):
+def test_the_update_recompiles_in_place_and_keeps_the_address(plateforme):
     base = plateforme
     cle = _cle(base, "update@example.test")
     project_id = _appel(base, cle, "monl_compile_backend", {"spec": SPEC})["project_id"]
@@ -329,7 +329,7 @@ def test_la_mise_a_jour_recompile_en_place_et_garde_l_adresse(plateforme):
     assert rapport["ecrit"] is True
     assert "Note.etiquette" in rapport["delta"]["champs"]["ajoutes"]
 
-    # Les artefacts ont vraiment changé, et l'adresse n'a pas bougé.
+    # The artifacts really changed, and the address did not move.
     contrat = _appel(base, cle, "monl_inspect_contract",
                      {"project_id": project_id})["contract"]
     champs = {champ["name"] for champ in contrat["entities"]["Note"]["fields"]}
@@ -344,14 +344,14 @@ def test_la_mise_a_jour_recompile_en_place_et_garde_l_adresse(plateforme):
         spec_livree = paquet.read("spec.ml").decode("utf-8")
     assert "etiquette" in spec_livree
 
-    # Le résumé suit le nouveau contrat : le garder ferait mentir la fiche.
+    # The summary follows the new contract: keeping it would make the card lie.
     resume = _appel(base, cle, "monl_inspect_contract",
                     {"project_id": project_id})["project"]["summary"]
     assert resume["contract_version"]
 
 
-def test_une_spec_refusee_laisse_le_projet_intact(plateforme):
-    """Une compilation qui échoue ne doit rien détruire."""
+def test_a_refused_spec_leaves_the_project_intact(plateforme):
+    """A failing compilation must destroy nothing."""
     base = plateforme
     cle = _cle(base, "refus@example.test")
     project_id = _appel(base, cle, "monl_compile_backend", {"spec": SPEC})["project_id"]

@@ -1,28 +1,27 @@
-"""Encaisser une entité possédée TRANSITIVEMENT — point 87.
+"""Charging an entity owned TRANSITIVELY — point 87.
 
-Pourquoi ce fichier existe. Le point 81 refusait `payable` sur toute entité
-possédée à travers un intermédiaire, avec ce motif : « la route de règlement
-identifie le payeur par une clé étrangère de COMPTE, qu'une chaîne transitive ne
-fournit pas ». C'était exact du code d'alors, et faux de la brique : la
-propriété transitive livrait DÉJÀ, dans `_owner_lookup_sql`, la jointure qui
-rend l'id de compte. Le refus protégeait d'une comparaison fausse — pas d'une
-impossibilité.
+Why this file exists. Point 81 refused `payable` on any entity owned through
+an intermediate, with this reason: "the payment route identifies the payer by
+an ACCOUNT foreign key, which a transitive chain does not provide". It was
+true of the code then, and false of the brick: transitive ownership ALREADY
+provided, in `_owner_lookup_sql`, the join that returns the account id. The
+refusal protected against a wrong comparison — not an impossibility.
 
-Ce que ces tests exigent, et qu'une relecture ne prouve pas :
+What these tests require, and what a review does not prove:
 
-* **le tiers est refusé.** C'est LA raison d'être du refus levé. Si la route
-  comparait encore `current_user_id` à la clé étrangère de l'intermédiaire, le
-  verdict serait tiré au sort — laisser payer le mauvais compte, ou bloquer le
-  bon. Les identifiants du banc sont donc volontairement DIVERGENTS : sans
-  cette précaution la sonde du point 81 n'avait rien montré, parce que
-  « utilisateur 1 » et « commande 1 » coïncidaient ;
-* **le montant est vérifié sur ce que le PRESTATAIRE reçoit**, pas sur ce que
-  la base contient : c'est la seule affirmation qui compte pour une boutique ;
-* **une ligne orpheline répond 404**, jamais « payable par quiconque » — la
-  jointure ne rend aucun résultat, et c'est la bonne réponse ;
-* **le contrôle et le montant sortent de la MÊME lecture.** L'invariant du
-  point 74 ne devait pas être payé pour obtenir la jointure : deux requêtes
-  rouvriraient la fenêtre entre le contrôle d'accès et le calcul du montant.
+* **the third party is refused.** It is THE reason the refusal was lifted. If
+  the route still compared `current_user_id` with the intermediate's foreign
+  key, the verdict would be a coin toss — letting the wrong account pay, or
+  blocking the right one. The bench's identifiers are therefore deliberately
+  DIVERGENT: without this precaution point 81's probe had shown nothing,
+  because "user 1" and "order 1" coincided;
+* **the amount is checked on what the PROVIDER receives**, not on what the
+  database holds: it is the only statement that counts for a shop;
+* **an orphan line answers 404**, never "payable by anyone" — the join
+  returns no result, and that is the right answer;
+* **the check and the amount come out of the SAME read.** Point 74's
+  invariant was not to be paid to get the join: two queries would reopen the
+  window between the access check and the amount calculation.
 """
 import contextlib
 import json
@@ -42,9 +41,9 @@ from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
 from tests.support.server import uvicorn_server
 
-# La LIGNE est encaissable, pas la commande : c'est exactement ce que le
-# point 81 refusait. Le cas n'est pas artificiel — une facture rattachée à un
-# contrat, une prestation rattachée à un dossier ont la même forme.
+# The LINE is chargeable, not the order: that is exactly what point 81 refused.
+# The case is not artificial — an invoice attached to a contract, a service
+# attached to a case file have the same shape.
 SPEC = """app BancTransitif
 
 entity Article
@@ -102,10 +101,10 @@ QUANTITE = 3
 
 
 class _PrestataireFactice(BaseHTTPRequestHandler):
-    """Il DÉCODE le corps reçu : c'est la seule façon d'affirmer quel montant a
-    réellement été demandé. Lire la base ne dirait que ce que monl croit."""
+    """It DECODES the received body: it is the only way to state which amount was
+    really requested. Reading the database would only tell what monl believes."""
 
-    def do_POST(self):  # nom imposé par BaseHTTPRequestHandler
+    def do_POST(self):  # name imposed by BaseHTTPRequestHandler
         brut = self.rfile.read(int(self.headers.get("Content-Length", 0)))
         self.server.recu.append(
             {c: v[0] for c, v in urllib.parse.parse_qs(brut.decode()).items()})
@@ -187,8 +186,8 @@ def bob(application):
     return _compte(application, "bob")
 
 
-def _ligne_de(base, entetes, libelle):
-    """Une commande et sa ligne, et l'identifiant des deux."""
+def _line_of(base, entetes, libelle):
+    """An order and its line, and the identifier of both."""
     commande = requests.post(f"{base}/commande", json={"libelle": libelle},
                              headers=entetes, timeout=10).json()["id"]
     article = requests.get(f"{base}/article?limit=1", timeout=10).json()["data"][0]["id"]
@@ -201,11 +200,11 @@ def _ligne_de(base, entetes, libelle):
 
 # --------------------------------------------------------------------------
 
-def test_le_proprietaire_transitif_peut_payer(application, alice, faux_stripe):
-    """Ce que le point 81 interdisait. Le montant est vérifié sur ce que le
-    PRESTATAIRE reçoit — pas sur ce que la base contient."""
+def test_the_transitive_owner_can_pay(application, alice, faux_stripe):
+    """What point 81 forbade. The amount is checked on what the PROVIDER
+    receives — not on what the database holds."""
     base, _dossier = application
-    _commande, ligne = _ligne_de(base, alice, "panier alice")
+    _commande, ligne = _line_of(base, alice, "panier alice")
 
     avant = len(faux_stripe.recu)
     reponse = requests.post(f"{base}/ligne/{ligne}/paiement", headers=alice, timeout=15)
@@ -215,19 +214,19 @@ def test_le_proprietaire_transitif_peut_payer(application, alice, faux_stripe):
     demande = faux_stripe.recu[-1]
     attendu = str(round(PRIX * QUANTITE * 100))
     assert demande["line_items[0][price_data][unit_amount]"] == attendu, demande
-    # La référence est qualifiée par le nom de l'entité (point 75) : sans quoi
-    # le webhook confondrait l'id de deux tables payables.
+    # The reference is qualified by the entity name (point 75): otherwise the
+    # webhook would confuse the ids of two payable tables.
     assert demande.get("client_reference_id") == f"Ligne:{ligne}"
 
 
-def test_un_tiers_ne_peut_pas_payer(application, alice, bob):
-    """LE test qui justifie le refus levé.
+def test_a_third_party_cannot_pay(application, alice, bob):
+    """THE test that justifies lifting the refusal.
 
-    Si la route comparait encore `current_user_id` à la clé étrangère de
-    l'intermédiaire — un id de COMMANDE — le verdict serait tiré au sort. Les
-    identifiants sont volontairement divergents pour que la confusion se voie."""
+    If the route still compared `current_user_id` with the intermediate's
+    foreign key — an ORDER id — the verdict would be a coin toss. The identifiers
+    are deliberately divergent so that the confusion shows."""
     base, dossier = application
-    commande, ligne = _ligne_de(base, alice, "panier privé")
+    commande, ligne = _line_of(base, alice, "panier privé")
 
     with _base(dossier) as cnx:
         compte_alice = cnx.execute(
@@ -237,38 +236,38 @@ def test_un_tiers_ne_peut_pas_payer(application, alice, bob):
 
     refuse = requests.post(f"{base}/ligne/{ligne}/paiement", headers=bob, timeout=15)
     assert refuse.status_code == 403, refuse.text
-    # Et le propriétaire, lui, passe : un 403 pour tout le monde « réussirait »
-    # ce test sans rien prouver.
+    # And the owner does get through: a 403 for everyone would "pass" this test
+    # while proving nothing.
     assert requests.post(f"{base}/ligne/{ligne}/paiement",
                          headers=alice, timeout=15).status_code == 200
 
 
-def test_une_ligne_orpheline_est_introuvable(application, alice):
-    """La jointure ne rend aucun résultat : la ligne n'appartient à personne.
-    404 — surtout pas « payable par quiconque »."""
+def test_an_orphan_line_is_not_found(application, alice):
+    """The join returns no result: the line belongs to nobody. 404 — certainly
+    not "payable by anyone"."""
     base, dossier = application
-    _commande, ligne = _ligne_de(base, alice, "panier à orpheliner")
+    _commande, ligne = _line_of(base, alice, "panier à orpheliner")
     with _base(dossier) as cnx:
         cnx.execute('UPDATE "ligne" SET "commande_id" = 999999 WHERE id = ?', (ligne,))
     reponse = requests.post(f"{base}/ligne/{ligne}/paiement", headers=alice, timeout=15)
     assert reponse.status_code == 404, reponse.text
 
 
-def test_le_webhook_marque_la_ligne_payee(application, alice, faux_stripe):
-    """La chaîne complète : la référence qualifiée revient du prestataire et
-    désigne la bonne table."""
+def test_the_webhook_marks_the_line_paid(application, alice, faux_stripe):
+    """The full chain: the qualified reference comes back from the provider and
+    designates the right table."""
     import hashlib
     import hmac
 
     base, dossier = application
-    _commande, ligne = _ligne_de(base, alice, "panier réglé")
+    _commande, ligne = _line_of(base, alice, "panier réglé")
     requests.post(f"{base}/ligne/{ligne}/paiement", headers=alice, timeout=15)
 
     corps = json.dumps({"type": "checkout.session.completed",
                         "data": {"object": {"client_reference_id": f"Ligne:{ligne}",
                                             "id": "cs_x"}}}).encode()
-    # POINT 91 : l'heure COURANTE, comme le prestataire réel — la signature est
-    # désormais datée, et un horodatage figé serait refusé pour rejeu.
+    # POINT 91: the CURRENT time, like the real provider — the signature is now
+    # dated, and a frozen timestamp would be refused as a replay.
     horodatage = str(int(time.time()))
     signature = hmac.new(CLE_WEBHOOK.encode(),
                          (horodatage + ".").encode() + corps,
@@ -285,16 +284,16 @@ def test_le_webhook_marque_la_ligne_payee(application, alice, faux_stripe):
     assert etat == "payee"
 
 
-def test_le_controle_et_le_montant_sortent_de_la_meme_lecture(tmp_path):
-    """Invariant du point 74, à ne pas payer pour obtenir la jointure : deux
-    requêtes séparées rouvriraient la fenêtre entre le contrôle d'accès et le
-    calcul du montant. La route ne doit donc contenir qu'UN seul execute."""
+def test_the_check_and_the_amount_come_from_the_same_read(tmp_path):
+    """Point 74's invariant, not to be paid for the join: two separate queries
+    would reopen the window between the access check and the amount calculation.
+    The route must therefore contain only ONE execute."""
     ast = MonlAST(parse_monl_string(SPEC)).validate_and_audit()
     MonlSecureGenerator(ast, output_dir=str(tmp_path)).generate_all()
     genere = (tmp_path / "app.py").read_text(encoding="utf-8")
-    # Découpe sur le décorateur suivant : « \ndef » attraperait aussi le
-    # webhook, dont l'execute est légitime et fausserait le compte.
+    # Cut at the next decorator: "\ndef" would also catch the webhook, whose
+    # execute is legitimate and would skew the count.
     corps = genere.split("def payer_ligne(")[1].split("@app.post")[0]
     assert corps.count("cursor.execute(") == 1, corps
-    # La jointure est bien DANS ce seul SELECT.
+    # The join is indeed IN this single SELECT.
     assert "JOIN" in corps and "commande" in corps

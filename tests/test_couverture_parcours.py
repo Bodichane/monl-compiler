@@ -1,4 +1,4 @@
-"""Couverture du frontend livré : le contrat doit devenir un parcours réel."""
+"""Coverage of the delivered frontend: the contract must become a real journey."""
 
 import json
 
@@ -92,7 +92,7 @@ def _all_route_fetches(contract, template=False):
     return "\n".join(lines)
 
 
-def test_un_frontend_minimal_n_est_pas_declare_reussi(tmp_path):
+def test_a_minimal_frontend_is_not_declared_successful(tmp_path):
     project, _contract = _project(tmp_path)
     frontend = project / "frontend"
     frontend.mkdir()
@@ -107,13 +107,13 @@ def test_un_frontend_minimal_n_est_pas_declare_reussi(tmp_path):
     assert "workflow 'Commande'" in message
     assert "workflow 'Compte'" in message
     assert "POST /order" in message
-    # Le back-office n'est pas une promesse de la vitrine publique : il est
-    # nommé, mais son absence ne refuse pas la construction.
+    # The back office is not a promise of the public showcase: it is named, but
+    # its absence does not refuse the build.
     assert any("Backoffice" in warning for warning in warnings)
     assert not any("workflow 'Backoffice'" in error for error in errors)
 
 
-def test_un_frontend_qui_couvre_les_routes_du_contrat_passe(tmp_path):
+def test_a_frontend_covering_the_contract_routes_passes(tmp_path):
     project, contract = _project(tmp_path)
     frontend = project / "frontend"
     frontend.mkdir()
@@ -129,7 +129,7 @@ def test_un_frontend_qui_couvre_les_routes_du_contrat_passe(tmp_path):
     assert not any("Missing frontend workflow:" in warning for warning in warnings)
 
 
-def test_un_fetch_par_gabarit_api_base_couvre_la_bonne_route(tmp_path):
+def test_an_api_base_template_fetch_covers_the_right_route(tmp_path):
     project, contract = _project(tmp_path)
     frontend = project / "frontend"
     frontend.mkdir()
@@ -152,7 +152,7 @@ def _write_frontend(project, app_js, index_html='<script src="app.js"></script>'
     (frontend / "app.js").write_text(app_js, encoding="utf-8")
 
 
-def test_un_fetch_auth_sous_un_prefixe_inexistant_refuse_la_construction(tmp_path):
+def test_an_auth_fetch_under_a_nonexistent_prefix_refuses_the_build(tmp_path):
     project, contract = _project(tmp_path)
     app_js = _all_route_fetches(contract) + """
 async function authenticate(action) {
@@ -172,7 +172,7 @@ async function authenticate(action) {
     assert "/login" in message and "/register" in message
 
 
-def test_un_fetch_vers_login_et_register_du_contrat_passe(tmp_path):
+def test_a_fetch_to_the_contracts_login_and_register_passes(tmp_path):
     project, contract = _project(tmp_path)
     app_js = _all_route_fetches(contract) + """
 fetch('/login', {method: 'POST'});
@@ -187,7 +187,7 @@ fetch('/register', {method: 'POST'});
                    for message in errors + warnings)
 
 
-def test_un_lien_de_navigation_ne_declenche_pas_le_controle_fetch(tmp_path):
+def test_a_navigation_link_does_not_trigger_the_fetch_check(tmp_path):
     project, contract = _project(tmp_path)
     _write_frontend(
         project,
@@ -201,7 +201,7 @@ def test_un_lien_de_navigation_ne_declenche_pas_le_controle_fetch(tmp_path):
     assert not any("/panier" in message for message in errors + warnings)
 
 
-def test_un_chemin_fetch_irreductible_ne_declenche_rien(tmp_path):
+def test_an_irreducible_fetch_path_triggers_nothing(tmp_path):
     project, contract = _project(tmp_path)
     _write_frontend(
         project,
@@ -215,9 +215,9 @@ def test_un_chemin_fetch_irreductible_ne_declenche_rien(tmp_path):
                    for message in errors + warnings)
 
 
-def test_le_brief_enonce_le_plancher_des_workflows(tmp_path):
+def test_the_brief_states_the_workflow_floor(tmp_path):
     project, _contract = _project(tmp_path)
-    # Prose repliée sur 79 colonnes : on compare sur les espaces normalisés.
+    # Prose wrapped at 79 columns: compare on normalized whitespace.
     brief = " ".join(
         (project / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8").split())
 
@@ -227,13 +227,13 @@ def test_le_brief_enonce_le_plancher_des_workflows(tmp_path):
     assert "counts the routes called" in brief
 
 
-def test_le_brief_interdit_les_images_locales_hors_manifeste_et_nomme_svg_en_ligne(
+def test_the_brief_forbids_local_images_outside_manifest_and_names_inline_svg(
         tmp_path):
     project, _contract = _project(tmp_path)
-    # La consigne est de la PROSE : elle se replie au fil des relectures, et un
-    # test qui exige une coupure de ligne précise casserait à chaque
-    # reformatage sans qu'aucune règle n'ait bougé. On compare donc sur les
-    # espaces normalisés, ce qui laisse le sens comme seul invariant.
+    # The instruction is PROSE: it rewraps with each review, and a test
+    # requiring a precise line break would break on every reformatting without
+    # any rule having moved. We therefore compare on normalized whitespace,
+    # which leaves the meaning as the only invariant.
     brief = " ".join(
         (project / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8").split())
 
@@ -246,7 +246,7 @@ def test_le_brief_interdit_les_images_locales_hors_manifeste_et_nomme_svg_en_lig
     assert "generated_assets: []" not in brief
 
 
-def test_le_brief_enumere_les_marqueurs_avec_fichier_et_bloc(tmp_path):
+def test_the_brief_lists_markers_with_file_and_block(tmp_path):
     project, _contract = _visual_project(tmp_path)
     brief = (project / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     manifest_lines = (project / "docs/ASSET_MANIFEST.json").read_text(
@@ -265,14 +265,14 @@ def test_le_brief_enumere_les_marqueurs_avec_fichier_et_bloc(tmp_path):
         ) in brief
 
 
-def test_un_projet_sans_marqueur_ne_declenche_pas_une_liste_visuelle_vide(tmp_path):
+def test_a_project_without_markers_does_not_trigger_an_empty_visual_list(tmp_path):
     project, _contract = _project(tmp_path)
     brief = (project / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
 
     assert "Marqueurs visuels obligatoires — fichier et bloc exacts" not in brief
 
 
-# ---- Le paramètre doit ATTEINDRE le fetch, quelle que soit l'écriture (point 150) ----
+# ---- The parameter must REACH the fetch, whatever the spelling (point 150) ----
 
 FONCTION_DIRECTE = """
 async function api(endpoint, options) {
@@ -293,8 +293,8 @@ api('/product?limit=100');
 api('/order', {method: 'POST'});
 """
 
-# L'écriture RÉELLEMENT produite par le modèle, et celle qui a fait conclure
-# « 0 route appelée » sur un frontend qui en appelait cinq.
+# The spelling REALLY produced by the model, and the one that led to "0 routes
+# called" on a frontend that called five.
 FONCTION_PAR_VARIABLE = """
 const API_BASE = '';
 async function api(endpoint, options = {}) {
@@ -317,12 +317,12 @@ def _appels(tmp_path, source, nom="ecriture"):
     return _frontend_fetch_calls(str(dossier))
 
 
-def test_les_trois_ecritures_d_une_fonction_d_acces_sont_vues(tmp_path):
-    """Le refus tombait sur un site CORRECT, et le brief en était la cause.
+def test_the_three_spellings_of_an_access_function_are_seen(tmp_path):
+    """The refusal fell on a CORRECT site, and the brief was the cause.
 
-    Il demande de factoriser le code — et c'est exactement la factorisation
-    qui rendait l'appel invisible au contrôle. Mesuré en payant : 12,8 Ko de
-    JavaScript appelant cinq routes, comptés comme zéro.
+    It asks to factor the code — and that factoring is exactly what made the
+    call invisible to the check. Measured with real spend: 12.8 KB of JavaScript
+    calling five routes, counted as zero.
     """
     for nom, source in (("directe", FONCTION_DIRECTE),
                         ("gabarit", FONCTION_GABARIT),
@@ -332,12 +332,12 @@ def test_les_trois_ecritures_d_une_fonction_d_acces_sont_vues(tmp_path):
         assert ("POST", "/order") in appels, (nom, appels)
 
 
-def test_une_fonction_qui_ne_transmet_pas_son_parametre_n_est_pas_une_api(tmp_path):
-    """Le contrôle reste conservateur : il exige un flux DÉMONTRABLE.
+def test_a_function_not_passing_its_parameter_is_not_an_api(tmp_path):
+    """The check stays conservative: it requires a DEMONSTRABLE flow.
 
-    Sans cette contre-épreuve, n'importe quelle fonction contenant un `fetch`
-    quelque part ferait compter ses arguments comme des routes — et la
-    couverture deviendrait un contrôle qui ne refuse plus rien.
+    Without this counter-proof, any function containing a `fetch` somewhere
+    would have its arguments counted as routes — and coverage would become a
+    check that refuses nothing any more.
     """
     source = """
     function journaliser(message, options) {
