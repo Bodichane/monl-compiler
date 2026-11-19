@@ -1,22 +1,22 @@
-"""La devise d'encaissement et son EXPOSANT — brique 2a.
+"""The charging currency and its EXPONENT — brick 2a.
 
-Le code figeait deux choses : la devise (`'eur'`) et le facteur de conversion
-(`montant × 100`). Le second est le vrai danger. Un prestataire attend un
-ENTIER dans l'unité mineure de la devise ; pour l'euro c'est le centime, donc
-×100. **Le franc CFA n'a aucune sous-unité** : une commande de 5 000 FCFA
-serait partie chez le prestataire pour 500 000 FCFA — cent fois le prix.
+The code froze two things: the currency (`'eur'`) and the conversion factor
+(`amount × 100`). The second is the real danger. A provider expects an
+INTEGER in the currency's minor unit; for the euro that is the cent, hence
+×100. **The CFA franc has no subunit**: a 5,000 FCFA order would have gone to
+the provider for 500,000 FCFA — a hundred times the price.
 
-Ce défaut ne se voit ni à la lecture (le calcul est juste pour l'euro), ni dans
-les tests existants (ils encaissent en euros), ni à l'exécution côté monl (le
-serveur répond 200). Il se voit sur le relevé bancaire du client. C'est la
-famille du point 77 — le montant que quelqu'un d'autre décide — par une porte
-que personne n'avait ouverte : celle des UNITÉS.
+This defect shows neither on reading (the calculation is right for the
+euro), nor in the existing tests (they charge in euros), nor at runtime on
+monl's side (the server answers 200). It shows on the customer's bank
+statement. It is point 77's family — the amount someone else decides —
+through a door nobody had opened: UNITS.
 
-**Le test qui porte la brique est une PAIRE** : la même commande de 5 000,
-compilée en XOF puis en EUR, et ce que le faux prestataire a réellement reçu.
-Pris seul, le cas XOF passerait avec un `×100` oublié quelque part si l'autre
-moitié de la chaîne compensait ; pris seul, le cas EUR ne prouverait aucune
-régression. Ensemble, ils épinglent le facteur.
+**The test carrying the brick is a PAIR**: the same 5,000 order, compiled in
+XOF then in EUR, and what the fake provider really received. Taken alone, the
+XOF case would pass with a `×100` forgotten somewhere if the other half of
+the chain compensated; taken alone, the EUR case would prove no regression.
+Together, they pin the factor.
 """
 import contextlib
 import os
@@ -33,10 +33,10 @@ from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
 from tests.support.server import uvicorn_server
 
-# Le faux prestataire est celui du banc d'essai du paiement : il décode le
-# corps `x-www-form-urlencoded` et RETIENT les champs reçus. Le réécrire ici
-# donnerait deux prestataires factices à maintenir, et c'est exactement ce
-# qu'un décodeur en double finit par masquer.
+# The fake provider is the payment bench's: it decodes the
+# `x-www-form-urlencoded` body and KEEPS the received fields. Rewriting it here
+# would give two fake providers to maintain, and that is exactly what a
+# duplicate decoder ends up hiding.
 from tests.test_paiement import SPEC_BOUTIQUE, _PrestataireFactice
 
 MOT_DE_PASSE = "motdepasse123"
@@ -53,11 +53,11 @@ def _valide(spec):
 
 
 # --------------------------------------------------------------------------
-# Ce que le validateur refuse — et pourquoi il refuse plutôt que de deviner
+# What the validator refuses — and why it refuses rather than guesses
 # --------------------------------------------------------------------------
 
-def test_une_devise_inconnue_est_refusee_jamais_devinee():
-    """Deviner « deux décimales » serait reprendre le bug qu'on ferme."""
+def test_an_unknown_currency_is_refused_never_guessed():
+    """Guessing "two decimals" would bring back the bug being closed."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_BOUTIQUE + "\ncapability payment\n    currency: ZZZ\n")
     message = str(refus.value)
@@ -65,23 +65,23 @@ def test_une_devise_inconnue_est_refusee_jamais_devinee():
     assert "multiply every amount by one hundred" in message
 
 
-def test_une_devise_a_trois_decimales_est_refusee_en_le_disant():
-    """Le dinar tunisien est un code parfaitement valide : le message ne doit
-    pas envoyer chercher une faute de frappe."""
+def test_a_three_decimal_currency_is_refused_with_a_reason():
+    """The Tunisian dinar is a perfectly valid code: the message must not send
+    people looking for a typo."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_BOUTIQUE + "\ncapability payment\n    currency: TND\n")
     assert "three decimal places" in str(refus.value)
 
 
-def test_la_devise_posee_sur_capability_auth_nomme_la_bonne_capacite():
-    """La grammaire partage un seul jeu de propriétés entre les capacités : une
-    ligne au mauvais endroit est l'erreur attendue, pas une faute de frappe."""
+def test_currency_on_capability_auth_names_the_right_capability():
+    """The grammar shares a single set of properties between capabilities: a
+    line in the wrong place is the expected error, not a typo."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_BOUTIQUE + "\ncapability auth\n    currency: XOF\n")
     assert "capability payment" in str(refus.value)
 
 
-def test_deux_devises_ne_compilent_pas():
+def test_two_currencies_do_not_compile():
     spec = (SPEC_BOUTIQUE + "\ncapability payment\n    currency: XOF\n"
             + "\ncapability payment\n    currency: EUR\n")
     with pytest.raises(ASTValidationError) as refus:
@@ -89,28 +89,28 @@ def test_deux_devises_ne_compilent_pas():
     assert "currency is declared twice" in str(refus.value)
 
 
-def test_une_devise_sans_rien_a_encaisser_est_refusee():
-    """Point 85 : une règle sans effet est refusée, jamais ignorée en silence —
-    sinon l'auteur croit avoir configuré son application."""
+def test_a_currency_with_nothing_to_charge_is_refused():
+    """Point 85: a rule without effect is refused, never silently ignored —
+    otherwise the author believes they configured their application."""
     sans_paiement = SPEC_BOUTIQUE.replace("rule Commande.total payable\n", "")
     with pytest.raises(ASTValidationError) as refus:
         _valide(sans_paiement + "\ncapability payment\n    currency: XOF\n")
     assert "payable" in str(refus.value)
 
 
-def test_une_spec_muette_garde_leuro_et_le_facteur_cent():
-    """Le témoin de non-régression : rien de déclaré, rien de changé."""
+def test_a_silent_spec_keeps_the_euro_and_the_factor_of_100():
+    """The non-regression witness: nothing declared, nothing changed."""
     ast = _valide(SPEC_BOUTIQUE)
     assert ast["security"]["payment_currency"] is None
 
 
-def test_la_devise_declaree_porte_son_exposant():
+def test_the_declared_currency_carries_its_exponent():
     devise = _valide(SPEC_XOF)["security"]["payment_currency"]
     assert devise == {"code": "XOF", "exponent": 0}
 
 
 # --------------------------------------------------------------------------
-# Ce que le prestataire reçoit VRAIMENT — la paire qui porte la brique
+# What the provider REALLY receives — the pair that carries the brick
 # --------------------------------------------------------------------------
 
 @pytest.fixture(scope="module")
@@ -144,9 +144,9 @@ def _application(spec, faux_prestataire):
             yield base, dossier
 
 
-def _regler_une_commande_de(spec, faux_prestataire, montant, identifiant):
-    """Inscrit un compte, crée une commande de `montant`, la règle — et renvoie
-    les champs que le prestataire a réellement reçus."""
+def _pay_an_order_of(spec, faux_prestataire, montant, identifiant):
+    """Registers an account, creates an order of `montant`, pays it — and returns
+    the fields the provider really received."""
     with _application(spec, faux_prestataire) as (base, dossier):
         cnx = sqlite3.connect(os.path.join(dossier, "app.db"))
         try:
@@ -181,9 +181,9 @@ def _regler_une_commande_de(spec, faux_prestataire, montant, identifiant):
         return faux_prestataire.recu[-1]["champs"], reglement.json()
 
 
-def test_en_franc_cfa_le_montant_part_tel_quel(faux_prestataire):
-    """5 000 FCFA doivent partir pour 5 000, jamais 500 000."""
-    champs, reponse = _regler_une_commande_de(
+def test_in_cfa_franc_the_amount_goes_as_is(faux_prestataire):
+    """5,000 FCFA must go out as 5,000, never 500,000."""
+    champs, reponse = _pay_an_order_of(
         SPEC_XOF, faux_prestataire, 5000, "awa@example.com")
 
     assert champs["line_items[0][price_data][currency]"] == "xof"
@@ -194,10 +194,10 @@ def test_en_franc_cfa_le_montant_part_tel_quel(faux_prestataire):
     assert reponse["montant"] == 5000
 
 
-def test_en_euro_le_montant_reste_en_centimes(faux_prestataire):
-    """L'autre moitié de la paire : sans elle, un facteur 1 appliqué partout
-    passerait le test ci-dessus tout en cassant l'euro."""
-    champs, reponse = _regler_une_commande_de(
+def test_in_euro_the_amount_stays_in_cents(faux_prestataire):
+    """The other half of the pair: without it, a factor of 1 applied everywhere
+    would pass the test above while breaking the euro."""
+    champs, reponse = _pay_an_order_of(
         SPEC_BOUTIQUE, faux_prestataire, 5000, "leo@example.com")
 
     assert champs["line_items[0][price_data][currency]"] == "eur"
@@ -205,12 +205,11 @@ def test_en_euro_le_montant_reste_en_centimes(faux_prestataire):
     assert reponse["devise"] == "EUR"
 
 
-def test_le_montant_lisible_accompagne_lunite_mineure(faux_prestataire):
-    """`montant_centimes` GARDE son nom sur le fil (point 95 : renommer
-    casserait le bouton « Payer » de tout projet existant), mais `devise` et
-    `montant` sont désormais à côté — une interface n'a plus à diviser par
-    cent au hasard."""
-    _champs, reponse = _regler_une_commande_de(
+def test_the_readable_amount_goes_with_the_minor_unit(faux_prestataire):
+    """`montant_centimes` KEEPS its name on the wire (point 95: renaming would
+    break every existing project's "Pay" button), but `devise` and `montant` now
+    sit beside it — an interface no longer has to divide by a hundred at random."""
+    _champs, reponse = _pay_an_order_of(
         SPEC_XOF, faux_prestataire, 2500, "koffi@example.com")
     assert reponse["montant_centimes"] == 2500
     assert reponse["montant"] == 2500

@@ -1,25 +1,22 @@
-"""Brique 24 (propriété transitive à profondeur quelconque) — point 107.
+"""Brick 24 (transitive ownership at any depth) — point 107.
 
-La brique 11 (point 81) ne savait remonter qu'UN intermédiaire : une ligne
-appartenait à sa commande, et la commande au client. Deux niveaux — une ligne
-dans un bloc d'une commande — compilaient en filtrant sur le MAUVAIS maillon
-(le défaut du point 80 rouvrait par la profondeur), donc le validateur les
-refusait.
+Brick 11 (point 81) could only walk ONE intermediate: a line belonged to its
+order, and the order to the customer. Two levels — a line in a block of an
+order — compiled filtering on the WRONG link (point 80's defect reopened
+through depth), so the validator refused them.
 
-Cette brique étend la marche de la chaîne jusqu'à un ACTEUR, maillon par
-maillon, quelle que soit la profondeur. Ce que ces tests exigent, et qu'une
-relecture ne prouve pas :
+This brick extends the chain walk up to an ACTOR, link by link, whatever the
+depth. What these tests require, and what a review does not prove:
 
-* le validateur résout une chaîne de 2 et 3 maillons jusqu'au bon acteur ;
-* un cycle, un cul-de-sac (aucun compte) et un maillon possédé par plusieurs
-  entités sont REFUSÉS — la classe de défaut du point 80 ne reparaît pas par
-  une profondeur ;
-* sur un vrai serveur, la chaîne à 2 sauts filtre par la JOINTURE sur les
-  quatre chemins (liste, détail, modification, suppression) et refuse de
-  rattacher à un parent qui n'appartient pas à l'appelant.
+* the validator resolves a chain of 2 and 3 links up to the right actor;
+* a cycle, a dead end (no account) and a link owned by several entities are
+  REFUSED — point 80's defect class does not reappear through depth;
+* on a real server, the 2-hop chain filters by the JOIN on all four paths
+  (list, detail, update, delete) and refuses attaching to a parent that does
+  not belong to the caller.
 
-Les identifiants sont volontairement DIVERGENTS (plusieurs commandes créées
-avant les assertions), comme en brique 11.
+The identifiers are deliberately DIVERGENT (several orders created before
+the assertions), as in brick 11.
 """
 
 import contextlib
@@ -50,11 +47,11 @@ relation Machin hasMany Ligne
 
 """
 
-# ---------------------------------------------------------------------------
-# Résolution de la chaîne — le cœur de la brique 24
-# ---------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Chain resolution — the heart of brick 24
+# -----------------------------------------------------------------------------
 
-def test_une_chaine_a_deux_maillons_est_resolue():
+def test_a_two_link_chain_is_resolved():
     spec = """app P2
 """ + CADRE + """relation Client hasMany Commande
 relation Commande hasMany Bloc
@@ -87,11 +84,11 @@ workflow W for Client
     transitif = ast["security"]["transitive_ownership"]
     # La brique 11 (un saut) reste LA MÊME forme.
     assert transitif["Bloc"] == {"chain": ["Commande"], "actor": "Client"}
-    # La brique 24 remonte toute la profondeur jusqu'à l'acteur.
+    # Brick 24 walks the whole depth up to the actor.
     assert transitif["Ligne"] == {"chain": ["Bloc", "Commande"], "actor": "Client"}
 
 
-def test_une_chaine_a_trois_maillons_est_resolue():
+def test_a_three_link_chain_is_resolved():
     spec = """app P3
 entity Commande
     libelle: String
@@ -132,7 +129,7 @@ workflow W for Client
                                   "actor": "Client"}
 
 
-def test_un_cycle_est_refuse():
+def test_a_cycle_is_refused():
     spec = """app Cyc
 entity C1
     champ: Integer
@@ -151,7 +148,7 @@ workflow W for A
         _validate(spec)
 
 
-def test_une_chaine_qui_n_aboutit_a_aucun_compte_est_refusee():
+def test_a_chain_reaching_no_account_is_refused():
     spec = """app SansCompte
 entity D1
     champ: Integer
@@ -167,7 +164,7 @@ workflow W for A
         _validate(spec)
 
 
-def test_un_maillon_possede_par_plusieurs_entites_est_ambigu():
+def test_a_link_owned_by_several_entities_is_ambiguous():
     spec = """app Ambigu
 entity X1
     champ: Integer
@@ -194,10 +191,10 @@ workflow W for A
 
 
 
-# ---------------------------------------------------------------------------
-# E2E sur un vrai serveur : une chaîne à DEUX sauts
+# -----------------------------------------------------------------------------
+# E2E on a real server: a TWO-hop chain
 #   Ligne -> Bloc -> Commande -> Client
-# ---------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
 SPEC = """app Profondeur
 
@@ -301,10 +298,9 @@ def _entetes(application, identifiant):
 def alice(application):
     entetes = _entetes(application, "alice_prof")
     base, _ = application
-    # Plusieurs commandes ET blocs AVANT toute assertion : ni les identifiants
-    # de commande ni ceux de bloc ne coïncident alors avec ceux des comptes
-    # (leçon du point 80 — un maillon confondu avec un compte masquerait le
-    # bug qu'on cherche à départager en profondeur 2).
+    # Several orders AND blocks BEFORE any assertion: neither order ids nor
+    # block ids then coincide with account ids (point 80's lesson — a link
+    # confused with an account would hide the bug we try to settle at depth 2).
     dernier = None
     for libelle in ("brouillon", "abandonnée", "en cours"):
         dernier = _commande(base, entetes, libelle)
@@ -332,7 +328,7 @@ def _bloc(base, entetes, commande_id):
     return r.json()["id"]
 
 
-def _ligne(base, entetes, bloc_id, article_id, quantite):
+def _line(base, entetes, bloc_id, article_id, quantite):
     return requests.post(f"{base}/ligne", headers=entetes,
                          json={"bloc_id": bloc_id, "article_id": article_id,
                                "quantite": quantite})
@@ -350,30 +346,30 @@ def _id_compte(dossier, identifiant):
                            (identifiant,)).fetchone()[0]
 
 
-# ---------------------------------------------------------------------------
-# La profondeur ouvre le schéma comme la profondeur 1 l'avait fait
-# ---------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Depth opens the schema the way depth 1 did
+# -----------------------------------------------------------------------------
 
-def test_les_cles_etrangeres_de_la_chaine_sont_dans_le_schema(application):
+def test_the_chain_foreign_keys_are_in_the_schema(application):
     base, _ = application
     schema = requests.get(f"{base}/openapi.json").json()
     bloc = schema["components"]["schemas"]["BlocSchema"]["properties"]
     ligne = schema["components"]["schemas"]["LigneSchema"]["properties"]
     assert "commande_id" in bloc       # Bloc -> Commande
-    assert "bloc_id" in ligne          # Ligne -> Bloc (le parent propriétaire)
-    assert "article_id" in ligne       # la simple relation, elle aussi
+    assert "bloc_id" in ligne          # Ligne -> Bloc (the owning parent)
+    assert "article_id" in ligne       # the plain relation, too
 
 
-# ---------------------------------------------------------------------------
-# Le défaut du point 80, transposé à la profondeur 2
-# ---------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Point 80's defect, transposed to depth 2
+# -----------------------------------------------------------------------------
 
-def test_le_maillon_stocke_est_celui_qui_a_ete_demande(application, alice):
+def test_the_stored_link_is_the_one_requested(application, alice):
     base, dossier = application
     commande = _commande(base, alice, "panier profond")
     bloc = _bloc(base, alice, commande)
     article = _id_article(dossier)
-    reponse = _ligne(base, alice, bloc, article, 2)
+    reponse = _line(base, alice, bloc, article, 2)
     assert reponse.status_code in (200, 201), reponse.text
     ligne_id = reponse.json()["id"]
 
@@ -385,32 +381,32 @@ def test_le_maillon_stocke_est_celui_qui_a_ete_demande(application, alice):
     assert bloc != compte and stocke != compte, "maillon et compte confondus"
 
 
-# ---------------------------------------------------------------------------
-# Refus croisés : l'appelant ne touche pas à la ligne d'un autre client
-# ---------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Cross refusals: the caller does not touch another customer's line
+# -----------------------------------------------------------------------------
 
-def test_lire_la_ligne_d_autrui_repond_404(application, alice, bob):
+def test_reading_someone_elses_line_answers_404(application, alice, bob):
     base, dossier = application
     commande = _commande(base, alice, "lire")
     bloc = _bloc(base, alice, commande)
-    ligne_id = _ligne(base, alice, bloc, _id_article(dossier), 1).json()["id"]
+    ligne_id = _line(base, alice, bloc, _id_article(dossier), 1).json()["id"]
     assert requests.get(f"{base}/ligne/{ligne_id}",
                         headers=bob).status_code == 404
 
 
-def test_creer_dans_le_bloc_d_autrui_est_refuse(application, alice, bob):
+def test_creating_in_someone_elses_block_is_refused(application, alice, bob):
     base, dossier = application
     commande = _commande(base, alice, "créer")
     bloc = _bloc(base, alice, commande)
-    reponse = _ligne(base, bob, bloc, _id_article(dossier), 1)
+    reponse = _line(base, bob, bloc, _id_article(dossier), 1)
     assert reponse.status_code == 403, reponse.text
 
 
-def test_modifier_la_ligne_d_autrui_est_refuse(application, alice, bob):
+def test_updating_someone_elses_line_is_refused(application, alice, bob):
     base, dossier = application
     commande = _commande(base, alice, "modifier")
     bloc = _bloc(base, alice, commande)
-    ligne_id = _ligne(base, alice, bloc, _id_article(dossier), 1).json()["id"]
+    ligne_id = _line(base, alice, bloc, _id_article(dossier), 1).json()["id"]
     refuse = requests.put(f"{base}/ligne/{ligne_id}", headers=bob,
                           json={"quantite": 50, "bloc_id": bloc,
                                 "article_id": _id_article(dossier)})
@@ -421,11 +417,11 @@ def test_modifier_la_ligne_d_autrui_est_refuse(application, alice, bob):
     assert quantite == 1, "la ligne a été modifiée malgré le refus"
 
 
-def test_supprimer_la_ligne_d_autrui_est_refuse(application, alice, bob):
+def test_deleting_someone_elses_line_is_refused(application, alice, bob):
     base, dossier = application
     commande = _commande(base, alice, "supprimer")
     bloc = _bloc(base, alice, commande)
-    ligne_id = _ligne(base, alice, bloc, _id_article(dossier), 1).json()["id"]
+    ligne_id = _line(base, alice, bloc, _id_article(dossier), 1).json()["id"]
     refuse = requests.delete(f"{base}/ligne/{ligne_id}", headers=bob)
     assert refuse.status_code == 403, refuse.text
     with _base(dossier) as cnx:
@@ -434,11 +430,11 @@ def test_supprimer_la_ligne_d_autrui_est_refuse(application, alice, bob):
     assert reste == 1, "la ligne a été supprimée malgré le refus"
 
 
-def test_le_proprietaire_modifie_et_supprime_sa_ligne(application, alice):
+def test_the_owner_updates_and_deletes_their_line(application, alice):
     base, dossier = application
     commande = _commande(base, alice, "à moi")
     bloc = _bloc(base, alice, commande)
-    ligne_id = _ligne(base, alice, bloc, _id_article(dossier), 1).json()["id"]
+    ligne_id = _line(base, alice, bloc, _id_article(dossier), 1).json()["id"]
 
     modifie = requests.put(f"{base}/ligne/{ligne_id}", headers=alice,
                            json={"quantite": 4, "bloc_id": bloc,
@@ -455,16 +451,16 @@ def test_le_proprietaire_modifie_et_supprime_sa_ligne(application, alice):
     assert reste == 0
 
 
-def test_la_liste_ne_montre_que_les_lignes_du_client(application, alice, bob):
+def test_the_list_only_shows_the_customers_lines(application, alice, bob):
     base, dossier = application
     commande = _commande(base, alice, "liste")
     bloc = _bloc(base, alice, commande)
     article = _id_article(dossier)
-    ids_alice = {_ligne(base, alice, bloc, article, 1).json()["id"] for _ in range(2)}
+    ids_alice = {_line(base, alice, bloc, article, 1).json()["id"] for _ in range(2)}
 
     commande_bob = _commande(base, bob, "liste bob")
     bloc_bob = _bloc(base, bob, commande_bob)
-    _ligne(base, bob, bloc_bob, article, 1)
+    _line(base, bob, bloc_bob, article, 1)
 
     liste = requests.get(f"{base}/ligne", headers=alice).json()
     vus = {ligne["id"] for ligne in liste["data"]}

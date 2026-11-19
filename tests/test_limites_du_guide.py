@@ -1,15 +1,15 @@
-"""La table « Ce que cette plateforme ne fait pas » est CONFRONTÉE au code.
+"""The table "What this platform does not do" is CHECKED against the code.
 
-Elle était écrite à la main, et une de ses quatre lignes s'était périmée sans
-bruit : « Aucun téléversement — une spec déclarant un bloc `assets` ou un champ
-`Image` est refusée ». Mesuré contre la plateforme en marche, une spec portant
-un champ `Upload` compile en 201, et le backend produit reçoit de vrais
-fichiers depuis la brique 32. C'est le défaut du point 178 par une autre porte :
-une affirmation que rien ne relie à ce que le code fait.
+It was hand-written, and one of its four lines had gone stale silently: "No
+upload — a spec declaring an `assets` block or an `Image` field is refused".
+Measured against the running platform, a spec carrying an `Upload` field
+compiles with 201, and the produced backend receives real files since brick
+32. It is point 178's defect through another door: a statement nothing ties
+to what the code does.
 
-Ce fichier ne relit pas le texte de la table pour vérifier qu'il est bien écrit
-— il MESURE ce que le compilateur accepte et refuse, puis exige que la table
-ne dise pas le contraire.
+This file does not reread the table's text to check it is well written — it
+MEASURES what the compiler accepts and refuses, then requires that the table
+not say the opposite.
 """
 
 import contextlib
@@ -52,17 +52,17 @@ def _spec(champs="", regles="rule Realisation.Read public", relation="", seed=""
 
 
 def _compile(spec, dossier):
-    """Le chemin de la PLATEFORME : `base_dir` est le dossier du projet, donc
-    l'existence des fichiers déclarés est vraiment vérifiée (point 83)."""
+    """The PLATFORM path: `base_dir` is the project folder, so the existence of
+    declared files is really checked (point 83)."""
     with contextlib.redirect_stdout(io.StringIO()):
         return MonlAST(parse_monl_string(spec),
                        base_dir=str(dossier)).validate_and_audit()
 
 
-# --- ce que le compilateur fait VRAIMENT -------------------------------------
+# --- what the compiler REALLY does -------------------------------------------
 
 def test_un_champ_upload_compile(tmp_path):
-    """Le fichier envoyé à l'EXÉCUTION : c'est ce que la table niait."""
+    """The file sent at RUNTIME: that is what the table denied."""
     spec = _spec(
         champs="    piece: Upload\n",
         relation="\nrelation Admin hasMany Realisation\n",
@@ -72,21 +72,21 @@ def test_un_champ_upload_compile(tmp_path):
     assert _compile(spec, tmp_path)["meta"]["appName"] == "Vitrine"
 
 
-def test_un_champ_image_sans_valeur_compile(tmp_path):
-    """Un champ `Image` déclare un TYPE, pas un chemin — il n'y a rien à
-    vérifier tant qu'aucune valeur ne désigne un fichier."""
+def test_an_image_field_without_value_compiles(tmp_path):
+    """An `Image` field declares a TYPE, not a path — there is nothing to check
+    as long as no value designates a file."""
     assert _compile(_spec(champs="    photo: Image\n"), tmp_path)
 
 
-def test_un_asset_declare_mais_absent_est_refuse(tmp_path):
-    """La limite RÉELLE : le fichier fourni à la COMPILATION."""
+def test_a_declared_but_missing_asset_is_refused(tmp_path):
+    """The REAL limit: the file provided at COMPILE time."""
     spec = 'app Vitrine\n\nassets\n    dir: "assets"\n    logo: "absent.svg"\n' \
            + _spec()[len("app Vitrine\n"):]
     with pytest.raises(ASTValidationError, match=re.escape("absent.svg")):
         _compile(spec, tmp_path)
 
 
-def test_une_valeur_image_pointant_un_fichier_absent_est_refusee(tmp_path):
+def test_an_image_value_pointing_to_a_missing_file_is_refused(tmp_path):
     spec = _spec(champs="    photo: Image\n",
                  seed='\nseed Realisation\n    titre: "Halo"\n'
                       '    photo: "absente.jpg"\n')
@@ -94,21 +94,21 @@ def test_une_valeur_image_pointant_un_fichier_absent_est_refusee(tmp_path):
         _compile(spec, tmp_path)
 
 
-# --- la table ne doit pas dire le contraire ----------------------------------
+# --- the table must not say the opposite -------------------------------------
 
-def test_aucune_limite_ne_nie_le_televersement_a_l_execution(tmp_path):
-    """Le défaut exact qui s'était périmé.
+def test_no_limit_denies_upload_at_runtime(tmp_path):
+    """The exact defect that had gone stale.
 
-    Le lien est DÉRIVÉ : on compile d'abord la spec `Upload` ; si elle passe,
-    aucune ligne de la table n'a le droit de dire qu'on ne peut envoyer aucun
-    fichier. Recopier la phrase attendue ne mesurerait que ma propre recopie."""
+    The link is DERIVED: the `Upload` spec is compiled first; if it passes, no
+    line of the table may say that no file can be sent. Copying the expected
+    sentence would only measure my own copy."""
     spec = _spec(
         champs="    piece: Upload\n",
         relation="\nrelation Admin hasMany Realisation\n",
         regles=('rule Realisation.piece upload max 5242880 types "image/png"\n'
                 "rule Realisation.Read ownedBy Admin\n"
                 "rule Realisation.Update ownedBy Admin"))
-    _compile(spec, tmp_path)                      # échoue ici si ça ne compile plus
+    _compile(spec, tmp_path)                      # fails here if it no longer compiles
 
     for titre, texte in LIMITES:
         entier = f"{titre} {texte}".lower()
@@ -117,9 +117,9 @@ def test_aucune_limite_ne_nie_le_televersement_a_l_execution(tmp_path):
             f"compile : « {titre} »")
 
 
-def test_la_limite_des_fichiers_nomme_les_deux_moments():
-    """Une limite qui ne dit pas QUAND le fichier arrive laisse croire que la
-    plateforme n'en accepte aucun — c'est la lecture qui s'est périmée."""
+def test_the_file_limit_names_both_moments():
+    """A limit that does not say WHEN the file arrives suggests the platform
+    accepts none — that is the reading that went stale."""
     ligne = next((f"{t} {x}" for t, x in LIMITES
                   if "compile" in t.lower()), None)
     assert ligne, f"aucune ligne sur les fichiers de compilation : {LIMITES}"
@@ -127,32 +127,31 @@ def test_la_limite_des_fichiers_nomme_les_deux_moments():
     assert "assets" in ligne
 
 
-# --- ce qu'on dit au lecteur d'installer -------------------------------------
+# --- what the reader is told to install --------------------------------------
 
 def _nom_de_distribution():
-    """Le nom LU dans `pyproject.toml`, jamais recopié.
+    """The name READ from `pyproject.toml`, never copied.
 
-    L'import est DANS la fonction et porte son repli : `tomllib` n'arrive
-    qu'en 3.11, le minimum déclaré est 3.10, et un import de tête ferait
-    échouer la COLLECTE du fichier entier sur cette version — le témoin
-    d'architecture qui l'interdit a mordu en écrivant ce banc."""
+    The import is INSIDE the function and carries its fallback: `tomllib` only
+    arrives in 3.11, the declared minimum is 3.10, and a top-level import would
+    make COLLECTION of the whole file fail on that version — the architecture
+    witness forbidding it bit while writing this bench."""
     try:
         import tomllib
     except ModuleNotFoundError:      # 3.10 : `tomllib` n'arrive qu'en 3.11
-        import tomli as tomllib      # noqa: I001  (déclaré dans l'extra `dev`)
+        import tomli as tomllib      # noqa: I001  (declared in the `dev` extra)
     with open(RACINE / "pyproject.toml", "rb") as f:
         return tomllib.load(f)["project"]["name"]
 
 
 def _noms_installes_depuis_un_index(texte):
-    """Les noms que les commandes `pip install` / `pipx install` vont CHERCHER
-    sur un index, par opposition à un chemin local ou à un fichier d'exigences.
+    """The names `pip install` / `pipx install` commands will LOOK UP on an index,
+    as opposed to a local path or a requirements file.
 
-    Un chemin porte une barre oblique, commence par un point ou un tilde ; un
-    drapeau commence par un tiret ; l'argument qui suit `-r`, `-c` ou
-    `--requirement` est un FICHIER. L'extra (`[ai]`) et une contrainte de
-    version (`==0.9.0b9`) sont retirés : c'est le NOM qui décide de ce qui
-    est installé."""
+    A path carries a slash, starts with a dot or a tilde; a flag starts with a
+    dash; the argument following `-r`, `-c` or `--requirement` is a FILE. The
+    extra (`[ai]`) and a version constraint (`==0.9.0b9`) are removed: the NAME
+    decides what is installed."""
     noms = []
     for commande in re.findall(r"pipx? install ([^<\n`]*)", texte):
         suivant_est_un_fichier = False
@@ -172,8 +171,8 @@ def _noms_installes_depuis_un_index(texte):
 
 
 def test_l_extracteur_distingue_un_nom_d_un_chemin():
-    """Sans ce témoin, un extracteur qui ne rend rien rendrait la règle
-    ci-dessous verte sans rien regarder (point 161)."""
+    """Without this witness, an extractor returning nothing would make the rule
+    below green while looking at nothing (point 161)."""
     assert _noms_installes_depuis_un_index("pip install monl") == ["monl"]
     assert _noms_installes_depuis_un_index(
         "pip install 'monl-compiler[ai]'") == ["monl-compiler"]
@@ -183,22 +182,21 @@ def test_l_extracteur_distingue_un_nom_d_un_chemin():
         "pip install ./monl-compiler -r requirements.txt -e .") == []
 
 
-def test_une_installation_depuis_un_index_nomme_la_vraie_distribution():
-    """`monl-compiler` est publié sur PyPI depuis la 0.9.0-beta.9 : l'ancien
-    témoin, qui interdisait toute installation depuis un index tant que rien
-    n'était publié, l'annonçait lui-même — « le jour de la publication, c'est
-    lui qui rappellera de revisiter ces lignes ».
+def test_an_installation_from_an_index_names_the_real_distribution():
+    """`monl-compiler` has been published on PyPI since 0.9.0-beta.9: the old
+    witness, which forbade any installation from an index as long as nothing was
+    published, announced it itself — "on publication day, it will be the one
+    reminding us to revisit these lines".
 
-    Le danger qui reste est le NOM. `monl` tout court est LIBRE sur l'index
-    (point 167bis) : une documentation qui écrirait `pip install monl`
-    ferait installer le paquet de quiconque s'en emparerait. Toute
-    installation depuis un index doit donc nommer la distribution LUE dans
-    `pyproject.toml`.
+    The danger that remains is the NAME. Plain `monl` is FREE on the index
+    (point 167bis): documentation writing `pip install monl` would install the
+    package of whoever grabbed it. Every installation from an index must
+    therefore name the distribution READ from `pyproject.toml`.
 
-    Mesuré le 24/09/2026 : sans `--pre`, `pip install monl-compiler` installe
-    bien la bêta — pip accepte une pré-version quand l'index n'a rien d'autre.
-    Le drapeau n'est donc pas exigé ici ; l'exiger enseignerait une étape
-    inutile."""
+    Measured on 24/09/2026: without `--pre`, `pip install monl-compiler` does
+    install the beta — pip accepts a pre-release when the index has nothing else.
+    The flag is therefore not required here; requiring it would teach a useless
+    step."""
     table = ["README.md", "QUICKSTART.md"]
 
     def cas(chemin):
@@ -212,9 +210,9 @@ def test_une_installation_depuis_un_index_nomme_la_vraie_distribution():
     verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
 
-def test_le_guide_n_installe_que_la_vraie_distribution():
-    """Même règle sur la page SERVIE, et pas sur la constante du module :
-    c'est entre les deux que le point 163 a vu une page se casser."""
+def test_the_guide_only_installs_the_real_distribution():
+    """Same rule on the SERVED page, not on the module constant: point 163 saw a
+    page break between the two."""
     nom = _nom_de_distribution()
     etrangers = [n for n in _noms_installes_depuis_un_index(guide_html())
                  if n != nom]

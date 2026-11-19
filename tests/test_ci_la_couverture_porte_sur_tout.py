@@ -31,8 +31,8 @@ from support.ci_workflow import (
     commandes_pytest,
     fichiers_de_tests,
     options_de_couverture,
-    selection_dune_commande,
     project_coverage_threshold,
+    selection_dune_commande,
 )
 
 

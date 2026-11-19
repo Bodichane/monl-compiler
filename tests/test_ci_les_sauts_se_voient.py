@@ -16,7 +16,7 @@ again), and each carries `-rs` (otherwise the summary exists but names
 nobody).
 """
 
-from support.ci_workflow import CI, project_addopts, commandes_pytest
+from support.ci_workflow import CI, commandes_pytest, project_addopts
 
 # `commandes_pytest` lives in `tests/support/ci_workflow.py` and not here: two
 # test files now read this workflow, and two readings of the same YAML folding
