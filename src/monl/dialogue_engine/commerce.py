@@ -115,6 +115,42 @@ class CommerceMixin:
 
         Returns None, or a dictionary describing the derivation. Mutates
         `entities` and `relations` to add what the brick requires."""
+        candidats = self._candidats_payables(entities, owned)
+        if not candidats:
+            return None
+        if not self._ask_yes_no(
+                "Does this application accept online payments?"):
+            return None
+        choix = self._choisir_le_montant(candidats)
+        entite, montant, source, prix = choix
+        resultat = {"entity": entite, "field": montant,
+                    "source_entity": source, "source_field": prix,
+                    "factor": self.CHAMP_QUANTITE}
+        # POINT 89: the timestamp, added at the END — the emitter's "first
+        # required field" rule would otherwise apply to a field the client
+        # cannot send, and compilation would fail (point 85 cross-check).
+        if not any(c == self.CHAMP_DATE for c, _t in entities[entite]):
+            entities[entite].append((self.CHAMP_DATE, "DateTime"))
+
+        # POINT 86: the dialogue could produce an order with ONE item — the
+        # point 77 shape — while the compiler has been able to make a cart
+        # since point 82. A capability the dialogue does not express does not
+        # exist for anyone who does not write the spec by hand: exactly the
+        # argument that gave birth to this question at point 75, still valid
+        # four bricks later.
+        self._construire_le_panier(entite, montant, source, resultat,
+                                   entities, owned, relations, managers, readers)
+
+        self._demander_le_stock(source, prix, entities, resultat)
+
+        self._show(self.ui.note(
+            f"Amount charged: {entite}.{montant} — CALCULATED by the server, "
+            "never sent by the browser. Without this calculation, the buyer "
+            "would set their own price."))
+        return resultat
+
+    def _candidats_payables(self, entities, owned):
+        """(entity, amount, catalog, price) pairs the server can calculate."""
         candidats = []
         for ent in entities:
             if ent not in owned:
@@ -135,34 +171,20 @@ class CommerceMixin:
                         if t in ("Money", "Float", "Integer")]
                 if prix:
                     candidats.append((ent, montants[0], source, prix[0]))
-        if not candidats:
-            return None
-        if not self._ask_yes_no(
-                "Does this application accept online payments?"):
-            return None
-        if len(candidats) == 1:
-            choix = candidats[0]
-        else:
-            libelles = [f"{e}.{m} (calculated from {s}.{p})"
-                        for e, m, s, p in candidats]
-            choix = candidats[libelles.index(
-                self._ask_choice("Which amount should be charged?", libelles))]
-        entite, montant, source, prix = choix
-        resultat = {"entity": entite, "field": montant,
-                    "source_entity": source, "source_field": prix,
-                    "factor": self.CHAMP_QUANTITE}
-        # POINT 89: the timestamp, added at the END — the emitter's "first
-        # required field" rule would otherwise apply to a field the client
-        # cannot send, and compilation would fail (point 85 cross-check).
-        if not any(c == self.CHAMP_DATE for c, _t in entities[entite]):
-            entities[entite].append((self.CHAMP_DATE, "DateTime"))
+        return candidats
 
-        # POINT 86: the dialogue could produce an order with ONE item — the
-        # point 77 shape — while the compiler has been able to make a cart
-        # since point 82. A capability the dialogue does not express does not
-        # exist for anyone who does not write the spec by hand: exactly the
-        # argument that gave birth to this question at point 75, still valid
-        # four bricks later.
+    def _choisir_le_montant(self, candidats):
+        """The only candidate, or the one the author picks."""
+        if len(candidats) == 1:
+            return candidats[0]
+        libelles = [f"{e}.{m} (calculated from {s}.{p})"
+                    for e, m, s, p in candidats]
+        return candidats[libelles.index(
+            self._ask_choice("Which amount should be charged?", libelles))]
+
+    def _construire_le_panier(self, entite, montant, source, resultat,
+                              entities, owned, relations, managers, readers):
+        """Multi-item cart (lines, transitive ownership) or single-item shape."""
         panier = self._ask_yes_no(
             f"Can a {entite} contain MULTIPLE different items?")
         if panier:
@@ -192,6 +214,8 @@ class CommerceMixin:
             if not any(r[0] == source and r[2] == entite for r in relations):
                 relations.append((source, "hasMany", entite))
 
+    def _demander_le_stock(self, source, prix, entities, resultat):
+        """Offers the stock countdown, never guessing the field."""
         # POINT 86: the stock count, made reachable here. The field is not
         # GUESSED among the catalog's integers — guessing wrong would silently
         # count down something other than what one thinks.
@@ -201,9 +225,3 @@ class CommerceMixin:
             resultat["stock_field"] = (stocks[0] if len(stocks) == 1 else
                                        self._ask_choice("Which field holds the stock?",
                                                         stocks))
-
-        self._show(self.ui.note(
-            f"Amount charged: {entite}.{montant} — CALCULATED by the server, "
-            "never sent by the browser. Without this calculation, the buyer "
-            "would set their own price."))
-        return resultat
