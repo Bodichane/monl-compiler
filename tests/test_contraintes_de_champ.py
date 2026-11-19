@@ -116,7 +116,7 @@ def test_a_nonexistent_field_is_refused(capsys):
     verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
 
-def test_une_entite_inexistante_est_refusee(capsys):
+def test_a_nonexistent_entity_is_refused(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC + "rule Fantome.pseudo required\n")
     assert "'Fantome'" in str(refus.value) and "which does not exist" in str(refus.value)

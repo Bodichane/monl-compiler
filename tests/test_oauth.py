@@ -1,13 +1,12 @@
-"""Connexion par Google ou GitHub, éprouvée contre un faux fournisseur.
+"""Google or GitHub sign-in, tested against a fake provider.
 
-La plateforme dépense de l'argent réel à chaque construction : un compte
-ouvert avec une chaîne quelconque est une porte d'abus. Elle n'envoie pour
-autant AUCUN message — la frontière du point 95 tient — elle délègue à un
-fournisseur qui a déjà vérifié l'adresse.
+The platform spends real money on every build: an account opened with any
+string is an abuse door. Yet it sends NO message — point 95's boundary holds —
+it delegates to a provider that has already verified the address.
 
-Le faux fournisseur est embarqué ici, comme le faux Stripe de
-`tests/test_paiement.py` : sans lui, la brique ne serait éprouvable qu'en
-appelant le vrai GitHub, c'est-à-dire jamais.
+The fake provider is embedded here, like `tests/test_paiement.py`'s fake
+Stripe: without it, the brick could only be tested by calling the real
+GitHub, that is never.
 """
 
 import json
@@ -53,14 +52,14 @@ class FakeProvider:
     provider_name = "test"
     model = "test-model"
 
-    def __call__(self, _prompt):  # pragma: no cover - jamais appelé ici
+    def __call__(self, _prompt):  # pragma: no cover - never called here
         raise AssertionError("la connexion n'appelle aucune IA")
 
 
-# ───────────────────────────────────────────── le faux GitHub embarqué ──
+# ───────────────────────────────────────────────── the embedded fake GitHub ──
 class _FauxGitHub(BaseHTTPRequestHandler):
-    #: Ce que le compte renverra. Modifié par les tests pour éprouver le
-    #: refus d'une adresse NON vérifiée.
+    #: What the account will return. Changed by the tests to test refusing an
+    #: UNverified address.
     verifiee = True
     codes_vus = []
 
@@ -148,7 +147,7 @@ def plateforme(tmp_path, faux_github, monkeypatch):
 
 
 def _aller(base, session):
-    """Suit le départ et rend le `state` que la plateforme a émis."""
+    """Follows the start and returns the `state` the platform issued."""
     depart = session.get(f"{base}/auth/github", allow_redirects=False, timeout=10)
     assert depart.status_code == 307, depart.text
     return parse_qs(urlparse(depart.headers["location"]).query)["state"][0]
@@ -160,8 +159,8 @@ def _nombre(base_path, table):
 
 
 # ────────────────────────────────────────────────────── configuration ──
-def test_un_fournisseur_sans_secret_n_est_pas_propose():
-    """Un bouton qui mène à un 503 est pire que pas de bouton."""
+def test_a_provider_without_secret_is_not_offered():
+    """A button leading to a 503 is worse than no button."""
     assert configured_providers({}) == []
     assert configured_providers({"MONL_OAUTH_GITHUB_CLIENT_ID": "x"}) == []
     prets = configured_providers({
@@ -169,7 +168,7 @@ def test_un_fournisseur_sans_secret_n_est_pas_propose():
     assert [p["name"] for p in prets] == ["github"]
 
 
-def test_une_variable_absente_est_NOMMEE(monkeypatch):
+def test_a_missing_variable_is_NAMED(monkeypatch):
     monkeypatch.delenv("MONL_OAUTH_GOOGLE_CLIENT_ID", raising=False)
     with pytest.raises(OAuthNotConfigured) as faute:
         authorize_url("google", "peu-importe", {})
@@ -177,9 +176,9 @@ def test_une_variable_absente_est_NOMMEE(monkeypatch):
     assert faute.value.status_code == 503
 
 
-def test_l_adresse_de_retour_vient_de_la_configuration():
-    """Jamais de l'en-tête Host : il est fourni par le client, et le lire
-    laisserait détourner l'aller-retour vers un domaine choisi ailleurs."""
+def test_the_return_address_comes_from_configuration():
+    """Never from the Host header: it is provided by the client, and reading it
+    would let the round trip be diverted to a domain chosen elsewhere."""
     env = {"MONL_PLATFORM_PUBLIC_URL": "https://monl.example/"}
 
     assert redirect_uri("github", env) == "https://monl.example/auth/github/retour"
@@ -188,20 +187,20 @@ def test_l_adresse_de_retour_vient_de_la_configuration():
 
 
 # ────────────────────────────────────────────────────────────── state ──
-def test_un_etat_forge_est_refuse():
+def test_a_forged_state_is_refused():
     with pytest.raises(OAuthError, match="not signed"):
         check_state("github.1700000000.abcd.empreinte.faux", "github", SECRET, "secret")
 
 
-def test_un_etat_d_un_autre_fournisseur_est_refuse():
+def test_another_providers_state_is_refused():
     etat = make_state("google", SECRET, "secret-navigateur")
     with pytest.raises(OAuthError, match="another provider"):
         check_state(etat, "github", SECRET, "secret-navigateur")
 
 
-def test_un_etat_perime_est_refuse():
-    """Sans date, un aller capté une fois resterait rejouable indéfiniment —
-    même raisonnement que la signature datée du webhook de paiement."""
+def test_an_expired_state_is_refused():
+    """Without a date, a start captured once would stay replayable forever —
+    same reasoning as the payment webhook's dated signature."""
     etat = make_state("github", SECRET, "secret-navigateur", maintenant=1_700_000_000)
 
     assert check_state(
@@ -213,7 +212,7 @@ def test_un_etat_perime_est_refuse():
         )
 
 
-def test_un_etat_signe_par_un_autre_serveur_est_refuse():
+def test_a_state_signed_by_another_server_is_refused():
     etat = make_state(
         "github", "un-autre-secret-de-plateforme-tout-autre", "secret-navigateur"
     )
@@ -222,7 +221,7 @@ def test_un_etat_signe_par_un_autre_serveur_est_refuse():
 
 
 # ─────────────────────────────────────── l'aller-retour, en vrai HTTP ──
-def test_le_depart_mene_au_fournisseur_avec_un_etat_signe(plateforme):
+def test_the_start_leads_to_the_provider_with_a_signed_state(plateforme):
     session = requests.Session()
     depart = session.get(f"{plateforme}/auth/github", allow_redirects=False, timeout=10)
 
@@ -235,7 +234,7 @@ def test_le_depart_mene_au_fournisseur_avec_un_etat_signe(plateforme):
     )
 
 
-def test_un_aller_retour_complet_ouvre_une_session(plateforme):
+def test_a_full_round_trip_opens_a_session(plateforme):
     session = requests.Session()
     depart = session.get(f"{plateforme}/auth/github", allow_redirects=False, timeout=10)
     etat = parse_qs(urlparse(depart.headers["location"]).query)["state"][0]
@@ -257,7 +256,7 @@ def test_un_aller_retour_complet_ouvre_une_session(plateforme):
     assert session.get(f"{plateforme}/console", timeout=10).status_code == 200
 
 
-def test_deux_connexions_ne_creent_qu_un_compte(plateforme):
+def test_two_logins_create_only_one_account(plateforme):
     session = requests.Session()
     for _ in range(2):
         depart = session.get(f"{plateforme}/auth/github", allow_redirects=False, timeout=10)
@@ -274,9 +273,9 @@ def test_deux_connexions_ne_creent_qu_un_compte(plateforme):
     assert len(session.cookies.get_dict()) == 1, "la session OAuth n'est pas unique"
 
 
-def test_une_adresse_non_verifiee_est_refusee(plateforme):
-    """Sans ce contrôle, la brique ne vérifierait rien : elle déplacerait la
-    chaîne quelconque d'un formulaire vers un autre."""
+def test_an_unverified_address_is_refused(plateforme):
+    """Without this check, the brick would verify nothing: it would move the
+    arbitrary string from one form to another."""
     _FauxGitHub.verifiee = False
     session = requests.Session()
     etat = _aller(plateforme, session)
@@ -292,9 +291,9 @@ def test_une_adresse_non_verifiee_est_refusee(plateforme):
     assert "verified" in retour.json()["detail"]
 
 
-def test_un_retour_sans_etat_valide_n_ouvre_rien(plateforme):
-    """La contre-épreuve du CSRF : un tiers qui déclenche le retour depuis
-    son propre site n'a pas d'état signé par nous."""
+def test_a_return_without_valid_state_opens_nothing(plateforme):
+    """The CSRF counter-proof: a third party triggering the return from their own
+    site has no state signed by us."""
     retour = requests.get(f"{plateforme}/auth/github/retour",
                           params={"code": "bon", "state": "github.1.2.3"},
                           allow_redirects=False, timeout=10)
@@ -303,10 +302,10 @@ def test_un_retour_sans_etat_valide_n_ouvre_rien(plateforme):
     assert "location" not in {k.lower() for k in retour.headers}
 
 
-def test_l_attaque_connexion_state_valide_sans_cookie_est_refusee(
+def test_the_login_attack_with_valid_state_without_cookie_is_refused(
     plateforme, tmp_path
 ):
-    """L'attaquant initie l'aller, mais la victime ne possède pas son secret."""
+    """The attacker starts the flow, but the victim does not own their secret."""
     attaquant = requests.Session()
     victime = requests.Session()
     etat = _aller(plateforme, attaquant)
@@ -326,7 +325,7 @@ def test_l_attaque_connexion_state_valide_sans_cookie_est_refusee(
     assert _nombre(tmp_path, "users") == 0
 
 
-def test_le_cookie_d_un_autre_aller_ne_valide_pas_le_state(plateforme):
+def test_another_flows_cookie_does_not_validate_the_state(plateforme):
     premier = requests.Session()
     autre = requests.Session()
     etat_premier = _aller(plateforme, premier)
@@ -344,7 +343,7 @@ def test_le_cookie_d_un_autre_aller_ne_valide_pas_le_state(plateforme):
     assert "monl_session" not in autre.cookies
 
 
-def test_un_callback_rejoue_apres_succes_est_refuse(plateforme):
+def test_a_callback_replayed_after_success_is_refused(plateforme):
     session = requests.Session()
     etat = _aller(plateforme, session)
     params = {"code": "bon", "state": etat}
@@ -367,7 +366,7 @@ def test_un_callback_rejoue_apres_succes_est_refuse(plateforme):
     assert _FauxGitHub.codes_vus == ["bon"]
 
 
-def test_le_cookie_oauth_est_transitoire_et_limite_aux_routes_oauth(
+def test_the_oauth_cookie_is_transient_and_limited_to_oauth_routes(
     plateforme, monkeypatch
 ):
     monkeypatch.setenv("MONL_COOKIE_SECURE", "1")
@@ -388,7 +387,7 @@ def test_le_cookie_oauth_est_transitoire_et_limite_aux_routes_oauth(
     assert morsel.value not in etat
 
 
-def test_un_refus_de_l_usager_n_est_pas_une_panne(plateforme):
+def test_a_user_refusal_is_not_a_failure(plateforme):
     retour = requests.get(f"{plateforme}/auth/github/retour",
                           params={"error": "access_denied"},
                           allow_redirects=False, timeout=10)
@@ -397,8 +396,8 @@ def test_un_refus_de_l_usager_n_est_pas_une_panne(plateforme):
     assert retour.headers["location"] == "/login?erreur=refus"
 
 
-def test_un_compte_de_fournisseur_ne_se_connecte_pas_par_mot_de_passe(plateforme):
-    """Il n'a AUCUN mot de passe : `None` ne doit jamais devenir une porte."""
+def test_a_provider_account_does_not_log_in_by_password(plateforme):
+    """It has NO password: `None` must never become a door."""
     session = requests.Session()
     etat = _aller(plateforme, session)
     session.get(
@@ -417,12 +416,12 @@ def test_un_compte_de_fournisseur_ne_se_connecte_pas_par_mot_de_passe(plateforme
         assert reponse.status_code == 401, (essai, reponse.text)
 
 
-def test_un_compte_oauth_ne_vaut_jamais_un_mot_de_passe(tmp_path):
-    """Le contrôle qui compte, éprouvé à l'endroit où il décide.
+def test_an_oauth_account_is_never_worth_a_password(tmp_path):
+    """The check that counts, tested where it decides.
 
-    Le registre de main marque l'identité OAuth et `authenticate` la refuse
-    avant toute comparaison de secret. La session n'est ouverte que par le
-    retour fournisseur, jamais par le formulaire mot de passe.
+    The main registry marks the OAuth identity and `authenticate` refuses it
+    before any secret comparison. The session is only opened by the provider
+    return, never by the password form.
     """
     from monl_platform.identity import IdentityStore
 
@@ -433,16 +432,16 @@ def test_un_compte_oauth_ne_vaut_jamais_un_mot_de_passe(tmp_path):
     assert identities.session_user(identities.create_session(user_id))["email"] == "github:4242"
 
 
-def test_la_console_propose_les_fournisseurs_configures(plateforme):
+def test_the_console_offers_the_configured_providers(plateforme):
     liste = requests.get(f"{plateforme}/auth/fournisseurs", timeout=10).json()
 
     assert [f["name"] for f in liste["providers"]] == ["github"]
     assert liste["providers"][0]["label"] == "GitHub"
 
 
-# ────────────────────────────────────── refus au DÉMARRAGE, pas au clic ──
-def test_un_fournisseur_sans_adresse_publique_est_refuse_par_sa_route(tmp_path, monkeypatch):
-    """L'adresse publique est exigée au moment où OAuth est utilisé."""
+# ───────────────────────────────────────── refusal at STARTUP, not on click ──
+def test_a_provider_without_public_address_is_refused_by_its_route(tmp_path, monkeypatch):
+    """The public address is required when OAuth is used."""
     monkeypatch.setenv("MONL_OAUTH_GITHUB_CLIENT_ID", "x")
     monkeypatch.setenv("MONL_OAUTH_GITHUB_SECRET", "y")
     monkeypatch.setenv("MONL_PLATFORM_OAUTH_STATE_SECRET", SECRET)
@@ -459,7 +458,7 @@ def test_un_fournisseur_sans_adresse_publique_est_refuse_par_sa_route(tmp_path, 
     assert "MONL_PLATFORM_PUBLIC_URL" in response.json()["detail"]
 
 
-# ─────────────────────── la console, pilotée comme un vrai navigateur ──
+# ────────────────────────────────── the console, driven like a real browser ──
 RUNNER = r"""
 const { JSDOM } = require("jsdom");
 const base = process.argv[2];
@@ -526,14 +525,13 @@ const rapport = {};
 """
 
 
-def test_la_console_traverse_la_connexion_dans_un_vrai_navigateur(plateforme, tmp_path):
-    """Le bout que le HTTP seul ne prouve pas : le bouton et le fragment.
+def test_the_console_goes_through_login_in_a_real_browser(plateforme, tmp_path):
+    """The part HTTP alone does not prove: the button and the fragment.
 
-    Un bouton peut exister et viser une route qui n'existe pas — c'est
-    exactement le faux négatif déjà rencontré sur un site déclaré réussi. Et
-    le jeton arrive dans le FRAGMENT : s'il n'est pas récolté puis effacé de
-    la barre d'adresse, il traîne dans l'historique et la session n'est pas
-    ouverte pour autant.
+    A button can exist and target a route that does not exist — exactly the
+    false negative already met on a site declared successful. And the token
+    arrives in the FRAGMENT: if it is not collected then cleared from the address
+    bar, it lingers in the history and the session is not opened anyway.
     """
     session = requests.Session()
     depart = session.get(f"{plateforme}/auth/github", allow_redirects=False, timeout=10)
@@ -552,7 +550,7 @@ def test_la_console_traverse_la_connexion_dans_un_vrai_navigateur(plateforme, tm
 
 
 @pytest.mark.parametrize("ancienne", [False, True])
-def test_suppression_oauth_exige_une_connexion_recente(plateforme, tmp_path, ancienne):
+def test_oauth_deletion_requires_a_recent_login(plateforme, tmp_path, ancienne):
     session = requests.Session()
     etat = _aller(plateforme, session)
     retour = session.get(plateforme + "/auth/github/retour",

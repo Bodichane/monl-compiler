@@ -118,7 +118,7 @@ def test_une_reference_sans_action_est_refusee(capsys):
     capsys.readouterr()
 
 
-def test_une_entite_inexistante_est_refusee(capsys):
+def test_a_nonexistent_entity_is_refused(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace("rule Commande.Create requiresOwn Client",
                              "rule Fantome.Create requiresOwn Client"))
