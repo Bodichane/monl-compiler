@@ -1243,7 +1243,7 @@ making a touch-up: does the content really say what we want to see?
   tested against a real server, and **neither the dialogue nor any of the ten
   models wrote them**. Point 146 word for word.
   **DERIVE RATHER THAN ASK**, because
-  `test_le_dialogue_a_bien_ete_allege` exists: `sort` derives from a
+  `test_the_dialogue_was_indeed_lightened` exists: `sort` derives from a
   `timestamp` (point 89 argument—“the only useful answer would be yes”),
   `filter` derives from a `oneOf` (CLOSED list, `allowed_values` already in the
   contract). Only `upload` requires a question: monl cannot guess that a record

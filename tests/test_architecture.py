@@ -1054,7 +1054,7 @@ def test_each_python_test_exercises_an_assertion():
     sans_temoin = []
     exemptions_servies = set()
     exemptions = {
-        "test_app_templates.py:test_chaque_modele_compile_tout_refuse":
+        "test_app_templates.py:test_each_template_compiles_all_refused":
             "la validation complète doit accepter chaque spec tout-refus; toute erreur échoue le test",
         "test_beta3_regressions.py:test_login_does_not_reveal_whether_the_account_exists":
             "ses assertions vivent dans le helper _mesurer_canal_temporel, appelé dans un try/finally qui arrête le serveur",
