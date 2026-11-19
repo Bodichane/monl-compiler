@@ -1,31 +1,29 @@
-"""Briques 3, 4, 5 et 7 éprouvées contre un vrai serveur.
+"""Bricks 3, 4, 5 and 7 tested against a real server.
 
-Sur les huit briques de l'écosystème de capacités, trois seulement étaient
-exercées contre un serveur réel : `accessibleBy` (test_access_parties.py), le
-filtrage de lecture d'`ownedBy` (test_lecture_privee.py) et `hidden`
-(test_masquage_hidden.py, point 64). Les autres n'avaient que la couverture de
-COMPILATION apportée par `exemples/03_reseau_social.ml` — or CLAUDE.md le dit
-sans détour : compiler n'est pas se comporter correctement.
+Of the eight bricks of the capability ecosystem, only three were exercised
+against a real server: `accessibleBy` (test_access_parties.py), `ownedBy` read
+filtering (test_lecture_privee.py) and `hidden` (test_masquage_hidden.py,
+point 64). The others only had the COMPILE coverage brought by
+`exemples/03_reseau_social.ml` — and CLAUDE.md says it bluntly: compiling is
+not behaving correctly.
 
-Ce fichier ferme l'écart pour les quatre briques dont la promesse est
-comportementale, et qui portent chacune une garantie qu'une relecture ne
-prouve pas :
+This file closes the gap for the four bricks whose promise is behavioral, and
+which each carry a guarantee a review does not prove:
 
-* `generated` (brique 7) — le pseudonyme ne doit pas être forgeable depuis le
-  corps de requête. C'est la seule des quatre dont un défaut est une faille
-  d'intégrité et pas un affichage faux.
-* `increments` / `decrements` (briques 3 et 4) — le compteur doit bouger, du
-  montant déclaré, et sur le BON enregistrement. CLAUDE.md liste précisément
-  « un mécanisme de clé étrangère qui décrémentait le mauvais enregistrement »
-  parmi les bugs qui ne se sont jamais révélés à la lecture ; un témoin voisin
-  l'attrape ici.
-* `categorized` (brique 5) — la valeur numérique doit être remplacée, pas
-  doublée, y compris à la borne exacte (`below N` est strict), et rester en
-  base.
+* `generated` (brick 7) — the pseudonym must not be forgeable from the
+  request body. It is the only one of the four whose defect is an integrity
+  flaw and not a wrong display.
+* `increments` / `decrements` (bricks 3 and 4) — the counter must move, by
+  the declared amount, and on the RIGHT record. CLAUDE.md precisely lists "a
+  foreign key mechanism that decremented the wrong record" among the bugs
+  that never showed on reading; a neighboring witness catches it here.
+* `categorized` (brick 5) — the numeric value must be replaced, not doubled,
+  including at the exact bound (`below N` is strict), and stay in the
+  database.
 
-La spec assemble les quatre dans les rôles qu'elles occupent dans
-`exemples/03_reseau_social.ml`, en réduit : c'est cet assemblage qui avait
-révélé deux bugs réels au point 29, pas les briques prises isolément.
+The spec assembles the four in the roles they hold in
+`exemples/03_reseau_social.ml`, in miniature: it is this assembly that had
+revealed two real bugs at point 29, not the bricks taken alone.
 """
 import contextlib
 import os
@@ -98,13 +96,13 @@ def application():
 
 @contextlib.contextmanager
 def _base(dossier):
-    """Ouvre app.db en validant ET en fermant à la sortie.
+    """Opens app.db, committing AND closing on exit.
 
-    `with sqlite3.connect(...)` seul ne ferme PAS la connexion — il ne fait que
-    valider ou annuler la transaction. C'est le piège qui laissait la suite
-    émettre des ResourceWarning ; les fermetures se faisaient à la merci du
-    ramasse-miettes. Le code produit, lui, ferme explicitement (voir
-    generator/runtime.py) : la fuite n'a jamais concerné que le banc d'essai.
+    `with sqlite3.connect(...)` alone does NOT close the connection — it only
+    commits or rolls back the transaction. It is the trap that let the suite emit
+    ResourceWarnings; closings happened at the garbage collector's mercy. The
+    produced code does close explicitly (see generator/runtime.py): the leak only
+    ever concerned the test bench.
     """
     cnx = sqlite3.connect(os.path.join(dossier, "app.db"))
     try:
@@ -115,24 +113,22 @@ def _base(dossier):
 
 
 def _vider_quota(dossier):
-    """Efface le compteur de tentatives (5 / 60 s / IP, points 13 et 33).
+    """Clears the attempt counter (5 / 60 s / IP, points 13 and 33).
 
-    Même geste qu'au point 67, pour la même raison : ce fichier ouvre un
-    compte par test afin que les tests ne s'ordonnent pas implicitement les
-    uns les autres, ce qui dépasse le quota. Vider une table de compteurs côté
-    banc d'essai n'affaiblit rien du produit — desserrer le quota lui-même,
-    si.
+    Same gesture as at point 67, for the same reason: this file opens an account
+    per test so that tests do not implicitly order one another, which exceeds the
+    quota. Emptying a counter table on the bench side weakens nothing in the
+    product — loosening the quota itself would.
     """
     with _base(dossier) as cnx:
         cnx.execute("DELETE FROM _monl_rate_limit")
 
 
 def _entetes(application, identifiant):
-    """Inscrit un compte et renvoie ses en-têtes d'authentification.
+    """Registers an account and returns its authentication headers.
 
-    Chaque test emploie ses propres identifiants : la base vit le temps du
-    module, et des tests qui se partagent un compte s'ordonnent implicitement
-    les uns les autres.
+    Each test uses its own credentials: the database lives for the module, and
+    tests sharing an account implicitly order one another.
     """
     base, dossier = application
     _vider_quota(dossier)
@@ -160,11 +156,10 @@ def _post(base, identifiant):
 
 
 # --------------------------------------------------- brique 7 : generated --
-def test_le_champ_generated_ne_peut_pas_etre_forge_par_le_client(application):
-    """La promesse du point 30 : l'auteur vient du compte, jamais du corps de
-    requête. Un client qui envoie quand même le champ ne doit pas voir sa
-    valeur atterrir en base — sans quoi `generated` ne serait qu'une
-    convention d'affichage."""
+def test_the_generated_field_cannot_be_forged_by_the_client(application):
+    """Point 30's promise: the author comes from the account, never from the
+    request body. A client sending the field anyway must not see its value land
+    in the database — otherwise `generated` would only be a display convention."""
     base, dossier = application
     entetes = _entetes(application, "forgeuse")
 
@@ -177,19 +172,18 @@ def test_le_champ_generated_ne_peut_pas_etre_forge_par_le_client(application):
         f"l'auteur fourni par le client a été retenu : {corps}")
     assert corps["author"].startswith("Anon#"), corps
 
-    # Et pas seulement à l'affichage : la valeur forgée n'est pas non plus
-    # en base, où un autre lecteur (export, requête directe) la trouverait.
+    # And not only on display: the forged value is not in the database either,
+    # where another reader (export, direct query) would find it.
     with _base(dossier) as cnx:
         en_base = cnx.execute("SELECT author FROM post WHERE id = ?",
                               (identifiant,)).fetchone()
     assert en_base and en_base[0] == corps["author"], en_base
 
 
-def test_le_pseudonyme_est_stable_par_compte_et_distinct_entre_comptes(application):
-    """« Stable par compte » est la moitié de la promesse qu'une seule
-    création ne peut pas vérifier : deux posts du même compte, séparés par une
-    reconnexion, doivent porter le même pseudonyme — et celui d'un autre
-    compte doit en différer."""
+def test_the_pseudonym_is_stable_per_account_and_distinct_between_accounts(application):
+    """"Stable per account" is the half of the promise a single creation cannot
+    check: two posts of the same account, separated by a reconnection, must carry
+    the same pseudonym — and another account's must differ."""
     base, _dossier = application
     entetes = _entetes(application, "stable")
 
@@ -197,8 +191,8 @@ def test_le_pseudonyme_est_stable_par_compte_et_distinct_entre_comptes(applicati
     second = _cree(base, "post", entetes, {"content": "deux", "score": 0})
     assert _post(base, premier)["author"] == _post(base, second)["author"]
 
-    # Reconnexion : le pseudonyme est fixé à l'inscription, pas tiré à chaque
-    # session — un tirage par connexion casserait le fil d'un même auteur.
+    # Reconnection: the pseudonym is fixed at registration, not drawn at each
+    # session — a draw per login would break the thread of one author.
     rejeton = requests.post(f"{base}/login",
                             json={"username": "stable",
                                   "password": MOT_DE_PASSE}).json()
@@ -212,15 +206,15 @@ def test_le_pseudonyme_est_stable_par_compte_et_distinct_entre_comptes(applicati
     assert _post(base, ailleurs)["author"] != _post(base, premier)["author"]
 
 
-def test_le_champ_generated_est_absent_du_schema_de_creation(application):
-    """Le contrat public dit la même chose que le serveur : le modèle d'entrée
-    de la création n'expose pas le champ, alors qu'il expose ses voisins.
+def test_the_generated_field_is_absent_from_the_creation_schema(application):
+    """The public contract says the same thing as the server: the creation input
+    model does not expose the field, while it exposes its neighbors.
 
-    On interroge le composant réellement référencé par la requête plutôt que
-    le texte de la route : `author` absent d'une chaîne prouverait aussi bien
-    que le champ a disparu qu'il n'a jamais été cherché au bon endroit. Les
-    routes de LECTURE, elles, ne déclarent aucun `response_model` — leur
-    contenu se vérifie contre le serveur (tests ci-dessus), pas dans OpenAPI.
+    We query the component really referenced by the request rather than the
+    route text: `author` missing from a string would prove as well that the field
+    disappeared as that it was never looked for in the right place. READ routes
+    declare no `response_model` — their content is checked against the server
+    (tests above), not in OpenAPI.
     """
     base, _dossier = application
     schema = requests.get(f"{base}/openapi.json").json()
@@ -236,10 +230,10 @@ def test_le_champ_generated_est_absent_du_schema_de_creation(application):
 
 
 # ----------------------------------- briques 3 et 4 : compteurs transactionnels --
-def test_increments_touche_le_bon_enregistrement_et_lui_seul(application):
-    """Le témoin voisin est l'objet du test. Un compteur qui monte prouve
-    seulement qu'un UPDATE a eu lieu ; c'est le post NON visé, resté à sa
-    valeur, qui prouve que la clé étrangère désigne le bon."""
+def test_increments_touches_the_right_record_and_only_it(application):
+    """The neighboring witness is the point of the test. A counter going up only
+    proves an UPDATE happened; it is the NON-targeted post, left at its value,
+    that proves the foreign key designates the right one."""
     base, dossier = application
     entetes = _entetes(application, "likeuse")
 
@@ -255,9 +249,9 @@ def test_increments_touche_le_bon_enregistrement_et_lui_seul(application):
     assert valeurs[temoin] == 0, f"le voisin a bougé : {valeurs}"
 
 
-def test_decrements_retire_le_montant_declare_a_la_cible(application):
-    """`by 10` doit retirer 10, pas 1 : le montant est déclaré dans la spec et
-    c'est le générateur qui l'inscrit dans l'UPDATE."""
+def test_decrements_removes_the_declared_amount_from_the_target(application):
+    """`by 10` must remove 10, not 1: the amount is declared in the spec and the
+    generator writes it into the UPDATE."""
     base, _dossier = application
     entetes = _entetes(application, "signaleuse")
 
@@ -270,11 +264,11 @@ def test_decrements_retire_le_montant_declare_a_la_cible(application):
     assert _post(base, temoin)["score"] == 100
 
 
-def test_une_cible_inexistante_annule_toute_la_creation(application):
-    """Atomicité (bêta 1) : création et effet de compteur tiennent dans une
-    seule transaction. Une clé étrangère qui ne pointe sur rien est refusée en
-    409 — et l'enregistrement déclencheur ne doit PAS subsister, sinon la base
-    garderait un like orphelin dont le compteur n'a jamais bougé."""
+def test_a_nonexistent_target_cancels_the_whole_creation(application):
+    """Atomicity (beta 1): creation and counter effect hold in a single
+    transaction. A foreign key pointing to nothing is refused with 409 — and the
+    triggering record must NOT remain, otherwise the database would keep an
+    orphan like whose counter never moved."""
     base, dossier = application
     entetes = _entetes(application, "fantome")
 
@@ -295,10 +289,10 @@ def test_une_cible_inexistante_annule_toute_la_creation(application):
 
 
 # ------------------------------------------------- brique 5 : categorized --
-def test_categorized_remplace_la_valeur_en_liste_et_en_detail(application):
-    """Substitution, pas addition : la valeur exacte disparaît des deux routes
-    de lecture. La laisser à côté du libellé rendrait la brique inutile — son
-    objet est justement de ne pas publier le score."""
+def test_categorized_replaces_the_value_in_list_and_detail(application):
+    """Substitution, not addition: the exact value disappears from both read
+    routes. Leaving it beside the label would make the brick useless — its
+    purpose is precisely not to publish the score."""
     base, dossier = application
     entetes = _entetes(application, "categorisee")
 
@@ -315,10 +309,10 @@ def test_categorized_remplace_la_valeur_en_liste_et_en_detail(application):
     assert "likes" not in ligne, f"la valeur exacte fuit en liste : {ligne}"
 
 
-def test_categorized_traite_below_comme_une_borne_stricte(application):
-    """`below 10` exclut 10. La borne est le seul endroit où une chaîne
-    if/elif générée peut se décaler d'un cran sans que rien ne le signale ;
-    9, 10 et 100 l'encadrent des deux côtés."""
+def test_categorized_treats_below_as_a_strict_bound(application):
+    """`below 10` excludes 10. The bound is the only place where a generated
+    if/elif chain can shift by one without anything reporting it; 9, 10 and 100
+    frame it on both sides."""
     base, dossier = application
     entetes = _entetes(application, "bornes")
 
@@ -332,9 +326,9 @@ def test_categorized_traite_below_comme_une_borne_stricte(application):
             f"attendu {libelle}")
 
 
-def test_categorized_ne_touche_pas_a_la_valeur_stockee(application):
-    """Comme `hidden`, la brique agit à la lecture : le nombre reste en base,
-    intact — c'est lui que `increments` continue de faire monter."""
+def test_categorized_does_not_touch_the_stored_value(application):
+    """Like `hidden`, the brick acts on read: the number stays in the database,
+    intact — it is the one `increments` keeps raising."""
     base, dossier = application
     entetes = _entetes(application, "stockage")
 
@@ -348,7 +342,7 @@ def test_categorized_ne_touche_pas_a_la_valeur_stockee(application):
 
 
 def _peupler_compteur(dossier, identifiant, valeur):
-    """Préparation serveur des catégories, sans simuler une saisie client."""
+    """Server-side preparation of the categories, without simulating client input."""
     with _base(dossier) as cnx:
         cnx.execute("UPDATE post SET likes = ? WHERE id = ?", (valeur, identifiant))
 

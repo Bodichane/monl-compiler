@@ -1,16 +1,16 @@
-"""Un champ obligatoire né du DIALOGUE refuse aussi la chaîne VIDE.
+"""A required field born from the DIALOGUE also refuses the EMPTY string.
 
-`required` dit qu'un champ est PRÉSENT dans le corps de requête, jamais qu'il
-est REMPLI — c'est le point 85 lu à la lettre, et personne ne l'avait lu ainsi
-depuis le dialogue guidé. Mesuré sur une archive téléchargée par le
-mainteneur : une fiche de catalogue au titre `""` entrait en base en 200, et
-le site affichait une carte sans nom.
+`required` says a field is PRESENT in the request body, never that it is
+FILLED — it is point 85 read literally, and nobody had read it that way from
+the guided dialogue. Measured on an archive downloaded by the maintainer: a
+catalog record titled `""` entered the database with 200, and the site showed
+a card without a name.
 
-Ce banc part du CHEMIN USAGER — les réponses au dialogue, la spec qui en sort,
-le serveur qu'elle produit — et il vérifie les DEUX sens : la chaîne vide est
-refusée, et ce qui est légitime passe encore. Un instrument qui refuse tout
-est aussi inutile qu'un instrument qui accepte tout, et il a l'air plus
-sérieux (point 168).
+This bench starts from the USER PATH — the answers to the dialogue, the spec
+it produces, the server that spec produces — and checks BOTH directions: the
+empty string is refused, and what is legitimate still passes. An instrument
+that refuses everything is as useless as one that accepts everything, and it
+looks more serious (point 168).
 """
 
 import contextlib
@@ -33,10 +33,10 @@ from monl.parser import parse_monl_string
 from tests.support.server import uvicorn_server
 from tests.test_app_templates import _run_template
 
-#: Le modèle « Boutique en ligne » porte les DEUX cas dans une seule spec :
-#: `Customer.displayName` est du texte (borné), `Order.total` est un nombre
-#: (jamais borné). Un seul serveur suffit donc à éprouver la règle et sa
-#: limite.
+#: The "Online shop" template carries BOTH cases in a single spec:
+#: `Customer.displayName` is text (bounded), `Order.total` is a number (never
+#: bounded). A single server is therefore enough to test the rule and its
+#: limit.
 BOUTIQUE = next(i for i, t in enumerate(TEMPLATES, 1)
                 if t["name"] == "Online shop")
 
@@ -47,8 +47,8 @@ def _spec(index, reponse="n", seed=False):
 
 
 def _premiers_champs(index, reponse, seed):
-    """Le PREMIER champ de chaque entité, avec son type — c'est lui que le
-    dialogue rend obligatoire (`emit_base_rules`)."""
+    """The FIRST field of each entity, with its type — that is the one the
+    dialogue makes required (`emit_base_rules`)."""
     with contextlib.redirect_stdout(io.StringIO()):
         spec = _run_template(index, reponse, want_seed=seed)
         ast = MonlAST(parse_monl_string(spec)).validate_and_audit()
@@ -63,7 +63,7 @@ def _premiers_champs(index, reponse, seed):
 
 @pytest.fixture(scope="module")
 def boutique():
-    """Compile ce que le dialogue produit pour la boutique, et le fait tourner."""
+    """Compiles what the dialogue produces for the shop, and runs it."""
     spec = _spec(BOUTIQUE)
     with TemporaryDirectory(prefix="monl-texte-non-vide-") as dossier:
         with contextlib.redirect_stdout(io.StringIO()):
@@ -90,11 +90,11 @@ def entete(boutique):
     return {"Authorization": f"Bearer {connexion.json()['access_token']}"}
 
 
-# --- ce que le dialogue ÉCRIT ------------------------------------------------
+# --- what the dialogue WRITES ------------------------------------------------
 
-def test_tout_champ_texte_obligatoire_est_aussi_borne():
-    """Sur les dix modèles, dans les deux sens : un premier champ TEXTE rendu
-    obligatoire porte `min 1`. C'est la règle, balayée là où elle s'applique."""
+def test_every_required_text_field_is_also_bounded():
+    """On the ten templates, in both directions: a first TEXT field made required
+    carries `min 1`. That is the rule, swept where it applies."""
     manquants = []
     for index, modele in enumerate(TEMPLATES, 1):
         for reponse, seed in (("n", False), ("o", True)):
@@ -110,14 +110,14 @@ def test_tout_champ_texte_obligatoire_est_aussi_borne():
         + "\n  ".join(manquants))
 
 
-def test_un_premier_champ_numerique_ne_recoit_aucun_plancher():
-    """La limite de la règle, exercée sur son PRODUCTEUR.
+def test_a_first_numeric_field_gets_no_floor():
+    """The rule's limit, exercised on its PRODUCER.
 
-    Un balayage des dix modèles ne saurait pas la mesurer : `min 1` y est
-    aussi émis, à dessein, sur les quantités d'un mouvement de stock — par
-    une décision distincte (un mouvement de zéro unité ne veut rien dire).
-    Lire le texte de la spec confondrait les deux producteurs ; c'est
-    `emit_base_rules` qui porte la règle, donc c'est elle qu'on interroge."""
+    A sweep of the ten templates could not measure it: `min 1` is also emitted
+    there, on purpose, on the quantities of a stock movement — by a distinct
+    decision (a zero-unit movement means nothing). Reading the spec text would
+    confuse the two producers; `emit_base_rules` carries the rule, so it is the
+    one queried."""
     for type_ in ("Integer", "Float", "Money"):
         lignes = []
         emit_base_rules(lignes, {"Commande": [("total", type_)]},
@@ -130,8 +130,8 @@ def test_un_premier_champ_numerique_ne_recoit_aucun_plancher():
 
 
 def test_un_premier_champ_texte_recoit_son_plancher():
-    """La contre-épreuve du témoin ci-dessus : sans elle, une fonction qui
-    n'émettrait plus jamais de plancher les rendrait tous les deux verts."""
+    """The counter-proof of the witness above: without it, a function that never
+    emitted a floor again would make both green."""
     for type_ in TYPES_TEXTE:
         lignes = []
         emit_base_rules(lignes, {"Fiche": [("titre", type_)]},
@@ -141,47 +141,47 @@ def test_un_premier_champ_texte_recoit_son_plancher():
         assert "rule Fiche.titre min 1" in lignes, (type_, lignes)
 
 
-def test_la_boutique_borne_son_nom_et_pas_son_total():
-    """Les deux cas côte à côte dans une spec RÉELLE, celle qui fait tourner
-    le serveur de ce fichier."""
+def test_the_shop_bounds_its_name_not_its_total():
+    """Both cases side by side in a REAL spec, the one running this file's
+    server."""
     regles = {ligne.strip() for ligne in _spec(BOUTIQUE).splitlines()}
     assert "rule Customer.displayName min 1" in regles
     assert "rule Order.total required" in regles
     assert "rule Order.total min 1" not in regles
 
 
-def test_la_liste_des_types_texte_vient_du_compilateur():
-    """Elle n'est pas recopiée : une seconde liste finirait par diverger, et
-    le dialogue émettrait une règle que le compilateur refuse — le pire
-    résultat pour qui est guidé (point 173)."""
+def test_the_text_type_list_comes_from_the_compiler():
+    """It is not copied: a second list would end up diverging, and the dialogue
+    would emit a rule the compiler refuses — the worst outcome for someone being
+    guided (point 173)."""
     assert TYPES_TEXTE is ChampsMixin.BORNES_TEXTE
 
 
-# --- ce que le SERVEUR fait --------------------------------------------------
+# --- what the SERVER does ----------------------------------------------------
 
-def test_le_serveur_refuse_un_champ_texte_vide(boutique, entete):
-    """Le défaut mesuré sur l'archive du mainteneur, à sa source."""
+def test_the_server_refuses_an_empty_text_field(boutique, entete):
+    """The defect measured on the maintainer's archive, at its source."""
     reponse = requests.post(f"{boutique}/customer", headers=entete,
                             json={"displayName": ""}, timeout=10)
     assert reponse.status_code == 422, reponse.text
 
 
-def test_le_serveur_refuse_aussi_un_champ_qui_n_a_que_des_espaces(
+def test_the_server_also_refuses_a_whitespace_only_field(
         boutique, entete):
-    """Le vide après strip est refusé avant insertion."""
+    """Empty after strip is refused before insertion."""
     reponse = requests.post(f"{boutique}/customer", headers=entete,
                             json={"displayName": "   "}, timeout=10)
     assert reponse.status_code == 422, reponse.text
 
 
-def test_le_serveur_accepte_toujours_une_fiche_nommee(boutique, entete):
-    """La contre-épreuve qui distingue un plancher juste d'un plancher qui
-    refuse tout."""
+def test_the_server_still_accepts_a_named_record(boutique, entete):
+    """The counter-proof telling a right floor from a floor that refuses
+    everything."""
     reponse = requests.post(f"{boutique}/customer", headers=entete,
                             json={"displayName": " a "}, timeout=10)
     assert reponse.status_code == 200, reponse.text
-    # Relu EN BASE : un code de retour dit que la route a répondu, jamais que
-    # la valeur est arrivée.
+    # Reread IN THE DATABASE: a status code says the route answered, never that
+    # the value arrived.
     fiche = requests.get(f"{boutique}/customer/{reponse.json()['id']}",
                          headers=entete, timeout=10)
     assert fiche.status_code == 200, fiche.text
@@ -189,14 +189,14 @@ def test_le_serveur_accepte_toujours_une_fiche_nommee(boutique, entete):
 
 
 def test_un_total_a_zero_reste_accepte(boutique, entete):
-    """La limite, éprouvée contre le serveur et pas seulement dans la spec :
-    un panier vide vaut zéro, et le refuser casserait la boutique."""
+    """The limit, tested against the server and not only in the spec: an empty
+    cart is worth zero, and refusing it would break the shop."""
     reponse = requests.post(f"{boutique}/order", headers=entete,
                             json={"total": 0, "status": "nouvelle"}, timeout=10)
     assert reponse.status_code == 200, reponse.text
 
 
-def test_modification_refuse_le_vide_sans_changer_la_valeur(boutique, entete):
+def test_update_refuses_empty_without_changing_the_value(boutique, entete):
     creation = requests.post(f"{boutique}/customer", headers=entete,
                              json={"displayName": " a "}, timeout=10)
     assert creation.status_code == 200, creation.text
@@ -220,8 +220,9 @@ def test_texte_non_required_reste_accepte(boutique, entete):
     assert requests.get(url, headers=entete, timeout=10).json()["data"]["status"] == "   "
 
 
-def test_contrat_annonce_le_non_vide_et_la_signature_le_voit(tmp_path):
-    # Sans min 1 : la promesse appartient à required, pas au dialogue seul.
+def test_contract_announces_non_blank_and_the_signature_sees_it(tmp_path):
+    # Without min 1: the promise belongs to required, not to the dialogue
+    # alone.
     spec = _spec(BOUTIQUE).replace("rule Customer.displayName min 1", "")
     with contextlib.redirect_stdout(io.StringIO()):
         ast = MonlAST(parse_monl_string(spec)).validate_and_audit()

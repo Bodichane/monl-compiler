@@ -1069,7 +1069,7 @@ def test_chaque_test_python_exerce_une_assertion():
     exemptions = {
         "test_app_templates.py:test_chaque_modele_compile_tout_refuse":
             "la validation complète doit accepter chaque spec tout-refus; toute erreur échoue le test",
-        "test_beta3_regressions.py:test_login_ne_revele_pas_l_existence_du_compte":
+        "test_beta3_regressions.py:test_login_does_not_reveal_whether_the_account_exists":
             "ses assertions vivent dans le helper _mesurer_canal_temporel, appelé dans un try/finally qui arrête le serveur",
         "test_cli_commandes.py:test_run_check_passes_on_a_healthy_project":
             "le contrat est précisément que cmd_run termine normalement; une erreur lève SystemExit et échoue",
