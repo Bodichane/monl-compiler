@@ -400,7 +400,6 @@ EXCEPTIONS_DE_COMPLEXITE = {
     "monl/dialogue_engine/libre.py:_run_free": (46, "Parcours de dialogue hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/dialogue_engine/parcours.py:_run_from_template": (36, "Parcours de dialogue hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/frontend_contract/brief.py:_render_prompt": (46, "Émission de prompt ligne par ligne conservée pour rester lisible ; cas plat hors des cinq cibles."),
-    "monl/frontend_contract/roles_de_champs.py:_assign_field_roles": (39, "Attribution de rôles hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
 }
 
 
