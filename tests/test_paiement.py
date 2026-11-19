@@ -1,30 +1,28 @@
-"""La brique `payable` éprouvée contre un vrai serveur et un faux Stripe.
+"""The `payable` brick tested against a real server and a fake Stripe.
 
-CLAUDE.md le dit sans détour : compiler n'est pas se comporter correctement,
-et « toute NOUVELLE brique doit arriver avec son test contre serveur ». Le
-paiement est la première brique de monl dont un défaut ne se paie pas en
-affichage faux mais en argent — c'est aussi la première qui fait sortir une
-requête du backend généré. Elle ne peut pas se contenter d'une couverture de
-compilation.
+CLAUDE.md says it bluntly: compiling is not behaving correctly, and "any NEW
+brick must arrive with its server test". Payment is monl's first brick whose
+defect is paid not in a wrong display but in money — it is also the first that
+sends a request out of the generated backend. It cannot settle for compile
+coverage.
 
-Le prestataire est remplacé par un serveur HTTP local qui parle son dialecte
-(`MONL_STRIPE_BASE_URL`, prévu pour cela dans le code généré). Il n'est pas là
-pour simuler poliment : il **enregistre ce qu'on lui envoie**, et c'est cet
-enregistrement qui porte la garantie centrale — le montant encaissé est celui
-de la BASE, jamais celui que le client a bien voulu annoncer. Un banc d'essai
-qui se contenterait de renvoyer 200 laisserait passer exactement le bug qui
-coûte de l'argent.
+The provider is replaced by a local HTTP server speaking its dialect
+(`MONL_STRIPE_BASE_URL`, provided for this in the generated code). It is not
+there to politely simulate: it **records what it is sent**, and that record
+carries the central guarantee — the charged amount is the DATABASE's, never the
+one the client chose to announce. A test bench that merely returned 200 would
+let through exactly the bug that costs money.
 
-Trois familles de garanties, dans l'ordre de ce qu'elles coûtent si elles
-tombent :
+Three families of guarantees, in order of what they cost if they fall:
 
-* **Le montant** — lu en base à chaque demande, insensible au corps de requête.
-* **La signature du webhook** — sans elle, un `curl` marque n'importe quelle
-  commande comme payée. C'est le seul endroit du backend généré où un tiers
-  non authentifié peut modifier une ligne.
-* **Les refus** — 403 pour l'enregistrement d'autrui, 409 pour un règlement
-  déjà encaissé, 400 pour un montant nul, 503 quand le serveur n'a pas de clé.
-  Un paiement doit refuser bruyamment, jamais échouer en silence.
+* **The amount** — read from the database on every request, insensitive to the
+  request body.
+* **The webhook signature** — without it, a `curl` marks any order as paid. It
+  is the only place in the generated backend where an unauthenticated third
+  party can modify a row.
+* **The refusals** — 403 for someone else's record, 409 for an already settled
+  payment, 400 for a zero amount, 503 when the server has no key. A payment
+  must refuse loudly, never fail silently.
 """
 import contextlib
 import hashlib
@@ -69,9 +67,9 @@ actor Client selfRegister
 rule Commande.quantite required
 rule Commande.Read ownedBy Client
 
-# Depuis le point 79, `payable` EXIGE que le montant soit calculé par le
-# serveur : le créateur d'une commande en devient le propriétaire, donc le
-# payeur, et un montant qu'il peut écrire est un montant qu'il peut négocier.
+# Since point 79, `payable` REQUIRES the amount to be calculated by the server:
+# the creator of an order becomes its owner, hence the payer, and an amount
+# they can write is an amount they can negotiate.
 rule Commande.total derivedFrom Article.prix by quantite
 rule Commande.total payable
 
@@ -86,16 +84,16 @@ CLE_SECRETE = "sk_test_bancdessai"
 CLE_WEBHOOK = "whsec_bancdessai"
 
 
-# --------------------------------------------------------- le faux Stripe --
+# ---------------------------------------------------------- the fake Stripe --
 class _PrestataireFactice(BaseHTTPRequestHandler):
-    """Parle le dialecte de Stripe et RETIENT ce qu'on lui a envoyé.
+    """Speaks Stripe's dialect and KEEPS what it was sent.
 
-    Le corps est en `application/x-www-form-urlencoded`, comme la vraie API :
-    le décoder ici plutôt que de faire confiance au code généré est ce qui
-    permet d'affirmer quel montant a réellement été demandé.
+    The body is `application/x-www-form-urlencoded`, like the real API: decoding
+    it here rather than trusting the generated code is what lets us state which
+    amount was really requested.
     """
 
-    def do_POST(self):  # nom imposé par BaseHTTPRequestHandler
+    def do_POST(self):  # name imposed by BaseHTTPRequestHandler
         brut = self.rfile.read(int(self.headers.get("Content-Length", 0)))
         self.server.recu.append({
             "chemin": self.path,
@@ -104,8 +102,8 @@ class _PrestataireFactice(BaseHTTPRequestHandler):
                        in urllib.parse.parse_qs(brut.decode()).items()},
         })
         if self.server.refuser:
-            # ensure_ascii=False comme la vraie API : c'est ce qui fait passer
-            # le message par le `.decode('utf-8')` du code généré.
+            # ensure_ascii=False like the real API: that is what makes the
+            # message go through the generated code's `.decode('utf-8')`.
             corps = json.dumps({"error": {"message": "carte refusée"}},
                                ensure_ascii=False).encode()
             self.send_response(402)
@@ -139,13 +137,13 @@ def faux_stripe():
         fil.join(timeout=5)
 
 
-# ------------------------------------------------ le serveur monl généré --
+# ------------------------------------------------ the generated monl server --
 @contextlib.contextmanager
 def _application_generee(env_supplementaire):
-    """Compile SPEC_BOUTIQUE et démarre un uvicorn éphémère dans un dossier
-    temporaire. L'environnement est explicite : les clés de paiement sont
-    lues à l'import du module généré, un test ne peut donc pas les changer
-    après coup — d'où deux serveurs distincts, avec et sans clés."""
+    """Compiles SPEC_BOUTIQUE and starts an ephemeral uvicorn in a temporary
+    folder. The environment is explicit: payment keys are read when the generated
+    module is imported, so a test cannot change them afterwards — hence two
+    distinct servers, with and without keys."""
     with tempfile.TemporaryDirectory() as dossier:
         ast = MonlAST(parse_monl_string(SPEC_BOUTIQUE)).validate_and_audit()
         MonlSecureGenerator(ast, output_dir=dossier).generate_all()
@@ -170,10 +168,10 @@ def application(faux_stripe):
 
 
 @pytest.fixture(scope="module")
-def application_sans_cles():
-    """Le cas du serveur mis en ligne sans configurer le paiement. C'est la
-    situation par défaut de tout projet monl fraîchement compilé — donc celle
-    que le smoke test rencontre, et qui doit rester verte hors ligne."""
+def application_without_keys():
+    """The case of a server put online without configuring payment. It is the
+    default situation of every freshly compiled monl project — hence the one the
+    smoke test meets, and which must stay green offline."""
     with _application_generee({}) as ouvert:
         yield ouvert
 
@@ -181,8 +179,8 @@ def application_sans_cles():
 # ------------------------------------------------------------- utilitaires --
 @contextlib.contextmanager
 def _base(dossier):
-    """Ouvre app.db en validant ET en fermant à la sortie (voir point 71 :
-    `with sqlite3.connect(...)` ne ferme pas la connexion)."""
+    """Opens app.db, committing AND closing on exit (see point 71:
+    `with sqlite3.connect(...)` does not close the connection)."""
     cnx = sqlite3.connect(os.path.join(dossier, "app.db"))
     try:
         with cnx:
@@ -192,11 +190,11 @@ def _base(dossier):
 
 
 def _entetes(application, identifiant):
-    """Inscrit un compte et renvoie ses en-têtes d'authentification.
+    """Registers an account and returns its authentication headers.
 
-    Le compteur de tentatives est vidé au passage (5 / 60 s / IP, points 13
-    et 33) : ce fichier ouvre un compte par test pour que les tests ne
-    s'ordonnent pas implicitement les uns les autres.
+    The attempt counter is cleared on the way (5 / 60 s / IP, points 13 and 33):
+    this file opens one account per test so that the tests do not implicitly
+    order each other.
     """
     base, dossier = application
     with _base(dossier) as cnx:
@@ -212,17 +210,17 @@ def _entetes(application, identifiant):
 
 
 def _commande(application, entetes, libelle, total):
-    """Crée une commande dont le montant DÉRIVÉ vaut `total`.
+    """Creates an order whose DERIVED amount equals `total`.
 
-    Depuis le point 79, `payable` exige un montant calculé par le serveur : le
-    client ne peut plus l'envoyer, et ce fichier ne peut donc plus le fixer
-    directement. Le banc d'essai insère un article au prix voulu et en commande
-    une unité — le montant obtenu est le même qu'avant, et les seize appels de
-    ce fichier gardent exactement le sens qu'ils avaient.
+    Since point 79, `payable` requires a server-calculated amount: the client can
+    no longer send it, so this file can no longer set it directly. The test bench
+    inserts an item at the wanted price and orders one unit — the resulting amount
+    is the same as before, and the sixteen calls of this file keep exactly the
+    meaning they had.
 
-    L'article est inséré en base plutôt que par une route : la spec du banc
-    d'essai n'ouvre aucun workflow d'administration, et en ajouter un pour les
-    besoins du test élargirait la surface éprouvée sans rien prouver de plus.
+    The item is inserted in the database rather than through a route: the bench
+    spec opens no administration workflow, and adding one for the test's needs
+    would widen the tested surface without proving anything more.
     """
     base, dossier = application
     with _base(dossier) as cnx:
@@ -237,13 +235,12 @@ def _commande(application, entetes, libelle, total):
 
 
 def _signer(corps, secret=CLE_WEBHOOK, horodatage=None, version="v1"):
-    """Reproduit la signature Stripe : HMAC-SHA256 de « horodatage.corps ».
+    """Reproduces Stripe's signature: HMAC-SHA256 of "timestamp.body".
 
-    POINT 91 : l'horodatage vaut désormais l'heure COURANTE par défaut, comme
-    celui qu'envoie le vrai prestataire. Il était figé à '1700000000' — une date
-    de novembre 2023 — et les tests passaient parce que le serveur ne la datait
-    jamais. C'est précisément le rejeu que la fraîcheur ferme : un appel signé
-    capté une fois restait valable indéfiniment."""
+    POINT 91: the timestamp now defaults to the CURRENT time, like the one the
+    real provider sends. It was frozen at '1700000000' — a November 2023 date — and
+    the tests passed because the server never dated it. It is precisely the replay
+    freshness closes: a signed call captured once stayed valid forever."""
     if horodatage is None:
         horodatage = str(int(time.time()))
     empreinte = hmac.new(secret.encode(),
@@ -253,10 +250,9 @@ def _signer(corps, secret=CLE_WEBHOOK, horodatage=None, version="v1"):
 
 
 def _evenement(session_id, reference, type_evenement="checkout.session.completed"):
-    # La référence est qualifiée par l'entité ('Commande:id') : c'est ce que
-    # le serveur envoie désormais, pour que le webhook ne confonde jamais un
-    # id d'une entité payable avec celui d'une AUTRE, dans une app qui en
-    # déclarerait plusieurs.
+    # The reference is qualified by the entity ('Commande:id'): it is what the
+    # server now sends, so that the webhook never confuses an id of one payable
+    # entity with ANOTHER's, in an app declaring several.
     return json.dumps({
         "type": type_evenement,
         "data": {"object": {"id": session_id,
@@ -271,12 +267,12 @@ def _etat_en_base(dossier, identifiant):
             (identifiant,)).fetchone()
 
 
-# =============================================== le montant vient de la base --
-def test_le_montant_encaisse_vient_de_la_base_jamais_du_client(application, faux_stripe):
-    """La garantie centrale de la brique. Un panier qui envoie son propre prix
-    est un panier qu'on peut négocier — le test envoie donc un corps de requête
-    qui annonce un tout autre montant, et vérifie ce que le prestataire a
-    RÉELLEMENT reçu, pas ce que le serveur a répondu."""
+# ======================================= the amount comes from the database --
+def test_the_charged_amount_comes_from_the_database_never_the_client(application, faux_stripe):
+    """The brick's central guarantee. A cart that sends its own price is a cart
+    one can negotiate — the test therefore sends a request body announcing a
+    completely different amount, and checks what the provider REALLY received, not
+    what the server answered."""
     base, _dossier = application
     entetes = _entetes(application, "acheteuse")
     identifiant = _commande(application, entetes, "chaise", 42.50)
@@ -295,10 +291,10 @@ def test_le_montant_encaisse_vient_de_la_base_jamais_du_client(application, faux
     assert reponse.json()["url"] == "https://paiement.example/session"
 
 
-def test_le_montant_suit_la_base_quand_elle_change(application, faux_stripe):
-    """Corollaire du précédent, et il ne va pas de soi : le montant est relu à
-    CHAQUE demande. Un montant figé à la création laisserait encaisser un prix
-    périmé après une correction en base."""
+def test_the_amount_follows_the_database_when_it_changes(application, faux_stripe):
+    """Corollary of the previous one, and it does not go without saying: the
+    amount is reread on EVERY request. An amount frozen at creation would let a
+    stale price be charged after a correction in the database."""
     base, dossier = application
     entetes = _entetes(application, "revisee")
     identifiant = _commande(application, entetes, "table", 10.00)
@@ -313,10 +309,10 @@ def test_le_montant_suit_la_base_quand_elle_change(application, faux_stripe):
         "line_items[0][price_data][unit_amount]"] == "9999"
 
 
-def test_la_session_porte_la_reference_et_la_cle_du_serveur(application, faux_stripe):
-    """`client_reference_id` est le seul fil qui relie la session au règlement :
-    c'est lui que le webhook relit pour savoir quelle ligne marquer payée. Sans
-    lui, un paiement réussi n'atterrit sur aucune commande."""
+def test_the_session_carries_the_reference_and_the_server_key(application, faux_stripe):
+    """`client_reference_id` is the only thread linking the session to the
+    payment: it is what the webhook rereads to know which row to mark paid.
+    Without it, a successful payment lands on no order."""
     base, _dossier = application
     entetes = _entetes(application, "referencee")
     identifiant = _commande(application, entetes, "lampe", 7.00)
@@ -327,17 +323,16 @@ def test_la_session_porte_la_reference_et_la_cle_du_serveur(application, faux_st
 
     assert demande["chemin"] == "/v1/checkout/sessions"
     assert demande["champs"]["client_reference_id"] == f"Commande:{identifiant}"
-    # La clé part en en-tête, jamais dans l'URL ni dans le corps.
+    # The key goes in a header, never in the URL nor the body.
     assert demande["autorisation"] == f"Bearer {CLE_SECRETE}"
     assert CLE_SECRETE not in demande["chemin"]
 
 
-# ============================================================ les refus ======
-def test_payer_l_enregistrement_d_un_autre_compte_est_refuse(application):
-    """La commande d'autrui n'est pas seulement illisible : elle n'est pas
-    payable non plus. Sans ce contrôle, un tiers pourrait ouvrir des sessions
-    de règlement sur des lignes qu'il ne verra jamais — et découvrir leur
-    montant par la réponse."""
+# ========================================================= the refusals ======
+def test_paying_another_accounts_record_is_refused(application):
+    """Someone else's order is not only unreadable: it is not payable either.
+    Without this check, a third party could open payment sessions on rows they
+    will never see — and discover their amount through the response."""
     base, _dossier = application
     proprietaire = _entetes(application, "proprietaire")
     identifiant = _commande(application, proprietaire, "vélo", 300.00)
@@ -356,10 +351,10 @@ def test_un_enregistrement_inexistant_donne_404(application):
     assert refus.status_code == 404, refus.text
 
 
-def test_un_montant_nul_n_est_pas_encaisse(application, faux_stripe):
-    """Zéro n'est pas un prix. Laisser passer produirait chez le prestataire
-    une session à 0, refusée de son côté — donc une erreur incompréhensible,
-    loin de sa cause."""
+def test_a_zero_amount_is_not_charged(application, faux_stripe):
+    """Zero is not a price. Letting it through would produce a 0 session at the
+    provider, refused on its side — hence an incomprehensible error, far from its
+    cause."""
     base, _dossier = application
     entetes = _entetes(application, "gratuite")
     identifiant = _commande(application, entetes, "échantillon", 0)
@@ -372,10 +367,9 @@ def test_un_montant_nul_n_est_pas_encaisse(application, faux_stripe):
         "une session a été ouverte pour un montant nul")
 
 
-def test_une_demande_sans_jeton_est_refusee(application):
-    """La route de règlement n'est jamais publique : le validateur refuse
-    d'ailleurs `payable` sur une création `public`, faute d'identité à qui
-    rattacher le paiement."""
+def test_a_request_without_token_is_refused(application):
+    """The payment route is never public: the validator also refuses `payable` on
+    a `public` creation, for lack of an identity to attach the payment to."""
     base, _dossier = application
     entetes = _entetes(application, "anonyme")
     identifiant = _commande(application, entetes, "livre", 15.00)
@@ -383,10 +377,10 @@ def test_une_demande_sans_jeton_est_refusee(application):
     assert refus.status_code in (401, 403), refus.text
 
 
-def test_le_refus_du_prestataire_remonte_en_502_avec_son_message(application, faux_stripe):
-    """Quand le prestataire dit non, monl ne doit ni prétendre que tout va
-    bien ni masquer la raison : 502 et le message reçu. C'est la seule
-    information dont dispose celui qui débogue."""
+def test_the_provider_refusal_comes_up_as_502_with_its_message(application, faux_stripe):
+    """When the provider says no, monl must neither pretend everything is fine
+    nor hide the reason: 502 and the received message. It is the only information
+    whoever debugs has."""
     base, _dossier = application
     entetes = _entetes(application, "recalee")
     identifiant = _commande(application, entetes, "canapé", 800.00)
@@ -401,43 +395,41 @@ def test_le_refus_du_prestataire_remonte_en_502_avec_son_message(application, fa
     assert "carte refusée" in refus.json()["detail"]
 
 
-def test_sans_cle_le_serveur_refuse_bruyamment_en_nommant_la_variable(
-        application_sans_cles):
-    """Un projet monl fraîchement compilé n'a aucune clé : la route existe
-    quand même, et dit laquelle manque. Le silence — ou un 500 — obligerait à
-    lire le code généré pour comprendre qu'il n'y a rien à configurer
-    d'autre."""
-    base, _dossier = application_sans_cles
-    entetes = _entetes(application_sans_cles, "sansclef")
-    identifiant = _commande(application_sans_cles, entetes, "étagère", 55.00)
+def test_without_key_the_server_refuses_loudly_naming_the_variable(
+        application_without_keys):
+    """A freshly compiled monl project has no key: the route exists anyway, and
+    says which one is missing. Silence — or a 500 — would force reading the
+    generated code to understand there is nothing else to configure."""
+    base, _dossier = application_without_keys
+    entetes = _entetes(application_without_keys, "sansclef")
+    identifiant = _commande(application_without_keys, entetes, "étagère", 55.00)
 
     refus = requests.post(f"{base}/commande/{identifiant}/paiement",
                           headers=entetes)
     assert refus.status_code == 503, refus.text
     assert "STRIPE_SECRET_KEY" in refus.json()["detail"]
 
-    # Le webhook aussi, avec SA variable : les deux se configurent séparément.
+    # The webhook too, with ITS variable: the two are configured separately.
     refus_webhook = requests.post(f"{base}/paiement/webhook", data=b"{}")
     assert refus_webhook.status_code == 503, refus_webhook.text
     assert "STRIPE_WEBHOOK_SECRET" in refus_webhook.json()["detail"]
 
 
-def test_le_serveur_sans_cle_demarre_et_sert_le_reste(application_sans_cles):
-    """Le corollaire qui compte pour le smoke test : l'absence de clé de
-    paiement n'empêche RIEN d'autre. Un backend qui refuserait de démarrer
-    rendrait `monl run` impossible hors ligne."""
-    base, _dossier = application_sans_cles
-    entetes = _entetes(application_sans_cles, "ordinaire")
-    identifiant = _commande(application_sans_cles, entetes, "tabouret", 20.00)
+def test_the_server_without_key_starts_and_serves_the_rest(application_without_keys):
+    """The corollary that counts for the smoke test: the absence of a payment key
+    prevents NOTHING else. A backend refusing to start would make `monl run`
+    impossible offline."""
+    base, _dossier = application_without_keys
+    entetes = _entetes(application_without_keys, "ordinaire")
+    identifiant = _commande(application_without_keys, entetes, "tabouret", 20.00)
     lu = requests.get(f"{base}/commande/{identifiant}", headers=entetes)
     assert lu.status_code == 200, lu.text
 
 
-# ======================================================= la signature ========
-def test_le_webhook_signe_marque_l_enregistrement_paye(application):
-    """Le parcours complet : commande, session, notification signée. C'est le
-    seul chemin par lequel `payment_status` change — aucune route d'écriture
-    métier ne le touche."""
+# ====================================================== the signature ========
+def test_the_signed_webhook_marks_the_record_paid(application):
+    """The full journey: order, session, signed notification. It is the only path
+    through which `payment_status` changes — no business write route touches it."""
     base, dossier = application
     entetes = _entetes(application, "reglee")
     identifiant = _commande(application, entetes, "bureau", 120.00)
@@ -454,15 +446,15 @@ def test_le_webhook_signe_marque_l_enregistrement_paye(application):
     assert etat == "payee", etat
     assert reference == session["session_id"], reference
 
-    # Et la lecture le dit : sans cela, l'interface ne pourrait pas distinguer
-    # une commande réglée d'une commande en attente.
+    # And the read says so: without it, the interface could not tell a settled
+    # order from a pending one.
     lu = requests.get(f"{base}/commande/{identifiant}", headers=entetes).json()
     assert lu["data"]["payment_status"] == "payee", lu
 
 
-def test_un_webhook_trop_volumineux_est_refuse_avec_ou_sans_content_length(
+def test_an_oversized_webhook_is_refused_with_or_without_content_length(
         application):
-    """Les deux encodages HTTP s'arrêtent avant l'analyse de la signature."""
+    """Both HTTP encodings stop before signature parsing."""
     base, _dossier = application
     corps = b"x" * (256 * 1024 + 1)
 
@@ -478,12 +470,11 @@ def test_un_webhook_trop_volumineux_est_refuse_avec_ou_sans_content_length(
 
 
 def test_a_badly_signed_webhook_pays_nothing(application):
-    """LE test de sécurité de la brique. Sans vérification de signature,
-    n'importe qui marque n'importe quelle commande comme payée avec un simple
-    `curl` — c'est le seul endroit du backend généré où un tiers non
-    authentifié écrit en base. Chaque forme de signature invalide est essayée
-    séparément : une seule branche de l'analyse qui laisserait passer suffit à
-    ouvrir la porte."""
+    """THE brick's security test. Without signature verification, anyone marks
+    any order as paid with a plain `curl` — it is the only place in the generated
+    backend where an unauthenticated third party writes to the database. Each form
+    of invalid signature is tried separately: a single parsing branch letting it
+    through is enough to open the door."""
     table = [
         None,
         "",
@@ -509,10 +500,10 @@ def test_a_badly_signed_webhook_pays_nothing(application):
     verifier_chaque_cas([(valeur,) for valeur in table], cas, ids=noms)
 
 
-def test_une_signature_valide_pour_un_autre_corps_est_refusee(application):
-    """Le cas qu'une comparaison naïve laisserait passer : la signature est
-    authentique, mais elle couvre un autre message. C'est ainsi qu'on
-    substituerait la référence d'une commande à une autre."""
+def test_a_signature_valid_for_another_body_is_refused(application):
+    """The case a naive comparison would let through: the signature is authentic,
+    but it covers another message. That is how one order's reference would be
+    substituted for another."""
     base, dossier = application
     entetes = _entetes(application, "substituee")
     cible = _commande(application, entetes, "armoire", 200.00)
@@ -527,10 +518,10 @@ def test_une_signature_valide_pour_un_autre_corps_est_refusee(application):
     assert _etat_en_base(dossier, cible)[0] == "en_attente"
 
 
-def test_une_signature_faite_avec_une_autre_cle_est_refusee(application):
-    """La signature est bien formée et couvre bien ce corps — mais elle a été
-    produite avec un secret que le serveur ne connaît pas. C'est exactement ce
-    que peut fabriquer quelqu'un qui a lu le code généré sans avoir la clé."""
+def test_a_signature_made_with_another_key_is_refused(application):
+    """The signature is well formed and does cover this body — but it was
+    produced with a secret the server does not know. It is exactly what someone
+    who read the generated code without having the key can forge."""
     base, dossier = application
     entetes = _entetes(application, "mauvaiseclef")
     identifiant = _commande(application, entetes, "buffet", 90.00)
@@ -543,10 +534,9 @@ def test_une_signature_faite_avec_une_autre_cle_est_refusee(application):
     assert _etat_en_base(dossier, identifiant)[0] == "en_attente"
 
 
-def test_un_evenement_d_un_autre_type_est_ignore_sans_rien_changer(application):
-    """Stripe envoie des dizaines de types d'événements sur le même point de
-    terminaison. Tout traiter comme un règlement marquerait payée une commande
-    dont la session a seulement expiré."""
+def test_an_event_of_another_type_is_ignored_without_changing_anything(application):
+    """Stripe sends dozens of event types to the same endpoint. Treating
+    everything as a payment would mark paid an order whose session merely expired."""
     base, dossier = application
     entetes = _entetes(application, "expiree")
     identifiant = _commande(application, entetes, "miroir", 30.00)
@@ -560,9 +550,9 @@ def test_un_evenement_d_un_autre_type_est_ignore_sans_rien_changer(application):
     assert _etat_en_base(dossier, identifiant)[0] == "en_attente"
 
 
-def test_regler_deux_fois_le_meme_enregistrement_est_refuse(application, faux_stripe):
-    """Une fois la commande payée, plus aucune session ne s'ouvre : sans ce
-    verrou, un double clic sur un lien de règlement encaisse deux fois."""
+def test_settling_the_same_record_twice_is_refused(application, faux_stripe):
+    """Once the order is paid, no more session opens: without this lock, a double
+    click on a payment link charges twice."""
     base, _dossier = application
     entetes = _entetes(application, "doublee")
     identifiant = _commande(application, entetes, "fauteuil", 250.00)
@@ -581,19 +571,19 @@ def test_regler_deux_fois_le_meme_enregistrement_est_refuse(application, faux_st
         "une seconde session a été ouverte sur une commande déjà réglée")
 
 
-# ============================== les colonnes de suivi ne sont pas au client ==
-def test_le_client_ne_peut_pas_se_declarer_paye_a_la_creation(application):
-    """`payment_status` est au serveur, comme un champ `generated`. Un client
-    qui l'envoie quand même ne doit pas voir sa valeur atterrir en base —
-    sinon la brique entière se contourne par un champ JSON."""
+# ============================== the tracking columns are not for the client --
+def test_the_client_cannot_declare_itself_paid_on_creation(application):
+    """`payment_status` belongs to the server, like a `generated` field. A client
+    sending it anyway must not see its value land in the database — otherwise the
+    whole brick is bypassed through a JSON field."""
     base, dossier = application
     entetes = _entetes(application, "autoproclamee")
 
     with _base(dossier) as cnx:
         article = cnx.execute('INSERT INTO article (nom, prix) VALUES (?, ?)',
                               ("gratuite", 500.00)).lastrowid
-    # `total` est envoyé lui aussi, et lui aussi ignoré depuis le point 79 : le
-    # corps tente les trois champs que le serveur se réserve.
+    # `total` is sent too, and also ignored since point 79: the body tries the
+    # three fields the server keeps for itself.
     reponse = requests.post(f"{base}/commande", headers=entetes,
                             json={"libelle": "gratuite", "quantite": 1,
                                   "article_id": article, "total": 0.01,
@@ -607,10 +597,10 @@ def test_le_client_ne_peut_pas_se_declarer_paye_a_la_creation(application):
                            (identifiant,)).fetchone()[0] == 500.00
 
 
-def test_une_mise_a_jour_ne_peut_pas_changer_l_etat_de_paiement(application):
-    """Même garantie sur l'autre route d'écriture. `Update` est dans le
-    workflow précisément pour l'éprouver : une commande réglée qu'on peut
-    remettre « en attente » — ou l'inverse — vide le verrou de son sens."""
+def test_an_update_cannot_change_the_payment_state(application):
+    """Same guarantee on the other write route. `Update` is in the workflow
+    precisely to test it: a settled order that can be put back "pending" — or the
+    reverse — empties the lock of its meaning."""
     base, dossier = application
     entetes = _entetes(application, "modifiee")
     identifiant = _commande(application, entetes, "commode", 75.00)
@@ -625,21 +615,21 @@ def test_une_mise_a_jour_ne_peut_pas_changer_l_etat_de_paiement(application):
                                "payment_ref": "cs_invente"})
     assert modif.status_code in (200, 201), modif.text
     assert _etat_en_base(dossier, identifiant) == ("en_attente", None)
-    # Le montant non plus ne se réécrit pas par cette route (point 79).
+    # The amount cannot be rewritten through this route either (point 79).
     with _base(dossier) as cnx:
         assert cnx.execute("SELECT total FROM commande WHERE id = ?",
                            (identifiant,)).fetchone()[0] == 75.00
 
 
-def test_les_colonnes_de_suivi_sont_absentes_des_schemas_d_entree(application):
-    """Le contrat public dit la même chose que le serveur : ces colonnes sont
-    lisibles mais jamais proposées en entrée. On interroge le composant
-    réellement référencé par la requête plutôt que le texte de la route — leur
-    absence d'une chaîne prouverait aussi bien qu'on a mal cherché.
+def test_the_tracking_columns_are_absent_from_input_schemas(application):
+    """The public contract says the same thing as the server: these columns are
+    readable but never offered as input. We query the component really referenced
+    by the request rather than the route's text — their absence from a string
+    would just as well prove we searched badly.
 
-    Depuis le point 79, `total` a rejoint cette liste : il est CALCULÉ par le
-    serveur, donc absent de l'entrée lui aussi. Le témoin devient `quantite` —
-    il en faut un, sinon un schéma vide passerait le test."""
+    Since point 79, `total` has joined this list: it is CALCULATED by the server,
+    hence absent from input too. The witness becomes `quantite` — one is needed,
+    otherwise an empty schema would pass the test."""
     base, _dossier = application
     schema = requests.get(f"{base}/openapi.json").json()
 
@@ -653,22 +643,21 @@ def test_les_colonnes_de_suivi_sont_absentes_des_schemas_d_entree(application):
             assert reserve not in proprietes, (methode, reserve, proprietes)
 
 
-# ==================================== la brique n'empêche pas 'monl run' ====
-def test_un_projet_payable_passe_le_smoke_test_sans_aucune_cle(tmp_path, monkeypatch):
-    """Trouvé en exécutant `monl run`, pas en relisant le code — et c'est
-    exactement le genre de défaut que la relecture ne donne pas.
+# ==================================== the brick does not prevent monl run ====
+def test_a_payable_project_passes_the_smoke_test_without_any_key(tmp_path, monkeypatch):
+    """Found by running `monl run`, not by rereading the code — and it is exactly
+    the kind of defect rereading does not give.
 
-    Le smoke test exige qu'une route non publique refuse une requête sans
-    jeton, en 401 ou 403. `/paiement/webhook` est bien protégée, mais par la
-    SIGNATURE du prestataire, pas par un JWT : sans clé configurée elle répond
-    503, avec clé 400. Le smoke test la recalait donc, et tout projet déclarant
-    `payable` échouait au lancement — sur une route qui faisait pourtant
-    exactement son travail.
+    The smoke test requires a non-public route to refuse a request without a
+    token, with 401 or 403. `/paiement/webhook` is indeed protected, but by the
+    provider's SIGNATURE, not by a JWT: without a configured key it answers 503,
+    with a key 400. The smoke test therefore failed it, and every project declaring
+    `payable` failed at launch — on a route that was doing exactly its job.
 
-    La correction distingue les deux régimes par ce que le contrat dit déjà :
-    une route protégée sans aucun acteur autorisé n'est pas une route à jeton.
-    Ce qui reste vrai dans les deux cas, et c'est cela qui est vérifié ici,
-    c'est qu'une requête nue est refusée.
+    The fix tells the two regimes apart by what the contract already says: a
+    protected route with no allowed actor is not a token route. What stays true in
+    both cases, and that is what is checked here, is that a bare request is
+    refused.
     """
     from monl.cli import check_coherence, compile_project
     from monl.smoke_test import run_smoke_test
