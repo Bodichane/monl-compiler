@@ -26,7 +26,7 @@ from monl.generator import (
     schemas,
 )
 from tests.support.cases import check_each_case
-from tests.test_bloc_custom_absent import WITH_CUSTOM, _compiler
+from tests.test_missing_custom_block import WITH_CUSTOM, _compiler
 
 MIGRATED_MODULES = (
     sandbox, runtime_extras, runtime_preparation, runtime_migrations,

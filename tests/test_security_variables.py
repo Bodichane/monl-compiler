@@ -18,10 +18,10 @@ from pathlib import Path
 from monl.ast_validator import MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
-from tests.test_authentification_b4 import SPEC_B4
+from tests.test_authentication_b4 import SPEC_B4
 from tests.test_fedapay import SPEC_FEDAPAY
 from tests.test_messages import SPEC as SPEC_MESSAGES
-from tests.test_paiement import SPEC_BOUTIQUE
+from tests.test_payment import SPEC_BOUTIQUE
 from tests.test_uploads import SPEC as SPEC_UPLOADS
 
 DOC = Path(__file__).resolve().parent.parent / "docs" / "SECURITE.md"

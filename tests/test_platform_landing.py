@@ -458,7 +458,7 @@ def test_the_site_holds_on_a_single_background():
 def test_favicon_ico_really_answers(platform):
     """The file can exist without the route serving it.
 
-    The tests of `test_platform_marque.py` guard the icon's CONTENT; this one
+    The tests of `test_platform_brand.py` guard the icon's CONTENT; this one
     guards the fact that it can be obtained. Without it, removing the route would
     leave the suite entirely green while browsers again receive a 404 — and keep
     the old icon.

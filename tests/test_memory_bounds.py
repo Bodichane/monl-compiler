@@ -1,7 +1,7 @@
 """A body bound is measured in MEMORY, never by status code.
 
-The two witnesses already guarding these bounds — `test_limite_corps_http.py`
-(point 186) and `test_platform_hebergement.py` — check that a too-large body
+The two witnesses already guarding these bounds — `test_http_body_limit.py`
+(point 186) and `test_platform_hosting.py` — check that a too-large body
 gets a 413. **They would be green on a server that swallows everything before
 refusing**: the HTTP code is what the bound CONSTRAINS, memory is what it
 SERVES. It is point 172's complaint, transposed.
@@ -217,7 +217,7 @@ def test_the_platform_refuses_a_huge_body_without_keeping_it(tmp_path):
         growth = pic - repos
 
     # MEMORY first: that is the guarantee this file carries, and the status is
-    # already guarded by `test_limite_corps_http.py`. Asserted second, it would
+    # already guarded by `test_http_body_limit.py`. Asserted second, it would
     # never be reached — the counter-proof would go red on the HTTP code, hence
     # for the same reason as the existing witness, and this file would guard
     # nothing more (point 170).

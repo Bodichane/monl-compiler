@@ -536,7 +536,7 @@ def test_creation_compiled_started_directly(application_hosting, canal):
                 assert compilation.status_code == 201, compilation.text
                 project_id = compilation.json()["id"]
             else:
-                from test_platform_mcp_boucle import _call
+                from test_platform_mcp_loop import _call
 
                 key = session.post(base + "/api/keys", json={"name": "direct"},
                                    timeout=10).json()["key"]

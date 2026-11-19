@@ -673,7 +673,7 @@ def test_a_two_level_chain_is_now_resolved():
     generated join only going up one link. The walk now goes up the full depth to
     an actor, link by link. Point 80's defect class does NOT reappear for all
     that: cycle, dead end and ambiguous link stay refused (dedicated tests in
-    tests/test_transitive_profondeur.py), and depth 2 is tested against a real
+    tests/test_transitive_depth.py), and depth 2 is tested against a real
     server in the same file."""
     spec = """app P
 

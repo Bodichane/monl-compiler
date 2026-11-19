@@ -15,7 +15,7 @@ import requests
 from monl_platform.app import create_app
 from monl_platform.hosting_control import _addresses
 from tests.support.sqlite import sqlite_db
-from tests.test_platform_hebergement import _compiler, _get, _platform_server
+from tests.test_platform_hosting import _compiler, _get, _platform_server
 
 
 def _wait_workers(server, base, workspace, log):

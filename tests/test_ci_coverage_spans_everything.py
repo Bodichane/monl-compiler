@@ -3,7 +3,7 @@
 CI measured the platform on a hand-written list of files:
 
     python -m pytest tests/test_platform_*.py tests/test_oauth.py
-      tests/test_administration.py tests/test_codes_de_secours.py
+      tests/test_administration.py tests/test_recovery_codes.py
       --cov=src/monl_platform --cov-fail-under=90
 
 Measured before fixing: **five files exercised the platform outside this
@@ -138,7 +138,7 @@ CI_OFFENDER = """
       - name: Couverture de la plateforme (barrière à 90 %)
         run: >-
           python -m pytest tests/test_platform_*.py tests/test_oauth.py
-          tests/test_administration.py tests/test_codes_de_secours.py -rs
+          tests/test_administration.py tests/test_recovery_codes.py -rs
           --cov=src/monl_platform --cov-report=term --cov-fail-under=90
 """
 

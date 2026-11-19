@@ -1058,9 +1058,9 @@ def test_each_python_test_exercises_an_assertion():
             "la validation complète doit accepter chaque spec tout-refus; toute erreur échoue le test",
         "test_beta3_regressions.py:test_login_does_not_reveal_whether_the_account_exists":
             "ses assertions vivent dans le helper _mesurer_canal_temporel, appelé dans un try/finally qui arrête le serveur",
-        "test_cli_commandes.py:test_run_check_passes_on_a_healthy_project":
+        "test_cli_commands.py:test_run_check_passes_on_a_healthy_project":
             "le contrat est précisément que cmd_run termine normalement; une erreur lève SystemExit et échoue",
-        "test_platform_couverture.py:test_asgi_routes_cover_responses_and_effects":
+        "test_platform_coverage.py:test_asgi_routes_cover_responses_and_effects":
             "_dialogue fait des assertions ASGI détaillées pendant son exécution",
         "test_publication.py:test_the_matching_tag_is_accepted":
             "validate_tag_version est un validateur pur qui lève sur toute version refusée",

@@ -37,7 +37,7 @@ from tests.support.server import uvicorn_server
 # `x-www-form-urlencoded` body and KEEPS the received fields. Rewriting it here
 # would give two fake providers to maintain, and that is exactly what a
 # duplicate decoder ends up hiding.
-from tests.test_paiement import SPEC_BOUTIQUE, _ProviderFake
+from tests.test_payment import SPEC_BOUTIQUE, _ProviderFake
 
 PASSWORD = "motdepasse123"
 KEY_SECRETE = "sk_test_devise"

@@ -53,7 +53,7 @@ def test_compile_project_parses_and_validates_only_once(tmp_path, monkeypatch):
     ):
         assert (tmp_path / artifact).is_file()
     # `sandbox_ai.py` left this list: SPEC has no `custom` block, so the module
-    # is no longer emitted (see tests/test_bloc_custom_absent.py). We assert
+    # is no longer emitted (see tests/test_missing_custom_block.py). We assert
     # its ABSENCE rather than stop looking at it — a list from which a name is
     # removed no longer says anything about that name.
     assert not (tmp_path / "sandbox_ai.py").exists()

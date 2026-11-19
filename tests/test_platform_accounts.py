@@ -51,7 +51,7 @@ def test_the_slug_is_GLOBALLY_unique_and_homonyms_step_aside(tmp_path):
     unreachable just by naming theirs like yours. And on the SAME account, the
     second identical name came out as a 500.
 
-    The details of both defects are in tests/test_projets_homonymes.py; what is
+    The details of both defects are in tests/test_namesake_projects.py; what is
     kept here is that each account still only sees its own.
     """
     identity = IdentityStore(tmp_path)

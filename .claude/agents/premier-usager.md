@@ -46,9 +46,9 @@ one GitHub issue per distinct defect.
 
 ## Request formats
 Do not guess them: read them in the tests that already exercise them —
-`tests/test_platform_web.py`, `tests/test_platform_comptes.py`,
-`tests/test_codes_de_secours.py`, `tests/test_platform_mcp_boucle.py`,
-`tests/test_platform_hebergement.py`, `tests/test_archive_rangee.py`.
+`tests/test_platform_web.py`, `tests/test_platform_accounts.py`,
+`tests/test_recovery_codes.py`, `tests/test_platform_mcp_loop.py`,
+`tests/test_platform_hosting.py`, `tests/test_tidy_archive.py`.
 You may READ the repository to learn; you only EXECUTE the installed package.
 
 ## The journey — each step: command, expected, observed

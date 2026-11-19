@@ -8,7 +8,7 @@ clearly visible `TO BE COMPLETED` marker rather than a plausible
 identity. Making up a legal notice would be producing a false document.
 
 **What is said is verifiable in the code.** The list of retained data is
-compared to the real SQLite schema by `tests/test_platform_exploitation.py`: a
+compared to the real SQLite schema by `tests/test_platform_operations.py`: a
 table that keeps personal data and that the page does not name makes the
 suite fail. A privacy policy that drifts out of sync with the code is worse
 than absent — it makes a claim."""

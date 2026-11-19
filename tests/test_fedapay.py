@@ -36,7 +36,7 @@ from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
 from tests.support.cases import check_each_case
 from tests.support.server import uvicorn_server
-from tests.test_paiement import SPEC_BOUTIQUE
+from tests.test_payment import SPEC_BOUTIQUE
 
 PASSWORD = "motdepasse123"
 KEY_SECRETE = "sk_test_fedapay"

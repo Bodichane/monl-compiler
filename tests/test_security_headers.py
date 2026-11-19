@@ -10,7 +10,7 @@ import requests
 
 from monl.cli import compile_project
 from tests.support.server import uvicorn_server
-from tests.test_temoins_securite import SPEC
+from tests.test_security_witnesses import SPEC
 
 ROOT = Path(__file__).resolve().parents[1]
 HEADERS = {

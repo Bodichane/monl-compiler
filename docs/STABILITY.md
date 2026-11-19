@@ -37,7 +37,7 @@ remain prereleases; this document does not declare that 1.0 has shipped.
   checks, payment/stock guards and Pydantic schemas).
 - **Deployment configuration:** the environment variables and their documented
   meanings in [SECURITE.md](SECURITE.md#deployment-settings-environment-variables)
-  are supported interfaces. [The variable witness](../tests/test_securite_variables.py)
+  are supported interfaces. [The variable witness](../tests/test_security_variables.py)
   compares that documentation with generated code in both directions.
 
 ## Outside this guarantee

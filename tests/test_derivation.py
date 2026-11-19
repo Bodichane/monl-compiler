@@ -5,7 +5,7 @@ comes from the DATABASE and never from the request body. True, and it
 protected nothing: nobody had asked **who writes the amount into the
 database**. The answer was the client, through two paths — creation, and
 update (the owner may `PUT`). Two three-request exploits, which none of the
-24 tests of `test_paiement.py` covered: they checked that the ROUTE ignores
+24 tests of `test_payment.py` covered: they checked that the ROUTE ignores
 the body it is given, without ever going back to the source of the value it
 rereads.
 
@@ -86,7 +86,7 @@ PRICE_CHER, PRICE_BON_MARCHE = 189.0, 89.0
 
 @contextlib.contextmanager
 def _base_spec(folder):
-    # As in test_briques_comportement.py: `with connect(...)` commits the
+    # As in test_brick_behavior.py: `with connect(...)` commits the
     # transaction but does not CLOSE — hence the test bench's ResourceWarnings.
     conn = sqlite3.connect(os.path.join(folder, "app.db"))
     try:

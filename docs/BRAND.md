@@ -45,7 +45,7 @@ No state is communicated by color alone: a label or icon always carries it too.
 
 ## Where these values live
 
-In `src/monl_platform/theme.py`, and **nowhere else**. Pages use only variables (`var(--brand)`, `var(--code-muted)`): this is how an identity change is made in one place. An earlier redesign had left five hard-coded greens in the console — they survived a complete palette change without anything flagging them. `tests/test_platform_marque.py` now forbids this, and does not itself name any color: it measures contrast from the actually declared variables, so it remains valid as the direction changes.
+In `src/monl_platform/theme.py`, and **nowhere else**. Pages use only variables (`var(--brand)`, `var(--code-muted)`): this is how an identity change is made in one place. An earlier redesign had left five hard-coded greens in the console — they survived a complete palette change without anything flagging them. `tests/test_platform_brand.py` now forbids this, and does not itself name any color: it measures contrast from the actually declared variables, so it remains valid as the direction changes.
 
 ## Typography and tone
 

@@ -1,6 +1,6 @@
 """Stand-in HTTP witnesses, shared with the counter-proofs."""
 
-from tests.test_verification_email import (
+from tests.test_email_verification import (
     ACCOUNTS,
     PASSWORD,
     _confirm,
@@ -19,7 +19,7 @@ def register(base, account=ACCOUNTS[0], password=NEW_PASSWORD, actor='User'):
 
 
 def replacement(base, smtp, tokens, directory):
-    from tests.test_verification_email import _register_two
+    from tests.test_email_verification import _register_two
     original = _register_two.responses[0]
     response = register(base, ACCOUNTS[0].upper())
     assert response.status_code == 200, 'replacement disarmed'

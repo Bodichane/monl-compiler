@@ -94,7 +94,7 @@ GOLDENS = {
     # deleting it made startup fail — a file that does nothing and cannot be
     # removed. Its absence is ASSERTED below rather than merely no longer
     # looked at, and its presence with a `custom` block is guarded by
-    # `tests/test_bloc_custom_absent.py`. app.py therefore loses its import
+    # `tests/test_missing_custom_block.py`. app.py therefore loses its import
     # line: its fingerprint changes with it.
     "manage.py": "252dc4b6f1c87a488be8f84423a418b7c348e56cc28fa3752a0669b2e4cadc83",
     # POINT 133: the Dockerfile ran `app:app`, so the image served the API and
@@ -254,7 +254,7 @@ def _no_useless_custom_module(project_dir: Path):
     the expected result, and that is what is measured.
 
     Its PRESENCE when a `custom` block exists is guarded elsewhere
-    (`tests/test_bloc_custom_absent.py`): without this counter-proof, never
+    (`tests/test_missing_custom_block.py`): without this counter-proof, never
     emitting it again would make both files green while killing the brick.
     """
     assert not (project_dir / "sandbox_ai.py").exists(), (
@@ -275,7 +275,7 @@ B4_GOLDENS = {
 
 
 def test_b4_security_fingerprints(tmp_path, capsys):
-    from tests.test_authentification_b4 import SPEC_B4
+    from tests.test_authentication_b4 import SPEC_B4
 
     spec = tmp_path / "spec.ml"
     spec.write_text(SPEC_B4, encoding="utf-8")

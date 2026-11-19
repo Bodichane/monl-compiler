@@ -139,7 +139,7 @@ def test_the_invariant_really_sees_access_control():
 
 
 def test_b4_pastes_no_value_into_sql():
-    from tests.test_authentification_b4 import SPEC_B4
+    from tests.test_authentication_b4 import SPEC_B4
 
     source = _app_source(SPEC_B4, from_file=False, base_dir=None)
     for query in _literals_sql(source):

@@ -2,7 +2,7 @@
 
 Of the eight bricks of the capability ecosystem, only three were exercised
 against a real server: `accessibleBy` (test_access_parties.py), `ownedBy` read
-filtering (test_lecture_privee.py) and `hidden` (test_masquage_hidden.py,
+filtering (test_private_read.py) and `hidden` (test_hidden_masking.py,
 point 64). The others only had the COMPILE coverage brought by
 `exemples/03_reseau_social.ml` — and CLAUDE.md says it bluntly: compiling is
 not behaving correctly.

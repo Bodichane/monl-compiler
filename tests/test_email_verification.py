@@ -23,7 +23,7 @@ from monl.cli import _contract_signature, compile_project
 from monl.cli.delta import cmd_update
 from tests.support.server import uvicorn_server
 from tests.support.sqlite import sqlite_db
-from tests.test_authentification_b4 import faux_smtp as faux_smtp
+from tests.test_authentication_b4 import faux_smtp as faux_smtp
 from tests.test_messages import _uvicorn_with_output
 
 LEGACY = '''app Verification

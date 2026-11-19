@@ -133,7 +133,7 @@ All blocking flaws identified in the audit have been fixed:
       the list below, and leaving it among the remaining tasks would make work
       already delivered look outstanding.
 - [x] **Generalized offensive audit, passing** —
-      `tests/test_audit_offensif_exemples.py` replays the three attacks against
+      `tests/test_offensive_audit_examples.py` replays the three attacks against
       every example (role spoofing, forged JWT, privilege escalation): none
       succeeds. The two signals studied in depth are false positives (public
       route, role not self-assigned), and the static `CRITICAL_WARNING`s are
@@ -176,7 +176,7 @@ In priority order:
    not Python directly; their mutation changes downstream access-control bytes.
    Real-server behavioral tests and per-module red mutation proofs complement bytes.
    Parser fuzzing is done (point 204): mutated specs compile or get a named
-   monl error, checked by `tests/test_fuzzing_parseur.py`.
+   monl error, checked by `tests/test_parser_fuzzing.py`.
 3. ~~**Deployment-ready**~~ — **DONE (point 118)**: CORS opt-in through
    `MONL_CORS_ORIGINS` (`*` refused at startup), JSON logs with request ID via
    `MONL_LOG_FORMAT=json`, health checks `/health` and `/health/ready`,
@@ -192,7 +192,7 @@ In priority order:
    same response, within 1.28 ms. **Email confirmation DONE (point 209,
    issue #122)**: declared link validity and resend quota, no login before
    confirmation, single-use hash-only tokens and POST confirmation. Proven by
-   `tests/test_verification_email.py` against real uvicorn and fake SMTP.
+   `tests/test_email_verification.py` against real uvicorn and fake SMTP.
    Historical/offline accounts remain confirmed; no automatic purge or delivery
    guarantee.
 5. ~~**DSL governance**~~ — **DONE (point 200)**: language version,

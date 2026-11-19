@@ -9,15 +9,15 @@ from pathlib import Path
 
 from monl.app_templates import TEMPLATES
 from monl.cli import compile_project
+from tests.test_account_identifier import SPEC as SPEC_IDENTIFIER
 from tests.test_app_templates import _run_template
-from tests.test_authentification_b4 import SPEC_B4
-from tests.test_bloc_custom_absent import WITH_CUSTOM
-from tests.test_fiche_obligatoire import SPEC as SPEC_FICHE
+from tests.test_authentication_b4 import SPEC_B4
 from tests.test_generated_specs import generated_spec
 from tests.test_golden_artifacts import SPEC, SPEC_LOOKUP_SOURCES
-from tests.test_identifiant_de_compte import SPEC as SPEC_IDENTIFIER
-from tests.test_liberation import SPEC as SPEC_LIBERATION
 from tests.test_messages import SPEC as SPEC_MESSAGES
+from tests.test_missing_custom_block import WITH_CUSTOM
+from tests.test_release import SPEC as SPEC_LIBERATION
+from tests.test_required_profile import SPEC as SPEC_FICHE
 from tests.test_stock import SPEC as SPEC_STOCK
 from tests.test_uploads import SPEC as SPEC_UPLOADS
 

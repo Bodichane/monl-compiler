@@ -1,6 +1,6 @@
 """The wiring of `monl <subcommand>` — cli.py's main() function.
 
-`tests/test_cli_commandes.py` (point 64) tests what `compile_project`,
+`tests/test_cli_commands.py` (point 64) tests what `compile_project`,
 `check_coherence`, `cmd_run` and `cmd_update` DO. Nobody tested what CALLS
 them: the hundred lines of argparse and dispatch in `main()` were crossed by
 no test, while it is the only path a user really takes.

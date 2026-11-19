@@ -106,9 +106,9 @@ def test_proxy_passes_the_host_name_and_scheme():
 def test_proxy_does_not_cap_uploads_below_what_the_app_accepts():
     """This block ALSO serves hosted sites (*.monl.example.com), one of which can
     declare `rule X.champ upload max N` up to 32 MiB (measured,
-    tests/test_depot_depuis_le_dialogue.py). The original nginx cap was 256 KiB —
+    tests/test_upload_from_dialogue.py). The original nginx cap was 256 KiB —
     well below the 5 MiB limit already exercised in the repository
-    (test_limites_du_guide.py) — so an upload the compiled backend accepts would
+    (test_guide_limits.py) — so an upload the compiled backend accepts would
     have been refused by the proxy, with a 413, before even reaching the
     application."""
     content = (RACINE / "deploy/nginx/monl-platform.conf.example").read_text(

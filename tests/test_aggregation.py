@@ -98,7 +98,7 @@ QTY_a, QTY_b = 3, 7
 
 
 class _ProviderFake(BaseHTTPRequestHandler):
-    """Same fake Stripe as tests/test_paiement.py: it DECODES the body it is
+    """Same fake Stripe as tests/test_payment.py: it DECODES the body it is
     sent, which is the only way to state which amount was really requested —
     reading the database would only tell what monl believes it charges."""
 

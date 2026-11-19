@@ -4,7 +4,7 @@ The platform spends real money on every build: an account opened with any
 string is an abuse door. Yet it sends NO message — point 95's boundary holds —
 it delegates to a provider that has already verified the address.
 
-The fake provider is embedded here, like `tests/test_paiement.py`'s fake
+The fake provider is embedded here, like `tests/test_payment.py`'s fake
 Stripe: without it, the brick could only be tested by calling the real
 GitHub, that is never.
 """

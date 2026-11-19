@@ -128,22 +128,22 @@ anonymous social network as the final test bench.
 > Note the distinction: compiling does not mean behaving correctly.
 > **All twenty-three bricks are now tested against a real ephemeral server**:
 > `accessibleBy` (`tests/test_access_parties.py`), read filtering for
-> `ownedBy` (`tests/test_lecture_privee.py`), `hidden` masking
-> (`tests/test_masquage_hidden.py`, point 64), then `generated`, `increments`,
-> `decrements` and `categorized` (`tests/test_briques_comportement.py`,
-> point 70), `payable` (`tests/test_paiement.py`, point 74 — with its
+> `ownedBy` (`tests/test_private_read.py`), `hidden` masking
+> (`tests/test_hidden_masking.py`, point 64), then `generated`, `increments`,
+> `decrements` and `categorized` (`tests/test_brick_behavior.py`,
+> point 70), `payable` (`tests/test_payment.py`, point 74 — with its
 > embedded fake Stripe), `derivedFrom` (`tests/test_derivation.py`, point 77),
-> transitive ownership (`tests/test_propriete_transitive.py`, point 81),
-> aggregation (`tests/test_agregation.py`, point 82 — same fake Stripe, to
+> transitive ownership (`tests/test_transitive_ownership.py`, point 81),
+> aggregation (`tests/test_aggregation.py`, point 82 — same fake Stripe, to
 > verify the amount the PROVIDER receives), assets
 > (`tests/test_assets.py`, point 83), field constraints
-> (`tests/test_contraintes_de_champ.py`, point 85), stock counting
+> (`tests/test_field_constraints.py`, point 85), stock counting
 > (`tests/test_stock.py`, point 86) and timestamps
-> (`tests/test_horodatage.py`, point 89 — including a restart on an already
+> (`tests/test_timestamp.py`, point 89 — including a restart on an already
 > populated database, the only way to test the column that cannot be backfilled) and the
-> mandatory profile (`tests/test_fiche_obligatoire.py`, point 90 — with TWO accounts,
+> mandatory profile (`tests/test_required_profile.py`, point 90 — with TWO accounts,
 > otherwise “does at least one profile exist?” would pass) and the payment lock
-> (`tests/test_verrou_paiement.py`, point 91 — all five gates closed,
+> (`tests/test_payment_lock.py`, point 91 — all five gates closed,
 > AND the counter-proof of the five writes BEFORE payment, otherwise a lock
 > that froze everything would look correct), and linking a demo dataset
 > (`tests/test_seed_parent.py`, point 100 — including the pre-populated database
@@ -155,7 +155,7 @@ anonymous social network as the final test bench.
 > Since point 95, **no brick has only compile coverage anymore**:
 > `capability auth` was the last one, which made sense as long as it produced nothing — it
 > now constrains account identifier form
-> (`tests/test_identifiant_de_compte.py`). Any NEW brick must arrive
+> (`tests/test_account_identifier.py`). Any NEW brick must arrive
 > with its server test: compile coverage alone let five bricks through
 > throughout the project's lifetime.
 
@@ -184,7 +184,7 @@ anonymous social network as the final test bench.
    the contract). **`phone_prefix: "+33"`** makes “06…” and “+336…” canonical: without it
    the two notations are two accounts (limitation STATED, with its witness —
    monl makes you DECLARE what it cannot know, just as `min` arms stock at
-   point 86). Tested by `tests/test_identifiant_de_compte.py` (47 tests).
+   point 86). Tested by `tests/test_account_identifier.py` (47 tests).
    See point 95.
    **POINT 138, two corrections.** (a) The **guided dialogue never asked the
    question**: none of the ten templates declared an identifier, and every project
@@ -209,7 +209,7 @@ anonymous social network as the final test bench.
    (list + detail), for everyone. It remains in the database and remains
    writable. Implemented in `src/parser.py` (`masking_rule`)
    and `src/generator/routes.py`. Covered since point 64 by
-   `tests/test_masquage_hidden.py`, against a real server: masked in
+   `tests/test_hidden_masking.py`, against a real server: masked in
    list AND detail, logged in as anonymous, field still writable and
    still in the database (verified by direct SQLite read). It remains absent from
    all examples — coverage comes from the test, not a compilation.
@@ -302,7 +302,7 @@ anonymous social network as the final test bench.
    reference it reads is qualified by the entity name (`'Order:42'`, point 75)
    so an app with multiple `payable` entities never confuses IDs from two tables.
    Proven against a real server and an embedded fake Stripe by
-   `tests/test_paiement.py`, and compiled by `exemples/02_boutique.ml`
+   `tests/test_payment.py`, and compiled by `exemples/02_boutique.ml`
    (`Order.totalAmount`). Available from the guided dialogue (`_ask_payable`,
    as soon as a `Money` field exists on an owned entity) since point 75,
    not only by writing the spec by hand. See points 74 and 75.
@@ -347,7 +347,7 @@ anonymous social network as the final test bench.
     it protected against an incorrect comparison in the payment route, not an
     impossibility of the brick, and that route now uses the same join as Update
     and Delete. Proven against a real server by
-    `tests/test_propriete_transitive.py`, with deliberately DIVERGENT IDs: the
+    `tests/test_transitive_ownership.py`, with deliberately DIVERGENT IDs: the
     first attempt with the point 80 probe showed nothing because “user 1” and
     “order 1” coincided. See point 81.
 
@@ -369,7 +369,7 @@ anonymous social network as the final test bench.
     `payable`, NOT in the `sumOf` loop, because summing a client field remains
     legitimate outside payment (`Commande.nbArticles sumOf Ligne.quantite`
     counts items, it charges nothing): the combination is the problem.
-    Proven against a real server AND a fake Stripe by `tests/test_agregation.py` —
+    Proven against a real server AND a fake Stripe by `tests/test_aggregation.py` —
     the amount is checked against what the PROVIDER receives. Compiled by
     `exemples/02_boutique.ml`, now a real cart. See point 82.
 
@@ -443,7 +443,7 @@ anonymous social network as the final test bench.
     409 already had one cause (foreign key) and now has two — the message
     distinguishes them; and **SQLite raises at `execute`, not `commit`**, so a
     guard around commit alone returned 500 on a duplicate PUT. Proven by
-    `tests/test_contraintes_de_champ.py` (22 tests), including one requiring
+    `tests/test_field_constraints.py` (22 tests), including one requiring
     compilation WITH and WITHOUT these rules to produce different outputs.
     Also fixed along the way: `payload.dict()` in `custom` blocks, deprecated in
     Pydantic v2 and **removed in v3**. See point 85.
@@ -461,7 +461,7 @@ anonymous social network as the final test bench.
     before writing. They return the ORIGINAL value: `" a "` remains `" a "`.
     Non-required text and numeric zero remain accepted. The contract declares
     `non_blank`, and `_contract_signature` sees it. Proven by
-    `tests/test_champ_texte_non_vide.py` (real server), including
+    `tests/test_non_blank_text_field.py` (real server), including
     the TWO counter-proofs: disable the fix → 200 returns; expand the list to
     numbers → a zero total is refused.
 15. **`rule Entite.Create decrements Entite.champ by champ`** — decrement WHAT
@@ -511,7 +511,7 @@ anonymous social network as the final test bench.
     `String`, `derivedFrom`/`sumOf`/`payable` require numeric types — the type
     refusal happens first, and an unreachable refusal would suggest protection.
     `required`/`min`/`max` are inherited from the cross-check in point 85 without
-    adding a line. Proven by `tests/test_horodatage.py` (20 tests), compiled by
+    adding a line. Proven by `tests/test_timestamp.py` (20 tests), compiled by
     `exemples/02_boutique.ml`, adopted by `projets/SneakerLab`, and **emitted by
     the guided dialogue without asking a single question** (the only useful
     answer would be “yes”). See point 89.
@@ -532,7 +532,7 @@ anonymous social network as the final test bench.
     find someone else's as soon as the two ids diverged. Only `Create` can
     require it: elsewhere, the record already exists. **The test trap**: “is
     there at least one record?” passes as long as only ONE account is used.
-    Proven by `tests/test_fiche_obligatoire.py` (17 tests), adopted by
+    Proven by `tests/test_required_profile.py` (17 tests), adopted by
     `projets/SneakerLab`. Do not repair existing data. See point 90.
 
 18. **The lock on a paid record** — no new syntax: it is `payable` (brick 9)
@@ -561,7 +561,7 @@ anonymous social network as the final test bench.
     disappears. The payment route also reads `payment_status` to refuse a second
     payment: this is NOT that lock, its own note already says so, and the
     non-divergence test distinguishes them by the message from
-    `_payment_lock_lines`. Proven by `tests/test_verrou_paiement.py` (15 tests,
+    `_payment_lock_lines`. Proven by `tests/test_payment_lock.py` (15 tests,
     real server + fake Stripe) and four contract tests in
     `tests/test_orchestrator.py`. Compiled by `exemples/02_boutique.ml`. See
     point 91.
@@ -579,7 +579,7 @@ anonymous social network as the final test bench.
     with `generated`. The declared ORDER is preserved (for a status, it is the
     lifecycle). The contract carries `allowed_values` and the brief says
     **DROPDOWN MENU**: without that, the AI draws a text field. Proven by
-    `tests/test_valeur_parmi_une_liste.py` (24 tests), compiled by
+    `tests/test_value_from_a_list.py` (24 tests), compiled by
     `projets/SneakerLab`. See point 96.
 
 20. **`rule Entite.champ "valeur" releases Entite`** — reaching a VALUE undoes
@@ -594,7 +594,7 @@ anonymous social network as the final test bench.
     otherwise a typo would create a rule that never triggers. No refusal of a
     combination with the point 91 lock: a paid order already refuses every
     Update, and an unreachable refusal would suggest protection. Proven by
-    `tests/test_liberation.py` (16 tests), adopted by `projets/SneakerLab`. See
+    `tests/test_release.py` (16 tests), adopted by `projets/SneakerLab`. See
     point 98.
 
 21. **`seed Enfant for Parent.champ "valeur"`** — a demo dataset can ATTACH a
@@ -640,7 +640,7 @@ anonymous social network as the final test bench.
     index would catch it a year later). The keyword is NOT `reference`: it
     would be confused with the field name. Older records remain without a
     number and are counted at startup (point 89, word for word). Proven by
-    `tests/test_numerotation.py` (24 tests), compiled by
+    `tests/test_numbering.py` (24 tests), compiled by
     `exemples/02_boutique.ml`. See point 102.
 
 23. **Supervisor role above `accessibleBy`** — a `sharedBy` on the SAME
@@ -673,7 +673,7 @@ anonymous social network as the final test bench.
     or revoked token leaves the caller anonymous, and a public route never
     returns 401; it is emitted only if an exemption exists
     (`_condition_exemptions`, generator/core.py, the single source shared by the
-    route and runtime). Proven by `tests/test_publication_conditionnelle.py`
+    route and runtime). Proven by `tests/test_conditional_publication.py`
     (10 tests, THREE accounts — with one, “is hidden content hidden?” would pass
     even if it were hidden from everyone), compiled by
     `exemples/03_reseau_social.ml`. See point 116.
@@ -700,7 +700,7 @@ anonymous social network as the final test bench.
     (point 195). The 409 for `oncePer` and the one for
     `unique` are distinguished by the COLUMNS named by SQLite; otherwise the
     first stole the second's message (point 85 defect, reopened).
-    Tested by `tests/test_unicite_composite.py` (8 tests, TWO accounts and
+    Tested by `tests/test_composite_uniqueness.py` (8 tests, TWO accounts and
     TWO targets), compiled by `exemples/03_reseau_social.ml`. See point 116.
 
 29. **Every local file CLAIMED by the frontend must be served** — no new
@@ -723,7 +723,7 @@ anonymous social network as the final test bench.
     `frontend/` directory (a manually placed image works), and the allowlist
     governs what the AI is allowed to DELIVER, not what the server serves; the
     actual silent path is `monl import`, which REMOVES from the archive what is
-    not allowlisted. Tested by `tests/test_fichiers_reclames.py`
+    not allowlisted. Tested by `tests/test_claimed_files.py`
     (12 tests) and on AtelierNaya, intact copy GREEN versus truncated copy RED.
     See point 137.
 30. **`landing … link "Libellé": "adresse"`** — the footer is REQUIRED, and
@@ -759,8 +759,8 @@ anonymous social network as the final test bench.
     `address_of_link` (`dialogue_engine.py`) is the sole source on the Python
     side; the console has a JavaScript copy because it validates in the browser,
     and **agreement between the two is VERIFIED** — two implementations of the
-    same rule always diverge. Tested by `tests/test_liens_de_pied.py` (10 tests)
-    and `tests/test_liens_pied_de_page.py` (5 tests). See points 144 and 146.
+    same rule always diverge. Tested by `tests/test_footer_links.py` (10 tests)
+    and `tests/test_footer_links_layers.py` (5 tests). See points 144 and 146.
 31. **`migration nom` with `rename`, `alter` or `drop`** — NON-ADDITIVE schema
     changes are named and explicitly executed, because a comparison cannot
     guess that one column replaces another. Without a matching migration, the
@@ -788,20 +788,20 @@ anonymous social network as the final test bench.
     language; filters remain joined to access control. `hidden`, `categorized`,
     `Upload` and secrets are refused, as are SQL expressions supplied by the
     client. `limit`/`offset` remain unchanged. Tested against real servers by
-    `tests/test_filtrage_tri.py`. See point 123.
+    `tests/test_filter_sort.py`. See point 123.
 35. **`capability auth` with `lockout`, `password_reset`/`passwordReset`,
     `refresh_tokens`/`refreshTokens` and `totp`** — locks out after a failure
     window, allows reset by email, rotates tokens and adds two-factor
     authentication; every duration is declared, with no hidden default. 401
     remains generic, replay is refused, and historical accounts are not
-    converted. Tested by `tests/test_authentification_b4.py` against real
+    converted. Tested by `tests/test_authentication_b4.py` against real
     SQLite/PostgreSQL servers and a fake SMTP server. See point 124.
 36. **`capability payment` with `currency` and `provider`** — the currency
     carries the exponent of its minor unit (`XOF` has no cents), and the provider
     is pluggable for mobile money (`fedapay`) without rewriting Stripe issuance.
     An unknown currency or one with three decimal places is refused; an
     unproven provider is refused rather than guessed, and the pair is included
-    in the contract signature. Tested by `tests/test_devise.py` and
+    in the contract signature. Tested by `tests/test_currency.py` and
     `tests/test_fedapay.py` against real servers and fake providers. See points
     126 and 128.
 
@@ -816,7 +816,7 @@ anonymous social network as the final test bench.
     Earlier accounts are never converted (point 89) and are counted at startup;
     `manage.py` creates confirmed accounts. Stated limits: no purge of unconfirmed
     accounts, and an attacker can pre-register someone else's address. Proven by
-    `tests/test_verification_email.py` against a real server and a fake SMTP,
+    `tests/test_email_verification.py` against a real server and a fake SMTP,
     with TWO accounts. See point 209.
 
 **DSL keyword reference.** The grammar implements the following words, and this
@@ -976,7 +976,7 @@ making a touch-up: does the content really say what we want to see?
   impossible. Never rebuild an access-control query with an
   f-string: go through this layer. Proven by `tests/test_sql_emission.py`,
   whose safeguard forbids the point 107 pattern in generated code, AND by
-  `tests/test_invariants_securite.py`, which extends this safeguard to ALL specs in the
+  `tests/test_security_invariants.py`, which extends this safeguard to ALL specs in the
   repository (AST on generated app.py: no client value in an SQL literal).
 - **POINT 109: the access-control model (on the validator side) lives in
   `_validate_control_access()` (ast_validator.py), not scattered across
@@ -999,7 +999,7 @@ making a touch-up: does the content really say what we want to see?
   its docstring says so** — around twenty files still call it, but they fail
   plainly. The trap discovered while writing the witness test: a `Skipped`
   raised inside `pytest.raises` SKIPS the surrounding test — hence
-  `failure_expected()` in `tests/test_support_serveur.py`, which catches the two outcomes separately. **What the fix found on its very first run**:
+  `failure_expected()` in `tests/test_support_server.py`, which catches the two outcomes separately. **What the fix found on its very first run**:
   `test_uploads.py` was no longer running on the maintainer's machine
   (`python-multipart` absent — despite being DECLARED in
   `pyproject.toml`), and was showing green. A skip does not mean “nothing to check
@@ -1173,7 +1173,7 @@ making a touch-up: does the content really say what we want to see?
   lived in this CI all along. The redundant `-q` is removed, `-rs` NAMES each
   skip with its reason (counting is not enough: “2 skipped” does not say which
   ones). **The guarantee is guarded by a test** —
-  `tests/test_ci_les_sauts_se_voient.py` rejects any command that adds `-q`
+  `tests/test_ci_skips_are_visible.py` rejects any command that adds `-q`
   again or does not include `-rs`, with one witness on the premise (does
   `addopts` still contain `-q`?) and one witness on the EXTRACTOR, otherwise a
   function that finds nothing would make both rules pass without looking at
@@ -1192,7 +1192,7 @@ making a touch-up: does the content really say what we want to see?
   without it, the `pyproject.toml` gate would apply to the TOTAL of both
   packages, and one would compensate for the other. Measured: platform
   coverage rises from 90.24% to **91.59%** — the excluded files did contribute
-  lines. `tests/test_ci_la_couverture_porte_sur_tout.py` guards the three rules
+  lines. `tests/test_ci_coverage_spans_everything.py` guards the three rules
   (coverage over the entire suite, every test file executed, every package in
   `src/` gated), each in a FUNCTION that its counter-proof exercises — inside
   a test body, the counter-proof would overwrite it (point 170). Reading
@@ -1228,7 +1228,7 @@ making a touch-up: does the content really say what we want to see?
 - **POINT 186: a STATIC audit found five real defects — two closed here.** (a) `_json_body` only bounded the body when `Content-Length` was present: without it, `await request.json()` materialized the entire body on ANONYMOUS routes before any check. Fixed by CUMULATIVE reading of `request.stream()`, returning 413 as soon as the limit is exceeded; an AST test now forbids reading the body anywhere except in `_json_body` and the hosting relay (separate point). (b) `POST /api/projects/{id}/compiler` (recompilation) bypassed the quota AND semaphore that `/api/compile` has always applied — two doors to the same compiler, only one guarded. `_admission_compilation` (app_http.py) is now the ONLY door for both routes: same quota, same semaphore, one instance created in `app.py`. Counter-proof: without (a), the body got through (`401` instead of `413`); without (b), compilation and recompilation shared neither quota nor semaphore (`201` instead of `429`/`503`). See point 186.
 - **POINT 187: OAuth `state` was signed and dated, but bound to NO ONE.** The audit's third defect, and the most serious: an attacker started a flow from their browser and got the victim to open the callback address, leaving the victim logged in **to the attacker's account** — *login CSRF*, with no other vulnerability. `state` now carries the **HMAC fingerprint** of a secret generated at the start of the flow and kept in the `monl_oauth_flow` cookie: including the secret itself would expose it, since `state` travels in plaintext in a URL and ends up in the provider's logs. Three decisions not to reopen — `samesite="lax"` and never `strict` (the callback is navigation from another site; `strict` would hold back the cookie and refuse every LEGITIMATE login, the surest way to disarm yourself); cookie scoped to `path=/auth/` and `max_age=STATE_TTL` (one duration; two would eventually diverge); and **cleared on BOTH outcomes**, otherwise a captured `code` remains replayable — this clearing is why the error branch must return a `JSONResponse` rather than raise, since an exception cannot carry a cookie. **WHAT THE CHECK FOUND**: the privacy page claimed “the only cookie set is `monl_session`” — false that very day, on the page with legal force (point 141: *it is not missing, it MAKES A CLAIM*). A witness now compares the page's `<code>monl_*</code>` entries with actual `set_cookie` calls, **in both directions**. It resolves NAMED constants through `importlib`: a pattern limited to literals would have seen `monl_session`, found the exact page, and returned green without looking at `OAUTH_FLOW_COOKIE`, the one case it needed to catch (point 172 verbatim); anything it cannot read FAILS (point 161). Exercised by `tests/test_oauth.py` (22 witnesses) — the complete attack is refused with 400, the code is **never even presented** to the provider, and `sessions` and `users` remain empty; counter-proof `assert 303 == 400`. See point 187.
 - **POINT 188: a body limit is measured in MEMORY, never by status code.** The audit's two final findings — one more `serve.py` for every site visited with no cap (`hosting_admission.py`: `MONL_MAX_RUNNING_SITES` 20, `MONL_MAX_RUNNING_SITES_PER_ACCOUNT` 3, read ONCE when the `SiteManager` is constructed), and the payment webhook, which materialized the body BEFORE checking the signature, the only place where an unauthenticated third party writes to the database. **The per-account cap comes before the platform cap**: it is what makes it acceptable to evict another account's site when the global cap is reached — a site inactive for 5 min is STOPPED, not deleted, and the next request starts it again (replacement cache). Inactivity is NECESSARY: otherwise return 503 with `Retry-After`, and never stop a site that is serving.
-  **THE LESSON.** Existing witnesses checked that an oversized body receives 413 — green on a server that swallows everything before refusing it. The HTTP status is what the limit CONSTRAINS; memory is what it SERVES (point 172, 3rd domain). `tests/test_bornes_memoire.py` measures RSS from a SEPARATE PROCESS: sending 200 MiB adds +1.0 MiB with the limit in place, versus **+197 MiB** when disarmed. The line that matters: with the relay disarmed, **the response remains 413** — only memory distinguishes the two. **THE ASSERTION ORDER IS THE GUARANTEE**: check status first; the counter-proof went red on the HTTP status, for the same reason as the existing witness (point 170).
+  **THE LESSON.** Existing witnesses checked that an oversized body receives 413 — green on a server that swallows everything before refusing it. The HTTP status is what the limit CONSTRAINS; memory is what it SERVES (point 172, 3rd domain). `tests/test_memory_bounds.py` measures RSS from a SEPARATE PROCESS: sending 200 MiB adds +1.0 MiB with the limit in place, versus **+197 MiB** when disarmed. The line that matters: with the relay disarmed, **the response remains 413** — only memory distinguishes the two. **THE ASSERTION ORDER IS THE GUARANTEE**: check status first; the counter-proof went red on the HTTP status, for the same reason as the existing witness (point 170).
   **Three measurements nearly lied**: `requests` RECALCULATES `Content-Length`, so a forged header never reaches the server (witness rewritten using raw `http.client`, without a byte of body — a server that did not read the announcement would hit `TimeoutError`, never accidentally return 200); a benchmark started TWO SQLite databases and measured the platform thinking it was measuring the relay; and its warm-up targeted `/openapi.json`, **which the platform ALSO serves** (point 165). **Not closed, and STATED**: the limit protects memory, not bandwidth (Nginx, point 185); the relay accumulates data as needed up to its limit, so N requests multiply it; and no golden spec has `payable`, so the generated webhook has no fingerprint. See point 188.
 - **POINT 192: every test that starts a `serve:app` must use a fixture/manager whose `finally` calls `stop_all()`, with a witness that checks a site responded and then its PID disappeared. An application created outside `lifespan` does not receive automatic shutdown. See point 192.
 - **POINT 189: production had been down for fifty minutes, and nothing had said so.** No code defect. Point 185 had exercised deployment for real, except for ONE line — survival after restart, which was *configured* but never MEASURED. After a machine restart: `monl-nginx` was running, the platform's two containers were **`Created`** — not `Exited`, not failed, **never started**. Cause: `podman-restart.service` runs `podman start --all --filter restart-policy=always`, while compose declared `unless-stopped` — a valid policy that simply does NOT match that filter (nginx came back because it had been started manually with `always`). Proven **without restarting**, by replaying what boot does: stop the container, then `systemctl --user restart podman-restart.service` → still `Exited`. Compose now uses `restart: always` EVERYWHERE; the lost nuance (a deliberate stop no longer survives the next startup) is the right direction for an error in a production service. The witness reads ALL services from the YAML — not just today's two — and fails if the list is empty (point 161).
@@ -1237,7 +1237,7 @@ making a touch-up: does the content really say what we want to see?
   `tests/test_documentation.py` enforces SIX rules across all `.md` files: cited path exists, CLI verb exists, internal link resolves, no fixed test count or coverage percentage in a prescriptive document, **every shipped verb appears in the README table**, **every project path is checked against a REAL compilation**. Exemptions (historical items, generated artifacts) are justified one by one, and **an exemption that is no longer needed FAILS** (point 155).
   **WHAT THE CHECK FOUND, more valuable than the witness.** (a) It read a LIST WRITTEN FOR IT: a `build_parser()` in `monl-platform` manually copied the verbs that `main()` dispatches through `if argv[0] == …` — the point 164 defect reproduced by its own fix. Verbs now live in a `VERBS` table **that dispatch READS**. (b) It **MADE UP A FALSEHOOD**: `docs/PUBLICATION.md` describes the contents of a WHEEL (`monl_platform/static/`), and the rule “corrected” it to `src/monl_platform/static/` — false, `package-dir` removes that prefix. Prefixes are now DERIVED from `pyproject.toml` (point 84). (c) An exemption HID a defect: because `FRONTEND_PROMPT.md` was generated and thus exempt, nobody noticed that the README pointed to `Boutique/FRONTEND_PROMPT.md` when it is output to `Boutique/docs/`. (d) Nobody guarded THE REVERSE DIRECTION: `monl usage` shipped and was documented NOWHERE, and three more verbs were missing from the table (point 169 applied here).
   **AND MY OWN PROBES LIED TWICE**: 71 false positives by treating an ellipsis (`cli.py`) as a false claim (point 157), then a complete verdict on ZERO data, silent extraction (point 161) — the eleven documented verbs were reported missing. Each extractor therefore has an assertion that its result is nonempty. Ten counter-proofs run. See point 190.
-- **POINT 159: a test that depends on a clock FIXES its reference instant, then never reads the clock again.** The TOTP replay assertion in `tests/test_authentification_b4.py` RECALCULATED the code instead of replaying the one already used: each time the 30-second window changed, it sent a NEW code, never consumed, which the server rightly accepted (`assert 200 == 401` in CI). The step is captured once (`_stable_totp_step`), and `_totp_code(secret, step)` has no default — inferring the step in the helper is exactly what let the defect through. **The displayed engine was not the cause**: forcing the window change goes red on BOTH engines; `[postgres]` was only a scheduling coincidence. **And its neighbor no longer caught anything**: the previous window was tested AFTER valid login, so it was refused by that login's replay prevention — allowing the server a ±1-window tolerance left the test GREEN. Moved before login, it goes red. Point 145 verbatim. See point 159.
+- **POINT 159: a test that depends on a clock FIXES its reference instant, then never reads the clock again.** The TOTP replay assertion in `tests/test_authentication_b4.py` RECALCULATED the code instead of replaying the one already used: each time the 30-second window changed, it sent a NEW code, never consumed, which the server rightly accepted (`assert 200 == 401` in CI). The step is captured once (`_stable_totp_step`), and `_totp_code(secret, step)` has no default — inferring the step in the helper is exactly what let the defect through. **The displayed engine was not the cause**: forcing the window change goes red on BOTH engines; `[postgres]` was only a scheduling coincidence. **And its neighbor no longer caught anything**: the previous window was tested AFTER valid login, so it was refused by that login's replay prevention — allowing the server a ±1-window tolerance left the test GREEN. Moved before login, it goes red. Point 145 verbatim. See point 159.
 - **POINT 173: three bricks the dialogue did not write—and a photo no one
   could see.** `upload`, `filter` and `sort` existed, produced real code, were
   tested against a real server, and **neither the dialogue nor any of the ten
@@ -1266,7 +1266,7 @@ making a touch-up: does the content really say what we want to see?
   **THE PROOF HAD BEEN DECLARED MISSING AND REMAINED SO UNTIL NOW**: the
   dialogue → spec → server → deposited file chain had never been traversed
   (`test_uploads.py` starts from a manually written spec).
-  `tests/test_depot_depuis_le_dialogue.py` traverses it—TWO accounts (with just
+  `tests/test_upload_from_dialogue.py` traverses it—TWO accounts (with just
   one, “is the file private?” becomes “can I read my own?”, points 81/90/116),
   PNG read back byte for byte, other account refused, anonymous user gets 401,
   413 for size, 415 for an SVG renamed `.png` (type determined by BYTE
@@ -1350,7 +1350,7 @@ making a touch-up: does the content really say what we want to see?
   what it measures, not the question one would like to ask it.*
   **PROOFS**: 20 specs at **40,955 bytes identical byte for byte**, eleven
   unchanged golden fingerprints, no new questions. And
-  `tests/test_console_choix.py` drives the REAL page in jsdom against the REAL
+  `tests/test_console_choices.py` drives the REAL page in jsdom against the REAL
   server (eleven buttons, title without the terminal menu, position/name/help,
   click that advances)—**all four bite**, all turn red when rendering is
   disabled. One witness had to be rewritten: it built the hints itself then
@@ -1705,7 +1705,7 @@ making a touch-up: does the content really say what we want to see?
   about startup, never compilation.
   (b) **No test exercised `start_project`** — the only coverage was for
   ADDRESSING. The coupling could break without a line turning red; hence
-  `tests/test_platform_hebergement.py` (real process, real HTTP) and its
+  `tests/test_platform_hosting.py` (real process, real HTTP) and its
   counter-proof that restores the build gate.
   (c) **`seed_ai.py` had NO callers in `src/`** (verified by `git grep` at the
   previous commit): point 151 describes a brick nothing wired up, and two test
@@ -1736,7 +1736,7 @@ making a touch-up: does the content really say what we want to see?
   **The counter-proof reproduced the blind spot from points 88 to 119 live**:
   blinded to everything except ROUTES, the delta declared “interface
   unchanged” for a field added with its `oneOf`. Exercised by
-  `tests/test_platform_mcp_boucle.py` — an agent compiles, lists, downloads
+  `tests/test_platform_mcp_loop.py` — an agent compiles, lists, downloads
   the ZIP, measures and recompiles without ever opening a session. See point
   162.
 - **POINT 160: a time threshold in SECONDS does not mean the same thing on two machines.** The temporal oracle test in `test_authentification_b4` compared the gap between the “account locked” path and the “account nonexistent” path against a fixed 0.10 s: CI on `main` hit 0.1016 s. Two defects, to separate before touching the threshold. **THE ESTIMATOR** — the median of FIVE paired gaps rises to 9.70 ms during an isolated stall, while that of FIFTEEN stays below 1.54 ms (`TOURS_MEASURE`). **THE SCALE** — the tolerance is now a SHARE of the observed response time (20%, 5 ms floor), because what matters to an attacker is SIGNAL against NOISE, not a number of milliseconds. **A REAL difference remains**: the locked path costs 1.7 ms more, in 19 of 24 measurements; this is NOT an order bias (checked by reversing the order in each pair: +1.81 versus +1.63 ms). The test BOUNDS it; it does not require zero. **Mandatory counter-proof, and this is what distinguishes a corrected threshold from a disabled one**: a real leak injected into the generated server is rejected at 20 ms (19.83 measured against a 16.45 tolerance), not at 10 — five times finer than the previous 100 ms. See point 160.
@@ -1749,7 +1749,7 @@ making a touch-up: does the content really say what we want to see?
 - **ANALYSIS lives outside the emitters** (docs/COMPILER_REFACTOR.md): `ir_types.py` contains the serializable `TypedDict`s produced by validation, `ir.py` the resolved PLANS — `frozen` except for `RoutePlan`, which merges actors from multiple workflows —, `planning.py` the pure analyses (routes, relations, foreign keys, `derivedFrom`, `sumOf`, counters), and `policies.py` field and access policies. These four modules read NOTHING from the generator — `tests/test_architecture.py` requires this for `planning` and `policies`, and CI runs them through `mypy --strict`. A plan is built once and then READ: changing the input IR afterward can no longer make the backend and contract diverge, and `tests/test_ir.py` measures this.
 - `plan_routes` (planning.py): the single source of truth for route grouping, shared between FastAPI generation and the frontend contract (src/frontend_contract.py) via `self.route_plans` — `_compute_route_map` is now only its compatibility accessor. Do not duplicate this logic elsewhere. A test (tests/test_orchestrator.py) compares the contract with the decorators actually written in app.py.
 - The contract must describe what the backend REALLY does, not only what the spec declares — including when a brick REMOVES the ability to write a field, not only when it adds a column (point 79: the point 76 defect recurred with `derivedFrom`, the brick created to fix it). Every field populated by the server must be removed from `request_fields`, using `server_generated`.
-- **POINT 99: “populated from identity” requires the parent to be an ACTOR.** `_identity_fk_columns` ruled out public creation, the target of a counter, and transitive ownership — but retained any incoming relation for everything else. A child entity of a BUSINESS table (`relation Produit hasMany Variante`) therefore received `current_user_id` in `produit_id`, declared as `REFERENCES _monl_users`: **the variant was attached to the seller, never to its product**, and the client could not specify one. This was the point 80 defect from the other end, invisible across twenty bricks because **no example in the repository creates a child of a business table** (all five compile children of actors). The choice no longer depends on relation order: only actor parents are candidates, and `ownedBy` selects among them. `populate_owner` (routes.py) now READS this helper instead of recalculating the same conditions alongside it. **The corollary not to forget**: `payable` was losing an ACCIDENTAL safeguard here — the settlement route compared the ownership column with the caller, and that worked only because the column received `current_user_id` by default. Hence a refusal (actor parent or transitive chain required) and a GENERATION ERROR if the account column is missing: better for the compiler to stop than for a payment route to lack access control. Proven by `tests/test_rattachement.py` (18 tests, 11 of which fail without the fix). See point 99.
+- **POINT 99: “populated from identity” requires the parent to be an ACTOR.** `_identity_fk_columns` ruled out public creation, the target of a counter, and transitive ownership — but retained any incoming relation for everything else. A child entity of a BUSINESS table (`relation Produit hasMany Variante`) therefore received `current_user_id` in `produit_id`, declared as `REFERENCES _monl_users`: **the variant was attached to the seller, never to its product**, and the client could not specify one. This was the point 80 defect from the other end, invisible across twenty bricks because **no example in the repository creates a child of a business table** (all five compile children of actors). The choice no longer depends on relation order: only actor parents are candidates, and `ownedBy` selects among them. `populate_owner` (routes.py) now READS this helper instead of recalculating the same conditions alongside it. **The corollary not to forget**: `payable` was losing an ACCIDENTAL safeguard here — the settlement route compared the ownership column with the caller, and that worked only because the column received `current_user_id` by default. Hence a refusal (actor parent or transitive chain required) and a GENERATION ERROR if the account column is missing: better for the compiler to stop than for a payment route to lack access control. Proven by `tests/test_attachment.py` (18 tests, 11 of which fail without the fix). See point 99.
 - **POINT 144: the footer is required, and its links are DECLARED.** `landing` accepts `link "Libellé": "adresse"` (repeatable, order preserved); the address must include a scheme — `https://`, `http://`, `mailto:`, `tel:` — or the browser reads it as a RELATIVE path on the site itself. monl does NOT check that an address responds (no network calls, the same boundary as point 83), but it checks that the address APPEARS in the delivered site (`_declared_link_errors`, frontend_ai.py), comparing the ADDRESS and never the label. The footer is the only required section with NO required title: making one mandatory would cause “Footer” to be written in large type. NEVER invent a social network absent from the spec — this is written in the brief, and is the reason the brick exists.
 - **POINT 143: a marker names a section; it does not prove that the section contains anything.** `src/monl/section_substance.py` measures SUBSTANCE (title, readable text, action, form); thresholds are PER SECTION and travel in `ASSET_MANIFEST.json` under `section_substance`, so a project compiled by an earlier version remains accepted. Two measurement traps, both proven: a `<script>` body does not count, and the parser stack carries the tag NAME — an unclosed `<p>` is legal HTML5, and without this, one section swallows its neighbor's text and the safeguard stops rejecting anything. NEVER require hard-coded data in a `catalogue`: its rows come from the API, and demanding them would make the system invent products. The section floor lives in `select_ui_patterns` (`ui_patterns.py`) — `hero`, substance (catalogue/workspace/booking), `trust`, `closing-cta` — and the `trust` substance comes from `_guarantees()` (design_system.py), so it comes from the CONTRACT and never from imagination. Measured on the catalog's 10 templates through the real dialogue path: minimum 4, median 7, maximum 10.
 - POINT 88: a foreign key references one of TWO things — the ACCOUNTS registry (`_monl_users`) when the Create route populates it from the token, or a business table's `id` otherwise. `_identity_fk_columns` (core.py) decides; the contract now CARRIES this (`references_account` plus the note saying to join using the HOMONYMOUS column, never `id`). Without this, an admin page displays the right name on the first record and nothing on the following ones — a join that only half works. A test compares the contract with the `REFERENCES` actually written in schema.sql.
@@ -1825,7 +1825,7 @@ making a touch-up: does the content really say what we want to see?
   place in the generated backend where an unauthenticated third party writes);
   a missing key returns 503 naming it, without preventing the rest of the
   server from running. `MONL_STRIPE_BASE_URL` exists so the brick can be tested
-  without calling real Stripe (`tests/test_paiement.py` includes its provider).
+  without calling real Stripe (`tests/test_payment.py` includes its provider).
   A fourth invariant since point 75: `payable` requires an incoming relation
   (owner), validated at compilation (`ast_validator.py`), and the reference
   sent to/read back from Stripe is qualified by the entity name (`'Order:42'`)
@@ -2065,7 +2065,7 @@ making a touch-up: does the content really say what we want to see?
   **Question to ask for every new brick, alongside the one about
   `_contract_signature`: who will write it?** Address completion has ONE source
   (`address_of_link`, dialogue_engine.py); the console necessarily has a
-  JavaScript copy, and `tests/test_liens_pied_de_page.py` runs BOTH on the
+  JavaScript copy, and `tests/test_footer_links_layers.py` runs BOTH on the
   same inputs — two implementations of the same rule always diverge.
   Express mode asks no questions: its links arrive through
   `express_links`.

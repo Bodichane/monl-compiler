@@ -160,7 +160,7 @@
   issue #120). A line dedented to a column no block opened, an integer of
   thousands of digits, and an exponent such as `1e999900` used to crash the
   parser; each now names the line. `1e3` in a `seed` reads as `1000.0`.
-  `tests/test_fuzzing_parseur.py` mutates the repository's specs on every run.
+  `tests/test_parser_fuzzing.py` mutates the repository's specs on every run.
 
 ### Tests
 
@@ -516,11 +516,11 @@ ask for it.
 - **`monl update` sees both rules.** They lived in `business_rules`, which the
   contract signature did not read: the delta returned «no interface changes».
   Contract version 9.
-- **The suite passes on a fresh clone.** `tests/test_projets_metier.py` read
+- **The suite passes on a fresh clone.** `tests/test_business_projects.py` read
   `projets/`, which git ignores: six tests failed in CI. The specs are now in
   the test file.
 - Both bricks are tested against a real server
-  (`tests/test_publication_conditionnelle.py`, `tests/test_unicite_composite.py`)
+  (`tests/test_conditional_publication.py`, `tests/test_composite_uniqueness.py`)
   and compiled from `exemples/03_reseau_social.ml`.
 
 ### The counter column no longer depends on relation order (point 117)
@@ -699,7 +699,7 @@ ask for it.
   if missing, preserved thereafter, and excluded from the fingerprints of
   protected artifacts: adapting the image is the normal case for a real
   deployment.
-- Proven by `tests/test_deploiement.py` (9 tests) and an actual image build:
+- Proven by `tests/test_deployment.py` (9 tests) and an actual image build:
   container refusing to start without a secret, then serving registration,
   login, creation and reading, secret absent from the image.
 

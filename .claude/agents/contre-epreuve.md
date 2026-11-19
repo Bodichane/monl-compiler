@@ -63,9 +63,9 @@ the disposable worktree using absolute paths:
 - **Never mutate while a test suite is running** (point 152): a subprocess
   rereads the disk, while the main pytest process already has its import in memory.
 - `pyproject.toml` already sets `-q`: do not add a second one (point 161).
-- Node and jsdom: `tests/test_console_*.py` and `tests/test_platform_connexion_ui.py`
+- Node and jsdom: `tests/test_console_*.py` and `tests/test_platform_login_ui.py`
   need them; their absence must make the run FAIL, never skip. The fixture in
-  `test_platform_connexion_ui.py` is function-scoped: the Node driver is
+  `test_platform_login_ui.py` is function-scoped: the Node driver is
   restarted for every test, so a slow perturbation costs that much each time
   (133 s for a single mutation during the run on PR #79) — account for this
   in your estimate.
