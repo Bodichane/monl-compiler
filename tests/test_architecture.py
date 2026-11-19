@@ -395,7 +395,6 @@ def test_chaque_exception_de_taille_vise_un_fichier_qui_depasse_encore():
 # elles sont des cliquets, pas des plafonds de confort.
 PLAFOND_COMPLEXITE = 15
 EXCEPTIONS_DE_COMPLEXITE = {
-    "monl/cli/delta.py:_rapporter_delta": (46, "Rapport de delta hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
 }
 
 
@@ -560,12 +559,28 @@ def test_le_garde_fou_rougit_pour_une_fonction_trop_complexe():
 
 
 def test_le_garde_fou_rougit_si_on_retire_une_exception_utile():
+    """The ceiling must bite, even once the exception table is empty.
+
+    Removing an existing exception was the counter-proof while there were
+    any. With an empty table that step has nothing left to remove, so a
+    synthetic function one decision above the ceiling goes through the REAL
+    counter and the REAL guard: it must be reported, and be the only one —
+    otherwise an empty table would only prove that nothing is measured."""
     fonctions = list(_fonctions_de_src())
+    assert fonctions, "no function read from src/: the guard would measure nothing"
     exceptions = dict(EXCEPTIONS_DE_COMPLEXITE)
-    retiree = next(iter(exceptions))
-    del exceptions[retiree]
-    violations = _violations_de_complexite(fonctions, exceptions)
-    assert retiree in violations
+    if exceptions:
+        retiree = next(iter(exceptions))
+        del exceptions[retiree]
+        violations = _violations_de_complexite(fonctions, exceptions)
+        assert retiree in violations
+    source = "def trop_complexe(x):\n" + "".join(
+        f"    if x == {i}:\n        x += 1\n" for i in range(PLAFOND_COMPLEXITE))
+    score = _complexite_fonction(ast.parse(source).body[0])
+    assert score == PLAFOND_COMPLEXITE + 1
+    violations = _violations_de_complexite(
+        fonctions + [("synthetique:trop_complexe", score)], EXCEPTIONS_DE_COMPLEXITE)
+    assert set(violations) == {"synthetique:trop_complexe"}
 
 
 def test_aucun_test_ne_saute_faute_de_bibliotheque():
