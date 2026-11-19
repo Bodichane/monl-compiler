@@ -5,7 +5,7 @@ import json
 from io import BytesIO
 
 import pytest
-from aide_sections import manifest_sections
+from section_helpers import manifest_sections
 
 from monl import cli, image_ai
 from monl.cli import compile_project

@@ -154,15 +154,15 @@ In priority order:
    support down migrations, while a down migration containing an irreversible
    drop is refused and requires backup recovery (see [MIGRATIONS.md](MIGRATIONS.md)).
 2. **Template/AST-based generator**, first four steps delivered (point 207,
-   issue #119): `src/monl/generator/sandbox.py`, `src/monl/generator/runtime_annexes.py`,
+   issue #119): `src/monl/generator/sandbox.py`, `src/monl/generator/runtime_extras.py`,
    `src/monl/generator/runtime_preparation.py`, `src/monl/generator/runtime_migrations.py`,
-   `src/monl/generator/admin_cli.py`, `src/monl/generator/runtime_fonctions_auth.py`,
-   `src/monl/generator/runtime_montage.py`, `src/monl/generator/runtime_socle.py`,
+   `src/monl/generator/admin_cli.py`, `src/monl/generator/runtime_auth_functions.py`,
+   `src/monl/generator/runtime_mounting.py`, `src/monl/generator/runtime_base.py`,
    `src/monl/generator/routes_uploads.py`, `src/monl/generator/runtime_pool.py`,
-   `src/monl/generator/paiement.py`, `src/monl/generator/prealables.py`,
-   `src/monl/generator/calculs.py`, `src/monl/generator/schemas.py`,
-   `src/monl/generator/routes_acces.py`, `src/monl/generator/runtime_jetons.py`
-   and `src/monl/generator/runtime_connexion.py`
+   `src/monl/generator/payment.py`, `src/monl/generator/prerequisites.py`,
+   `src/monl/generator/calculations.py`, `src/monl/generator/schemas.py`,
+   `src/monl/generator/routes_access.py`, `src/monl/generator/runtime_tokens.py`
+   and `src/monl/generator/runtime_login.py`
    use `string.Template`, preserving bytes. Other runtime and routes emitters remain
    to migrate, along with their assembly; see
    [the measured inventory and migration order](GENERATOR_EMISSION_INVENTORY.md).

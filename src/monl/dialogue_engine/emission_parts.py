@@ -1,7 +1,7 @@
 """Named pieces of the deterministic emission of a spec."""
 
-from ..ast_validator.champs import ChampsMixin
-from .fondations import SEEDABLE_TYPES
+from ..ast_validator.fields import ChampsMixin
+from .foundations import SEEDABLE_TYPES
 
 #: The types on which `min` counts CHARACTERS and not a value. Read from the
 #: validator, never copied: a second list would eventually diverge, and the

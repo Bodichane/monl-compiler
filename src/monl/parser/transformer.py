@@ -6,8 +6,8 @@ top-level block — never here."""
 from lark import Transformer, v_args
 from lark.indenter import DedentError, PythonIndenter
 
-from .transformer_blocs import BlocsMixin
-from .transformer_regles import ReglesMixin
+from .transformer_blocks import BlocsMixin
+from .transformer_rules import ReglesMixin
 from .transformer_structure import StructureMixin
 
 

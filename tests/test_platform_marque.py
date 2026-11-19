@@ -19,7 +19,7 @@ import sys
 from PIL import Image
 
 from monl_platform import brand, theme, theme_fragments
-from tests.support.cas import check_each_case
+from tests.support.cases import check_each_case
 
 PAQUET = pathlib.Path(theme.__file__).parent
 COULEUR = re.compile(r"#[0-9a-fA-F]{6}\b")

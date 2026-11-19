@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from . import landing_cas, landing_pourquoi
+from . import landing_cases, landing_why
 from .coloration import coloriser, en_lignes
-from .landing_vitrine import (
+from .landing_showcase import (
     ARBRE,
     ENTITES,
     FICHIERS,
@@ -298,7 +298,7 @@ BODY = f"""
 <article class="flow-stage"><h3>Every experience</h3><p>Web, mobile and agents use the same routes and permissions without guessing them.</p><div class="stage-tags"><span>web</span><span>mobile</span><span>MCP</span></div></article>
 </div></section>
 
-{landing_pourquoi.SECTIONS}
+{landing_why.SECTIONS}
 <section class="band"><div class="shell section editorial">
 <div class="section-head" data-reveal><h2>Security is not an instruction given to the frontend.</h2>
 <p>It is derived from the specification and repeated in every layer produced. The limits stay explicit.</p>
@@ -312,7 +312,7 @@ BODY = f"""
 
 <section class="shell section"><div class="section-head" data-reveal><h2>Four applications, four families of rules actually tested.</h2>
 <p>Each example is a complete specification served by the platform. Open it in the console, adapt it, then compile its backend.</p></div>
-{landing_cas.EXPLORATEUR}</section>
+{landing_cases.EXPLORATEUR}</section>
 
 <section class="shell final" data-reveal>
 <h2>Compile a real business rule.</h2>
@@ -327,6 +327,6 @@ LANDING_HTML = page(
     description="Monl compiles your business rules into a self-contained backend and a verifiable frontend contract.",
     body=BODY,
     active="home",
-    extra_css=EXTRA_CSS + landing_cas.EXTRA_CSS + landing_pourquoi.EXTRA_CSS,
-    scripts=LANDING_MOTION + landing_cas.CASE_SCRIPT,
+    extra_css=EXTRA_CSS + landing_cases.EXTRA_CSS + landing_why.EXTRA_CSS,
+    scripts=LANDING_MOTION + landing_cases.CASE_SCRIPT,
 )

@@ -272,7 +272,7 @@ def test_retouche_prompt_only_writes_the_instruction_without_calling_the_ai(monk
     """`--prompt-only` (and its French alias `--consigne-seule`) writes the
     instruction and stops; without it, the AI path is taken. Nothing tested
     this option before: removing it would have left the suite green."""
-    from monl.cli import retouche as module_retouche
+    from monl.cli import retouch as module_retouche
     trace = []
     monkeypatch.setattr(module_retouche, "cmd_retouche",
                         lambda d, demande: trace.append(("consigne", d, demande)))

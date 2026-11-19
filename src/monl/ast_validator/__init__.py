@@ -5,8 +5,7 @@ The public surface did not move when it became a package — `MonlAST`,
 imported from `monl.ast_validator` exactly as before."""
 
 from .assets import candidats_asset, resoudre_asset
-from .core import MonlAST
-from .socle import (
+from .base import (
                     DEFAULT_ASSETS_DIR,
                     DEVISE_PAR_DEFAUT,
                     DEVISES,
@@ -16,6 +15,7 @@ from .socle import (
                     PRESTATAIRES_ECARTES,
                     ASTValidationError,
 )
+from .core import MonlAST
 
 __all__ = [
                     "DEFAULT_ASSETS_DIR",

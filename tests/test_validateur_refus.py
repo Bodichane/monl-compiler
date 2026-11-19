@@ -20,7 +20,7 @@ import pytest
 
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.parser import MonlSyntaxError, parse_monl_string
-from tests.support.cas import check_each_case
+from tests.support.cases import check_each_case
 
 
 def _valide(spec):

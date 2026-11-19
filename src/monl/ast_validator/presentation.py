@@ -5,7 +5,7 @@ It checks the shape of `ui`, of `landing` and of the footer links (brick
 30, point 144), whose address must carry a scheme, otherwise the browser
 reads it as a RELATIVE path on the site itself."""
 
-from .socle import ASTValidationError
+from .base import ASTValidationError
 
 
 class PresentationMixin:

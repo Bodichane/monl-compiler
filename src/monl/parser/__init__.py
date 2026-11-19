@@ -4,9 +4,9 @@ The public surface did not move when it became a package —
 `parse_monl_string`, `parse_monl_file` and `MonlSyntaxError` are imported
 from `monl.parser` exactly as before."""
 
-from .erreurs import MonlSyntaxError
-from .grammaire import grammar
-from .lecture import parse_monl_file, parse_monl_string
+from .errors import MonlSyntaxError
+from .lark_grammar import grammar
+from .reading import parse_monl_file, parse_monl_string
 from .transformer import MonlIndenter, MonlTransformer
 
 __all__ = [

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-# The grammar's twelve types (`TYPE` in src/monl/parser/grammaire.py). A test
+# The grammar's twelve types (`TYPE` in src/monl/parser/lark_grammar.py). A test
 # refuses any divergence, in both directions.
 TYPES: list[tuple[str, str]] = [
     ("String", "Short single-line text: a name, a reference, a category."),

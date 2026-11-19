@@ -11,7 +11,7 @@ import tempfile
 
 from ..errors import MonlError
 from ..frontend_ai import UPDATE_PROMPT_FILENAME
-from . import construction, emplacement, signature
+from . import construction, location, signature
 
 # ----------------------------------------------------------------- update --
 # The names of the two evolution briefs live in frontend_ai (which CONSUMES
@@ -292,8 +292,8 @@ def _delta_des_routes(ancienne, nouvelle):
     return dict(added_routes=added_routes, removed_routes=removed_routes, added_fields=added_fields, removed_fields=removed_fields, added_acces=added_acces, removed_acces=removed_acces, scelles=scelles, liberes=liberes, added_prea=added_prea, removed_prea=removed_prea, added_verrous=added_verrous, removed_verrous=removed_verrous)
 
 def cmd_update(project_dir):
-    project_dir, spec_path = emplacement._situer_projet(project_dir, "update")
-    ancienne = emplacement._signature_precedente(project_dir)
+    project_dir, spec_path = location._situer_projet(project_dir, "update")
+    ancienne = location._signature_precedente(project_dir)
     nouveau = construction.compile_project(spec_path, project_dir)
     _rapporter_delta(ancienne, signature._contract_signature(nouveau), project_dir)
     print("The existing database is preserved: new columns are added by an "
@@ -310,8 +310,8 @@ def cmd_update(project_dir):
 # written — neither app.py, nor the contract, nor monl.json, nor the evolution
 # instruction.
 def cmd_diff(project_dir):
-    project_dir, spec_path = emplacement._situer_projet(project_dir, "compare")
-    ancienne = emplacement._signature_precedente(project_dir)
+    project_dir, spec_path = location._situer_projet(project_dir, "compare")
+    ancienne = location._signature_precedente(project_dir)
 
     # The output folder is throwaway, but `base_dir` must stay the REAL
     # project: it is the one carrying the declared assets, and checking them in

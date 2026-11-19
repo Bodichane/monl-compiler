@@ -22,7 +22,7 @@ from monl.planning import (
     plan_relations,
     plan_routes,
 )
-from tests.support.cas import check_each_case
+from tests.support.cases import check_each_case
 
 
 def test_qualified_routes_merge_without_confusing_actions_and_functions():

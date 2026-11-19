@@ -6,8 +6,8 @@ already existed, written here.
 
 The public surface did not move when it became a package."""
 
-from .contrats import ValidationPipeline
-from .defaut import DEFAULT_VALIDATION_PIPELINE
+from .contracts import ValidationPipeline
+from .default import DEFAULT_VALIDATION_PIPELINE
 
 __all__ = [
     "DEFAULT_VALIDATION_PIPELINE",

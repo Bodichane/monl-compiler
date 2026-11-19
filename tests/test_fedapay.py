@@ -34,7 +34,7 @@ import requests
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
-from tests.support.cas import check_each_case
+from tests.support.cases import check_each_case
 from tests.support.server import uvicorn_server
 from tests.test_paiement import SPEC_BOUTIQUE
 

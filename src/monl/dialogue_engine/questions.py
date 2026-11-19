@@ -4,7 +4,7 @@ STRICT and entirely deterministic input: no AI, no network call. Rendering
 is not here — the engine knows `tui` only through the `PlainDialogueUI`
 interface."""
 
-from .fondations import IDENT_RE, PARAGRAPH_SEP, DialogueError
+from .foundations import IDENT_RE, PARAGRAPH_SEP, DialogueError
 
 
 class QuestionsMixin:

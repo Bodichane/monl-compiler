@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from monl.cli import compile_project
-from monl.generator.runtime_socle import DB_POOL_MAX_ENV, DB_POOL_MIN_ENV
+from monl.generator.runtime_base import DB_POOL_MAX_ENV, DB_POOL_MIN_ENV
 
 RACINE = Path(__file__).parents[1]
 SPEC = """app Pool

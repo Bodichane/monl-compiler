@@ -13,7 +13,7 @@ import subprocess
 
 import pytest
 
-from monl.smoke_test.fondations import _ensure_jsdom, _jsdom_node_path
+from monl.smoke_test.foundations import _ensure_jsdom, _jsdom_node_path
 from tests.support.server import uvicorn_server
 
 SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")

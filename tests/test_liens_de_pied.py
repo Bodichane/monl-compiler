@@ -21,7 +21,7 @@ from monl.design_system import ASSET_MANIFEST_FILENAME, activate_asset_manifest
 from monl.frontend_ai import _design_completeness_errors
 from monl.parser import parse_monl_string
 from monl.section_substance import rule_for
-from tests.support.cas import check_each_case
+from tests.support.cases import check_each_case
 
 BASE = """app Atelier
 

@@ -4,7 +4,7 @@
 since point 112), message rules, and the collision matrix between two
 actors targeting the same action."""
 
-from .socle import ASTValidationError
+from .base import ASTValidationError
 
 
 class CollisionsMixin:

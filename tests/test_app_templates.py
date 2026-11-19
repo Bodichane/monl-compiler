@@ -13,7 +13,7 @@ from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import _contract_signature, compile_project
 from monl.dialogue_engine import GuidedDialogue
 from monl.parser import parse_monl_string
-from tests.support.cas import check_each_case
+from tests.support.cases import check_each_case
 
 
 def _payable_fields(tpl):

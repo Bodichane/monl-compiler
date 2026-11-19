@@ -19,7 +19,7 @@ from ..frontend_contract import (
 )
 from ..generator import MonlSecureGenerator
 from ..parser import parse_monl_file
-from . import couverture, emplacement, nomenclature
+from . import coverage, location, nomenclature
 
 
 # ----------------------------------------------------------- consistency ----
@@ -50,7 +50,7 @@ def _empreintes_regenerees(spec_path):
         for nom in ("app.py", "schema.sql", "sandbox_ai.py", CONTRACT_FILENAME):
             chemin = os.path.join(temporaire, nom)
             if os.path.exists(chemin):
-                empreintes[nom] = emplacement._sha256_file(chemin)
+                empreintes[nom] = location._sha256_file(chemin)
     return empreintes
 
 def check_coherence(project_dir):
@@ -87,10 +87,10 @@ def check_coherence(project_dir):
 
 def _project_state(project_dir):
     """Resolves the project, its state and the path of its spec."""
-    souci = emplacement._erreur_de_chemin(project_dir)
+    souci = location._erreur_de_chemin(project_dir)
     if souci:
         return None, None, [souci.replace(" ❌ ", "").strip()]
-    state = emplacement._load_state(project_dir)
+    state = location._load_state(project_dir)
     if state is None:
         return None, None, [
             f"{nomenclature.STATE_FILENAME} not found — this directory is not a compiled "
@@ -101,7 +101,7 @@ def _project_state(project_dir):
     if not os.path.exists(spec_path):
         return None, None, [f"Spec not found: {spec_path}"]
     errors = []
-    if emplacement._sha256_file(spec_path) != state["spec_sha256"]:
+    if location._sha256_file(spec_path) != state["spec_sha256"]:
         errors.append("The spec has changed since the last compilation — run 'monl update' "
                       "to resynchronize the backend and contract.")
     return state, spec_path, errors
@@ -129,7 +129,7 @@ def _backend_integrity(project_dir, state):
                 f"{nom} is recorded in {nomenclature.STATE_FILENAME} but missing "
                 "from the project — it is generated from the spec: recompile "
                 "('monl update').")
-        elif emplacement._sha256_file(chemin) != attendu:
+        elif location._sha256_file(chemin) != attendu:
             errors.append(
                 f"{nom} was modified manually — the backend is generated "
                 "from the spec. Modify the spec, then run 'monl update'; "
@@ -145,7 +145,7 @@ def _outdated_artifact_warnings(project_dir, state, spec_path):
     perimes = sorted(
         nom for nom, empreinte in frais.items()
         if os.path.exists(os.path.join(project_dir, nom))
-        and emplacement._sha256_file(os.path.join(project_dir, nom)) != empreinte
+        and location._sha256_file(os.path.join(project_dir, nom)) != empreinte
     )
     if not perimes:
         return []
@@ -204,9 +204,9 @@ def _frontend_coherence(project_dir, spec_path):
     if unknown:
         warnings.append("The frontend references paths missing from the contract: "
                         + ", ".join(f"/{u}" for u in unknown))
-    appels = couverture._frontend_fetch_calls(frontend_dir)
-    errors = couverture._frontend_fetch_contract_errors(contract, appels)
-    couverture_errors, couverture_warnings = couverture._frontend_route_coverage(
+    appels = coverage._frontend_fetch_calls(frontend_dir)
+    errors = coverage._frontend_fetch_contract_errors(contract, appels)
+    couverture_errors, couverture_warnings = coverage._frontend_route_coverage(
         project_dir, spec_path, contract, appels=appels)
     errors.extend(couverture_errors)
     warnings.extend(couverture_warnings)

@@ -82,7 +82,7 @@ including intentionally public actions, rather than universal authentication.
 The payment route rereads the amount from the database and sends it with the
 server's provider key. The public webhook is the exceptional unauthenticated
 write path: the provider signature, not a browser JWT, authorizes it.
-`src/monl/generator/routes_paiement.py` verifies the raw body signature and
+`src/monl/generator/routes_payment.py` verifies the raw body signature and
 bounded timestamp age before processing the event; references qualify entity IDs.
 
 | Threat (STRIDE) | Existing mitigation | Test evidence |
@@ -143,7 +143,7 @@ These resource limits do not revoke filesystem/network access or inherited secre
 
 The generator emits empty Python shells (`src/monl/generator/sandbox.py`).
 Handwritten implementations are imported by the generated backend and called
-in-process (`src/monl/generator/routes_suppression.py`). The filename is not a
+in-process (`src/monl/generator/routes_deletion.py`). The filename is not a
 security boundary. An implementation receives backend process authority.
 
 | Threat (STRIDE) | Existing mitigation | Test evidence |

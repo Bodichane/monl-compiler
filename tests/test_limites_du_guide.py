@@ -23,7 +23,7 @@ from monl.ast_validator import ASTValidationError, MonlAST
 from monl.parser import parse_monl_string
 from monl_platform.guide import guide_html
 from monl_platform.guide_data import LIMITES
-from tests.support.cas import check_each_case
+from tests.support.cases import check_each_case
 
 RACINE = Path(__file__).resolve().parent.parent
 

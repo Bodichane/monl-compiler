@@ -63,7 +63,7 @@
 
 - Close files and HTTP error responses the compiler and platform used to leave
   to the garbage collector: five `open(...).read()` in the frontend checks
-  (`frontend_ai/etages.py`, `controles_fichiers.py` twice, `controles_design.py`
+  (`frontend_ai/stages.py`, `file_checks.py` twice, `design_checks.py`
   twice) and the provider error responses in `monl_platform/oauth.py`. Found by
   turning every `ResourceWarning` into a test error.
 
@@ -72,7 +72,7 @@
 - 155 fewer collected tests (1,808 → 1,653) with every case still checked.
   Forty parametrized functions with no per-case state (no `tmp_path`,
   `monkeypatch` or function-scoped server) now walk their table inside one
-  test through `tests.support.cas.verifier_chaque_cas`, which runs EVERY case,
+  test through `tests.support.cases.verifier_chaque_cas`, which runs EVERY case,
   names each failing one, and refuses an empty table. Function names are kept
   (documents cite them). The conversion was scripted from the AST and proven:
   for each function, the case body, the table and the case names are

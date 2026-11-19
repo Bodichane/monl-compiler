@@ -6,9 +6,9 @@ modules goes through the MODULE object (`fondations.paragraphes(...)`),
 never through a bound name — otherwise a `monkeypatch` targeting the
 package would no longer bite on the real call."""
 
-from .assemblage import build_contract
+from .assembly import build_contract
 from .emission import contract_sha256, generate_frontend_contract
-from .fondations import (
+from .foundations import (
     AGENTS_FILENAME,
     CONTRACT_FILENAME,
     CONTRACT_VERSION,
@@ -16,7 +16,7 @@ from .fondations import (
     README_FILENAME,
     paragraphes,
 )
-from .projet import PROJECT_CLAUDE_MD_MARKER
+from .project import PROJECT_CLAUDE_MD_MARKER
 
 __all__ = [
     "AGENTS_FILENAME",

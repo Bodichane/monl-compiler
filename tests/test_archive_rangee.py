@@ -30,7 +30,7 @@ import sys
 import pytest
 
 from monl.cli import compile_project
-from monl.frontend_contract.projet import (
+from monl.frontend_contract.project import (
     PROJECT_CLAUDE_MD_MARKER,
     PROJECT_README_MARKER,
 )

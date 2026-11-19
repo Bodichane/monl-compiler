@@ -6,7 +6,7 @@ failure or passed on an empty table, they would check less without going red.
 """
 import pytest
 
-from tests.support.cas import check_each_case
+from tests.support.cases import check_each_case
 
 
 def test_every_case_runs_and_every_failure_is_named():

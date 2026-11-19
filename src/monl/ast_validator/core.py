@@ -9,19 +9,19 @@ from typing import Any
 
 from ..ir import CompilationIR
 from ..validation_pipeline import DEFAULT_VALIDATION_PIPELINE, ValidationPipeline
-from .acces import AccesMixin
+from .access import AccesMixin
 from .assets import AssetsMixin
 from .audit import AuditMixin
-from .capacites import CapacitesMixin
-from .capacites_de_liste import CapacitesDeListeMixin
-from .champs import ChampsMixin
-from .champs_calcules import ChampsCalculesMixin
-from .champs_serveur import ChampsServeurMixin
+from .capabilities import CapacitesMixin
 from .collisions import CollisionsMixin
 from .commerce import CommerceMixin
-from .cycle_de_vie import CycleDeVieMixin
+from .computed_fields import ChampsCalculesMixin
+from .fields import ChampsMixin
+from .lifecycle import CycleDeVieMixin
+from .list_capabilities import CapacitesDeListeMixin
 from .migrations import MigrationsMixin
 from .presentation import PresentationMixin
+from .server_fields import ChampsServeurMixin
 from .uploads import UploadsMixin
 
 

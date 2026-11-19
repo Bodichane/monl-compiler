@@ -4,7 +4,7 @@ import math
 
 from lark import Transformer, v_args
 
-from .erreurs import NombreHorsLimites
+from .errors import NombreHorsLimites
 
 
 def _tous(blocs, cle):

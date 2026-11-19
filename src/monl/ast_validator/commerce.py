@@ -5,7 +5,7 @@ breaking refusal of point 79 lives here: an amount the client can write
 makes compilation fail, because the owner is the only one who can pay —
 so a writable amount is an amount the payer sets."""
 
-from .socle import ASTValidationError
+from .base import ASTValidationError
 
 
 class CommerceMixin:

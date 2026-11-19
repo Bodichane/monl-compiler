@@ -1,7 +1,7 @@
 """Unit tests of the typed intermediate representation."""
 
 from monl.ast_validator import MonlAST
-from monl.frontend_contract.assemblage import build_contract
+from monl.frontend_contract.assembly import build_contract
 from monl.generator import MonlSecureGenerator
 from monl.ir import AccessPolicy, EffectPlan, RelationModel, RoutePlan
 from monl.parser import parse_monl_string

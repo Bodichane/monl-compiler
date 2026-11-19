@@ -9,7 +9,7 @@ parent by a VALUE and never by a rank."""
 
 import os
 
-from .socle import DEFAULT_ASSETS_DIR, ASTValidationError
+from .base import DEFAULT_ASSETS_DIR, ASTValidationError
 
 
 def candidats_asset(base_dir, dossier, chemin):

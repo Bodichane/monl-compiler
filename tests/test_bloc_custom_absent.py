@@ -8,7 +8,7 @@ archive the user opens and must understand.
 
 It is point 85 turned around: there a declared rule produced nothing, here
 an empty file carried startup by accident. The import was hard-coded in
-`runtime_socle.py`, without ever checking whether the spec had a block.
+`runtime_base.py`, without ever checking whether the spec had a block.
 
 Both directions are tested — otherwise the fix could simply never emit the
 module again, and the `custom` brick would die silently.

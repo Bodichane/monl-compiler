@@ -5,7 +5,7 @@ when it was split into a package — see docs/design_decisions.md."""
 
 from string import Template
 
-from ..ast_validator.champs import ChampsMixin
+from ..ast_validator.fields import ChampsMixin
 
 
 class SchemasMixin:

@@ -26,7 +26,7 @@ import pytest
 from monl.ast_validator import MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_file
-from tests.support.cas import check_each_case
+from tests.support.cases import check_each_case
 
 EXEMPLES_DIR = os.path.join(os.path.dirname(__file__), "../exemples")
 PROJETS_DIR = os.path.join(os.path.dirname(__file__), "../projets")

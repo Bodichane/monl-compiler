@@ -16,7 +16,7 @@ import pytest
 import requests
 import uvicorn
 
-from monl_platform import brand, landing_vitrine
+from monl_platform import brand, landing_showcase
 from monl_platform.app import create_app
 from monl_platform.landing import LANDING_HTML
 
@@ -285,7 +285,7 @@ def test_the_comparison_also_says_what_monl_does_not_bring():
     """A comparison listing only its victories is a comparison one stops
     believing at the first check. The limits line is not politeness: it is what
     makes the rest readable."""
-    from monl_platform.landing_pourquoi import COMPARAISON
+    from monl_platform.landing_why import COMPARAISON
     axes = [axe for axe, _eux, _nous in COMPARAISON]
     assert "What it does not provide" in axes, axes
     limites = next(nous for axe, _e, nous in COMPARAISON
@@ -299,7 +299,7 @@ def test_no_value_judgment_in_the_comparison():
     """Each line must be a FACT checkable on both sides. "Simpler", "more
     modern", "safer" cannot be checked and do not survive a reader who knows the
     other product."""
-    from monl_platform.landing_pourquoi import COMPARAISON
+    from monl_platform.landing_why import COMPARAISON
     interdits = ("simpler", "more modern", "safer", "more secure", "faster",
                  "better", "superior", "obsolete")
     texte = " ".join(f"{a} {b} {c}".lower() for a, b, c in COMPARAISON)
@@ -311,7 +311,7 @@ def test_the_sites_postgresql_promise_is_covered_by_a_test():
     """The site claims a generated backend runs on a managed provider's Postgres.
     A document is maintained like code (point 141): the promise must point to a
     test that exists, otherwise it ages silently until it becomes false."""
-    from monl_platform.landing_pourquoi import MONTAGES
+    from monl_platform.landing_why import MONTAGES
     montage = next(m for m in MONTAGES if m["etat"] == "verifie"
                    and "MONL_DATABASE_URL" in m["texte"])
     assert "postgresql://" in "\n".join(montage["code"])
@@ -329,7 +329,7 @@ def test_each_exploit_cites_the_point_documenting_it():
     proof."""
     import re as _re
 
-    from monl_platform.landing_pourquoi import REFUS
+    from monl_platform.landing_why import REFUS
     journal = (pathlib.Path(__file__).parents[1]
                / "docs" / "design_decisions.md").read_text(encoding="utf-8")
     for refus in REFUS:
@@ -496,7 +496,7 @@ def test_no_command_overflows_its_card():
     below — without it, a too long line would be cut instead of wrapped, and the
     card would lie about its content.
     """
-    from monl_platform.landing_pourquoi import SECTIONS
+    from monl_platform.landing_why import SECTIONS
 
     blocs = re.findall(r"<pre><code>(.*?)</code></pre>", SECTIONS, re.S)
     assert blocs, "no command block any more: the test no longer guards anything"
@@ -516,7 +516,7 @@ def test_a_command_block_wraps_instead_of_being_cut():
     `overflow-x: auto` alone lets the line scroll OUTSIDE the frame: on a card,
     nobody goes looking for it. `pre-wrap` wraps it.
     """
-    from monl_platform.landing_pourquoi import EXTRA_CSS
+    from monl_platform.landing_why import EXTRA_CSS
 
     regle = _declarations(EXTRA_CSS, ".montage pre")
     assert regle, "the .montage pre rule cannot be found"
@@ -605,7 +605,7 @@ def test_no_responsive_rule_is_overridden_by_a_bare_rule(platform):
     `extra_css` concatenates several modules, so a bare rule written in a LATER
     module overrides an earlier module's responsive version, at equal weight,
     without anything saying so. It happened on `.case-explorer`: `landing.py` set
-    `grid-template-columns:1fr` under 760px, and `landing_cas.py`'s bare rule
+    `grid-template-columns:1fr` under 760px, and `landing_cases.py`'s bare rule
     went back to two columns. Measured at 375px before the fix: `230px 103px`, a
     business case panel 103 pixels wide, cut by the card's `overflow:hidden` —
     the site's showcase, unreadable on a phone.
@@ -732,7 +732,7 @@ def _showcase_archive(dossier):
     from monl.cli import compile_project
 
     spec = dossier / "spec.ml"
-    spec.write_text(landing_vitrine.SPEC_VITRINE, encoding="utf-8")
+    spec.write_text(landing_showcase.SPEC_VITRINE, encoding="utf-8")
     compile_project(str(spec), str(dossier))
     fichiers = {
         chemin.relative_to(dossier).as_posix()
@@ -763,14 +763,14 @@ def test_the_announced_figures_are_the_compilations(tmp_path):
     """The card's three numbers, confronted with the real result."""
     fichiers, routes, entites = _showcase_archive(tmp_path)
 
-    assert entites == landing_vitrine.ENTITES, (
-        f"the card announces {landing_vitrine.ENTITES} entities, compilation "
+    assert entites == landing_showcase.ENTITES, (
+        f"the card announces {landing_showcase.ENTITES} entities, compilation "
         f"produces {entites}")
-    assert routes == landing_vitrine.ROUTES, (
-        f"the card announces {landing_vitrine.ROUTES} routes, app.py declares "
+    assert routes == landing_showcase.ROUTES, (
+        f"the card announces {landing_showcase.ROUTES} routes, app.py declares "
         f"{routes}")
-    assert len(fichiers) == landing_vitrine.FICHIERS, (
-        f"the card announces {landing_vitrine.FICHIERS} files, the archive "
+    assert len(fichiers) == landing_showcase.FICHIERS, (
+        f"the card announces {landing_showcase.FICHIERS} files, the archive "
         f"contains {len(fichiers)}: {sorted(fichiers)}")
 
 
@@ -782,7 +782,7 @@ def test_the_tree_names_no_missing_file(tmp_path):
     and above all the card would stop being a card.
     """
     fichiers, _routes, _entites = _showcase_archive(tmp_path)
-    annonces = [nom for nom, _role in landing_vitrine.ARBRE]
+    annonces = [nom for nom, _role in landing_showcase.ARBRE]
 
     absents = [nom for nom in annonces if nom not in fichiers]
     assert not absents, (
@@ -800,12 +800,12 @@ def test_the_displayed_excerpt_is_taken_from_the_compiling_spec():
     that it carries at least one rule, otherwise the cutting could have returned
     the sole entity block without anyone seeing it.
     """
-    extrait = landing_vitrine.extrait_affiche()
+    extrait = landing_showcase.extrait_affiche()
     lignes = [ligne for ligne in extrait.splitlines() if ligne.strip()]
 
     assert lignes, "the excerpt is empty"
     for ligne in lignes:
-        assert ligne in landing_vitrine.SPEC_VITRINE, (
+        assert ligne in landing_showcase.SPEC_VITRINE, (
             f"the displayed excerpt contains a line absent from the spec: {ligne!r}")
     assert any(ligne.startswith("rule ") for ligne in lignes), (
         "the excerpt shows no rule: the page would only show fields")
@@ -827,8 +827,8 @@ def test_the_served_page_names_only_real_files(platform, tmp_path):
     texte = requests.get(platform, timeout=10).text
     fichiers, _routes, _entites = _showcase_archive(tmp_path)
 
-    assert f"<b>{landing_vitrine.ROUTES}</b><span>API routes</span>" in texte
-    assert f"<b>{landing_vitrine.FICHIERS}</b><span>files</span>" in texte
+    assert f"<b>{landing_showcase.ROUTES}</b><span>API routes</span>" in texte
+    assert f"<b>{landing_showcase.FICHIERS}</b><span>files</span>" in texte
 
     arbre = texte.split('class="tree"')[1].split("</div>")[0]
     noms = re.findall(r"[├└]──\s*([^\s<]+)", arbre)
@@ -847,10 +847,10 @@ def test_each_case_excerpt_appears_in_its_examples_spec():
     """The "communaute" excerpt displayed `rule Membre.pseudo generated
     "MBR-{NNNN}"`: absent from the spec, and invalid (`generated` takes no
     template). Copied by hand, nothing confronted it with the served spec."""
-    from monl_platform import examples, landing_cas
+    from monl_platform import examples, landing_cases
 
-    assert set(landing_cas.CASE_SNIPPETS) == set(examples.BY_ID)
-    for ident, extrait in landing_cas.CASE_SNIPPETS.items():
+    assert set(landing_cases.CASE_SNIPPETS) == set(examples.BY_ID)
+    for ident, extrait in landing_cases.CASE_SNIPPETS.items():
         absentes = _lines(extrait) - _lines(examples.spec_of(ident))
         assert _lines(extrait), ident
         assert not absentes, (ident, absentes)
@@ -859,6 +859,6 @@ def test_each_case_excerpt_appears_in_its_examples_spec():
 def test_the_hero_demo_is_taken_from_the_compiling_spec():
     from monl_platform import landing
 
-    absentes = _lines(landing.DEMO_HERO_SOURCE) - _lines(landing_vitrine.SPEC_VITRINE)
+    absentes = _lines(landing.DEMO_HERO_SOURCE) - _lines(landing_showcase.SPEC_VITRINE)
     assert _lines(landing.DEMO_HERO_SOURCE)
     assert not absentes, absentes

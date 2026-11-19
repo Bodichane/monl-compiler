@@ -10,15 +10,15 @@ import subprocess
 
 from ..serving import rendre_wrapper
 from .coherence import check_coherence
-from .consommation import _usage_total_line
 from .construction import cmd_init, compile_project
-from .couverture import _frontend_fetch_calls
+from .consumption import _usage_total_line
+from .coverage import _frontend_fetch_calls
 from .delta import _rapporter_delta, cmd_diff, cmd_update
 from .dispatch import main
-from .emplacement import _erreur_de_chemin, _load_state
-from .lancement import cmd_run
+from .launch import cmd_run
+from .location import _erreur_de_chemin, _load_state
 from .nomenclature import DOCKERFILES_HERITES, STATE_FILENAME
-from .retouche import _arguments_inverses, _write_retouche_brief, cmd_retouche
+from .retouch import _arguments_inverses, _write_retouche_brief, cmd_retouche
 from .signature import _contract_signature
 
 __all__ = [

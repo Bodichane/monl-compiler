@@ -8,9 +8,9 @@ validator BEFORE writing, and full rollback on failure.
 The public surface did not move when it became a package."""
 
 from ..ast_validator import DEFAULT_ASSETS_DIR, resoudre_asset
-from .commandes import ajouter_asset, lister_assets
-from .edition import _blocs_seed, _litteral
-from .fondations import AssetsToolError, sluggify
+from .commands import ajouter_asset, lister_assets
+from .editing import _blocs_seed, _litteral
+from .foundations import AssetsToolError, sluggify
 from .resolution import chemins_declares
 from .specio import _charger, _revalider
 

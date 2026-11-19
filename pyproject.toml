@@ -143,7 +143,7 @@ ignore = [
 # The Lark grammar lives in a string literal: its blank lines CARRY
 # spaces, and touching them would change the text Lark parses. The
 # linter sees physical lines, not the boundary of the literal.
-"src/monl/parser/grammaire.py" = ["W293"]
+"src/monl/parser/lark_grammar.py" = ["W293"]
 # (The E402 exception for frontend_ai.py FELL with its file: the package
 # keeps each section's imports in the header of its own module, so there is
 # nothing left to excuse. A path that no longer exists excuses nothing either

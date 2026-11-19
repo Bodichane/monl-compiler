@@ -6,7 +6,7 @@ There was nothing to highlight on the home page, and elsewhere the
 every page. That is what brought the accent color back everywhere.
 
 **No keyword is written here.** The three tables are DERIVED from the
-terminals of the real grammar (`monl.parser.grammaire.grammar`): a brick
+terminals of the real grammar (`monl.parser.lark_grammar.grammar`): a brick
 that adds a keyword sees it highlighted without anyone thinking of it, and
 a word that leaves the grammar stops being highlighted. A copied list
 would have diverged at the first journal point — it is the reproach of
@@ -21,7 +21,7 @@ from __future__ import annotations
 import html
 import re
 
-from monl.parser.grammaire import grammar
+from monl.parser.lark_grammar import grammar
 
 
 def _terminal(nom: str) -> frozenset:

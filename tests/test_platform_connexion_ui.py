@@ -7,7 +7,7 @@ import subprocess
 
 import pytest
 
-from monl.smoke_test.fondations import _ensure_jsdom, _jsdom_node_path
+from monl.smoke_test.foundations import _ensure_jsdom, _jsdom_node_path
 from monl_platform.account import AUTH_HTML
 from monl_platform.console import CONSOLE_HTML
 from monl_platform.landing import GITHUB_URL, LANDING_HTML

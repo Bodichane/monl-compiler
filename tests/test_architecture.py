@@ -20,7 +20,7 @@ import pathlib
 import re
 import sys
 
-from monl.parser.grammaire import grammar
+from monl.parser.lark_grammar import grammar
 from monl.parser.version import LANGUAGE_VERSION
 
 SRC = os.path.join(os.path.dirname(__file__), "..", "src", "monl")
@@ -248,13 +248,13 @@ def test_each_contract_applies_to_a_module_the_graph_knows():
 
 
 def test_the_validator_base_reads_nothing_from_its_package():
-    """`ast_validator/socle.py` is the LEAF: that is what makes an import cycle
+    """`ast_validator/base.py` is the LEAF: that is what makes an import cycle
     impossible in the package.
 
     Its docstring claims it; without this test the claim would rest on
     discipline alone, and the first `from .core import …` slipped into it would
     break the whole compiler's import — at load time, hence everywhere at once."""
-    chemin = os.path.join(SRC, "ast_validator", "socle.py")
+    chemin = os.path.join(SRC, "ast_validator", "base.py")
     with open(chemin, encoding="utf-8") as fh:
         arbre = ast.parse(fh.read(), filename=chemin)
     voisins = [noeud.module or "."
@@ -314,7 +314,7 @@ EXCEPTIONS_DE_TAILLE = {
     "monl/app_templates.py":
         "TEMPLATES est un littéral de données : les dix modèles du catalogue, "
         "un par entrée. Le couper séparerait des lignes qui se lisent en table.",
-    "monl/parser/grammaire.py":
+    "monl/parser/lark_grammar.py":
         "La grammaire Lark est UNE chaîne. La couper en deux ferait deux "
         "moitiés dont aucune n'est une grammaire.",
     "monl_platform/console_script.py":

@@ -10,7 +10,7 @@ import json
 import pytest
 
 from monl.frontend_ai import FrontendAIError, parse_files_payload
-from tests.support.cas import check_each_case
+from tests.support.cases import check_each_case
 
 NUL = "\x00"
 

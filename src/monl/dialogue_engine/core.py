@@ -4,12 +4,12 @@ A new question is added in its family's mixin — input, direction,
 journey, commerce, accounts — never here. This file carries only the
 dialogue's state."""
 
+from .accounts import ComptesMixin
 from .commerce import CommerceMixin
-from .comptes import ComptesMixin
 from .direction import DirectionMixin
 from .emission import EmissionMixin
-from .libre import LibreMixin
-from .parcours import ParcoursMixin
+from .free_form import LibreMixin
+from .journey import ParcoursMixin
 from .questions import QuestionsMixin
 
 

@@ -10,7 +10,7 @@ import uuid
 
 from ..design_system import activate_asset_manifest
 from ..frontend_contract import PROMPT_FILENAME
-from . import fondations, fournisseurs, orchestration, redaction
+from . import drafting, foundations, orchestration, providers
 
 # ─────────────────────────────────────────────────────────────────────
 # CLAUDE CODE — the work done DIRECTLY in the target folder (point 43 of the
@@ -140,15 +140,15 @@ def build_agent_argv(agent, instruction, max_turns, agent_command=None):
     if agent_command:
         parts = shlex.split(agent_command)
         if not parts:
-            raise fondations.FrontendAIError("--agent-command is empty.")
+            raise foundations.FrontendAIError("--agent-command is empty.")
         if not any("{instruction}" in p for p in parts):
-            raise fondations.FrontendAIError(
+            raise foundations.FrontendAIError(
                 "--agent-command must contain {instruction} — without it, "
                 "the agent would start without knowing what to do.")
         argv = [p.replace("{instruction}", instruction) for p in parts]
         return argv[0], argv[1:]
     if agent not in CLI_AGENTS:
-        raise fondations.FrontendAIError(
+        raise foundations.FrontendAIError(
             f"unknown agent: {agent} — known: {', '.join(sorted(CLI_AGENTS))} "
             "(or --agent-command for any other).")
     entry = CLI_AGENTS[agent]
@@ -196,7 +196,7 @@ def run_cli_agent(project_dir, instruction, max_turns=DEFAULT_MAX_TURNS,
     binary = command or shutil.which(wanted)
     if not binary:
         auth = CLI_AGENTS.get(agent, {}).get("auth", "")
-        raise fondations.FrontendAIError(
+        raise foundations.FrontendAIError(
             f"the executable '{wanted}' was not found — install it, then "
             "authenticate" + (f" ({auth})" if auth else "")
             + ". Without a command-line agent, two paths remain: "
@@ -209,7 +209,7 @@ def run_cli_agent(project_dir, instruction, max_turns=DEFAULT_MAX_TURNS,
     if proc.returncode != 0:
         if "max turns" in sortie.lower():
             return sortie          # budget exhausted: verification will decide
-        raise fondations.FrontendAIError(f"agent '{agent}' exited with an error: "
+        raise foundations.FrontendAIError(f"agent '{agent}' exited with an error: "
                               + sortie[-400:])
     return proc.stdout
 
@@ -316,12 +316,12 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
 
 def _brief_et_gabarit(project_dir, update_mode, retouche_mode):
     """The brief to read and the instruction template; refuses a missing brief."""
-    brief = redaction.brief_evolution(update_mode, retouche_mode) or PROMPT_FILENAME
+    brief = drafting.brief_evolution(update_mode, retouche_mode) or PROMPT_FILENAME
     if not os.path.exists(os.path.join(project_dir, brief)):
         origine = ("'monl retouche' did not write its instruction" if retouche_mode
                    else "run 'monl update' first" if update_mode
                    else "run 'monl compile' first")
-        raise fondations.FrontendAIError(f"{brief} missing from the project — {origine}.")
+        raise foundations.FrontendAIError(f"{brief} missing from the project — {origine}.")
     return brief, RETOUCHE_INSTRUCTION if retouche_mode else CLAUDE_CODE_INSTRUCTION
 
 
@@ -334,7 +334,7 @@ def _executer_lagent(project_dir, instruction, max_turns, command, agent,
         command=command, agent=agent, agent_command=agent_command)
     modele = agent if agent in CLI_AGENTS else "custom"
     agent_usage = type("AgentUsage", (), {"provider_name": "agent", "model": modele})()
-    fournisseurs._record_provider_usage(
+    providers._record_provider_usage(
         project_dir, agent_usage, operation=operation,
         attempt=attempt, run_id=run_id,
         usage={"duration_seconds": round(time.monotonic() - started, 3),

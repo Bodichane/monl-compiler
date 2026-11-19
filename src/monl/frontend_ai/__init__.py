@@ -40,36 +40,27 @@ from .agents import (
     run_claude_code,
     run_cli_agent,
 )
-from .controles_design import (
+from .design_checks import (
     _design_completeness_errors,
     _editorial_content_errors,
     _generated_asset_reuse_errors,
 )
-from .controles_fichiers import (
+from .drafting import ampleur_du_contrat, brief_evolution, build_generation_prompt
+from .file_checks import (
     _declared_link_errors,
     _frontend_behavioral_quality_errors,
     _frontend_local_reference_errors,
 )
-from .etages import (
-    CHUNKED_FRONTEND_FILES,
-    _budget,
-    _build_chunk_prompt,
-    _chunk_context,
-    _generate_chunked_files,
-    _parse_model_routing,
-    _planned_generated_asset_paths,
-    _provider_for_chunk,
-    _raise_chunk_output_limit,
-    _validate_model_routing,
-)
-from .fondations import (
+from .foundations import (
     ALLOWED_EXTENSIONS,
     MAX_TOTAL_BYTES,
     RETOUCHE_PROMPT_FILENAME,
     UPDATE_PROMPT_FILENAME,
     FrontendAIError,
 )
-from .fournisseurs import (
+from .images import _generate_planned_images, _image_prompt
+from .orchestration import generate_and_verify, import_and_verify, load_frontend_source
+from .providers import (
     CHUNK_MAX_RETRIES,
     CHUNK_RETRY_MAX_OUTPUT_TOKENS,
     CHUNK_RETRY_OUTPUT_TOKEN_FACTOR,
@@ -87,10 +78,7 @@ from .fournisseurs import (
     claude_provider,
     openai_provider,
 )
-from .images import _generate_planned_images, _image_prompt
-from .orchestration import generate_and_verify, import_and_verify, load_frontend_source
-from .redaction import ampleur_du_contrat, brief_evolution, build_generation_prompt
-from .reponse import (
+from .response import (
     _fichier_depuis_un_bloc,
     _json_payload,
     _project_guidance,
@@ -100,6 +88,18 @@ from .reponse import (
     _write_files,
     parse_files_payload,
     parse_single_file_payload,
+)
+from .stages import (
+    CHUNKED_FRONTEND_FILES,
+    _budget,
+    _build_chunk_prompt,
+    _chunk_context,
+    _generate_chunked_files,
+    _parse_model_routing,
+    _planned_generated_asset_paths,
+    _provider_for_chunk,
+    _raise_chunk_output_limit,
+    _validate_model_routing,
 )
 
 __all__ = [

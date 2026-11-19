@@ -8,34 +8,34 @@ import pytest
 
 from monl.generator import (
     admin_cli,
-    calculs,
-    paiement,
-    prealables,
-    routes_acces,
+    calculations,
+    payment,
+    prerequisites,
+    routes_access,
     routes_uploads,
-    runtime_annexes,
-    runtime_connexion,
-    runtime_fonctions_auth,
-    runtime_jetons,
+    runtime_auth_functions,
+    runtime_base,
+    runtime_extras,
+    runtime_login,
     runtime_migrations,
-    runtime_montage,
+    runtime_mounting,
     runtime_pool,
     runtime_preparation,
-    runtime_socle,
+    runtime_tokens,
     sandbox,
     schemas,
 )
-from tests.support.cas import check_each_case
+from tests.support.cases import check_each_case
 from tests.test_bloc_custom_absent import AVEC_CUSTOM, _compiler
 
 MIGRATED_MODULES = (
-    sandbox, runtime_annexes, runtime_preparation, runtime_migrations,
-    admin_cli, runtime_fonctions_auth, runtime_montage, runtime_socle,
-    routes_uploads, runtime_pool, paiement, prealables, calculs, schemas,
-    routes_acces, runtime_jetons, runtime_connexion,
+    sandbox, runtime_extras, runtime_preparation, runtime_migrations,
+    admin_cli, runtime_auth_functions, runtime_mounting, runtime_base,
+    routes_uploads, runtime_pool, payment, prerequisites, calculations, schemas,
+    routes_access, runtime_tokens, runtime_login,
 )
 
-DATABASE_MONTAGE_MODULES = (runtime_montage,)
+DATABASE_MONTAGE_MODULES = (runtime_mounting,)
 
 
 def test_mount_modules_list_not_empty():

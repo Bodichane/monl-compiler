@@ -5,7 +5,7 @@ the HUMAN at compile time (brick 13). Here a third party writes, hence a
 closed list of formats: neither HTML nor SVG, which would be interpreted
 as code from the application's origin."""
 
-from .socle import ASTValidationError
+from .base import ASTValidationError
 
 
 class UploadsMixin:

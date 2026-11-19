@@ -4,7 +4,7 @@ The tool writes, the compiler proves: the produced spec is reread by the
 real parser before being written to disk."""
 
 from . import emission_parts
-from .fondations import DialogueError
+from .foundations import DialogueError
 
 
 class EmissionMixin:

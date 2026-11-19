@@ -8,7 +8,7 @@ remain prereleases; this document does not declare that 1.0 has shipped.
 - **Language:** existing valid specifications retain their meaning within a
   major release. The keywords, actions and types are recorded in
   [the language 1 witness](../tests/grammaire_v1.txt), extracted from the Lark
-  productions in `src/monl/parser/grammaire.py`. `LANGUAGE_VERSION` is defined
+  productions in `src/monl/parser/lark_grammar.py`. `LANGUAGE_VERSION` is defined
   once in `src/monl/parser/version.py`. `monl --version` reports it and compile
   writes `language_version` in `monl.json`. This metadata is informational:
   older project states without it remain accepted; artifact freshness still
@@ -21,9 +21,9 @@ remain prereleases; this document does not declare that 1.0 has shipped.
   `frontend_contract.json` are public interfaces. `monl_contract_version`
   identifies the interface schema, independently of package and language
   versions. Its base is `CONTRACT_VERSION` in
-  `src/monl/frontend_contract/fondations.py`; assembly may select the next
+  `src/monl/frontend_contract/foundations.py`; assembly may select the next
   schema for the brick-4 contract. Consumers must read the emitted value.
-  Contract assembly lives in `src/monl/frontend_contract/assemblage.py`;
+  Contract assembly lives in `src/monl/frontend_contract/assembly.py`;
   [golden artifacts](../tests/test_golden_artifacts.py) guard its output.
 - **Generated HTTP API:** for an unchanged specification, documented routes,
   HTTP methods, request/response shapes and authorization semantics remain

@@ -30,7 +30,7 @@ VERSION_PAQUET = Version(tomllib.loads(
 COMPETENCES = sorted((PLUGIN / "skills").glob("*/SKILL.md"))
 # Copy in the plugin -> original in the repository.
 COPIES = {
-    PLUGIN / "reference" / "grammaire.py": RACINE / "src" / "monl" / "parser" / "grammaire.py",
+    PLUGIN / "reference" / "grammar.py": RACINE / "src" / "monl" / "parser" / "lark_grammar.py",
     PLUGIN / "reference" / "exemples" / "README.md": RACINE / "exemples" / "README.md",
     **{PLUGIN / "reference" / "exemples" / p.name: p
        for p in sorted((RACINE / "exemples").glob("*.ml"))},
@@ -80,7 +80,7 @@ def test_the_plugin_copies_are_identical_to_their_original():
                    if not copie.is_file() or copie.read_bytes() != original.read_bytes()]
     assert not divergentes, (
         "copies absentes ou divergentes : " + ", ".join(divergentes)
-        + " — recopier l'original (exemples/, src/monl/parser/grammaire.py)")
+        + " — copy the original (exemples/, src/monl/parser/lark_grammar.py)")
 
 
 def test_the_plugin_icon_is_the_platforms():

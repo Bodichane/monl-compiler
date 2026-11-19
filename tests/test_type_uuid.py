@@ -37,7 +37,7 @@ import pytest
 
 from monl.cli import compile_project
 from monl.smoke_test import _sample_value, run_smoke_test
-from tests.support.cas import check_each_case
+from tests.support.cases import check_each_case
 from tests.support.processus import arreter_processus
 from tests.support.server import free_port as _port_libre
 

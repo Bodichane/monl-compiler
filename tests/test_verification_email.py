@@ -306,7 +306,7 @@ def test_dialogue_email_to_server(tmp_path, faux_smtp):
 
 
 def test_dialogue_refused_confirmation_writes_nothing(monkeypatch):
-    from monl.dialogue_engine.comptes import ComptesMixin
+    from monl.dialogue_engine.accounts import ComptesMixin
     from tests.test_app_templates import TEMPLATES, _run_template
     # The only dialogue delta is the confirmation offer: compare the real
     # journey that refuses it with the same journey without this question.
@@ -384,7 +384,7 @@ def test_lockout_takes_precedence_over_unconfirmed_account(tmp_path, faux_smtp):
 @pytest.mark.parametrize('scenario,counterproof', [(s, c) for c in (False, True) for s in
     ('replacement', 'confirmed', 'quota', 'lockout', 'shared_quota') if not c or s in ('replacement', 'confirmed', 'quota')])
 def test_preinscription(scenario, counterproof, tmp_path, faux_smtp):
-    from tests.support.preinscription import ERRORS, MUTATIONS, WITNESSES
+    from tests.support.preregistration import ERRORS, MUTATIONS, WITNESSES
     mutation = MUTATIONS[scenario] if counterproof else None
     spec = SPEC.replace(SETTINGS, SETTINGS + '    lockout: 3 in 3600\n    refresh_tokens: 3600\n').replace('actor Admin', 'actor Reader selfRegister\nactor Admin') if scenario == 'lockout' else SPEC
     with _application(tmp_path, faux_smtp, mutation, spec) as (base, tokens):

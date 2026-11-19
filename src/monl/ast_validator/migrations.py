@@ -3,7 +3,7 @@
 The point 32 rule, held ever since: a migration is ADDITIVE. It catches up
 a column, never its content (points 89 and 99)."""
 
-from .socle import ASTValidationError
+from .base import ASTValidationError
 
 
 class MigrationsMixin:

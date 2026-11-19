@@ -9,7 +9,7 @@ import io
 
 from ..ast_validator import MonlAST
 from ..parser import parse_monl_string
-from .fondations import AssetsToolError
+from .foundations import AssetsToolError
 
 
 # -------------------------------------------------- reading the spec --

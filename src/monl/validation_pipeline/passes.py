@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from .contrats import ValidationContext
+from .contracts import ValidationContext
 
 
 @dataclass(frozen=True, slots=True)

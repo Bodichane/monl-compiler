@@ -8,7 +8,7 @@ import pytest
 import yaml
 
 from scripts.check_publication_version import PublicationVersionError, validate_tag_version
-from tests.support.cas import check_each_case
+from tests.support.cases import check_each_case
 
 
 def _racine():

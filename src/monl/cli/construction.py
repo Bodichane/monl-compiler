@@ -23,11 +23,11 @@ from ..frontend_contract import (
     PROMPT_FILENAME,
     generate_frontend_contract,
 )
-from ..frontend_contract.projet import (
+from ..frontend_contract.project import (
     LEGACY_AGENTS_FILENAME,
     PROJECT_CLAUDE_MD_MARKER,
 )
-from . import conteneur, emplacement, nomenclature
+from . import container, location, nomenclature
 
 #: What moved. Written out here in full and never derived from the current
 #: constants: an "old location" describes the PAST, it cannot be deduced from
@@ -104,11 +104,11 @@ def compile_project(spec_path, project_dir, base_dir=None, save_state=True):
         contract = generate_frontend_contract(
             compilation.ir, compilation.plans, temporary, spec_rel)
         direction = ensure_design_artifacts(proj_abs, temporary, contract)
-        conteneur._ensure_container_artifacts(
+        container._ensure_container_artifacts(
             temporary, uploads=bool(compilation.ir["security"].get("upload_fields")))
-        conteneur._emettre_wrapper(temporary, contract)
+        container._emettre_wrapper(temporary, contract)
         if save_state:
-            emplacement._save_state(temporary, spec_rel, spec_source_path=spec_abs)
+            location._save_state(temporary, spec_rel, spec_source_path=spec_abs)
         artefacts = nomenclature.PROJECT_ARTEFACTS if save_state else tuple(
             name for name in nomenclature.PROJECT_ARTEFACTS if name != nomenclature.STATE_FILENAME)
         if not compilation.ir.get("sandbox_ai", {}).get("custom_functions"):
@@ -157,7 +157,7 @@ def cmd_init(project_dir=None):
 
 def cmd_migrate(project_dir, name=None, down=False, list_only=False):
     """Explicitly applies a migration to the already compiled backend."""
-    project_dir, _spec_path = emplacement._situer_projet(project_dir, "migrate")
+    project_dir, _spec_path = location._situer_projet(project_dir, "migrate")
     app_path = os.path.join(project_dir, "app.py")
     if not os.path.exists(app_path):
         print(f" ❌ Missing artifact: {app_path} — run 'monl update'.")

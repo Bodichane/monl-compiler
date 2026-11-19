@@ -9,16 +9,16 @@ All access-control SQL goes through the typed emission layer `sql`
 into the text. See generator/sql.py — the family modules each import it on
 their own."""
 
-from .routes_acces import AccesRoutesMixin
+from .routes_access import AccesRoutesMixin
 from .routes_creation import CreationRoutesMixin
 from .routes_creation_transaction import CreationTransactionRoutesMixin
-from .routes_lecture import LectureRoutesMixin
-from .routes_lecture_filtree import LectureFiltreeRoutesMixin
+from .routes_deletion import SuppressionRoutesMixin
+from .routes_filtered_read import LectureFiltreeRoutesMixin
 from .routes_modification import ModificationRoutesMixin
 from .routes_orchestration import OrchestrationRoutesMixin
-from .routes_paiement import PaiementRoutesMixin
-from .routes_prestataires import PrestatairesRoutesMixin
-from .routes_suppression import SuppressionRoutesMixin
+from .routes_payment import PaiementRoutesMixin
+from .routes_providers import PrestatairesRoutesMixin
+from .routes_read import LectureRoutesMixin
 from .routes_uploads import UploadsRoutesMixin
 
 

@@ -4,7 +4,7 @@ Point 72: the dialogue gathers a DIRECTION, it picks neither palette nor
 typography. Brick 30 (point 146): the footer links are DECLARED here — a
 brick without a producer does not exist."""
 
-from .fondations import DESIGN_IMAGERY, DESIGN_REGISTERS, adresse_de_lien
+from .foundations import DESIGN_IMAGERY, DESIGN_REGISTERS, adresse_de_lien
 
 
 class DirectionMixin:

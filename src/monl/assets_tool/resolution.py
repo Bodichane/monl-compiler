@@ -4,8 +4,8 @@ import difflib
 import os
 
 from ..ast_validator import DEFAULT_ASSETS_DIR
-from .edition import _blocs_seed
-from .fondations import AssetsToolError, sluggify
+from .editing import _blocs_seed
+from .foundations import AssetsToolError, sluggify
 
 
 # ------------------------------------------------- what the spec declares --

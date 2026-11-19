@@ -19,18 +19,18 @@ from ..policies import (
     plan_entity_models,
 )
 from .admin_cli import AdminCliMixin
-from .calculs import CalculsMixin
+from .calculations import CalculsMixin
 from .emitters import BackendEmitter
-from .modele import ModeleMixin
-from .paiement import PaiementMixin
+from .model import ModeleMixin
+from .ownership import ProprietaireMixin
+from .payment import PaiementMixin
 from .pipeline import PipelineMixin
-from .prealables import PrealablesMixin
-from .proprietaire import ProprietaireMixin
+from .prerequisites import PrealablesMixin
 from .routes import RoutesMixin
 from .runtime import RuntimeMixin
 from .sandbox import SandboxMixin
 from .schemas import SchemasMixin
-from .sql_colonnes import SqlColonnesMixin
+from .sql_columns import SqlColonnesMixin
 from .sql_schema import SqlSchemaMixin
 
 
@@ -80,8 +80,8 @@ class MonlSecureGenerator(
         self.relations = normalized_ast["schema"]["relations"]
         self.relation_models = plan_relations(self.relations)
         # Two analyses the emitters query from their loops: computed on first
-        # request, then reread. See the methods that fill them (`modele.py`,
-        # `proprietaire.py`) for the measurement that made these caches
+        # request, then reread. See the methods that fill them (`model.py`,
+        # `ownership.py`) for the measurement that made these caches
         # necessary.
         self._fk_placements_caches = None
         self._identity_fk_caches = None

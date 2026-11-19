@@ -7,7 +7,7 @@ import sys
 from .. import __version__
 from ..errors import MonlError
 from ..parser.version import LANGUAGE_VERSION
-from . import consommation, construction, contenu_editorial, delta, lancement, retouche
+from . import construction, consumption, delta, editorial_content, launch, retouch
 
 
 # ----------------------------------------------------------- construction --
@@ -210,13 +210,13 @@ def _dispatch(argv=None):
         project_dir = args.output or os.path.dirname(os.path.abspath(args.spec))
         construction.compile_project(args.spec, project_dir)
     elif args.command == "run":
-        lancement.cmd_run(args.dir, check_only=args.check, port=args.port, skip_smoke=args.skip_smoke)
+        launch.cmd_run(args.dir, check_only=args.check, port=args.port, skip_smoke=args.skip_smoke)
     elif args.command == "update":
         delta.cmd_update(args.dir)
     elif args.command == "diff":
         delta.cmd_diff(args.dir)
     elif args.command == "usage":
-        consommation.cmd_usage(args.dir, prices_path=args.prices, json_output=args.json_output)
+        consumption.cmd_usage(args.dir, prices_path=args.prices, json_output=args.json_output)
     elif args.command == "migrate":
         construction.cmd_migrate(args.dir, name=args.name, down=args.down, list_only=args.list)
     elif args.command == "assets":
@@ -224,7 +224,7 @@ def _dispatch(argv=None):
     elif args.command == "content":
         _commande_content(parser, args)
     elif args.command == "frontend":
-        retouche._lancer_ia(args, update_mode=args.update)
+        retouch._lancer_ia(args, update_mode=args.update)
     elif args.command == "retouche":
         _commande_retouche(args)
     elif args.command == "import":
@@ -243,11 +243,11 @@ def _commande_assets(parser, args):
                   "things; set them in separate commands.")
             sys.exit(1)
         cible = "logo" if args.logo else ("favicon" if args.favicon else None)
-        contenu_editorial.cmd_assets_add(args.dir, args.fichier, pour=args.pour, cible=cible,
+        editorial_content.cmd_assets_add(args.dir, args.fichier, pour=args.pour, cible=cible,
                        entity=args.entity, field=args.field, nom=args.nom,
                        force=args.force)
     elif args.assets_command == "list":
-        contenu_editorial.cmd_assets_list(args.dir)
+        editorial_content.cmd_assets_list(args.dir)
     else:
         _subparser(parser, "assets").print_help()
         sys.exit(1)
@@ -256,9 +256,9 @@ def _commande_assets(parser, args):
 def _commande_content(parser, args):
     """`monl content export|import`."""
     if args.content_command == "export":
-        contenu_editorial.cmd_content_export(args.dir)
+        editorial_content.cmd_content_export(args.dir)
     elif args.content_command == "import":
-        contenu_editorial.cmd_content_import(args.dir)
+        editorial_content.cmd_content_import(args.dir)
     else:
         _subparser(parser, "content").print_help()
         sys.exit(1)
@@ -266,12 +266,12 @@ def _commande_content(parser, args):
 
 def _commande_retouche(args):
     """`monl retouche`."""
-    retouche.cmd_retouche(args.dir, args.demande)
+    retouch.cmd_retouche(args.dir, args.demande)
     if args.consigne_seule:
         print("  → Give this file to an AI, then install the result "
               "with 'monl import'.")
     else:
-        retouche._lancer_ia(args, retouche_mode=True)
+        retouch._lancer_ia(args, retouche_mode=True)
 
 
 def _commande_import(args):

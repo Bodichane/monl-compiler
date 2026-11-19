@@ -66,7 +66,7 @@ French entry) — add a line there whenever a point is added to the journal.
   integrations not requested, each named by `-rs`. Any `ResourceWarning` is a
   test error (files, pipes, HTTP responses and SQLite connections must be
   closed); a parametrized function without per-case state walks its table
-  through `tests.support.cas.check_each_case`; `tests/test_demo.py` relies on the
+  through `tests.support.cases.check_each_case`; `tests/test_demo.py` relies on the
   versioned `demo/` directory — do not delete it. The demo is **CodexShop**,
   a stationery shop exercising the entire commerce flow; only its INPUTS are
   tracked (`spec.ml`, `frontend/`, `assets/`), never its compiled output or
@@ -691,7 +691,7 @@ anonymous social network as the final test bench.
     gave rise to it. Generation now REFUSES this case, naming the relation to
     move — refuse rather than produce a rule with no effect, exactly as point
     85 says. **The root cause is CLOSED at point 117**:
-    `_counter_fk_columns` (generator/calculs.py) reads `target_fk` from the plan
+    `_counter_fk_columns` (generator/calculations.py) reads `target_fk` from the plan
     of EVERY rule, and `_client_fk_columns`,
     `schemas.py` and `routes.py` all read it — the column is written exactly
     once, never zero times. The refusal remains active, but
@@ -1111,7 +1111,7 @@ making a touch-up: does the content really say what we want to see?
 - **POINT 158: spec highlighting DERIVES from the grammar, and gold now has
   only one use.** `src/monl_platform/coloration.py` renders highlighting on the
   SERVER (no JavaScript, no dependency) and **writes no keywords**: the tables
-  come from the terminals of `monl.parser.grammaire.grammar`, so a new brick is
+  come from the terminals of `monl.parser.lark_grammar.grammar`, so a new brick is
   highlighted as soon as it enters the grammar. `_terminal()` FAILS rather
   than returning an empty set — missing highlighting should not look like a
   failure. Escaping happens by FRAGMENT: escaping first would make the string
@@ -1415,7 +1415,7 @@ making a touch-up: does the content really say what we want to see?
   measurement (15 → 45 → 135 pairs); if it persists, the test FAILS and says so
   instead of returning a verdict it cannot support.
   **THE REGRESSION THAT ESCALATION REOPENED**, and this is the most transferable
-  lesson: `_record_account_failure` (runtime_fonctions_auth.py) RETURNS if the
+  lesson: `_record_account_failure` (runtime_auth_functions.py) RETURNS if the
   account is already locked — a call during the lock does not extend it, and
   it cannot be set again without waiting for it to expire. Any measurement of
   the locked path must therefore fit ENTIRELY within `window_seconds`. The code
@@ -1740,7 +1740,7 @@ making a touch-up: does the content really say what we want to see?
   the ZIP, measures and recompiles without ever opening a session. See point
   162.
 - **POINT 160: a time threshold in SECONDS does not mean the same thing on two machines.** The temporal oracle test in `test_authentification_b4` compared the gap between the “account locked” path and the “account nonexistent” path against a fixed 0.10 s: CI on `main` hit 0.1016 s. Two defects, to separate before touching the threshold. **THE ESTIMATOR** — the median of FIVE paired gaps rises to 9.70 ms during an isolated stall, while that of FIFTEEN stays below 1.54 ms (`TOURS_MESURE`). **THE SCALE** — the tolerance is now a SHARE of the observed response time (20%, 5 ms floor), because what matters to an attacker is SIGNAL against NOISE, not a number of milliseconds. **A REAL difference remains**: the locked path costs 1.7 ms more, in 19 of 24 measurements; this is NOT an order bias (checked by reversing the order in each pair: +1.81 versus +1.63 ms). The test BOUNDS it; it does not require zero. **Mandatory counter-proof, and this is what distinguishes a corrected threshold from a disabled one**: a real leak injected into the generated server is rejected at 20 ms (19.83 measured against a 16.45 tolerance), not at 10 — five times finer than the previous 100 ms. See point 160.
-- **POINT 155: no file in `src/` exceeds 400 lines, and neither does any function — and this is VERIFIED.** `tests/test_architecture.py` enforces three contracts: `PLAFOND_FICHIER`, `PLAFOND_FONCTION`, and **an exception must still be needed** (a file that becomes short again, or disappears, causes failure). The only two exceptions are DATA LITERALS, each with its own reason: `app_templates.py` (the ten templates) and `parser/grammaire.py` (the Lark grammar, which is ONE string). Do not add any without a written reason — this is the same discipline as `ruff` exceptions in `pyproject.toml`. The cap does not apply to `tests/`, by design (a test file is a suite of cases, not a component whose complexity grows). **Two disciplines not to relearn by breaking things**: a cut is specified by INSTRUCTION INDEX, never by line numbers (a number can land in the middle of an `if`), and cuts are applied from BOTTOM to TOP (cutting at the top silently shifts everything that follows). **And two Python traps**: `import a.b as a` binds the SUBMODULE — three migration tests failed with “module 'importlib.util' has no attribute 'util'”; and a `monkeypatch` targets the module where the function reads its global (`monl.cli.construction.publish_files`), never the package — re-exporting the name would let `setattr` succeed without reaching the call, yielding a green test that verifies nothing (point 153). See point 155.
+- **POINT 155: no file in `src/` exceeds 400 lines, and neither does any function — and this is VERIFIED.** `tests/test_architecture.py` enforces three contracts: `PLAFOND_FICHIER`, `PLAFOND_FONCTION`, and **an exception must still be needed** (a file that becomes short again, or disappears, causes failure). The only two exceptions are DATA LITERALS, each with its own reason: `app_templates.py` (the ten templates) and `parser/lark_grammar.py` (the Lark grammar, which is ONE string). Do not add any without a written reason — this is the same discipline as `ruff` exceptions in `pyproject.toml`. The cap does not apply to `tests/`, by design (a test file is a suite of cases, not a component whose complexity grows). **Two disciplines not to relearn by breaking things**: a cut is specified by INSTRUCTION INDEX, never by line numbers (a number can land in the middle of an `if`), and cuts are applied from BOTTOM to TOP (cutting at the top silently shifts everything that follows). **And two Python traps**: `import a.b as a` binds the SUBMODULE — three migration tests failed with “module 'importlib.util' has no attribute 'util'”; and a `monkeypatch` targets the module where the function reads its global (`monl.cli.construction.publish_files`), never the package — re-exporting the name would let `setattr` succeed without reaching the call, yielding a green test that verifies nothing (point 153). See point 155.
 - **POINT 110: the Lark parser is cached** (`_get_parser`, parser.py) — built once, not on every `parse_monl_string` call. Construction (~50 ms) dominated parsing; with caching, 0.4 ms/parse, and the suite went from ~344 s to ~200 s. It came from a Rust spike (discarded): the question “which language will make it faster” was answered with one line of Python. Do not rebuild the parser elsewhere. See point 110.
 - **POINT 111: `public` and `requiresOwn`+`payable` also live in named methods** — `_valider_regle_public()` and `_valider_requires_own_et_payable()` (ast_validator.py). Following 108-109: `_validate_structures` no longer contains ANY access control or anonymous visibility rule.
 - **POINT 112: `restrictedTo` (point 2) now requires a declared entity, field, and actor** — `_valider_regle_restrictedTo()`. Before, a typo disabled the restriction without any warning; the `[SECURITY_AUDIT]` audit remains a WARNING (unchanged since point 2); compilation now checks only that the cited references exist.
@@ -1853,7 +1853,7 @@ making a touch-up: does the content really say what we want to see?
   source for ALL THREE branches — now `plan_counters` (planning.py, see
   docs/COMPILER_REFACTOR.md), which resolves it once and carries it in
   `CounterPlan.target_fk`; emitters READ it, they no longer recompute it
-  (previously: `_decrement_fk_column`, generator/calculs.py). This is where the
+  (previously: `_decrement_fk_column`, generator/calculations.py). This is where the
   point 86 bug lived (the “owner” relation confused with the counter target);
   the calculation was copied at each branch, and a third copy was preparing
   the third occurrence. **Never read, in one branch of the generation loop, a
@@ -1954,7 +1954,7 @@ making a touch-up: does the content really say what we want to see?
   error on any line. Each mixin therefore inherits from `Transformer` and has
   its OWN `@v_args` — verified by execution (73 productions, 73 wrapped).
   **A class decorator does not follow code that is moved.**
-  `parser/grammaire.py` exceeds 400 lines ON PURPOSE: the grammar is ONE
+  `parser/lark_grammar.py` exceeds 400 lines ON PURPOSE: the grammar is ONE
   declarative artifact, Lark ignores rule order, so any split would be
   arbitrary. The exception is documented in the file's docstring.
   **And the third form of the same defect** (after 152 and 153): two
@@ -1986,9 +1986,9 @@ making a touch-up: does the content really say what we want to see?
   text search).
 - **POINT 152: the validator is a PACKAGE (`src/monl/ast_validator/`).**
   Same shape as `generator/`: one module per concern, the class recomposed from
-  mixins in `core.py`. Add a new rule in the module for its layer — `acces.py`,
-  `champs.py`, `commerce.py`… — never in `core.py`. Execution order comes from
-  the pipeline (`validation_pipeline.py`), NOT base-class order. `socle.py` is
+  mixins in `core.py`. Add a new rule in the module for its layer — `access.py`,
+  `fields.py`, `commerce.py`… — never in `core.py`. Execution order comes from
+  the pipeline (`validation_pipeline.py`), NOT base-class order. `base.py` is
   the LEAF (constants + `ASTValidationError`) and reads nothing from its
   package: that is what makes a cycle impossible, and a test verifies it
   instead of leaving it to discipline. The public surface has not changed —

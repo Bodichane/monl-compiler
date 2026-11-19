@@ -24,7 +24,7 @@ import requests
 
 from monl.app_templates import TEMPLATES
 from monl.ast_validator import MonlAST
-from monl.ast_validator.champs import ChampsMixin
+from monl.ast_validator.fields import ChampsMixin
 from monl.cli.signature import _contract_signature
 from monl.dialogue_engine.emission_parts import TYPES_TEXTE, emit_base_rules
 from monl.frontend_contract import build_contract
