@@ -16,6 +16,26 @@ def _contract_signature(contract):
     field_types = {f"{e}.{f['name']}": f["type"]
                    for e, spec in contract["entities"].items()
                    for f in spec["fields"]}
+    acces, prealables, verrous = _ensembles_des_routes(contract)
+    # POINT 89: a field is not only present or absent — it is ENTERABLE or not,
+    # and that changes the interface just as much. Setting 'rule Order.total
+    # derivedFrom …' on a field that already existed renames nothing: the delta
+    # answered "no change" while the price form became a field the server
+    # ignores. The same blind spot as point 88, on the other half of the
+    # contract.
+    lecture_seule = {f"{e}.{f['name']}" for e, spec in contract["entities"].items()
+                     for f in spec["fields"] if f.get("server_generated")}
+    contenus = _contenus_editoriaux(contract)
+    contenus.update(_contenus_des_champs(contract))
+    contenus.update(_contenus_des_regles(contract))
+    liens = _liens_de_la_signature(contract)
+    sections_obligatoires = _sections_obligatoires(contract)
+    return (routes, fields, acces, lecture_seule, prealables, verrous,
+            contenus, liens, field_types, sections_obligatoires)
+
+
+def _ensembles_des_routes(contract):
+    """Actors, prerequisites and payment locks carried by the routes."""
     # POINT 88: WHO may call a route is part of the interface. The delta only
     # compared method+path: opening the order book to the administrator created
     # no new route — only one more actor on existing routes — and 'monl update'
@@ -25,14 +45,6 @@ def _contract_signature(contract):
     acces = {f"{r['method']} {r['path']} → {acteur}"
              for r in contract["routes"]
              for acteur in r.get("allowed_actors") or []}
-    # POINT 89: a field is not only present or absent — it is ENTERABLE or not,
-    # and that changes the interface just as much. Setting 'rule Order.total
-    # derivedFrom …' on a field that already existed renames nothing: the delta
-    # answered "no change" while the price form became a field the server
-    # ignores. The same blind spot as point 88, on the other half of the
-    # contract.
-    lecture_seule = {f"{e}.{f['name']}" for e, spec in contract["entities"].items()
-                     for f in spec["fields"] if f.get("server_generated")}
     # POINT 90: third form of the same blind spot. A route can gain a
     # PREREQUISITE without changing path, actors or fields — and the frontend
     # must still be rewritten: here, create the profile before the checkout
@@ -50,6 +62,11 @@ def _contract_signature(contract):
     # in points 88 to 90.
     verrous = {f"{r['method']} {r['path']} → frozen once {r['payment_locked']} is paid"
                for r in contract["routes"] if r.get("payment_locked")}
+    return acces, prealables, verrous
+
+
+def _contenus_editoriaux(contract):
+    """Sections, footer links, FAQ and account identifier: digests by key."""
     # POINT 94: fifth time, and the first that does not concern data. The delta
     # looked ONLY at the API — adding an editorial section or a FAQ question
     # touches no route, no field, and 'monl update' answered "no interface
@@ -86,6 +103,12 @@ def _contract_signature(contract):
               .get("identifier_forms") or [])
     if formes:
         contenus[f"account identifier ({', '.join(formes)})"] = "forme"
+    return contenus
+
+
+def _contenus_des_champs(contract):
+    """Releases, value lists, non-blank text and uploads, field by field."""
+    contenus = {}
     # POINT 96: sixth time. Setting `oneOf` on an existing field renames
     # nothing — but a text field becomes a MENU, and the list of values can
     # change without the field moving ("shipped" added to the order book). The
@@ -116,6 +139,12 @@ def _contract_signature(contract):
                 contenus[f"upload of {entite}.{champ['name']}"] = hashlib.sha256(
                     json.dumps(champ["upload"], sort_keys=True,
                                ensure_ascii=False).encode("utf-8")).hexdigest()
+    return contenus
+
+
+def _contenus_des_regles(contract):
+    """Business rules the routes and fields do not show."""
+    contenus = {}
     # POINT 116: ninth and tenth time. `publicWhen` and `oncePer` live in
     # `business_rules`, which the signature did not read: setting 'rule
     # Article.Read publicWhen status "published"' creates no route, renames no
@@ -177,6 +206,11 @@ def _contract_signature(contract):
         contenus["authentification B4"] = hashlib.sha256(
             json.dumps(auth_features, sort_keys=True, ensure_ascii=False).encode("utf-8")
         ).hexdigest()
+    return contenus
+
+
+def _liens_de_la_signature(contract):
+    """What each foreign key contains, and who fills it."""
     # POINT 99: eighth set, and the question asked BEFORE writing the code for
     # only the second time. A foreign key does not live in `fields` — so the
     # delta could say nothing when it changes NATURE. Yet it changes in two
@@ -199,6 +233,11 @@ def _contract_signature(contract):
             par = "to be sent by the client" if lien["column"] in designees \
                 else "filled by the server"
             liens.add(f"{entite}.{lien['column']} → {porte}, {par}")
+    return liens
+
+
+def _sections_obligatoires(contract):
+    """The required sections and the substance rule of each."""
     # POINT 119: NINTH time, and the question asked before writing the brick
     # this time. The section floor and the substance required of each create no
     # route, rename no field and touch no actor — but a site compliant
@@ -214,8 +253,7 @@ def _contract_signature(contract):
             json.dumps(regle, sort_keys=True).encode("utf-8")).hexdigest()
         for marker, regle in _section_substance(contract, profil).items()
     }
-    return (routes, fields, acces, lecture_seule, prealables, verrous,
-            contenus, liens, field_types, sections_obligatoires)
+    return sections_obligatoires
 
 
 def _non_blank_signature(entity, field):
