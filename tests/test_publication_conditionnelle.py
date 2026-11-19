@@ -1,11 +1,10 @@
-"""Brique 27 (point 116) : `publicWhen`, éprouvé contre un vrai serveur.
+"""Brick 27 (point 116): `publicWhen`, tested against a real server.
 
-La couverture de compilation ne suffisait pas — elle a laissé passer, pendant
-toute la vie de la brique, une modération À SENS UNIQUE : le modérateur qui
-masquait un contenu ne pouvait plus ni le lister ni le relire, et l'auteur d'un
-brouillon ne retrouvait jamais son brouillon. Ces tests-là partent donc d'un
-serveur réel et de TROIS comptes distincts : avec un seul, « le contenu masqué
-est-il caché ? » passerait même quand il est caché à tout le monde.
+Compile coverage was not enough — it let through, for the brick's whole life,
+a ONE-WAY moderation: the moderator hiding content could no longer list nor
+reread it, and a draft's author never found their draft again. These tests
+therefore start from a real server and THREE distinct accounts: with one,
+"is hidden content hidden?" would pass even when it is hidden from everyone.
 """
 
 import json
@@ -49,13 +48,13 @@ MOT_DE_PASSE = "MotDePasse123!"
 
 @pytest.fixture(scope="module")
 def application(tmp_path_factory):
-    """Compile la spec, provisionne le modérateur, et sert l'application."""
+    """Compiles the spec, provisions the moderator, and serves the application."""
     projet = tmp_path_factory.mktemp("publication_conditionnelle")
     spec = projet / "spec.ml"
     spec.write_text(SPEC, encoding="utf-8")
     compile_project(str(spec), str(projet))
-    # Le modérateur n'est pas 'selfRegister' : il ne peut venir que de
-    # manage.py, et c'est précisément la frontière que la bêta 3 protège.
+    # The moderator is not 'selfRegister': it can only come from manage.py, and
+    # that is precisely the boundary beta 3 protects.
     subprocess.run(
         [sys.executable, "manage.py", "adduser", "mod@x.co", "Moderator"],
         cwd=projet, input=f"{MOT_DE_PASSE}\n{MOT_DE_PASSE}\n",
@@ -84,7 +83,7 @@ def _entete(jeton):
 
 @pytest.fixture(scope="module")
 def scene(application):
-    """Un post masqué, son auteur, un membre tiers et un modérateur."""
+    """A hidden post, its author, a third member and a moderator."""
     auteur = _inscrire(application, "auteur@x.co")
     tiers = _inscrire(application, "tiers@x.co")
     moderateur = _jeton(application, "mod@x.co")
@@ -111,45 +110,45 @@ def _detail(scene, jeton=None):
                         timeout=10, headers=entetes)
 
 
-def test_lanonyme_ne_voit_pas_le_contenu_masque(scene):
+def test_the_anonymous_user_does_not_see_hidden_content(scene):
     assert _liste(scene)["total"] == 0
 
 
-def test_lanonyme_ne_latteint_pas_non_plus_par_son_identifiant(scene):
-    """404 et jamais 403 : distinguer les deux laisserait dénombrer ce qui a
-    été retiré, sur des identifiants séquentiels."""
+def test_the_anonymous_user_cannot_reach_it_by_its_id_either(scene):
+    """404 and never 403: telling them apart would let one count what was
+    removed, on sequential identifiers."""
     assert _detail(scene).status_code == 404
 
 
-def test_le_moderateur_voit_encore_ce_quil_a_masque(scene):
-    """LE défaut que la brique avait : masquer, c'était perdre le contenu."""
+def test_the_moderator_still_sees_what_they_hid(scene):
+    """THE defect the brick had: hiding meant losing the content."""
     donnees = _liste(scene, scene["moderateur"])
     assert donnees["total"] == 1
     assert donnees["data"][0]["status"] == "hidden"
 
 
-def test_le_moderateur_peut_rouvrir_la_fiche_masquee(scene):
+def test_the_moderator_can_reopen_the_hidden_record(scene):
     reponse = _detail(scene, scene["moderateur"])
     assert reponse.status_code == 200
     assert reponse.json()["data"]["status"] == "hidden"
 
 
 def test_lauteur_retrouve_son_propre_contenu_masque(scene):
-    """Sans quoi un brouillon serait perdu par celui qui vient de l'écrire."""
+    """Otherwise a draft would be lost by the person who just wrote it."""
     assert _liste(scene, scene["auteur"])["total"] == 1
     assert _detail(scene, scene["auteur"]).status_code == 200
 
 
-def test_un_membre_tiers_reste_devant_la_porte(scene):
-    """L'exemption est DÉCLARÉE, jamais accordée à qui est simplement connecté :
-    sinon « masqué » ne voudrait plus rien dire dès qu'on a un compte."""
+def test_a_third_member_stays_at_the_door(scene):
+    """The exemption is DECLARED, never granted to whoever is merely signed in:
+    otherwise "hidden" would mean nothing as soon as one has an account."""
     assert _liste(scene, scene["tiers"])["total"] == 0
     assert _detail(scene, scene["tiers"]).status_code == 404
 
 
-def test_un_jeton_invalide_laisse_anonyme_sans_401(scene):
-    """Une route PUBLIQUE ne doit jamais répondre 401 : l'identité facultative
-    ne peut que donner des droits, jamais faire échouer la requête."""
+def test_an_invalid_token_leaves_anonymous_without_401(scene):
+    """A PUBLIC route must never answer 401: the optional identity can only grant
+    rights, never make the request fail."""
     entetes = {"Authorization": "Bearer nimportequoi"}
     liste = requests.get(f"{scene['base_url']}/post", timeout=10, headers=entetes)
     assert liste.status_code == 200
@@ -159,9 +158,9 @@ def test_un_jeton_invalide_laisse_anonyme_sans_401(scene):
     assert detail.status_code == 404
 
 
-def test_le_contenu_publie_reste_visible_de_tous(scene):
-    """Contre-épreuve : une condition qui cacherait TOUT passerait les tests
-    ci-dessus sans rien faire de juste."""
+def test_published_content_stays_visible_to_all(scene):
+    """Counter-proof: a condition hiding EVERYTHING would pass the tests above
+    without doing anything right."""
     requests.post(f"{scene['base_url']}/post", timeout=10,
                   headers=_entete(scene["auteur"]),
                   json={"content": "Annonce ouverte", "status": "published"})
@@ -169,8 +168,8 @@ def test_le_contenu_publie_reste_visible_de_tous(scene):
     assert contenus == ["Annonce ouverte"]
 
 
-def test_le_contrat_annonce_la_condition(tmp_path):
-    """Une IA d'interface doit savoir que la liste est filtrée par un état."""
+def test_the_contract_announces_the_condition(tmp_path):
+    """An interface AI must know the list is filtered by a state."""
     spec = tmp_path / "spec.ml"
     spec.write_text(SPEC, encoding="utf-8")
     compile_project(str(spec), str(tmp_path))
@@ -180,9 +179,9 @@ def test_le_contrat_annonce_la_condition(tmp_path):
         "field": "status", "value": "published"}
 
 
-def test_sans_superviseur_ni_proprietaire_la_condition_reste_seule(tmp_path):
-    """Une spec sans exemption possible ne gagne aucune dépendance d'identité :
-    le code produit reste celui d'avant le point 116."""
+def test_without_supervisor_or_owner_the_condition_stays_alone(tmp_path):
+    """A spec with no possible exemption gains no identity dependency: the
+    produced code stays the one from before point 116."""
     spec = tmp_path / "spec.ml"
     spec.write_text("""app Vitrine
 

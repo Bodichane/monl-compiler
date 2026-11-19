@@ -1,8 +1,8 @@
-"""Contrats statiques des artefacts de mise en ligne.
+"""Static contracts of the deployment artifacts.
 
-Ces tests ne démarrent pas Docker : ils empêchent qu'une modification de
-configuration rende le runbook incohérent ou expose accidentellement un
-secret dans le dépôt.
+These tests do not start Docker: they prevent a configuration change from
+making the runbook inconsistent or accidentally exposing a secret in the
+repository.
 """
 
 import os
@@ -17,7 +17,7 @@ from scripts.check_platform_env import lire_env, valider
 RACINE = Path(__file__).parents[1]
 
 
-def test_exemple_env_ne_contient_pas_de_secret_reel():
+def test_example_env_contains_no_real_secret():
     contenu = (RACINE / ".env.platform.example").read_text(encoding="utf-8")
     gitignore = (RACINE / ".gitignore").read_text(encoding="utf-8")
 
@@ -35,7 +35,7 @@ def test_exemple_env_ne_contient_pas_de_secret_reel():
     assert ".env.*" in dockerignore
 
 
-def test_compose_garde_le_port_prive_et_attend_la_readiness():
+def test_compose_keeps_the_port_private_and_waits_for_readiness():
     contenu = (RACINE / "compose.platform.yaml").read_text(encoding="utf-8")
 
     assert '"127.0.0.1:8022:8022"' in contenu
@@ -51,22 +51,21 @@ def test_compose_garde_le_port_prive_et_attend_la_readiness():
         assert variable in contenu
 
 
-def test_chaque_service_remonte_apres_un_redemarrage_de_la_machine():
-    """`always`, et jamais `unless-stopped` — la nuance coûte le service.
+def test_each_service_comes_back_after_a_machine_reboot():
+    """`always`, and never `unless-stopped` — the nuance costs the service.
 
-    Ce qui relance les conteneurs après un redémarrage, c'est
-    `podman-restart.service`, dont la commande est
-    `podman start --all --filter restart-policy=always`. Un conteneur déclaré
-    `unless-stopped` n'entre pas dans ce filtre : il reste à terre.
+    What restarts the containers after a reboot is `podman-restart.service`,
+    whose command is `podman start --all --filter restart-policy=always`. A
+    container declared `unless-stopped` does not enter this filter: it stays
+    down.
 
-    Mesuré sur la machine d'hébergement, pas déduit — après un redémarrage,
-    `monl-nginx` (lancé en `always`) tournait, la plateforme était en `Created`
-    depuis cinquante minutes, et **rien ne l'avait dit**. Un conteneur qui ne
-    remonte pas ne laisse aucune trace : il n'a pas planté, il n'a jamais
-    démarré.
+    Measured on the hosting machine, not deduced — after a reboot, `monl-nginx`
+    (started with `always`) was running, the platform had been `Created` for fifty
+    minutes, and **nothing had said so**. A container that does not come back
+    leaves no trace: it did not crash, it never started.
 
-    Le témoin porte sur TOUS les services, pas sur les deux d'aujourd'hui : un
-    service ajouté plus tard hériterait sinon du défaut en silence.
+    The witness covers ALL services, not today's two: a service added later would
+    otherwise inherit the defect silently.
     """
     compose = yaml.safe_load(
         (RACINE / "compose.platform.yaml").read_text(encoding="utf-8"))
@@ -84,7 +83,7 @@ def test_chaque_service_remonte_apres_un_redemarrage_de_la_machine():
     )
 
 
-def test_commande_de_sauvegarde_repliee_est_du_shell_valide():
+def test_the_folded_backup_command_is_valid_shell():
     compose = yaml.safe_load((RACINE / "compose.platform.yaml").read_text(encoding="utf-8"))
     commande = compose["services"]["sauvegarde"]["command"][2]
     resultat = subprocess.run(["sh", "-n"], input=commande, text=True, capture_output=True)
@@ -92,7 +91,7 @@ def test_commande_de_sauvegarde_repliee_est_du_shell_valide():
     assert resultat.returncode == 0, resultat.stderr
 
 
-def test_proxy_transmet_le_nom_hote_et_le_schema():
+def test_proxy_passes_the_host_name_and_scheme():
     contenu = (RACINE / "deploy/nginx/monl-platform.conf.example").read_text(
         encoding="utf-8"
     )
@@ -104,14 +103,14 @@ def test_proxy_transmet_le_nom_hote_et_le_schema():
     assert "127.0.0.1:8022" in contenu
 
 
-def test_proxy_ne_plafonne_pas_les_depots_sous_ce_que_lapp_accepte():
-    """Ce bloc dessert AUSSI les sites hébergés (*.monl.example.com), dont un
-    peut déclarer `rule X.champ upload max N` jusqu'à 32 Mio (mesuré,
-    tests/test_depot_depuis_le_dialogue.py). Le plafond nginx d'origine était
-    de 256 Kio — bien en-dessous de la limite 5 Mio déjà exercée dans le
-    dépôt (test_limites_du_guide.py) — donc un dépôt que le backend compilé
-    accepte se serait fait refuser par le proxy, en 413, avant même
-    d'atteindre l'application."""
+def test_proxy_does_not_cap_uploads_below_what_the_app_accepts():
+    """This block ALSO serves hosted sites (*.monl.example.com), one of which can
+    declare `rule X.champ upload max N` up to 32 MiB (measured,
+    tests/test_depot_depuis_le_dialogue.py). The original nginx cap was 256 KiB —
+    well below the 5 MiB limit already exercised in the repository
+    (test_limites_du_guide.py) — so an upload the compiled backend accepts would
+    have been refused by the proxy, with a 413, before even reaching the
+    application."""
     contenu = (RACINE / "deploy/nginx/monl-platform.conf.example").read_text(
         encoding="utf-8"
     )
@@ -128,7 +127,7 @@ def test_proxy_ne_plafonne_pas_les_depots_sous_ce_que_lapp_accepte():
         "un dépôt valide pour l'application serait refusé par le proxy.")
 
 
-def test_smoke_platform_sonde_les_deux_endpoints_et_est_executable():
+def test_smoke_platform_probes_both_endpoints_and_is_executable():
     script = RACINE / "scripts/smoke_platform.sh"
     contenu = script.read_text(encoding="utf-8")
 
@@ -163,13 +162,12 @@ def test_script_deploiement_enchaine_validation_compose_et_readiness():
     assert 'if [ "$pret" != true ]' in contenu
     assert "The platform does not become ready" in contenu
     assert "logs --tail=100 platform" in contenu
-    # `compose ps -q <service>` est du Docker Compose v2 : podman-compose
-    # 1.6.0 — le fournisseur que deploy/README.md recommande pour Podman —
-    # refuse un nom de service en argument. Éprouvé en réel (podman +
-    # podman-compose) : le script échouait sur « unrecognized arguments:
-    # sauvegarde ». `lib_compose.sh` (source unique, partagée avec
-    # export_platform_backups.sh) lit le LABEL de compose posé par les deux
-    # fournisseurs, jamais une syntaxe `ps` que l'un des deux ignore.
+    # `compose ps -q <service>` is Docker Compose v2: podman-compose 1.6.0 —
+    # the provider deploy/README.md recommends for Podman — refuses a service
+    # name as argument. Tested for real (podman + podman-compose): the script
+    # failed on "unrecognized arguments: sauvegarde". `lib_compose.sh` (single
+    # source, shared with export_platform_backups.sh) reads the compose LABEL
+    # both providers set, never a `ps` syntax one of them ignores.
     assert ". \"$racine/scripts/lib_compose.sh\"" in contenu
     assert "find_container_by_service" in contenu
     assert 'backup_started=false' in contenu
@@ -185,7 +183,7 @@ def test_script_deploiement_enchaine_validation_compose_et_readiness():
     assert "smoke_platform.sh http://127.0.0.1:8022" in contenu
 
 
-def test_deploiement_refuse_une_image_preconstruite_mutable(tmp_path):
+def test_deployment_refuses_a_mutable_prebuilt_image(tmp_path):
     script = RACINE / "scripts/deploy_platform.sh"
     env_file = tmp_path / ".env"
     env_file.write_text(
@@ -228,7 +226,7 @@ def test_deploiement_refuse_une_image_preconstruite_mutable(tmp_path):
         assert "mutable tag latest" in resultat.stderr or "a tag or a digest" in resultat.stderr
 
 
-def test_export_des_sauvegardes_est_borne_a_un_dossier_hote():
+def test_backup_export_is_bounded_to_a_host_folder():
     script = RACINE / "scripts/export_platform_backups.sh"
     contenu = script.read_text(encoding="utf-8")
 
@@ -237,8 +235,8 @@ def test_export_des_sauvegardes_est_borne_a_un_dossier_hote():
     assert 'compose_file=${COMPOSE_FILE:-"$racine/compose.platform.yaml"}' in contenu
     assert 'env_file=${ENV_FILE:-"$racine/.env"}' in contenu
     assert 'container_runtime=${CONTAINER_RUNTIME:-docker}' in contenu
-    # Même défaut, même correctif que deploy_platform.sh : `ps -q <service>`
-    # n'est pas supporté par podman-compose (voir le test du script voisin).
+    # Same defect, same fix as deploy_platform.sh: `ps -q <service>` is not
+    # supported by podman-compose (see the neighboring script's test).
     assert ". \"$racine/scripts/lib_compose.sh\"" in contenu
     assert "find_container_by_service" in contenu
     assert '--env-file "$env_file"' in contenu
@@ -258,7 +256,7 @@ def test_export_des_sauvegardes_est_borne_a_un_dossier_hote():
     assert racine.returncode == 2
 
 
-def test_runbook_documente_le_dns_le_tls_et_les_sauvegardes_hors_site():
+def test_runbook_documents_dns_tls_and_offsite_backups():
     contenu = (RACINE / "deploy/README.md").read_text(encoding="utf-8")
 
     for attendu in ("wildcard", "TLS certificate", "separate storage",
@@ -266,17 +264,17 @@ def test_runbook_documente_le_dns_le_tls_et_les_sauvegardes_hors_site():
                     "check_platform_env.py", "chmod 600 .env",
                     "export_platform_backups.sh", "Dockerfile.platform",
                     "packaging or readiness regression", "firewall", "TCP 80 and 443",
-                    # Les deux pièges de Podman mesurés au point 189. Un
-                    # document qui décrit une limite sans donner le remède
-                    # qu'il connaît envoie travailler pour rien (point 166) :
-                    # le témoin exige donc la CAUSE et le GESTE, pas juste le
-                    # symptôme.
+                    # The two Podman traps measured at point 189. A document
+                    # describing a limit without giving the remedy it knows
+                    # sends people working for nothing (point 166): the witness
+                    # therefore requires the CAUSE and the ACTION, not just the
+                    # symptom.
                     "podman-restart.service", "restart-policy=always",
                     "enable-linger", 'export PATH="$HOME/.local/bin:$PATH"'):
         assert attendu in contenu, f"le runbook ne dit plus : {attendu}"
 
 
-def test_la_ci_construit_et_sonde_l_image_de_plateforme():
+def test_ci_builds_and_probes_the_platform_image():
     contenu = (RACINE / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 
     assert "docker compose -f compose.platform.yaml config --quiet" in contenu
@@ -291,13 +289,13 @@ def test_la_ci_construit_et_sonde_l_image_de_plateforme():
     assert "needs: verifier" in contenu
 
 
-def test_documentation_ne_redit_pas_que_les_sauvegardes_compose_nexistent_pas():
+def test_documentation_no_longer_says_compose_backups_do_not_exist():
     contenu = (RACINE / "docs/EXPLOITATION.md").read_text(encoding="utf-8")
     assert "pas de sauvegarde automatique" not in contenu.lower()
     assert "sauvegarde" in contenu.lower()
 
 
-def test_le_workflow_d_image_teste_puis_publie_ghcr():
+def test_the_image_workflow_tests_then_publishes_ghcr():
     chemin = RACINE / ".github/workflows/platform-image.yml"
     contenu = chemin.read_text(encoding="utf-8")
 
@@ -318,7 +316,7 @@ def test_le_workflow_d_image_teste_puis_publie_ghcr():
     assert "ghcr.io/bodichane/monl-platform:<tag>" in publication
 
 
-def test_exemple_env_passe_la_validation_de_production():
+def test_example_env_passes_production_validation():
     valeurs, erreurs_lecture = lire_env(RACINE / ".env.platform.example")
     assert valider(valeurs, erreurs_lecture) == []
 
@@ -337,7 +335,7 @@ def test_validation_refuse_un_domaine_local_ou_un_proxy_non_securise():
     assert any("MONL_TRUST_PROXY" in erreur for erreur in erreurs)
 
 
-def test_validation_refuse_une_url_publique_loopback():
+def test_validation_refuses_a_loopback_public_url():
     erreurs = valider({
         "MONL_PLATFORM_DOMAIN": "monl.example.com",
         "MONL_PLATFORM_PUBLIC_URL": "https://127.0.0.1",
@@ -348,7 +346,7 @@ def test_validation_refuse_une_url_publique_loopback():
     assert any("PUBLIC_URL" in erreur and "localhost" in erreur for erreur in erreurs)
 
 
-def test_validation_exige_le_secret_detat_si_oauth_est_active():
+def test_validation_requires_the_state_secret_if_oauth_is_enabled():
     erreurs = valider({
         "MONL_PLATFORM_DOMAIN": "monl.example.com",
         "MONL_PLATFORM_PUBLIC_URL": "https://monl.example.com",
@@ -375,7 +373,7 @@ def test_validation_refuse_un_secret_detat_oauth_trop_court():
     assert any("32 characters" in erreur for erreur in erreurs)
 
 
-def test_validation_autorise_une_console_sur_un_hote_distinct():
+def test_validation_allows_a_console_on_a_distinct_host():
     erreurs = valider({
         "MONL_PLATFORM_DOMAIN": "sites.monl.example.com",
         "MONL_PLATFORM_PUBLIC_URL": "https://console.monl.example.com",
@@ -386,7 +384,7 @@ def test_validation_autorise_une_console_sur_un_hote_distinct():
     assert erreurs == []
 
 
-def test_validation_ne_plante_pas_sur_une_url_malformee():
+def test_validation_does_not_crash_on_a_malformed_url():
     erreurs = valider({
         "MONL_PLATFORM_DOMAIN": "monl.example.com",
         "MONL_PLATFORM_PUBLIC_URL": "https://[",

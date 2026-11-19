@@ -1,11 +1,10 @@
-"""Le journal ne doit pas pouvoir écrire un secret.
+"""The log must not be able to write a secret.
 
-La plateforme garde des mots de passe, des jetons de session et des clés
-d'API. Un journal est précisément l'endroit où ces valeurs fuient : on
-journalise « pour déboguer », la ligne part dans les logs de l'hébergeur, et
-elle y reste. Ces tests vérifient que le masquage tient par le NOM du champ
-ET par la FORME de la valeur — parce que se fier au seul nom laisse passer
-`identifiant=monl_AbC…`, qui n'annonce rien.
+The platform holds passwords, session tokens and API keys. A log is precisely
+where these values leak: one logs "for debugging", the line goes into the
+host's logs, and stays there. These tests check that masking holds by the
+field NAME AND by the value's SHAPE — because relying on the name alone lets
+through `identifiant=monl_AbC…`, which announces nothing.
 """
 
 import logging
@@ -13,7 +12,7 @@ import logging
 from monl_platform import journal as J
 
 
-def test_un_champ_qui_annonce_un_secret_est_masque():
+def test_a_field_announcing_a_secret_is_masked():
     ligne = J.evenement("essai", password="hunter2", mot_de_passe="hunter2",
                         session_token="abc", api_key_secret="xyz")
     assert "hunter2" not in ligne
@@ -21,20 +20,20 @@ def test_un_champ_qui_annonce_un_secret_est_masque():
     assert ligne.count(J.MASQUE) == 4
 
 
-def test_une_cle_dapi_est_masquee_meme_sous_un_nom_anodin():
-    """Le cas que le masquage par nom seul laisse passer."""
+def test_an_api_key_is_masked_even_under_a_harmless_name():
+    """The case name-only masking lets through."""
     cle = "monl_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6"
     ligne = J.evenement("essai", identifiant=cle, valeur=cle)
     assert cle not in ligne
     assert ligne == f"essai identifiant={J.MASQUE} valeur={J.MASQUE}"
 
 
-def test_un_jeton_de_forte_entropie_est_masque_sous_nimporte_quel_nom():
+def test_a_high_entropy_token_is_masked_under_any_name():
     jeton = "T3uc3xWnqbNYoAMPOZ8L5VAC0C0wS7mYoT3P1znKtgM"
     assert J.MASQUE in J.evenement("essai", ref=jeton)
 
 
-def test_un_jeton_dans_une_url_de_journal_est_masque():
+def test_a_token_in_a_logged_url_is_masked():
     jeton = "monl_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6"
     url = f"GET https://client.example/reset?token={jeton}&next=/compte"
     ligne = J.masquer_texte(url)
@@ -46,32 +45,32 @@ def test_un_jeton_dans_une_url_de_journal_est_masque():
     assert "Bearer [masked]" in J.masquer_texte("Authorization: Bearer court")
 
 
-def test_ce_qui_nest_pas_un_secret_passe_tel_quel():
-    """Le témoin : un masquage qui masquerait tout serait inutilisable."""
+def test_what_is_not_a_secret_passes_as_is():
+    """The witness: a masking that masked everything would be unusable."""
     ligne = J.evenement("compilation", projet="a3f9", routes=17, duree_ms=812)
     assert ligne == "compilation projet=a3f9 routes=17 duree_ms=812"
 
 
-def test_un_champ_peut_sappeler_nom_sans_percuter_le_parametre():
-    """Le nom de champ le plus naturel en français. Avant que le paramètre ne
-    soit positionnel uniquement, ceci levait un TypeError — donc la
-    journalisation cassait exactement là où on en avait besoin."""
+def test_a_field_can_be_called_nom_without_hitting_the_parameter():
+    """The most natural field name in French. Before the parameter was
+    positional-only, this raised a TypeError — so logging broke exactly where it
+    was needed."""
     assert J.evenement("projet", nom="Boutique") == "projet nom=Boutique"
 
 
-def test_une_valeur_multiligne_ne_peut_pas_fabriquer_une_fausse_ligne():
-    """Sans ça, un nom de projet contenant un saut de ligne écrit ce qu'il
-    veut dans le journal — une entrée forgée se lit comme une vraie."""
+def test_a_multiline_value_cannot_forge_a_fake_line():
+    """Without it, a project name containing a line break writes what it wants
+    into the log — a forged entry reads like a real one."""
     ligne = J.evenement("projet", nom="innocent\n2026-01-01 ERROR faux evenement")
     assert "\n" not in ligne
     assert ligne.startswith('projet nom="innocent 2026-01-01 ERROR faux evenement"')
 
 
-def test_le_journal_ecrit_reellement_sur_son_flux(caplog):
-    """`evenement` rend une chaîne ; encore faut-il qu'elle soit ÉMISE."""
+def test_the_log_really_writes_to_its_stream(caplog):
+    """`evenement` returns a string; it still has to be EMITTED."""
     J.configurer()
     with caplog.at_level(logging.INFO, logger=J.NOM):
-        J.journal.propagate = True          # caplog écoute la racine
+        J.journal.propagate = True          # caplog listens to the root
         try:
             J.evenement("demarrage", workspace="/data")
         finally:
@@ -79,29 +78,29 @@ def test_le_journal_ecrit_reellement_sur_son_flux(caplog):
     assert "demarrage workspace=/data" in caplog.text
 
 
-def test_les_niveaux_distinguent_lincident_du_train_train():
+def test_levels_tell_incidents_from_routine():
     assert J.anomalie("debit_depasse", compte="u1")
     assert J.panne("compilation_impossible", projet="p1")
 
 
-def test_un_identifiant_de_compte_reste_lisible_donc_recoupable():
-    """Le défaut trouvé en lançant le serveur, pas en relisant le code.
+def test_an_account_identifier_stays_readable_hence_cross_checkable():
+    """The defect found by starting the server, not by rereading the code.
 
-    Un identifiant de compte est un `uuid4().hex` de 32 caractères : la règle
-    de forte entropie l'avalait, et TOUTES les lignes disaient
-    `compte=[masqué]`. Un journal qui masque le compte ne dit plus si deux
-    cents connexions refusées viennent d'un compte ou de deux cents.
+    An account identifier is a 32-character `uuid4().hex`: the high-entropy rule
+    swallowed it, and EVERY line said `compte=[masqué]`. A log that masks the
+    account no longer says whether two hundred refused logins come from one
+    account or from two hundred.
 
-    Le remède ne touche PAS au masquage — c'est ce qu'on lui passe qui change.
+    The remedy does NOT touch masking — what is passed to it changes.
     """
     identifiant = "a3f91b2c4d5e6f708192a3b4c5d6e7f8"
     assert len(identifiant) == 32
 
-    # Passé entier, il EST masqué — et c'est correct : la règle ne sait pas
-    # distinguer un identifiant d'un jeton.
+    # Passed whole, it IS masked — and that is right: the rule cannot tell an
+    # identifier from a token.
     assert J.MASQUE in J.evenement("connexion", compte=identifiant)
 
-    # Raccourci, il traverse et reste le même d'une ligne à l'autre.
+    # Shortened, it goes through and stays the same from one line to the next.
     court = J.court(identifiant)
     assert court == "a3f91b2c"
     premiere = J.evenement("connexion", compte=court)
@@ -111,9 +110,9 @@ def test_un_identifiant_de_compte_reste_lisible_donc_recoupable():
     assert "compte=a3f91b2c" in seconde
 
 
-def test_les_evenements_de_lapplication_ne_masquent_pas_le_compte():
-    """La garantie au vrai point d'appel : c'est `app.py` qui doit passer un
-    identifiant court, pas seulement `journal.py` qui doit savoir le faire."""
+def test_application_events_do_not_mask_the_account():
+    """The guarantee at the real call site: `app.py` must pass a short
+    identifier, not only `journal.py` must know how to."""
     import re
     from pathlib import Path
 
