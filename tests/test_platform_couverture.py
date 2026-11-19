@@ -1,9 +1,9 @@
-"""Compléments de couverture sur les frontières de l'application.
+"""Coverage complements on the application's boundaries.
 
-Les tests de dialogue HTTP lancent volontairement uvicorn dans un autre
-processus. Ces tests ASGI gardent les mêmes assertions de réponse, mais
-exécutent aussi les fonctions de route dans le processus mesuré : sinon la
-couverture confondrait « éprouvé » et « visible par coverage.py ».
+The HTTP dialogue tests deliberately start uvicorn in another process. These
+ASGI tests keep the same response assertions, but also run the route
+functions in the measured process: otherwise coverage would confuse "tested"
+with "visible to coverage.py".
 """
 
 import ast
@@ -40,7 +40,7 @@ class _Response:
 
 
 class _ASGIClient:
-    """Client ASGI minimal, sans dépendance qui ne soit pas au projet."""
+    """Minimal ASGI client, without any dependency foreign to the project."""
 
     def __init__(self, application):
         self.application = application
@@ -67,10 +67,11 @@ class _ASGIClient:
         chunks = []
 
         async def receive():
-            # Comme un vrai serveur ASGI : le corps livré, la lecture suivante
-            # BLOQUE jusqu'à la fin de la réponse (Starlette récent l'attend
-            # en parallèle pour détecter une déconnexion). Ni liste vide qui
-            # lève IndexError, ni déconnexion immédiate qui coupe un fichier.
+            # Like a real ASGI server: once the body is delivered, the next
+            # read BLOCKS until the end of the response (recent Starlette
+            # awaits it in parallel to detect a disconnection). Neither an
+            # empty list raising IndexError, nor an immediate disconnection
+            # cutting a file.
             if messages:
                 return messages.pop(0)
             await asyncio.Event().wait()
@@ -193,8 +194,8 @@ async def _dialogue(app):
         archive = await client.get(f"/api/projects/{project_id}/download")
         assert archive.status_code == 200 and archive.content.startswith(b"PK")
 
-        # POINT 162 : la file de constructions a laissé place à UNE compilation
-        # déterministe, puis au démarrage de l'API obtenue.
+        # POINT 162: the build queue gave way to ONE deterministic compilation,
+        # then to starting the resulting API.
         compilation = await client.post(f"/api/projects/{project_id}/compiler")
         assert compilation.status_code == 201, compilation.json()
         assert compilation.json()["routes"] > 0
@@ -244,13 +245,13 @@ async def _dialogue(app):
         client.request = _ASGIClient.request.__get__(client)
 
 
-def test_les_routes_asgi_couvrent_les_reponses_et_les_effets(tmp_path):
+def test_asgi_routes_cover_responses_and_effects(tmp_path):
     app = create_app(workspace=tmp_path)
     asyncio.run(_dialogue(app))
 
 
 def _request(path="/", *, headers=(), body=b"", client=("127.0.0.1", 1234)):
-    """Request minimal pour exercer les garde-fous sans contourner l'ASGI."""
+    """Minimal Request to exercise the safeguards without bypassing ASGI."""
     messages = [{"type": "http.request", "body": body, "more_body": False}]
 
     async def receive():
@@ -265,7 +266,7 @@ def _request(path="/", *, headers=(), body=b"", client=("127.0.0.1", 1234)):
     return Request(scope, receive)
 
 
-def test_les_garde_fous_http_normalisent_et_refusent_les_entrees_invalides(
+def test_http_safeguards_normalize_and_refuse_invalid_inputs(
     tmp_path, monkeypatch
 ):
     from monl_platform import app_http
@@ -337,8 +338,8 @@ def test_les_garde_fous_http_normalisent_et_refusent_les_entrees_invalides(
         asyncio.run(app_http._json_body(_request(body=b"[]")))
 
 
-def test_la_pose_du_cookie_est_unique_et_suit_la_configuration(tmp_path, monkeypatch):
-    """Chaque famille de cookie a une pose unique et partage la règle Secure."""
+def test_setting_the_cookie_is_unique_and_follows_configuration(tmp_path, monkeypatch):
+    """Each cookie family has a single setter and shares the Secure rule."""
     racine = Path(__file__).resolve().parent.parent / "src" / "monl_platform"
     poses = []
     for chemin in racine.glob("*.py"):
@@ -378,7 +379,7 @@ def test_la_pose_du_cookie_est_unique_et_suit_la_configuration(tmp_path, monkeyp
     )
 
 
-def test_le_cycle_de_vie_demarre_arrete_et_maintient_la_purge(monkeypatch):
+def test_the_lifecycle_starts_stops_and_keeps_the_purge(monkeypatch):
     from monl_platform import app_lifecycle
 
     class RapideEvent:
@@ -446,7 +447,7 @@ def test_le_cycle_de_vie_demarre_arrete_et_maintient_la_purge(monkeypatch):
     assert broken.calls == 1 and runtime.started and runtime.stopped
 
 
-def test_le_dispatcher_mcp_repond_aux_protocoles_et_aux_outils(tmp_path, monkeypatch, capsys):
+def test_the_mcp_dispatcher_answers_protocols_and_tools(tmp_path, monkeypatch, capsys):
     from monl_platform.identity import IdentityStore
     from monl_platform.mcp_server import MCPDispatcher, run_stdio
     from monl_platform.service import CompilationService
@@ -498,7 +499,7 @@ def test_le_dispatcher_mcp_repond_aux_protocoles_et_aux_outils(tmp_path, monkeyp
     assert "-32700" in sortie and '"id":12' in sortie
 
 
-def test_le_store_valide_ses_metadonnees_et_ses_transitions(tmp_path):
+def test_the_store_validates_its_metadata_and_transitions(tmp_path):
     from monl_platform.identity import IdentityStore
     from monl_platform.store import PlatformStore, normalize_slug
 

@@ -1,7 +1,7 @@
-"""Point 209 : deux comptes, vrai uvicorn, messages réellement reçus en SMTP.
+"""Point 209: two accounts, real uvicorn, messages really received over SMTP.
 
-Les contre-épreuves mutent uniquement l'application compilée jetable, puis
-exécutent le MÊME témoin : un test rouge est exigé pour chaque garde.
+The counter-proofs only mutate the throwaway compiled application, then run
+the SAME witness: a red test is required for each guard.
 """
 
 import contextlib
@@ -65,7 +65,7 @@ def _env(smtp):
     return env
 
 def _post(base, path, **data):
-    # Ne pas laisser le limiteur IP historique masquer la garde mesurée.
+    # Do not let the historical IP limiter hide the measured guard.
     _post.sequence += 1
     return requests.post(base + path, json=data, timeout=10,
                          headers={'X-Forwarded-For': f'192.0.2.{_post.sequence}'})
@@ -235,7 +235,7 @@ def test_refus_reglages_incomplets_ou_invalides(settings, tmp_path):
 
 
 @pytest.mark.parametrize('identifier', ['', '    identifier: phone\n', '    identifier: email, phone\n'])
-def test_refus_sans_identifiant_email(identifier, tmp_path):
+def test_refused_without_email_identifier(identifier, tmp_path):
     with pytest.raises(ASTValidationError, match='identifier: email'):
         _compile(tmp_path, SPEC.replace('    identifier: email\n', identifier))
 
@@ -305,11 +305,11 @@ def test_dialogue_email_vers_serveur(tmp_path, faux_smtp):
         _assert_replay(base, tokens)
 
 
-def test_dialogue_confirmation_refusee_necrit_rien(monkeypatch):
+def test_dialogue_refused_confirmation_writes_nothing(monkeypatch):
     from monl.dialogue_engine.comptes import ComptesMixin
     from tests.test_app_templates import TEMPLATES, _run_template
-    # Le seul delta de dialogue est l'offre de confirmation : comparer le
-    # parcours réel qui la refuse au même parcours sans cette question.
+    # The only dialogue delta is the confirmation offer: compare the real
+    # journey that refuses it with the same journey without this question.
     refused = {}
     for index in range(1, len(TEMPLATES) + 1):
         for answer in ('n', 'o'):
@@ -326,7 +326,7 @@ def test_dialogue_confirmation_refusee_necrit_rien(monkeypatch):
     assert all('verify_email' not in spec for spec in refused.values())
 
 
-def test_dialogue_ne_pose_la_question_que_pour_email_en_ligne():
+def test_dialogue_asks_only_for_online_email():
     from monl.dialogue_engine import GuidedDialogue
     for answers, self_register in [([], None), (['0'], 'User'),
                                     (['1', '+229'], 'User'), (['3', '+229'], 'User')]:
@@ -342,7 +342,7 @@ def test_dialogue_ne_pose_la_question_que_pour_email_en_ligne():
     assert sum('confirmation' in prompt for prompt in prompts) == 1
 
 
-def test_panne_transport_ne_casse_pas_linscription_ni_le_renvoi(tmp_path, faux_smtp):
+def test_transport_failure_breaks_neither_registration_nor_resend(tmp_path, faux_smtp):
     _compile(tmp_path)
     env = _env(faux_smtp)
     env['MONL_SMTP_PORT'] = '0'
@@ -357,11 +357,11 @@ def test_panne_transport_ne_casse_pas_linscription_ni_le_renvoi(tmp_path, faux_s
         assert not faux_smtp.messages
 
 
-def test_verification_combinee_avec_b4(tmp_path, faux_smtp):
+def test_verification_combined_with_b4(tmp_path, faux_smtp):
     spec = SPEC.replace(SETTINGS, SETTINGS + '    lockout: 3 in 3600\n    password_reset: 60\n    refresh_tokens: 3600\n    totp\n')
     with _application(tmp_path, faux_smtp, spec=spec) as (base, tokens):
         _assert_login(base)
-        # Le sel factice ne doit jamais transformer l'absence en un compte.
+        # The dummy salt must never turn absence into an account.
         assert _login(base, 'absent@example.test', 'monl-dummy-password').status_code == 401
         _assert_replay(base, tokens)
         response = _login(base, ACCOUNTS[0])
@@ -370,9 +370,9 @@ def test_verification_combinee_avec_b4(tmp_path, faux_smtp):
         assert _login(base, ACCOUNTS[1]).status_code == 403
 
 
-def test_verrou_prime_sur_compte_non_confirme(tmp_path, faux_smtp):
-    # Un compte verrouillé répond 401 même avec le BON mot de passe : le 403
-    # « non confirmé » ne doit jamais contourner le verrouillage du point 124.
+def test_lockout_takes_precedence_over_unconfirmed_account(tmp_path, faux_smtp):
+    # A locked account answers 401 even with the RIGHT password: the "not
+    # confirmed" 403 must never bypass the point 124 lockout.
     spec = SPEC.replace(SETTINGS, SETTINGS + '    lockout: 3 in 3600\n')
     with _application(tmp_path, faux_smtp, spec=spec) as (base, tokens):
         assert _login(base, ACCOUNTS[0]).status_code == 403

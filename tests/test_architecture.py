@@ -1073,7 +1073,7 @@ def test_chaque_test_python_exerce_une_assertion():
             "ses assertions vivent dans le helper _mesurer_canal_temporel, appelé dans un try/finally qui arrête le serveur",
         "test_cli_commandes.py:test_run_check_passe_sur_un_projet_sain":
             "le contrat est précisément que cmd_run termine normalement; une erreur lève SystemExit et échoue",
-        "test_platform_couverture.py:test_les_routes_asgi_couvrent_les_reponses_et_les_effets":
+        "test_platform_couverture.py:test_asgi_routes_cover_responses_and_effects":
             "_dialogue fait des assertions ASGI détaillées pendant son exécution",
         "test_publication.py:test_le_tag_qui_correspond_est_accepte":
             "validate_tag_version est un validateur pur qui lève sur toute version refusée",

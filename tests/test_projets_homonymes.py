@@ -1,24 +1,23 @@
-"""Deux projets du même nom doivent avoir deux adresses, pas une collision.
+"""Two projects with the same name must have two addresses, not a collision.
 
-LES DEUX DÉFAUTS, MESURÉS AVANT D'ÉCRIRE UNE LIGNE. Le slug — l'adresse
-d'hébergement — était dérivé du seul NOM de l'application, sans jamais
-vérifier qu'il était libre :
+BOTH DEFECTS, MEASURED BEFORE WRITING A LINE. The slug — the hosting
+address — was derived from the application NAME alone, without ever checking
+that it was free:
 
-  (a) MÊME compte, deux projets du même nom → `IntegrityError` sur
-      `UNIQUE(user_id, slug)`. `_ensure_builder_project` n'attrape que
-      `OSError` et `ValueError` : l'erreur sortait donc en **500**, et le
-      second projet ne pouvait jamais démarrer son API.
+  (a) SAME account, two projects with the same name → `IntegrityError` on
+      `UNIQUE(user_id, slug)`. `_ensure_builder_project` only catches
+      `OSError` and `ValueError`: the error therefore came out as a **500**,
+      and the second project could never start its API.
 
-  (b) DEUX comptes, même nom → accepté, puis `project_for_host` refuse de
-      servir en disant « désigne plusieurs projets ». Un inconnu qui nomme son
-      projet comme le vôtre rendait votre site injoignable. La recherche par
-      slug est GLOBALE — c'est un sous-domaine, elle ne peut pas être par
-      compte.
+  (b) TWO accounts, same name → accepted, then `project_for_host` refuses to
+      serve, saying "designates several projects". A stranger naming their
+      project like yours made your site unreachable. The slug lookup is
+      GLOBAL — it is a subdomain, it cannot be per account.
 
-Le remède est le même pour les deux : le slug est choisi LIBRE à la création,
-sous le verrou du magasin, et l'unicité globale est tenue par un index plutôt
-que par une vérification applicative — une vérification laisse passer deux
-écritures concurrentes, un index non.
+The remedy is the same for both: the slug is chosen FREE at creation, under
+the store lock, and global uniqueness is held by an index rather than an
+application check — a check lets two concurrent writes through, an index
+does not.
 """
 from __future__ import annotations
 
@@ -41,18 +40,18 @@ def plateforme(tmp_path):
 
 
 def _projet(store, identites, user_id, nom):
-    """Crée un projet comme le fait la plateforme, et rend le slug retenu."""
+    """Creates a project the way the platform does, and returns the slug kept."""
     project_id = uuid.uuid4().hex
     identites.add_project(user_id, project_id, nom)
     slug = store.create_project(user_id, project_id, nom.lower())
     return project_id, slug
 
 
-def test_un_meme_compte_peut_nommer_deux_projets_pareil(plateforme):
-    """(a) Le second ne doit plus faire échouer l'écriture.
+def test_one_account_can_name_two_projects_alike(plateforme):
+    """(a) The second must no longer make the write fail.
 
-    Trois passages dans le dialogue avec le même nom, c'est le cas RÉEL qui a
-    fait remonter le défaut : trois lignes « AtelierVitrine » dans la console.
+    Three passes through the dialogue with the same name is the REAL case that
+    brought the defect up: three "AtelierVitrine" rows in the console.
     """
     store, identites, _ = plateforme
     compte = identites.register("un@monl.test", "MotDePasse-123")
@@ -65,8 +64,8 @@ def test_un_meme_compte_peut_nommer_deux_projets_pareil(plateforme):
         "le PREMIER doit garder l'adresse que son nom annonce")
 
 
-def test_deux_comptes_ne_se_volent_pas_une_adresse(plateforme):
-    """(b) Le défaut le plus grave : il vient de quelqu'un d'autre."""
+def test_two_accounts_do_not_steal_an_address(plateforme):
+    """(b) The most serious defect: it comes from someone else."""
     store, identites, sites = plateforme
     a = identites.register("a@monl.test", "MotDePasse-123")
     b = identites.register("b@monl.test", "MotDePasse-123")
@@ -80,12 +79,12 @@ def test_deux_comptes_ne_se_volent_pas_une_adresse(plateforme):
         assert projet is not None, f"{slug} ne désigne aucun projet"
 
 
-def test_lhebergement_reste_sans_ambiguite(plateforme):
-    """Chaque adresse désigne UN projet, et le bon.
+def test_hosting_stays_unambiguous(plateforme):
+    """Each address designates ONE project, and the right one.
 
-    Sans cette vérification on saurait que les slugs diffèrent, jamais qu'ils
-    mènent au bon endroit — deux adresses distinctes pointant sur la même
-    ligne passeraient le témoin précédent.
+    Without this check we would know the slugs differ, never that they lead to
+    the right place — two distinct addresses pointing to the same row would pass
+    the previous witness.
     """
     store, identites, sites = plateforme
     compte = identites.register("route@monl.test", "MotDePasse-123")
@@ -102,12 +101,11 @@ def test_lhebergement_reste_sans_ambiguite(plateforme):
 
 
 def test_lunicite_globale_tient_meme_a_deux_ecritures_concurrentes(plateforme):
-    """La garantie vit dans un INDEX, jamais dans une vérification préalable.
+    """The guarantee lives in an INDEX, never in a prior check.
 
-    Une vérification « ce slug est-il libre ? » suivie d'une écriture laisse
-    passer deux appels simultanés qui lisent tous les deux « libre ». On force
-    donc l'écriture directe qu'une course produirait, et la base doit la
-    refuser d'elle-même.
+    A check "is this slug free?" followed by a write lets through two
+    simultaneous calls that both read "free". We therefore force the direct
+    write a race would produce, and the database must refuse it by itself.
     """
     store, identites, _ = plateforme
     a = identites.register("c1@monl.test", "MotDePasse-123")
@@ -125,20 +123,20 @@ def test_lunicite_globale_tient_meme_a_deux_ecritures_concurrentes(plateforme):
         )
 
 
-def test_une_base_deja_en_doublon_ne_bloque_pas_le_demarrage(tmp_path, capsys):
-    """Les bases ANTÉRIEURES portent déjà des doublons — la nôtre en a trois.
+def test_a_database_already_with_duplicates_does_not_block_startup(tmp_path, capsys):
+    """EARLIER databases already carry duplicates — ours has three.
 
-    Point 85 mot pour mot : l'index ne peut pas se créer sur une base en
-    doublon, et refuser de démarrer immobiliserait un service qui fonctionne.
-    Les doublons sont COMPTÉS et NOMMÉS, jamais réécrits en silence : renommer
-    changerait l'adresse d'un site déjà en ligne.
+    Point 85 word for word: the index cannot be created on a database with
+    duplicates, and refusing to start would immobilize a working service.
+    Duplicates are COUNTED and NAMED, never silently rewritten: renaming would
+    change the address of a site already online.
     """
     store = PlatformStore(tmp_path)
     identites = IdentityStore(store.workspace)
     a = identites.register("v1@monl.test", "MotDePasse-123")
     b = identites.register("v2@monl.test", "MotDePasse-123")
 
-    # On fabrique l'état d'AVANT : deux comptes, un seul slug.
+    # We build the BEFORE state: two accounts, one slug.
     for compte in (a, b):
         project_id = uuid.uuid4().hex
         identites.add_project(compte["id"], project_id, "Ancien")

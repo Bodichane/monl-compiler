@@ -1,4 +1,4 @@
-"""`monl content export/import` travaille uniquement sur fichiers locaux."""
+"""`monl content export/import` works only on local files."""
 import csv
 import os
 import pathlib
@@ -55,7 +55,7 @@ def _write_rows(racine, champs, rows, entite="Produit"):
         writer.writerows(rows)
 
 
-def test_aller_retour_sans_modification_est_stable_a_loctet():
+def test_round_trip_without_change_is_byte_stable():
     temporaire, spec = _projet()
     with temporaire:
         avant = pathlib.Path(spec).read_text(encoding="utf-8")
@@ -65,7 +65,7 @@ def test_aller_retour_sans_modification_est_stable_a_loctet():
         assert rapport["spec_changee"] is False
 
 
-def test_modifier_une_valeur_ne_touche_pas_le_reste_de_la_spec():
+def test_changing_a_value_does_not_touch_the_rest_of_the_spec():
     temporaire, spec = _projet()
     with temporaire:
         exporter_contenu(spec, temporaire.name)
@@ -78,7 +78,7 @@ def test_modifier_une_valeur_ne_touche_pas_le_reste_de_la_spec():
         assert "entity Page\n    titre: String" in texte
 
 
-def test_image_absente_nomme_le_fichier_et_la_ligne_csv():
+def test_missing_image_names_the_file_and_csv_row():
     temporaire, spec = _projet()
     with temporaire:
         exporter_contenu(spec, temporaire.name)
@@ -89,7 +89,7 @@ def test_image_absente_nomme_le_fichier_et_la_ligne_csv():
             importer_contenu(spec, temporaire.name)
 
 
-def test_image_refuse_un_chemin_avec_la_ligne_csv():
+def test_image_refuses_a_path_with_the_csv_row():
     temporaire, spec = _projet()
     with temporaire:
         exporter_contenu(spec, temporaire.name)
@@ -100,7 +100,7 @@ def test_image_refuse_un_chemin_avec_la_ligne_csv():
             importer_contenu(spec, temporaire.name)
 
 
-def test_nombre_invalide_est_refuse_avec_la_ligne_csv():
+def test_invalid_number_is_refused_with_the_csv_row():
     temporaire, spec = _projet()
     with temporaire:
         exporter_contenu(spec, temporaire.name)
@@ -111,7 +111,7 @@ def test_nombre_invalide_est_refuse_avec_la_ligne_csv():
             importer_contenu(spec, temporaire.name)
 
 
-def test_blocs_de_meme_entite_non_contigus_sont_refuses():
+def test_non_contiguous_blocks_of_one_entity_are_refused():
     spec_ = SPEC.replace(
         '    nom: "Table", prix: 20, etat: "occasion"',
         'seed Page\n    titre: "Accueil"\n\nseed Produit\n'
@@ -126,7 +126,7 @@ def test_blocs_de_meme_entite_non_contigus_sont_refuses():
             importer_contenu(spec, temporaire.name)
 
 
-def test_parent_est_exporte_et_regroupe_dans_les_entetes():
+def test_parent_is_exported_and_grouped_in_the_headers():
     spec_ = """app Variantes
 entity Produit
     nom: String
@@ -160,7 +160,7 @@ seed Variante for Produit.nom "Table"
         assert '    nom: "Noir"\n    nom: "Blanc"' in texte
 
 
-def test_entite_sans_seed_est_signalee_sans_bloquer_les_autres():
+def test_entity_without_seed_is_reported_without_blocking_others():
     temporaire, spec = _projet()
     with temporaire:
         rapport = exporter_contenu(spec, temporaire.name)
@@ -169,7 +169,7 @@ def test_entite_sans_seed_est_signalee_sans_bloquer_les_autres():
         assert not os.path.exists(os.path.join(temporaire.name, "content", "Page.csv"))
 
 
-def test_lisez_moi_enumere_les_valeurs_oneof():
+def test_readme_lists_the_oneof_values():
     temporaire, spec = _projet()
     with temporaire:
         exporter_contenu(spec, temporaire.name)
@@ -177,7 +177,7 @@ def test_lisez_moi_enumere_les_valeurs_oneof():
         assert "allowed values: neuf, occasion" in texte
 
 
-def test_export_exclut_les_champs_serveur_et_les_booleens():
+def test_export_excludes_server_fields_and_booleans():
     spec_ = SPEC.replace(
         "    etat: String",
         "    etat: String\n    cree: DateTime\n    publie: Boolean",

@@ -1496,7 +1496,7 @@ making a touch-up: does the content really say what we want to see?
   goes red and green on eleven cases, and both names are free (404/404). Bounded
   limitation: `scripts/` remains outside `ruff check src tests` — a written
   decision, not an omission. See point 169.- **POINT 167bis: a witness can be
-  EMPTY FROM BIRTH.** `test_un_auteur_ne_peut_pas_etre_le_nom_du_paquet` was
+  EMPTY FROM BIRTH.** `test_an_author_cannot_be_the_package_name` was
   written as `all(a["name"] != project["name"] for a in project.get("authors", []))`
   — and `authors` was EMPTY, since point 167 had deliberately left the field
   vacant. But `all([])` is `True`: the witness went green **without looking at

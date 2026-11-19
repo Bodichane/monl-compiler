@@ -1,13 +1,13 @@
-"""Le dépôt de fichier né du DIALOGUE, exercé en HTTP réel (point 173).
+"""File upload born from the DIALOGUE, exercised over real HTTP (point 173).
 
-`tests/test_uploads.py` éprouve la brique sur une spec écrite à la main. Ce
-banc-ci part de l'autre bout : les réponses d'un usager au dialogue guidé, la
-spec qui en sort, le serveur qu'elle produit, et un vrai fichier déposé.
+`tests/test_uploads.py` tests the brick on a hand-written spec. This bench
+starts from the other end: a user's answers to the guided dialogue, the spec
+it produces, the server that spec produces, and a real uploaded file.
 
-C'est la distinction que ce projet réapprend à chaque brique : **compiler
-n'est pas se comporter**. La chaîne dialogue → spec → serveur n'avait jamais
-été parcourue en entier pour cette brique, et son auteur l'avait dit en
-toutes lettres — « non mesuré ».
+It is the distinction this project relearns with every brick: **compiling
+is not behaving**. The dialogue → spec → server chain had never been walked
+in full for this brick, and its author had said so in plain words — "not
+measured".
 """
 
 import contextlib
@@ -26,8 +26,8 @@ from monl.parser import parse_monl_string
 from tests.support.server import uvicorn_server
 from tests.test_app_templates import _run_template
 
-# Un PNG minuscule mais VALIDE : le backend vérifie la signature d'octets, pas
-# l'extension ni le type annoncé par le client.
+# A tiny but VALID PNG: the backend checks the byte signature, not the
+# extension nor the type the client announces.
 PNG = bytes.fromhex(
     "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753"
     "de0000000c4944415408d763f8cfc00000030101003c2d0b0b0000000049454e"
@@ -36,8 +36,8 @@ PNG = bytes.fromhex(
 
 
 @pytest.fixture(scope="module")
-def serveur_depuis_le_dialogue():
-    """Compile ce que le dialogue produit, et le fait vraiment tourner."""
+def server_from_the_dialogue():
+    """Compiles what the dialogue produces, and really runs it."""
     index = next(i for i, t in enumerate(TEMPLATES, 1)
                  if t["name"] == "Personal expense tracking")
     with contextlib.redirect_stdout(io.StringIO()):
@@ -71,22 +71,22 @@ def _compte(base, nom):
 
 
 @pytest.fixture(scope="module")
-def deux_comptes(serveur_depuis_le_dialogue):
-    """DEUX comptes, sans quoi « le fichier est-il privé ? » ne se pose pas.
+def deux_comptes(server_from_the_dialogue):
+    """TWO accounts, otherwise "is the file private?" does not arise.
 
-    Avec un seul, la question devient « puis-je lire mon propre fichier ? »,
-    à laquelle un serveur sans aucun contrôle répondrait oui. C'est le piège
-    nommé aux points 81, 90 et 116.
+    With one, the question becomes "can I read my own file?", which a server
+    without any check would answer yes. It is the trap named at points 81, 90
+    and 116.
     """
-    base = serveur_depuis_le_dialogue
+    base = server_from_the_dialogue
     return base, _compte(base, "alice"), _compte(base, "bob")
 
 
 def _budget(base, entetes, nom):
-    """Une dépense appartient à un budget : la clé étrangère est CLIENTE.
+    """An expense belongs to a budget: the foreign key is CLIENT-supplied.
 
-    C'est la brique 11 (propriété transitive) : la colonne n'est pas déduite
-    du jeton, donc le client la fournit — et le serveur la vérifie.
+    It is brick 11 (transitive ownership): the column is not deduced from the
+    token, so the client provides it — and the server checks it.
     """
     reponse = requests.post(
         f"{base}/budget", json={"name": nom, "limit": 500.0, "spent": 0.0},
@@ -122,11 +122,11 @@ def test_un_justificatif_se_depose_et_se_relit(deux_comptes):
     assert relecture.content == PNG, "les octets rendus ne sont pas ceux déposés"
 
 
-def test_le_justificatif_dun_autre_reste_inaccessible(deux_comptes):
-    """La promesse annoncée par la question du dialogue, vérifiée.
+def test_another_accounts_receipt_stays_inaccessible(deux_comptes):
+    """The promise announced by the dialogue's question, checked.
 
-    Le dialogue dit « le fichier ne sera lisible que par son propriétaire ».
-    Une phrase n'est pas une garantie : c'est ce refus-ci qui l'est.
+    The dialogue says "the file will be readable only by its owner". A sentence
+    is not a guarantee: this refusal is.
     """
     base, alice, bob = deux_comptes
     identifiant = _depense(base, alice, "Note d'hôtel")
@@ -145,11 +145,11 @@ def test_le_justificatif_dun_autre_reste_inaccessible(deux_comptes):
     assert sans_compte.status_code == 401, sans_compte.status_code
 
 
-def test_les_limites_declarees_par_le_dialogue_mordent_reellement(deux_comptes):
-    """5 Mio et deux types d'image : écrits par le dialogue, appliqués ici.
+def test_the_limits_declared_by_the_dialogue_really_bite(deux_comptes):
+    """5 MiB and two image types: written by the dialogue, enforced here.
 
-    Le type est déterminé par la SIGNATURE D'OCTETS et jamais par le nom ni
-    par le type annoncé — un SVG rebaptisé `.png` doit être refusé.
+    The type is determined by the BYTE SIGNATURE and never by the name nor the
+    announced type — an SVG renamed `.png` must be refused.
     """
     base, alice, _bob = deux_comptes
     identifiant = _depense(base, alice, "Taxi")
@@ -167,7 +167,7 @@ def test_les_limites_declarees_par_le_dialogue_mordent_reellement(deux_comptes):
     assert deguise.status_code == 415, deguise.status_code
 
 
-def test_la_question_de_depot_parle_anglais():
+def test_the_upload_question_speaks_english():
     """The upload choices are read by the person being guided: each one says
     its field, its byte limit and its types in English. One label stayed
     "— champ photo, 5242880 octets" after the migration; nothing read the

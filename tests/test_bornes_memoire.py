@@ -1,30 +1,29 @@
-"""Une borne de corps se mesure en MÉMOIRE, jamais en code de retour.
+"""A body bound is measured in MEMORY, never by status code.
 
-Les deux témoins qui gardent déjà ces bornes — `test_limite_corps_http.py`
-(point 186) et `test_platform_hebergement.py` — vérifient qu'un corps trop gros
-reçoit un 413. **Ils seraient verts sur un serveur qui avale tout avant de
-refuser** : le code HTTP est ce que la borne CONTRAINT, la mémoire est ce
-qu'elle SERT. C'est le reproche du point 172, transposé.
+The two witnesses already guarding these bounds — `test_limite_corps_http.py`
+(point 186) and `test_platform_hebergement.py` — check that a too-large body
+gets a 413. **They would be green on a server that swallows everything before
+refusing**: the HTTP code is what the bound CONSTRAINS, memory is what it
+SERVES. It is point 172's complaint, transposed.
 
-Mesuré en écrivant ce fichier, sur `/api/auth/register` (route ANONYME) avec
-400 Mio poussés en chunked :
+Measured while writing this file, on `/api/auth/register` (ANONYMOUS route)
+with 400 MiB pushed chunked:
 
 ===================  ==============  ================
-                     RSS au pic      réponse
+                     peak RSS        response
 ===================  ==============  ================
-avec la borne        +1,6 Mio        413
-borne désarmée       +397,6 Mio      400
+with the bound       +1.6 MiB        413
+bound disarmed       +397.6 MiB      400
 ===================  ==============  ================
 
-L'ancien code avalait 400 Mio pour finalement répondre « corps JSON
-invalide ». Un seul appel non authentifié, et la plateforme tourne sur un vieux
-PC.
+The old code swallowed 400 MiB to finally answer "invalid JSON body". A
+single unauthenticated call, and the platform runs on an old PC.
 
-**Pas d'étalonnage de bruit ici**, contrairement aux oracles temporels des
-points 160 et 168 : l'écart mesuré est d'un facteur 250, et la mémoire d'un
-processus au repos ne varie pas de dizaines de mégaoctets. Un seuil fixe,
-largement au-dessus de ce que le serveur alloue légitimement, suffit — et
-c'est ce qui rend ces témoins stables en CI.
+**No noise calibration here**, unlike the time oracles of points 160 and 168:
+the measured gap is a factor of 250, and an idle process's memory does not
+vary by tens of megabytes. A fixed threshold, well above what the server
+legitimately allocates, is enough — and that is what makes these witnesses
+stable in CI.
 """
 
 import contextlib
@@ -54,14 +53,14 @@ pytestmark = pytest.mark.skipif(
     reason="/proc absent : la mémoire d'un processus ne se mesure pas hors Linux",
 )
 
-#: Ce qu'on pousse. Très au-dessus des deux bornes (300 Kio et 40 Mio), et
-#: assez pour que l'absence de borne se voie sans ambiguïté.
+#: What we push. Far above both bounds (300 KiB and 40 MiB), and enough for the
+#: absence of a bound to show unambiguously.
 POUSSE_MIO = 200
 
-#: Ce qu'un serveur qui BORNE a le droit d'allouer en plus. Le lecteur JSON de
-#: la plateforme ne garde rien au-delà de 300 Kio ; le relais, lui, accumule
-#: jusqu'à sa propre borne parce qu'il doit retransmettre le corps — d'où deux
-#: seuils, chacun dérivé de ce que la borne AUTORISE.
+#: What a server that BOUNDS is allowed to allocate on top. The platform's JSON
+#: reader keeps nothing beyond 300 KiB; the relay, however, accumulates up to
+#: its own bound because it must forward the body — hence two thresholds, each
+#: derived from what the bound ALLOWS.
 MARGE_MIO = 60
 SEUIL_RELAIS_MIO = SITE_MAX_BODY_BYTES / (1024 * 1024) + MARGE_MIO
 
@@ -86,11 +85,11 @@ landing
 
 
 def _rss_mio(pid):
-    """La mémoire RÉSIDENTE du processus, en mégaoctets.
+    """The process's RESIDENT memory, in megabytes.
 
-    `VmRSS` et pas `VmSize` : la mémoire virtuelle d'un processus Python ne dit
-    rien de ce qu'il occupe vraiment, et elle bouge pour des raisons qui n'ont
-    aucun rapport avec le corps qu'on lui envoie.
+    `VmRSS` and not `VmSize`: a Python process's virtual memory says nothing of
+    what it really occupies, and it moves for reasons unrelated to the body sent
+    to it.
     """
     contenu = pathlib.Path(f"/proc/{pid}/status").read_text(encoding="utf-8")
     for ligne in contenu.splitlines():
@@ -101,12 +100,11 @@ def _rss_mio(pid):
 
 @contextlib.contextmanager
 def _plateforme_mesurable(workspace, **environnement):
-    """La plateforme dans son PROPRE processus, dont on peut lire la mémoire.
+    """The platform in its OWN process, whose memory can be read.
 
-    Un serveur monté dans un fil du processus pytest mélangerait sa mémoire à
-    celle de la suite. La socket est liée ici et passée à l'enfant, discipline
-    du point 140 : le port ne redevient jamais libre entre le choix et
-    l'écoute.
+    A server mounted in a thread of the pytest process would mix its memory with
+    the suite's. The socket is bound here and passed to the child, point 140's
+    discipline: the port never becomes free between choosing and listening.
     """
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
@@ -164,13 +162,13 @@ def _diagnostic(entete, journal):
 
 
 def _pousser_et_mesurer(base, chemin, pid, *, hote=None, mio=POUSSE_MIO):
-    """Pousse `mio` mégaoctets en chunked, en relevant la RSS pendant l'envoi.
+    """Pushes `mio` megabytes chunked, sampling RSS during the send.
 
-    En chunked, le serveur n'a AUCUN moyen de connaître la taille à l'avance :
-    c'est le seul envoi qui éprouve vraiment la lecture cumulative. Relever la
-    mémoire APRÈS coup ne prouverait rien — Python ne rend pas forcément au
-    système ce qu'il a libéré, mais il ne rend pas non plus visible ce qu'il a
-    tenu un instant.
+    In chunked mode, the server has NO way to know the size in advance: it is
+    the only send that really tests cumulative reading. Sampling memory
+    AFTERWARDS would prove nothing — Python does not necessarily return to the
+    system what it freed, but it does not make visible either what it held for
+    an instant.
     """
     bloc = b"x" * (1024 * 1024)
     connexion = http.client.HTTPConnection(base.removeprefix("http://"), timeout=180)
@@ -205,13 +203,12 @@ def _pousser_et_mesurer(base, chemin, pid, *, hote=None, mio=POUSSE_MIO):
     return statut, pic, coupe_a
 
 
-def test_la_plateforme_refuse_un_corps_enorme_sans_le_garder(tmp_path):
-    """Le cas le plus grave : une route ANONYME, ouverte à quiconque.
+def test_the_platform_refuses_a_huge_body_without_keeping_it(tmp_path):
+    """The most serious case: an ANONYMOUS route, open to anyone.
 
-    `/api/auth/register` n'exige aucun jeton. Sans borne de flux, un seul appel
-    faisait allouer au serveur la taille du corps envoyé — mesuré à +397,6 Mio
-    pour 400 Mio poussés, avec un 400 « corps JSON invalide » en guise de
-    réponse.
+    `/api/auth/register` requires no token. Without a stream bound, a single
+    call made the server allocate the size of the sent body — measured at
+    +397.6 MiB for 400 MiB pushed, with a 400 "invalid JSON body" as the answer.
     """
     with _plateforme_mesurable(tmp_path / "projets") as (base, processus):
         repos = _rss_mio(processus.pid)
@@ -219,11 +216,11 @@ def test_la_plateforme_refuse_un_corps_enorme_sans_le_garder(tmp_path):
                                              processus.pid)
         croissance = pic - repos
 
-    # La MÉMOIRE d'abord : c'est la garantie que ce fichier porte, et le
-    # statut est déjà gardé par `test_limite_corps_http.py`. Assertée en
-    # second, elle ne serait jamais atteinte — la contre-épreuve rougirait sur
-    # le code HTTP, donc pour la même raison que le témoin existant, et ce
-    # fichier ne garderait rien de plus (point 170).
+    # MEMORY first: that is the guarantee this file carries, and the status is
+    # already guarded by `test_limite_corps_http.py`. Asserted second, it would
+    # never be reached — the counter-proof would go red on the HTTP code, hence
+    # for the same reason as the existing witness, and this file would guard
+    # nothing more (point 170).
     assert croissance < MARGE_MIO, (
         f"le serveur a grossi de {croissance:.1f} Mio en recevant "
         f"{POUSSE_MIO} Mio : le corps est matérialisé avant d'être refusé"
@@ -231,23 +228,23 @@ def test_la_plateforme_refuse_un_corps_enorme_sans_le_garder(tmp_path):
     assert statut == 413, f"réponse {statut} au lieu d'un refus de taille"
 
 
-def test_le_relais_refuse_un_corps_enorme_sans_le_garder(tmp_path):
-    """Le relais accumule par NÉCESSITÉ — il doit retransmettre le corps.
+def test_the_relay_refuses_a_huge_body_without_keeping_it(tmp_path):
+    """The relay accumulates by NECESSITY — it must forward the body.
 
-    Sa borne ne promet donc pas « rien en mémoire » mais « au plus
-    SITE_MAX_BODY_BYTES par requête en vol », et le seuil de ce témoin est
-    DÉRIVÉ de la constante plutôt qu'écrit à la main : relever la borne sans
-    toucher au témoin ferait mentir le témoin.
+    Its bound therefore promises not "nothing in memory" but "at most
+    SITE_MAX_BODY_BYTES per in-flight request", and this witness's threshold is
+    DERIVED from the constant rather than hand-written: raising the bound without
+    touching the witness would make the witness lie.
 
-    **La limite qui reste, et qui est énoncée** : plusieurs requêtes
-    simultanées multiplient cette empreinte. La fermer demanderait de relayer
-    en flux plutôt que d'accumuler — un autre chantier, qui se traite aussi en
-    amont chez le serveur frontal (`client_max_body_size`).
+    **The limit that remains, and is stated**: several simultaneous requests
+    multiply this footprint. Closing it would require relaying as a stream
+    rather than accumulating — another project, also handled upstream at the
+    front server (`client_max_body_size`).
     """
-    # TOUT sous le même dossier : la plateforme du sous-processus lit sa base
-    # dans `MONL_PLATFORM_WORKSPACE/platform.sqlite3`. Un store créé ailleurs
-    # donnerait deux bases, le projet resterait introuvable, et le relais ne
-    # serait jamais atteint — mesuré en écrivant ce test.
+    # EVERYTHING under the same folder: the subprocess platform reads its
+    # database in `MONL_PLATFORM_WORKSPACE/platform.sqlite3`. A store created
+    # elsewhere would give two databases, the project would stay unfindable,
+    # and the relay would never be reached — measured while writing this test.
     workspace = tmp_path / "projets"
     store = PlatformStore(workspace)
     identites = IdentityStore(store.workspace)
@@ -262,11 +259,11 @@ def test_le_relais_refuse_un_corps_enorme_sans_le_garder(tmp_path):
 
     with _plateforme_mesurable(workspace, MONL_PLATFORM_DOMAIN="localhost") as (
             base, processus):
-        # Le site doit tourner : la borne vit APRÈS la résolution de l'hôte.
-        # L'amorce vise `/note`, qui n'existe QUE sur le site — `/openapi.json`
-        # aurait répondu 200 depuis la PLATEFORME sans que le relais soit même
-        # sollicité, et l'amorce aurait certifié le contraire de ce qu'elle
-        # mesure.
+        # The site must be running: the bound lives AFTER host resolution. The
+        # warm-up targets `/note`, which exists ONLY on the site —
+        # `/openapi.json` would have answered 200 from the PLATFORM without the
+        # relay even being called, and the warm-up would have certified the
+        # opposite of what it measures.
         amorce = requests.get(base + "/note",
                               headers={"Host": "memoire.localhost"}, timeout=60)
         assert amorce.status_code == 200, (

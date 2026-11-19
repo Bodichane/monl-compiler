@@ -1,8 +1,8 @@
-"""B2 : envoi e-mail réel contre un faux SMTP, jamais vers une vraie boîte.
+"""B2: real email sending against a fake SMTP, never to a real mailbox.
 
-Le serveur monl est un vrai processus uvicorn. Le faux SMTP parle le minimum
-du protocole nécessaire à smtplib et conserve le message effectivement reçu :
-le test ne se contente donc pas de vérifier que le thread a été lancé.
+The monl server is a real uvicorn process. The fake SMTP speaks the minimum
+of the protocol smtplib needs and keeps the message actually received: the
+test therefore does not merely check that the thread was started.
 """
 import contextlib
 import io
@@ -108,19 +108,18 @@ def faux_smtp():
 
 
 class _RunningServer:
-    """Serveur uvicorn dont la sortie est lisible PENDANT qu'il tourne.
+    """uvicorn server whose output is readable WHILE it runs.
 
-    L'envoi de message est DÉTACHÉ de la route (point 122) : c'est tout
-    l'intérêt de la brique, la route rend 200 en quelques millisecondes même
-    SMTP mort. Mais la trace d'échec, elle, arrive après — et lire la sortie
-    seulement à l'arrêt du processus revenait à parier que le fil d'envoi a été
-    ordonnancé entre-temps. Sur un runner chargé, ce pari se perd : la CI a
-    échoué sur `[MONL_MESSAGE]` absent alors que le serveur était sain.
+    Message sending is DETACHED from the route (point 122): that is the whole
+    point of the brick, the route returns 200 in a few milliseconds even with
+    SMTP dead. But the failure trace arrives afterwards — and reading the output
+    only when the process stops amounted to betting the sending thread had been
+    scheduled in the meantime. On a loaded runner, that bet is lost: CI failed on
+    `[MONL_MESSAGE]` missing while the server was healthy.
 
-    Un fil lecteur accumule donc la sortie au fil de l'eau, et `attendre()`
-    laisse un délai franc au lieu d'un `sleep` calibré à la main. Même reproche
-    qu'à la bêta 4 et au point 124 : un test ne doit pas dépendre de la charge
-    de la machine."""
+    A reader thread therefore accumulates output as it comes, and `attendre()`
+    allows a generous delay instead of a hand-calibrated `sleep`. Same complaint
+    as beta 4 and point 124: a test must not depend on the machine's load."""
 
     def __init__(self, process, base):
         self.process = process
@@ -138,8 +137,8 @@ class _RunningServer:
         return "".join(self._morceaux)
 
     def attendre(self, motif, delai=15.0):
-        """Attend que `motif` apparaisse dans la sortie, et le rend visible
-        dans le message d'échec s'il n'arrive jamais."""
+        """Waits until `motif` appears in the output, and shows it in the failure
+        message if it never comes."""
         limite = time.monotonic() + delai
         while time.monotonic() < limite:
             if motif in self.output:
@@ -158,8 +157,8 @@ class _RunningServer:
             self.process.kill()
             self.process.wait(timeout=5)
         self._lecteur.join(timeout=5)
-        # Fermer APRÈS la fin du fil lecteur : fermer pendant qu'il lit lui
-        # ferait lever une erreur de son côté.
+        # Close AFTER the reader thread ends: closing while it reads would make
+        # it raise on its side.
         fermer_tubes(self.process)
 
 
@@ -179,7 +178,7 @@ def _uvicorn_with_output(directory, env):
     try:
         for _ in range(100):
             if process.poll() is not None:
-                time.sleep(0.2)  # laisse le fil lecteur vider le tube
+                time.sleep(0.2)  # let the reader thread drain the pipe
                 pytest.fail(
                     f"serveur arrêté au démarrage : {running.output[-3000:]}")
             try:
@@ -318,7 +317,7 @@ def _update_username(directory, dsn, user_id, username):
         conn.close()
 
 
-def test_un_create_declenche_un_seul_message_reel_et_le_contenu(database_kind,
+def test_a_create_triggers_one_real_message_with_its_content(database_kind,
                                                                   faux_smtp,
                                                                   tmp_path):
     faux_smtp.messages.clear()
@@ -354,7 +353,7 @@ def test_un_create_declenche_un_seul_message_reel_et_le_contenu(database_kind,
         assert len(faux_smtp.messages) == 1
 
 
-def test_saut_de_ligne_dans_le_sujet_est_refuse_a_la_compilation(capsys):
+def test_a_line_break_in_the_subject_is_refused_at_compile_time(capsys):
     spec = SPEC.replace(
         '"Commande reçue"', '"Sujet\\nBcc: hidden@example.invalid"')
     with pytest.raises(ASTValidationError) as refusal:
@@ -363,7 +362,7 @@ def test_saut_de_ligne_dans_le_sujet_est_refuse_a_la_compilation(capsys):
     capsys.readouterr()
 
 
-def test_sans_identifier_email_la_regle_est_refusee(capsys):
+def test_without_email_identifier_the_rule_is_refused(capsys):
     spec = SPEC.replace("capability auth\n    identifier: email\n", "capability auth\n")
     with pytest.raises(ASTValidationError) as refusal:
         MonlAST(parse_monl_string(spec)).validate_and_audit()
@@ -372,7 +371,7 @@ def test_sans_identifier_email_la_regle_est_refusee(capsys):
     capsys.readouterr()
 
 
-def test_un_champ_email_libre_ne_suffit_pas(capsys):
+def test_a_free_email_field_is_not_enough(capsys):
     spec = SPEC.replace(
         "entity Order\n    label: String\n    status: String",
         "entity Order\n    label: String\n    status: String\n    email: String",
@@ -383,7 +382,7 @@ def test_un_champ_email_libre_ne_suffit_pas(capsys):
     capsys.readouterr()
 
 
-def test_un_saut_de_ligne_dans_le_corps_doit_passer_par_le_separateur(capsys):
+def test_a_line_break_in_the_body_must_use_the_separator(capsys):
     spec = SPEC.replace(
         '"Votre commande¶est prise en compte"',
         '"Votre commande\\nest prise en compte"',
@@ -394,7 +393,7 @@ def test_un_saut_de_ligne_dans_le_corps_doit_passer_par_le_separateur(capsys):
     capsys.readouterr()
 
 
-def test_le_destinataire_crlf_n_est_jamais_envoye(database_kind, faux_smtp,
+def test_a_crlf_recipient_is_never_sent(database_kind, faux_smtp,
                                                    tmp_path):
     faux_smtp.messages.clear()
     with _application(tmp_path, faux_smtp, database_kind) as (server, directory, dsn):
@@ -414,7 +413,7 @@ def test_le_destinataire_crlf_n_est_jamais_envoye(database_kind, faux_smtp,
         assert not faux_smtp.messages
 
 
-def test_smtp_injoignable_ne_defait_pas_la_route_et_nomme_la_variable(
+def test_unreachable_smtp_does_not_undo_the_route_and_names_the_variable(
         database_kind, faux_smtp, tmp_path):
     with _application(tmp_path, faux_smtp, database_kind,
                       smtp_mode="unreachable") as (server, directory, _dsn):
@@ -434,7 +433,7 @@ def test_smtp_injoignable_ne_defait_pas_la_route_et_nomme_la_variable(
         server.attendre("[MONL_MESSAGE]")
 
 
-def test_variable_smtp_absente_est_nommee(database_kind, faux_smtp, tmp_path):
+def test_missing_smtp_variable_is_named(database_kind, faux_smtp, tmp_path):
     with _application(tmp_path, faux_smtp, database_kind,
                       smtp_mode="missing") as (server, _directory, _dsn):
         username = f"client-{uuid4().hex[:8]}@example.invalid"

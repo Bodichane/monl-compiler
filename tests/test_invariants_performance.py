@@ -1,16 +1,16 @@
-"""Invariant de performance sur les filtres de lecture générés.
+"""Performance invariant on the generated read filters.
 
-Chaque spec du dépôt est compilée puis sondée sur le code Python produit.
-Les requêtes de liste construisent souvent leur ``WHERE`` dans un fragment
-séparé du ``FROM`` ; le témoin collecte donc les littéraux de SQL par
-fragment, dans la fonction de route concernée, au lieu de chercher une
-requête complète dans une seule chaîne.
+Every spec of the repository is compiled then probed on the produced Python
+code. List queries often build their ``WHERE`` in a fragment separate from
+the ``FROM``; the witness therefore collects SQL literals per fragment, in
+the relevant route function, instead of looking for a complete query in a
+single string.
 
-Le périmètre des colonnes est dérivé de ``_EXPECTED_COLUMNS`` produit par la
-compilation. Il ne contient que les tables métier et exclut ainsi ``id`` sans
-liste d'exceptions codée à la main. Les index couverts sont eux aussi lus dans
-les constantes du runtime généré, afin que le témoin vérifie bien le contrat
-entre les requêtes et les index que le démarrage créera.
+The column scope is derived from ``_EXPECTED_COLUMNS`` produced by
+compilation. It only holds business tables and so excludes ``id`` without a
+hand-written exception list. The covered indexes are also read from the
+generated runtime's constants, so that the witness really checks the
+contract between the queries and the indexes startup will create.
 """
 
 import ast
@@ -44,8 +44,8 @@ _SQL_CONDITION = re.compile(
     r'(?P<column>["`]?[A-Za-z_]\w*["`]?)\s*'
     r'(?:=|<>|!=|<=|>=|<|>|IS\b|IN\b)')
 
-# Le réseau social doit fournir un vrai témoin : status, member_id et les deux
-# parties de PrivateMessage sont tous présents dans ses fragments de liste.
+# The social network must provide a real witness: status, member_id and both
+# parties of PrivateMessage are all present in its list fragments.
 SPEC_TEMOIN = os.path.join(EXEMPLES_DIR, "03_reseau_social.ml")
 MIN_COLONNES_TEMOIN = 4
 
@@ -72,7 +72,7 @@ def _literal_assignments(source):
 
 
 def _route_sql_fragments(function):
-    """Rend les littéraux qui composent le SQL de cette route de liste."""
+    """Returns the literals that make up this list route's SQL."""
     return [
         node.value
         for node in ast.walk(function)
@@ -85,12 +85,11 @@ def _route_sql_fragments(function):
 
 
 def _columns_in_fragment(fragment, default_table):
-    """Extrait les paires table/colonne de fragments WHERE/AND/OR.
+    """Extracts table/column pairs from WHERE/AND/OR fragments.
 
-    Un fragment de propriété transitive peut contenir un ``FROM`` imbriqué.
-    Le dernier ``FROM`` précédant chaque ``WHERE`` donne alors la table de la
-    sous-requête ; en l'absence de ``FROM`` le fragment appartient à la table
-    de la route de liste.
+    A transitive ownership fragment can contain a nested ``FROM``. The last
+    ``FROM`` before each ``WHERE`` then gives the subquery's table; without a
+    ``FROM`` the fragment belongs to the list route's table.
     """
     table_markers = list(_SQL_TABLE.finditer(fragment))
     where_markers = list(_SQL_WHERE.finditer(fragment))
@@ -114,7 +113,7 @@ def _columns_in_fragment(fragment, default_table):
 
 
 def _filtered_columns(source):
-    """Rend les colonnes filtrées par les routes de liste de ``source``."""
+    """Returns the columns filtered by the list routes of ``source``."""
     assignments, tree = _literal_assignments(source)
     business_columns = {
         table: {column for column, _sql_type in columns}
@@ -173,8 +172,8 @@ def _compile_source(path):
     raw = parse_monl_file(path)
     ast_manager = MonlAST(raw, base_dir=os.path.dirname(path))
     with tempfile.TemporaryDirectory() as output:
-        # Les messages d'audit ne font pas partie de la preuve ; les compiler
-        # tous dans des dossiers jetables garde le test déterministe et propre.
+        # Audit messages are not part of the proof; compiling them all into
+        # throwaway folders keeps the test deterministic and clean.
         with contextlib.redirect_stdout(io.StringIO()):
             normalized = ast_manager.validate_and_audit()
             MonlSecureGenerator(normalized, output_dir=output).generate_all()
@@ -198,7 +197,7 @@ def _assert_performance_invariant(path, *, minimum_witness=None):
     return found
 
 
-def test_toute_colonne_metier_filtre_dune_liste_est_indexee():
+def test_every_business_column_filtering_a_list_is_indexed():
     table = SPEC_FILES
     noms = [os.path.relpath(path) for path in SPEC_FILES]
 
@@ -209,7 +208,7 @@ def test_toute_colonne_metier_filtre_dune_liste_est_indexee():
     verifier_chaque_cas([(valeur,) for valeur in table], cas, ids=noms)
 
 
-def test_le_temoins_voit_les_quatre_filtres_du_reseau_social():
+def test_the_witness_sees_the_four_social_network_filters():
     found = _assert_performance_invariant(
         SPEC_TEMOIN, minimum_witness=MIN_COLONNES_TEMOIN)
     assert {("post", "status"), ("post", "member_id"),
@@ -217,7 +216,7 @@ def test_le_temoins_voit_les_quatre_filtres_du_reseau_social():
             ("privatemessage", "recipient_id")} <= found
 
 
-def _sans_source(*, access=False, public=False):
+def _without_source(*, access=False, public=False):
     original = MonlSecureGenerator._compute_lookup_indexes
 
     def compute(current):
@@ -242,19 +241,19 @@ def _sans_source(*, access=False, public=False):
     return compute
 
 
-def test_contre_epreuve_accessible_by_fait_rougir_linvariant(monkeypatch):
+def test_counterproof_accessible_by_turns_the_invariant_red(monkeypatch):
     monkeypatch.setattr(
         MonlSecureGenerator, "_compute_lookup_indexes",
-        _sans_source(access=True),
+        _without_source(access=True),
     )
     with pytest.raises(AssertionError, match="recipient_id"):
         _assert_performance_invariant(SPEC_TEMOIN, minimum_witness=MIN_COLONNES_TEMOIN)
 
 
-def test_contre_epreuve_public_when_fait_rougir_linvariant(monkeypatch):
+def test_counterproof_public_when_turns_the_invariant_red(monkeypatch):
     monkeypatch.setattr(
         MonlSecureGenerator, "_compute_lookup_indexes",
-        _sans_source(public=True),
+        _without_source(public=True),
     )
     with pytest.raises(AssertionError, match="status"):
         _assert_performance_invariant(SPEC_TEMOIN, minimum_witness=MIN_COLONNES_TEMOIN)

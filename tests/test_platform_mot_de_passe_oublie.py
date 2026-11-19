@@ -1,20 +1,19 @@
-"""Un mot de passe perdu se reprend DEPUIS LA PAGE, pas depuis l'API seule.
+"""A lost password is recovered FROM THE PAGE, not from the API alone.
 
-Le mécanisme de codes de secours est complet depuis le point 142 : la route
-`/api/auth/recover` consomme un code dans la transaction du changement de mot
-de passe, ferme les sessions, et refuse à l'identique un code faux, une adresse
-inconnue et un mot de passe trop court.
+The recovery code mechanism has been complete since point 142: the route
+`/api/auth/recover` consumes a code in the password-change transaction,
+closes the sessions, and refuses identically a wrong code, an unknown address
+and a too-short password.
 
-Il lui manquait un CONSOMMATEUR. Mesuré contre la vraie plateforme : la page
-`/login` ne portait aucun lien, aucun champ, aucune mention — la seule façon
-d'employer ses codes était de connaître l'API et de forger la requête à la
-main. C'est le point 146 par l'autre bout : une brique que rien n'offre
-n'existe pas pour la personne qui en a besoin.
+It lacked a CONSUMER. Measured against the real platform: the `/login` page
+carried no link, no field, no mention — the only way to use one's codes was
+to know the API and forge the request by hand. It is point 146 from the other
+end: a brick nothing offers does not exist for the person who needs it.
 
-Ce banc pilote donc la VRAIE page avec jsdom, contre le VRAI serveur. Chercher
-une chaîne dans du HTML ne distingue pas une page qui marche d'une page morte
-(point 163) : on clique, on remplit, on envoie, et on regarde ce que le
-serveur a réellement accepté ensuite.
+This bench therefore drives the REAL page with jsdom, against the REAL
+server. Looking for a string in HTML cannot tell a working page from a dead
+one (point 163): we click, fill in, send, and look at what the server really
+accepted afterwards.
 """
 
 import json
@@ -148,8 +147,8 @@ def parcours(tmp_path_factory):
     return rapport
 
 
-def test_la_page_de_connexion_offre_le_chemin(parcours):
-    """LE défaut : le mécanisme existait, la page n'en disait rien."""
+def test_the_login_page_offers_the_path(parcours):
+    """THE defect: the mechanism existed, the page said nothing about it."""
     assert parcours["onglet_present"], (
         "aucun moyen d'employer ses codes depuis la page — il faudrait "
         "connaître l'API et forger la requête à la main")
@@ -158,12 +157,12 @@ def test_la_page_de_connexion_offre_le_chemin(parcours):
     assert parcours["label_motdepasse"] == "New password"
 
 
-def test_le_champ_de_code_suit_le_mode_choisi(parcours):
-    """`required` doit suivre l'AFFICHAGE.
+def test_the_code_field_follows_the_chosen_mode(parcours):
+    """`required` must follow what is DISPLAYED.
 
-    Un champ obligatoire mais masqué fait échouer la validation sur un champ
-    que personne ne peut ni voir ni corriger : le bouton semble ne rien faire,
-    exactement le défaut que `novalidate` a déjà servi à réparer sur cette page.
+    A required but hidden field makes validation fail on a field nobody can
+    see or fix: the button seems to do nothing, exactly the defect `novalidate`
+    already served to fix on this page.
     """
     assert parcours["code_masque_avant"], "le code est demandé dès la connexion"
     assert not parcours["code_requis_avant"], (
@@ -173,25 +172,25 @@ def test_le_champ_de_code_suit_le_mode_choisi(parcours):
         "la page ne dit pas quoi faire à qui n'a plus aucun code")
 
 
-def test_un_code_faux_affiche_le_refus_sans_casser_la_page(parcours):
+def test_a_wrong_code_shows_the_refusal_without_breaking_the_page(parcours):
     assert parcours["erreur_affichee"], parcours
     assert parcours["texte_erreur"], "refus muet : la personne ne saura pas pourquoi"
     assert parcours["erreurs"] == [], parcours["erreurs"]
 
 
-def test_un_code_valide_change_le_mot_de_passe_pour_de_vrai(parcours):
-    """La preuve est ce que le SERVEUR accepte ensuite, pas ce que la page dit.
+def test_a_valid_code_really_changes_the_password(parcours):
+    """The proof is what the SERVER accepts afterwards, not what the page says.
 
-    Le 204 de la reprise n'a PAS de corps : en demander le JSON lèverait sur le
-    seul cas qui réussit, et la personne verrait une erreur après avoir brûlé
-    un de ses huit codes.
+    The recovery's 204 has NO body: asking for its JSON would raise on the only
+    case that succeeds, and the person would see an error after burning one of
+    their eight codes.
     """
     assert parcours["login_nouveau"] == 200, parcours
     assert parcours["login_ancien"] == 401, "l'ancien mot de passe fonctionne encore"
 
 
-def test_la_page_ramene_a_la_connexion_et_le_dit(parcours):
-    """Sans message, un 204 silencieux ressemble à un formulaire qui n'a rien fait."""
+def test_the_page_returns_to_login_and_says_so(parcours):
+    """Without a message, a silent 204 looks like a form that did nothing."""
     assert parcours["succes_affiche"], parcours
     assert "Sign in with the new password" in parcours["texte_succes"], parcours["texte_succes"]
     assert parcours["revenu_en_connexion"] == "Sign in"
