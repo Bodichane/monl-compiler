@@ -1,8 +1,7 @@
-# Verrou de la démonstration (docs/DEMO.md) : la spec livrée dans demo/ et
-# le frontend livré dans demo/frontend/ doivent TOUJOURS former un ensemble
-# qui compile et passe le smoke test comportemental. Si une évolution du
-# compilateur, du contrat ou du smoke test casse la démo, ce test le dit —
-# la démo ne peut pas pourrir en silence.
+# Lock on the demo (docs/DEMO.md): the spec shipped in demo/ and the frontend
+# shipped in demo/frontend/ must ALWAYS form a whole that compiles and passes
+# the behavioral smoke test. If a change to the compiler, the contract or the
+# smoke test breaks the demo, this test says so — the demo cannot rot silently.
 import os
 import shutil
 
@@ -12,14 +11,14 @@ from monl.smoke_test import run_smoke_test
 DEMO_DIR = os.path.join(os.path.dirname(__file__), "..", "demo")
 
 
-def test_la_demo_livree_compile_et_passe_le_smoke_test(tmp_path):
+def test_the_shipped_demo_compiles_and_passes_the_smoke_test(tmp_path):
     proj = tmp_path / "demo"
     proj.mkdir()
     shutil.copy2(os.path.join(DEMO_DIR, "spec.ml"), proj / "spec.ml")
     shutil.copytree(os.path.join(DEMO_DIR, "frontend"), proj / "frontend")
-    # Les photos font partie des ENTRÉES de la démo au même titre que le
-    # frontend (brique 13) : sans elles, le smoke test servirait une boutique
-    # dont chaque produit affiche une image cassée — et ne le dirait pas.
+    # The photos are INPUTS of the demo just like the frontend (brick 13):
+    # without them, the smoke test would serve a shop where every product shows
+    # a broken image — and would not say so.
     shutil.copytree(os.path.join(DEMO_DIR, "assets"), proj / "assets")
 
     compile_project(str(proj / "spec.ml"), str(proj))
@@ -28,22 +27,20 @@ def test_la_demo_livree_compile_et_passe_le_smoke_test(tmp_path):
     assert ok, errors
     ok, errors, warnings = run_smoke_test(str(proj), say=lambda *a: None)
     assert ok, errors
-    # Le frontend a réellement parlé à l'API (pas un faux positif muet).
+    # The frontend really talked to the API (not a silent false positive).
     assert not any("aucun appel API" in w for w in warnings), warnings
 
 
-def test_le_frontend_de_la_demo_respecte_le_contrat_a_la_lettre():
-    """Autonomie exigée par le contrat : aucun script externe, extensions
-    dans la liste blanche (.html/.css/.js/.svg/.json), y compris dans les
-    sous-dossiers.
+def test_the_demo_frontend_follows_the_contract_to_the_letter():
+    """Self-containment required by the contract: no external script, extensions
+    in the allowlist (.html/.css/.js/.svg/.json), subfolders included.
 
-    Le décompte ne porte plus qu'un minimum de 1 : la démo actuelle tient dans
-    un seul `index.html` (CSS et JS en ligne), ce qui est une forme légitime et
-    non un frontend incomplet. Ce sont la liste blanche et l'absence de CDN qui
-    portent l'invariant — exiger trois fichiers mesurait une habitude, pas une
-    propriété. Les photos, elles, vivent hors de `frontend/` : c'est tout
-    l'objet de la brique 13, et c'est pourquoi `.webp` n'a pas à figurer dans
-    la liste blanche."""
+    The count only requires a minimum of 1: the current demo fits in a single
+    `index.html` (inline CSS and JS), which is a legitimate shape and not an
+    incomplete frontend. The allowlist and the absence of CDN carry the
+    invariant — requiring three files measured a habit, not a property. The
+    photos live outside `frontend/`: that is the whole point of brick 13, and
+    why `.webp` need not be in the allowlist."""
     frontend = os.path.join(DEMO_DIR, "frontend")
     autorisees = (".html", ".css", ".js", ".svg", ".json")
     fichiers = 0

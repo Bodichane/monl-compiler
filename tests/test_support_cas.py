@@ -1,15 +1,15 @@
-"""`verifier_chaque_cas` porte la garantie qu'apportait `parametrize` : un cas
-en échec ne cache jamais les suivants, et chaque cas fautif est nommé.
+"""`verifier_chaque_cas` carries the guarantee `parametrize` gave: a failing
+case never hides the next ones, and every faulty case is named.
 
-Quarante fonctions de la suite en dépendent ; s'il s'arrêtait au premier échec
-ou passait sur une table vide, elles vérifieraient moins sans rougir.
+Forty functions of the suite depend on it; if it stopped at the first
+failure or passed on an empty table, they would check less without going red.
 """
 import pytest
 
 from tests.support.cas import verifier_chaque_cas
 
 
-def test_tous_les_cas_s_executent_et_chaque_echec_est_nomme():
+def test_every_case_runs_and_every_failure_is_named():
     vus = []
 
     def cas(n):
@@ -30,12 +30,12 @@ def test_tous_les_cas_s_executent_et_chaque_echec_est_nomme():
         assert f"- {nom} :" not in message
 
 
-def test_une_table_vide_ne_passe_pas():
+def test_an_empty_table_does_not_pass():
     with pytest.raises(AssertionError, match="vide"):
         verifier_chaque_cas([], lambda: None)
 
 
-def test_une_table_saine_passe_et_deballe_chaque_tuple():
+def test_a_sound_table_passes_and_unpacks_each_tuple():
     recus = []
     verifier_chaque_cas([(1, "a"), (2, "b")], lambda n, s: recus.append((n, s)))
     assert recus == [(1, "a"), (2, "b")]

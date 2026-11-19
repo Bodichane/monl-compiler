@@ -1,4 +1,4 @@
-"""Les octets de tous les artefacts restent identiques à main."""
+"""The bytes of every artifact stay identical to main."""
 
 import json
 

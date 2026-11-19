@@ -19,12 +19,12 @@ def _reponse(html):
     return json.dumps({"files": {"index.html": html}})
 
 
-def test_un_octet_nul_fait_refuser_le_fichier():
+def test_a_nul_byte_makes_the_file_refused():
     with pytest.raises(FrontendAIError, match=r"U\+0000"):
         parse_files_payload(_reponse(f"<h1>Photographie Animali{NUL}re</h1>"))
 
 
-def test_le_message_nomme_le_fichier_et_le_nombre():
+def test_the_message_names_the_file_and_the_count():
     with pytest.raises(FrontendAIError) as erreur:
         parse_files_payload(_reponse(f"<p>o{NUL}{NUL} la nature</p>"))
     message = str(erreur.value)
@@ -32,8 +32,8 @@ def test_le_message_nomme_le_fichier_et_le_nombre():
     assert "2 occurrence" in message
 
 
-def test_un_echappement_json_produit_du_nul_et_reste_de_l_utf8_valide():
-    """La contre-épreuve : sans le refus, rien en aval ne voit le défaut."""
+def test_a_json_escape_produces_nul_and_stays_valid_utf8():
+    """The counter-proof: without the refusal, nothing downstream sees the defect."""
     brut = '{"files": {"index.html": "Animali\\u0000re"}}'
     contenu = json.loads(brut)["files"]["index.html"]
     assert contenu.encode("utf-8").decode("utf-8") == contenu  # UTF-8 valide
@@ -43,12 +43,12 @@ def test_un_echappement_json_produit_du_nul_et_reste_de_l_utf8_valide():
         parse_files_payload(brut)
 
 
-def test_les_accents_corrects_passent():
+def test_correct_accented_letters_pass():
     html = "<h1>Photographie Animalière — où l'âme</h1>"
     assert parse_files_payload(_reponse(html))["index.html"] == html
 
 
-def test_les_blancs_legitimes_restent_autorises():
+def test_legitimate_whitespace_stays_allowed():
     table = ["\t", "\n", "\r"]
 
     def cas(blanc):

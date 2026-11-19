@@ -1,4 +1,4 @@
-"""Témoins contre les vrais serveurs pour les garanties auth les plus basses."""
+"""Witnesses against real servers for the lowest-level auth guarantees."""
 import os
 import pathlib
 from http.cookies import SimpleCookie
@@ -22,7 +22,7 @@ workflow Ecrire for Client
 SECRET = "mot-de-passe-temoin-92"
 
 
-def test_le_serveur_refuse_les_jetons_non_signes_ou_signes_autrement(tmp_path):
+def test_the_server_refuses_unsigned_or_differently_signed_tokens(tmp_path):
     spec = tmp_path / "spec.ml"
     spec.write_text(SPEC, encoding="utf-8")
     projet = tmp_path / "projet"
@@ -56,7 +56,7 @@ def test_le_serveur_refuse_les_jetons_non_signes_ou_signes_autrement(tmp_path):
         assert refuse.status_code == 401, refuse.text
 
 
-def test_le_cookie_plateforme_reel_est_http_only_et_strict(tmp_path):
+def test_the_real_platform_cookie_is_http_only_and_strict(tmp_path):
     env = os.environ.copy()
     env["PYTHONPATH"] = str(pathlib.Path(__file__).resolve().parents[1] / "src")
     env["MONL_PLATFORM_WORKSPACE"] = str(tmp_path / "workspace")

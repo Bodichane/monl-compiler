@@ -1,4 +1,4 @@
-"""Issue #99 : la vraie CLI interrompt le dialogue sans trace ni écriture."""
+"""Issue #99: the real CLI interrupts the dialogue without a trace or a write."""
 
 import os
 import selectors
@@ -43,7 +43,7 @@ def test_init_ctrl_c_en_sous_processus(tmp_path):
     with subprocess.Popen(commande, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                           stderr=subprocess.PIPE, cwd=tmp_path, env=env) as processus:
         try:
-            # Attendre le vrai input(), sans dépendre de la vitesse de démarrage.
+            # Wait for the real input(), without depending on startup speed.
             sortie = b""
             echeance = time.monotonic() + 20
             with selectors.DefaultSelector() as selecteur:

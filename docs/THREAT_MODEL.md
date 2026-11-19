@@ -67,7 +67,7 @@ including intentionally public actions, rather than universal authentication.
 
 | Threat (STRIDE) | Existing mitigation | Test evidence |
 | --- | --- | --- |
-| Forged/unsigned JWT or self-assigned privileged role (S, E) | Explicit HS256 verification; registration limited to `selfRegister` actors. | tests/test_temoins_securite.py::test_le_serveur_refuse_les_jetons_non_signes_ou_signes_autrement; tests/test_beta3_regressions.py::test_role_provisionne_refuse_a_inscription |
+| Forged/unsigned JWT or self-assigned privileged role (S, E) | Explicit HS256 verification; registration limited to `selfRegister` actors. | tests/test_temoins_securite.py::test_the_server_refuses_unsigned_or_differently_signed_tokens; tests/test_beta3_regressions.py::test_role_provisionne_refuse_a_inscription |
 | Cross-record private messaging access (I, T, E) | Party filtering and route authorization; supervisor access is separately declared. | tests/test_access_parties.py::test_private_messaging_end_to_end; tests/test_access_parties.py::test_supervisor_moderates_private_messages_end_to_end |
 | Injection of SQL values (T, I, E) | Parameterized values; grammar-constrained identifiers. This witness checks emitted SQL, not arbitrary handwritten code. | tests/test_invariants_securite.py::test_aucun_exemple_ne_colle_de_valeur_dans_le_sql |
 | Account enumeration/brute force (I, D) | Dummy password hash for unknown identifiers; atomic database-backed authentication quota. | tests/test_beta3_regressions.py::test_login_ne_revele_pas_l_existence_du_compte; tests/test_beta3_regressions.py::test_quota_non_contournable_en_parallele |

@@ -1,4 +1,4 @@
-"""Preuves du point d'entrée actuel, sans configuration JWT parallèle."""
+"""Proofs of the current entry point, without a parallel JWT configuration."""
 
 import pathlib
 
@@ -7,7 +7,7 @@ import pytest
 from monl_platform import __main__ as platform_main
 
 
-def test_le_demarrage_configure_uvicorn_depuis_les_arguments(monkeypatch):
+def test_startup_configures_uvicorn_from_the_arguments(monkeypatch):
     lance = {}
 
     def fake_run(application, host, port):
@@ -25,7 +25,7 @@ def test_le_demarrage_configure_uvicorn_depuis_les_arguments(monkeypatch):
     }
 
 
-def test_aucun_secret_jwt_n_est_accepte_en_argument(capsys):
+def test_no_jwt_secret_is_accepted_as_an_argument(capsys):
     with pytest.raises(SystemExit) as exit_info:
         platform_main.main(["--jwt-secret", "secret-de-test-suffisamment-long"])
 
@@ -33,6 +33,6 @@ def test_aucun_secret_jwt_n_est_accepte_en_argument(capsys):
     assert "--jwt-secret" in capsys.readouterr().err
 
 
-def test_le_module_ne_connait_plus_la_variable_jwt():
+def test_the_module_no_longer_knows_the_jwt_variable():
     source = pathlib.Path(platform_main.__file__).read_text(encoding="utf-8")
     assert "PLATFORM_" + "JWT_SECRET" not in source

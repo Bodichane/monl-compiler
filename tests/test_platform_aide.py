@@ -1,10 +1,10 @@
-"""Issue #84 : `monl-platform --help` doit annoncer les verbes servis.
+"""Issue #84: `monl-platform --help` must announce the served verbs.
 
-L'aide de premier niveau ne décrivait que `--host` et `--port` : `admin` et
-`sauvegarde` n'étaient découvrables que dans `docs/EXPLOITATION.md`, qui ne
-voyage pas dans la roue. L'exploitant d'une plateforme installée depuis
-l'index croyait devoir passer par `sqlite3`, serveur arrêté — la falaise que
-le point 142 a fermée.
+The top-level help only described `--host` and `--port`: `admin` and
+`sauvegarde` could only be discovered in `docs/EXPLOITATION.md`, which does
+not travel in the wheel. The operator of a platform installed from the index
+thought they had to go through `sqlite3` with the server stopped — the cliff
+point 142 closed.
 """
 
 import pytest
@@ -19,31 +19,32 @@ def _aide(capsys):
     return capsys.readouterr().out
 
 
-def test_l_aide_annonce_chaque_verbe_du_dispatch(capsys):
+def test_help_announces_every_dispatched_verb(capsys):
     aide = _aide(capsys)
-    # Non-vacuité : une table vide rendrait la boucle muette (point 161).
+    # Non-emptiness: an empty table would make the loop silent (point 161).
     assert point_d_entree.VERBES
     for nom, fonction in point_d_entree.VERBES.items():
-        # Le verbe ET son résumé : un nom sans phrase ne dit pas à quoi il sert.
+        # The verb AND its summary: a name without a sentence does not say what
+        # it is for.
         assert nom in aide, aide
         assert point_d_entree._resume(fonction) in aide, aide
 
 
-def test_un_verbe_ajoute_a_la_table_apparait_dans_l_aide(capsys, monkeypatch):
-    """La garantie tient à la LECTURE de la table, pas à une liste écrite pour
-    le témoin (point 190) : un verbe neuf apparaît sans autre modification."""
+def test_a_verb_added_to_the_table_appears_in_the_help(capsys, monkeypatch):
+    """The guarantee comes from READING the table, not from a list written for
+    the witness (point 190): a new verb appears with no other change."""
     def _essai(argv):
-        """Verbe d'essai ajouté par le témoin."""
+        """Trial verb added by the witness."""
         return 0
 
     monkeypatch.setitem(point_d_entree.VERBES, "essai", _essai)
     aide = _aide(capsys)
-    assert "essai" in aide and "Verbe d'essai ajouté par le témoin." in aide
+    assert "essai" in aide and "Trial verb added by the witness." in aide
 
 
-def test_un_verbe_sans_docstring_fait_echouer_l_aide(monkeypatch):
-    """Une aide muette est précisément le défaut de l'issue : plutôt échouer
-    que d'afficher un verbe sans rien en dire."""
+def test_a_verb_without_docstring_makes_the_help_fail(monkeypatch):
+    """A mute help is precisely the issue's defect: better to fail than to show a
+    verb without saying anything about it."""
     monkeypatch.setitem(point_d_entree.VERBES, "muet", lambda argv: 0)
     with pytest.raises(ValueError, match="docstring"):
         point_d_entree.main(["--help"])
