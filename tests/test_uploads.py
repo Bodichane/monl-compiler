@@ -162,7 +162,7 @@ def test_html_and_svg_are_not_accepted_upload_types(capsys):
     capsys.readouterr()
 
 
-def test_upload_reel_acl_octets_limite_type_nom_et_suppression(upload_database_url):
+def test_real_upload_acl_bytes_limit_type_name_and_deletion(upload_database_url):
     with application(upload_database_url) as (directory, storage, base):
         alice = _account(base, f"alice-upload-{uuid4().hex[:8]}")
         bob = _account(base, f"bob-upload-{uuid4().hex[:8]}")

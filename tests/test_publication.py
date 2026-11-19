@@ -8,7 +8,7 @@ import pytest
 import yaml
 
 from scripts.check_publication_version import PublicationVersionError, validate_tag_version
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cas import check_each_case
 
 
 def _racine():
@@ -123,7 +123,7 @@ def test_both_spellings_of_one_version_are_accepted():
     def cas(tag, declared_version):
         validate_tag_version(tag, declared_version)
 
-    verifier_chaque_cas(table, cas)
+    check_each_case(table, cas)
 
 
 def test_the_workflow_parses_and_carries_the_secretless_chain():

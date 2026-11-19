@@ -85,7 +85,7 @@ PRIX_CHER, PRIX_BON_MARCHE = 189.0, 89.0
 
 
 @contextlib.contextmanager
-def _base(dossier):
+def _base_spec(dossier):
     # As in test_briques_comportement.py: `with connect(...)` commits the
     # transaction but does not CLOSE — hence the test bench's ResourceWarnings.
     cnx = sqlite3.connect(os.path.join(dossier, "app.db"))
@@ -105,7 +105,7 @@ def application():
             # Two items with different prices: the neighboring witness is what
             # lets us state the right one was read (point 70's lesson, where a
             # counter decremented the wrong record).
-            with _base(dossier) as cnx:
+            with _base_spec(dossier) as cnx:
                 cnx.execute('INSERT INTO article (nom, prix) VALUES (?, ?)',
                             ("Article cher", PRIX_CHER))
                 cnx.execute('INSERT INTO article (nom, prix) VALUES (?, ?)',
@@ -114,7 +114,7 @@ def application():
 
 
 def _vider_quota(dossier):
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         cnx.execute("DELETE FROM _monl_rate_limit")
 
 
@@ -132,24 +132,24 @@ def _entetes(application, identifiant):
 
 
 def _id_article_cher(dossier):
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         return cnx.execute('SELECT id FROM article WHERE prix = ?',
                            (PRIX_CHER,)).fetchone()[0]
 
 
 def _id_article_bon_marche(dossier):
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         return cnx.execute('SELECT id FROM article WHERE prix = ?',
                            (PRIX_BON_MARCHE,)).fetchone()[0]
 
 
-def _commande(base, entetes, corps):
+def _order(base, entetes, corps):
     reponse = requests.post(f"{base}/commande", headers=entetes, json=corps)
     assert reponse.status_code in (200, 201), reponse.text
     return reponse.json()["id"]
 
 
-def _lire(base, entetes, identifiant):
+def _read(base, entetes, identifiant):
     detail = requests.get(f"{base}/commande/{identifiant}",
                           headers=entetes).json()
     return detail.get("data", detail)
@@ -178,10 +178,10 @@ def test_the_total_sent_on_creation_is_ignored(application):
     charged one cent for €945 of goods."""
     base, dossier = application
     entetes = _entetes(application, "cree_ignore")
-    identifiant = _commande(base, entetes, {
+    identifiant = _order(base, entetes, {
         "quantite": 5, "article_id": _id_article_cher(dossier),
         "libelle": "5x cher", "total": 0.01})
-    assert _lire(base, entetes, identifiant)["total"] == PRIX_CHER * 5
+    assert _read(base, entetes, identifiant)["total"] == PRIX_CHER * 5
 
 
 def test_the_total_is_calculated_on_the_right_item(application):
@@ -191,10 +191,10 @@ def test_the_total_is_calculated_on_the_right_item(application):
     reading."""
     base, dossier = application
     entetes = _entetes(application, "cree_bon_article")
-    identifiant = _commande(base, entetes, {
+    identifiant = _order(base, entetes, {
         "quantite": 2, "article_id": _id_article_bon_marche(dossier),
         "libelle": "2x bon marché"})
-    assert _lire(base, entetes, identifiant)["total"] == PRIX_BON_MARCHE * 2
+    assert _read(base, entetes, identifiant)["total"] == PRIX_BON_MARCHE * 2
 
 
 def test_a_zero_or_negative_quantity_is_refused(application):
@@ -215,12 +215,12 @@ def test_a_nonexistent_item_gives_409_and_creates_nothing(application):
     order, not create it at zero euros — hence free."""
     base, dossier = application
     entetes = _entetes(application, "article_absent")
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         avant = cnx.execute("SELECT COUNT(*) FROM commande").fetchone()[0]
     reponse = requests.post(f"{base}/commande", headers=entetes, json={
         "quantite": 1, "article_id": 999999, "libelle": "fantôme"})
     assert reponse.status_code == 409, reponse.text
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         assert cnx.execute("SELECT COUNT(*) FROM commande").fetchone()[0] == avant
 
 
@@ -234,15 +234,15 @@ def test_the_total_sent_on_update_is_ignored(application):
     base, dossier = application
     entetes = _entetes(application, "put_ignore")
     article = _id_article_cher(dossier)
-    identifiant = _commande(base, entetes, {
+    identifiant = _order(base, entetes, {
         "quantite": 1, "article_id": article, "libelle": "1x cher"})
-    assert _lire(base, entetes, identifiant)["total"] == PRIX_CHER
+    assert _read(base, entetes, identifiant)["total"] == PRIX_CHER
 
     reponse = requests.put(f"{base}/commande/{identifiant}", headers=entetes,
                            json={"quantite": 1, "article_id": article,
                                  "libelle": "1x cher", "total": 0.01})
     assert reponse.status_code == 200, reponse.text
-    assert _lire(base, entetes, identifiant)["total"] == PRIX_CHER
+    assert _read(base, entetes, identifiant)["total"] == PRIX_CHER
 
 
 def test_the_total_follows_the_updated_quantity(application):
@@ -252,7 +252,7 @@ def test_the_total_follows_the_updated_quantity(application):
     base, dossier = application
     entetes = _entetes(application, "put_quantite")
     article = _id_article_cher(dossier)
-    identifiant = _commande(base, entetes, {
+    identifiant = _order(base, entetes, {
         "quantite": 1, "article_id": article, "libelle": "1x"})
 
     for quantite in (5, 2):
@@ -260,7 +260,7 @@ def test_the_total_follows_the_updated_quantity(application):
                                json={"quantite": quantite, "article_id": article,
                                      "libelle": f"{quantite}x"})
         assert reponse.status_code == 200, reponse.text
-        assert _lire(base, entetes, identifiant)["total"] == PRIX_CHER * quantite
+        assert _read(base, entetes, identifiant)["total"] == PRIX_CHER * quantite
 
 
 def test_declaring_another_item_on_put_does_not_lower_the_total(application):
@@ -273,14 +273,14 @@ def test_declaring_another_item_on_put_does_not_lower_the_total(application):
     base, dossier = application
     entetes = _entetes(application, "put_autre_article")
     cher, bon_marche = _id_article_cher(dossier), _id_article_bon_marche(dossier)
-    identifiant = _commande(base, entetes, {
+    identifiant = _order(base, entetes, {
         "quantite": 1, "article_id": cher, "libelle": "1x cher"})
 
     reponse = requests.put(f"{base}/commande/{identifiant}", headers=entetes,
                            json={"quantite": 1, "article_id": bon_marche,
                                  "libelle": "1x cher"})
     assert reponse.status_code == 200, reponse.text
-    ligne = _lire(base, entetes, identifiant)
+    ligne = _read(base, entetes, identifiant)
     assert ligne["total"] == PRIX_CHER, (
         "le montant a suivi l'article DÉCLARÉ au lieu de l'article stocké")
     assert ligne["article_id"] == cher
@@ -295,10 +295,10 @@ def test_the_charged_amount_is_now_the_catalogs(application):
     would reread."""
     base, dossier = application
     entetes = _entetes(application, "encaisse")
-    identifiant = _commande(base, entetes, {
+    identifiant = _order(base, entetes, {
         "quantite": 3, "article_id": _id_article_cher(dossier),
         "libelle": "3x cher", "total": 0.01})
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         en_base = cnx.execute('SELECT total, payment_status FROM commande '
                               'WHERE id = ?', (identifiant,)).fetchone()
     assert en_base[0] == PRIX_CHER * 3

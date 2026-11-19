@@ -101,7 +101,7 @@ def test_the_documentation_orients_before_detailing_the_reference():
         assert texte in html
 
 
-def test_chaque_exemple_compile_vraiment(tmp_path):
+def test_each_example_really_compiles(tmp_path):
     """This file's lock. An example that no longer compiles is an example
     teaching a dead syntax: the catalog would be worse than empty. We compile for
     real — validating only proves half the way."""

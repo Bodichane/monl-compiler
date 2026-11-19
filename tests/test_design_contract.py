@@ -56,7 +56,7 @@ POLICES = ("Helvetica", "Arial", "Georgia", "Palatino", "Verdana", "Trebuchet",
            "Times New Roman", "Menlo", "Consolas", "SFMono", "ui-monospace")
 
 
-def _contrat(spec_source, workdir):
+def _contract(spec_source, workdir):
     chemin = os.path.join(workdir, "spec.ml")
     with open(chemin, "w", encoding="utf-8") as fh:
         fh.write(spec_source)
@@ -88,7 +88,7 @@ def _brief(spec_source, workdir):
     # contract built in memory would not have them, and the check would fall
     # back into the hole it just closed.
     compile_project(chemin, workdir)
-    contrat = _contrat(spec_source, workdir)
+    contrat = _contract(spec_source, workdir)
     return contrat, build_generation_prompt(workdir, update_mode=False)
 
 
@@ -98,7 +98,7 @@ def test_the_contract_no_longer_carries_a_design_block():
     no longer exists: the contract describes what monl knows, not what it
     guessed."""
     with tempfile.TemporaryDirectory() as workdir:
-        contrat = _contrat(BASE, workdir)
+        contrat = _contract(BASE, workdir)
     assert "design" not in contrat, sorted(contrat)
 
 
@@ -115,7 +115,7 @@ def test_the_contract_contains_no_hard_coded_color():
     """Removing the key would not be enough if the colors came out elsewhere —
     in a note, an example, a neighboring field."""
     with tempfile.TemporaryDirectory() as workdir:
-        contrat = _contrat(BASE, workdir)
+        contrat = _contract(BASE, workdir)
     trouvees = HEX.findall(str(contrat))
     assert not trouvees, f"couleurs imposées par le compilateur : {trouvees}"
 
@@ -197,8 +197,8 @@ def test_a_ui_block_stays_accepted_but_without_effect():
     accepting the key so as to break no existing spec, but nothing uses it any
     more. The contract must be STRICTLY identical with and without the block."""
     with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
-        sans = _contrat(BASE, a)
-        avec = _contrat(AVEC_UI, b)
+        sans = _contract(BASE, a)
+        avec = _contract(AVEC_UI, b)
     assert sans == avec, "le bloc 'ui' influence encore le contrat"
 
 

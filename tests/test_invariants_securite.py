@@ -25,7 +25,7 @@ import tempfile
 from monl.ast_validator import MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_file, parse_monl_string
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cas import check_each_case
 
 EXEMPLES_DIR = os.path.join(os.path.dirname(__file__), "../exemples")
 
@@ -112,7 +112,7 @@ def test_no_example_pastes_a_value_into_sql():
                     f"{os.path.basename(chemin)} : valeur '{interdit}' collée dans "
                 f"le texte SQL (point 107) — {requete!r}")
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas, ids=noms)
+    check_each_case([(valeur,) for valeur in table], cas, ids=noms)
 
 
 def test_depth_2_pastes_no_value_into_sql():

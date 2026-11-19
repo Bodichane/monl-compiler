@@ -39,7 +39,7 @@ def plateforme(tmp_path):
     return store, identites, sites
 
 
-def _projet(store, identites, user_id, nom):
+def _project(store, identites, user_id, nom):
     """Creates a project the way the platform does, and returns the slug kept."""
     project_id = uuid.uuid4().hex
     identites.add_project(user_id, project_id, nom)
@@ -56,7 +56,7 @@ def test_one_account_can_name_two_projects_alike(plateforme):
     store, identites, _ = plateforme
     compte = identites.register("un@monl.test", "MotDePasse-123")
 
-    slugs = [_projet(store, identites, compte["id"], "AtelierVitrine")[1]
+    slugs = [_project(store, identites, compte["id"], "AtelierVitrine")[1]
              for _ in range(3)]
 
     assert len(set(slugs)) == 3, f"deux projets partagent une adresse : {slugs}"
@@ -70,8 +70,8 @@ def test_two_accounts_do_not_steal_an_address(plateforme):
     a = identites.register("a@monl.test", "MotDePasse-123")
     b = identites.register("b@monl.test", "MotDePasse-123")
 
-    _, slug_a = _projet(store, identites, a["id"], "AtelierVitrine")
-    _, slug_b = _projet(store, identites, b["id"], "AtelierVitrine")
+    _, slug_a = _project(store, identites, a["id"], "AtelierVitrine")
+    _, slug_b = _project(store, identites, b["id"], "AtelierVitrine")
 
     assert slug_a != slug_b, "un inconnu a pris l'adresse du premier"
     for slug in (slug_a, slug_b):
@@ -91,7 +91,7 @@ def test_hosting_stays_unambiguous(plateforme):
 
     attendu = {}
     for _ in range(3):
-        project_id, slug = _projet(store, identites, compte["id"], "Boutique")
+        project_id, slug = _project(store, identites, compte["id"], "Boutique")
         attendu[slug] = project_id
 
     for slug, project_id in attendu.items():
@@ -100,7 +100,7 @@ def test_hosting_stays_unambiguous(plateforme):
             f"{slug}.localhost mène au mauvais projet")
 
 
-def test_lunicite_globale_tient_meme_a_deux_ecritures_concurrentes(plateforme):
+def test_global_uniqueness_holds_even_with_two_concurrent_writes(plateforme):
     """The guarantee lives in an INDEX, never in a prior check.
 
     A check "is this slug free?" followed by a write lets through two
@@ -110,7 +110,7 @@ def test_lunicite_globale_tient_meme_a_deux_ecritures_concurrentes(plateforme):
     store, identites, _ = plateforme
     a = identites.register("c1@monl.test", "MotDePasse-123")
     b = identites.register("c2@monl.test", "MotDePasse-123")
-    _, slug = _projet(store, identites, a["id"], "Course")
+    _, slug = _project(store, identites, a["id"], "Course")
 
     autre = uuid.uuid4().hex
     identites.add_project(b["id"], autre, "Course")

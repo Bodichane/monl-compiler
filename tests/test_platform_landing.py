@@ -259,7 +259,7 @@ def test_a_reveal_is_never_hidden_by_an_inline_style():
         )
 
 
-def test_un_contenu_anime_reste_montrable_si_l_observateur_se_tait():
+def test_animated_content_stays_showable_if_the_observer_stays_silent():
     """Invisible content is worse than non-animated content.
 
     Very tall screen, exotic browser, upstream error: if the IntersectionObserver
@@ -510,7 +510,7 @@ def test_no_command_overflows_its_card():
                 "elles ne se copient pas")
 
 
-def test_un_bloc_de_commande_se_replie_au_lieu_d_etre_coupe():
+def test_a_command_block_wraps_instead_of_being_cut():
     """The safety net under the limit above.
 
     `overflow-x: auto` alone lets the line scroll OUTSIDE the frame: on a card,
@@ -548,7 +548,7 @@ def test_the_three_position_cards_align_their_titles():
         "rien ne pousse les étiquettes en bas : elles suivent le paragraphe")
 
 
-def _regles_css(css: str) -> list:
+def _css_rules(css: str) -> list:
     """Returns [(rank, media, selector, {properties})] for all the served CSS.
 
     `@keyframes` blocks are SKIPPED entirely: their "0%" and "to" are not
@@ -616,7 +616,7 @@ def test_no_responsive_rule_is_overridden_by_a_bare_rule(platform):
     page = requests.get(platform, timeout=10).text
     feuilles = re.findall(r"<style[^>]*>(.*?)</style>", page, re.S)
     assert feuilles, "aucune feuille de style dans la page servie"
-    regles = _regles_css("\n".join(feuilles))
+    regles = _css_rules("\n".join(feuilles))
     assert len(regles) > 100, f"extracteur muet : {len(regles)} règles lues"
     assert any(media for _, media, _, _ in regles), "aucune @media reconnue"
 
@@ -691,7 +691,7 @@ def test_the_top_bar_is_opaque(platform):
     page = requests.get(platform, timeout=10).text
     feuilles = re.findall(r"<style[^>]*>(.*?)</style>", page, re.S)
     assert feuilles, "aucune feuille de style dans la page servie"
-    regles = _regles_css("\n".join(feuilles))
+    regles = _css_rules("\n".join(feuilles))
     topbars = [(sel, props) for _, _, sel, props in regles
                if sel.strip() == ".topbar"]
     assert topbars, "règle .topbar introuvable : l'extracteur ne regarde rien"
@@ -839,7 +839,7 @@ def test_the_served_page_names_only_real_files(platform, tmp_path):
         f"{absents}")
 
 
-def _lignes(texte):
+def _lines(texte):
     return {ligne.strip() for ligne in texte.splitlines() if ligne.strip()}
 
 
@@ -851,14 +851,14 @@ def test_each_case_excerpt_appears_in_its_examples_spec():
 
     assert set(landing_cas.CASE_SNIPPETS) == set(examples.BY_ID)
     for ident, extrait in landing_cas.CASE_SNIPPETS.items():
-        absentes = _lignes(extrait) - _lignes(examples.spec_of(ident))
-        assert _lignes(extrait), ident
+        absentes = _lines(extrait) - _lines(examples.spec_of(ident))
+        assert _lines(extrait), ident
         assert not absentes, (ident, absentes)
 
 
 def test_the_hero_demo_is_taken_from_the_compiling_spec():
     from monl_platform import landing
 
-    absentes = _lignes(landing.DEMO_HERO_SOURCE) - _lignes(landing_vitrine.SPEC_VITRINE)
-    assert _lignes(landing.DEMO_HERO_SOURCE)
+    absentes = _lines(landing.DEMO_HERO_SOURCE) - _lines(landing_vitrine.SPEC_VITRINE)
+    assert _lines(landing.DEMO_HERO_SOURCE)
     assert not absentes, absentes

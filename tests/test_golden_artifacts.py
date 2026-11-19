@@ -274,7 +274,7 @@ B4_GOLDENS = {
 }
 
 
-def test_empreintes_b4_securite(tmp_path, capsys):
+def test_b4_security_fingerprints(tmp_path, capsys):
     from tests.test_authentification_b4 import SPEC_B4
 
     spec = tmp_path / "spec.ml"

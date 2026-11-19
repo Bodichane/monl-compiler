@@ -135,7 +135,7 @@ def faux_stripe():
 
 
 @contextlib.contextmanager
-def _base(dossier):
+def _base_spec(dossier):
     cnx = sqlite3.connect(os.path.join(dossier, "app.db"))
     try:
         with cnx:
@@ -154,7 +154,7 @@ def application(faux_stripe):
                "STRIPE_WEBHOOK_SECRET": CLE_WEBHOOK,
                "MONL_STRIPE_BASE_URL": f"http://{hote}:{port_stripe}"}
         with uvicorn_server(dossier, env=env) as base:
-            with _base(dossier) as cnx:
+            with _base_spec(dossier) as cnx:
                 cnx.execute('INSERT INTO article (nom, prix) VALUES (?, ?)',
                             ("Article", PRIX))
             yield base, dossier
@@ -162,7 +162,7 @@ def application(faux_stripe):
 
 def _compte(application, identifiant):
     base, dossier = application
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         cnx.execute("DELETE FROM _monl_rate_limit")
     requests.post(f"{base}/register", json={"username": identifiant,
                                             "password": "motdepasse1",
@@ -228,7 +228,7 @@ def test_a_third_party_cannot_pay(application, alice, bob):
     base, dossier = application
     commande, ligne = _line_of(base, alice, "panier privé")
 
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         compte_alice = cnx.execute(
             "SELECT id FROM _monl_users WHERE username = 'alice'").fetchone()[0]
     assert commande != compte_alice, "identifiants confondus : le test ne prouve rien"
@@ -247,7 +247,7 @@ def test_an_orphan_line_is_not_found(application, alice):
     not "payable by anyone"."""
     base, dossier = application
     _commande, ligne = _line_of(base, alice, "panier à orpheliner")
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         cnx.execute('UPDATE "ligne" SET "commande_id" = 999999 WHERE id = ?', (ligne,))
     reponse = requests.post(f"{base}/ligne/{ligne}/paiement", headers=alice, timeout=15)
     assert reponse.status_code == 404, reponse.text
@@ -278,7 +278,7 @@ def test_the_webhook_marks_the_line_paid(application, alice, faux_stripe):
                  "stripe-signature": f"t={horodatage},v1={signature}"}, timeout=10)
     assert reponse.status_code == 200, reponse.text
 
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         etat = cnx.execute('SELECT payment_status FROM "ligne" WHERE id = ?',
                            (ligne,)).fetchone()[0]
     assert etat == "payee"

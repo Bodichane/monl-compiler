@@ -90,7 +90,7 @@ def client(tmp_path_factory):
         fil.join(timeout=10)
 
 
-def _scripts_de(client, chemin):
+def _scripts_of(client, chemin):
     base, session = client
     reponse = session.get(f"{base}{chemin}", timeout=10)
     assert reponse.status_code == 200, f"{chemin} : {reponse.status_code}"
@@ -100,7 +100,7 @@ def _scripts_de(client, chemin):
 @pytest.mark.parametrize("chemin", PAGES_AVEC_SCRIPT)
 def test_the_served_javascript_parses_without_error(client, chemin, tmp_path):
     node = _node()
-    blocs = _scripts_de(client, chemin)
+    blocs = _scripts_of(client, chemin)
     assert blocs, f"{chemin} ne sert aucun script : cette entrée est périmée"
     for index, bloc in enumerate(blocs):
         fichier = tmp_path / f"{chemin.strip('/') or 'racine'}-{index}.js"
@@ -118,7 +118,7 @@ def test_the_served_javascript_parses_without_error(client, chemin, tmp_path):
 def test_the_console_serves_the_start_button_with_its_apostrophe(client):
     """The named counter-proof: THIS string had broken the page."""
     node = _node()
-    blocs = _scripts_de(client, "/console")
+    blocs = _scripts_of(client, "/console")
     entier = "\n".join(blocs)
     assert "Start the project" in entier, "le bouton a disparu du script servi"
     # The apostrophe must be ESCAPED in the literal, not bare.

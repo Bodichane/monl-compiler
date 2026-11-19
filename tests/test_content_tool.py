@@ -31,7 +31,7 @@ seed Produit
 """
 
 
-def _projet(spec=SPEC):
+def _project(spec=SPEC):
     temporaire = tempfile.TemporaryDirectory()
     racine = temporaire.name
     chemin = os.path.join(racine, "spec.ml")
@@ -56,7 +56,7 @@ def _write_rows(racine, champs, rows, entite="Produit"):
 
 
 def test_round_trip_without_change_is_byte_stable():
-    temporaire, spec = _projet()
+    temporaire, spec = _project()
     with temporaire:
         avant = pathlib.Path(spec).read_text(encoding="utf-8")
         exporter_contenu(spec, temporaire.name)
@@ -66,7 +66,7 @@ def test_round_trip_without_change_is_byte_stable():
 
 
 def test_changing_a_value_does_not_touch_the_rest_of_the_spec():
-    temporaire, spec = _projet()
+    temporaire, spec = _project()
     with temporaire:
         exporter_contenu(spec, temporaire.name)
         champs, rows = _rows(temporaire.name)
@@ -79,7 +79,7 @@ def test_changing_a_value_does_not_touch_the_rest_of_the_spec():
 
 
 def test_missing_image_names_the_file_and_csv_row():
-    temporaire, spec = _projet()
+    temporaire, spec = _project()
     with temporaire:
         exporter_contenu(spec, temporaire.name)
         champs, rows = _rows(temporaire.name)
@@ -90,7 +90,7 @@ def test_missing_image_names_the_file_and_csv_row():
 
 
 def test_image_refuses_a_path_with_the_csv_row():
-    temporaire, spec = _projet()
+    temporaire, spec = _project()
     with temporaire:
         exporter_contenu(spec, temporaire.name)
         champs, rows = _rows(temporaire.name)
@@ -101,7 +101,7 @@ def test_image_refuses_a_path_with_the_csv_row():
 
 
 def test_invalid_number_is_refused_with_the_csv_row():
-    temporaire, spec = _projet()
+    temporaire, spec = _project()
     with temporaire:
         exporter_contenu(spec, temporaire.name)
         champs, rows = _rows(temporaire.name)
@@ -116,7 +116,7 @@ def test_non_contiguous_blocks_of_one_entity_are_refused():
         '    nom: "Table", prix: 20, etat: "occasion"',
         'seed Page\n    titre: "Accueil"\n\nseed Produit\n'
         '    nom: "Table", prix: 20, etat: "occasion"')
-    temporaire, spec = _projet(spec_)
+    temporaire, spec = _project(spec_)
     with temporaire:
         exporter_contenu(spec, temporaire.name)
         champs, rows = _rows(temporaire.name)
@@ -147,7 +147,7 @@ seed Variante for Produit.nom "Chaise"
 seed Variante for Produit.nom "Table"
     nom: "Noir"
 """
-    temporaire, spec = _projet(spec_)
+    temporaire, spec = _project(spec_)
     with temporaire:
         exporter_contenu(spec, temporaire.name)
         champs, rows = _rows(temporaire.name, "Variante")
@@ -161,7 +161,7 @@ seed Variante for Produit.nom "Table"
 
 
 def test_entity_without_seed_is_reported_without_blocking_others():
-    temporaire, spec = _projet()
+    temporaire, spec = _project()
     with temporaire:
         rapport = exporter_contenu(spec, temporaire.name)
         assert "Produit" in rapport["entites"]
@@ -170,7 +170,7 @@ def test_entity_without_seed_is_reported_without_blocking_others():
 
 
 def test_readme_lists_the_oneof_values():
-    temporaire, spec = _projet()
+    temporaire, spec = _project()
     with temporaire:
         exporter_contenu(spec, temporaire.name)
         texte = pathlib.Path(os.path.join(temporaire.name, "content", "LISEZMOI.txt")).read_text(encoding="utf-8")
@@ -185,7 +185,7 @@ def test_export_excludes_server_fields_and_booleans():
         "rule Produit.nom required",
         "rule Produit.nom required\nrule Produit.cree timestamp",
     )
-    temporaire, spec = _projet(spec_)
+    temporaire, spec = _project(spec_)
     with temporaire:
         exporter_contenu(spec, temporaire.name)
         champs, _rows_ = _rows(temporaire.name)

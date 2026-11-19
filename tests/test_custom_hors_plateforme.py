@@ -89,6 +89,6 @@ def test_platform_does_not_write_sandbox_ai():
     _assert_writes_without_custom(sorted((RACINE / 'src/monl_platform').rglob('*.py')))
 
 
-def test_garde_refuse_un_perimetre_vide():
+def test_guard_refuses_an_empty_scope():
     with pytest.raises(AssertionError, match='aucun fichier'):
         _assert_writes_without_custom([])

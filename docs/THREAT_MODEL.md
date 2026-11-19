@@ -67,14 +67,14 @@ including intentionally public actions, rather than universal authentication.
 
 | Threat (STRIDE) | Existing mitigation | Test evidence |
 | --- | --- | --- |
-| Forged/unsigned JWT or self-assigned privileged role (S, E) | Explicit HS256 verification; registration limited to `selfRegister` actors. | tests/test_temoins_securite.py::test_the_server_refuses_unsigned_or_differently_signed_tokens; tests/test_beta3_regressions.py::test_role_provisionne_refuse_a_inscription |
+| Forged/unsigned JWT or self-assigned privileged role (S, E) | Explicit HS256 verification; registration limited to `selfRegister` actors. | tests/test_temoins_securite.py::test_the_server_refuses_unsigned_or_differently_signed_tokens; tests/test_beta3_regressions.py::test_provisioned_role_refused_at_registration |
 | Cross-record private messaging access (I, T, E) | Party filtering and route authorization; supervisor access is separately declared. | tests/test_access_parties.py::test_private_messaging_end_to_end; tests/test_access_parties.py::test_supervisor_moderates_private_messages_end_to_end |
 | Injection of SQL values (T, I, E) | Parameterized values; grammar-constrained identifiers. This witness checks emitted SQL, not arbitrary handwritten code. | tests/test_invariants_securite.py::test_no_example_pastes_a_value_into_sql |
 | Account enumeration/brute force (I, D) | Dummy password hash for unknown identifiers; atomic database-backed authentication quota. | tests/test_beta3_regressions.py::test_login_does_not_reveal_whether_the_account_exists; tests/test_beta3_regressions.py::test_quota_non_contournable_en_parallele |
 | Stolen logged-out token remains usable (S) | JWT `jti` blacklist and logout revocation. | tests/test_beta3_regressions.py::test_logout_revokes_the_token |
 | Local disclosure of fallback JWT key (I) | Secret file created owner-only (0600); production environment injection is documented separately. | tests/test_beta3_regressions.py::test_jwt_secret_readable_only_by_its_owner |
-| Malicious file/path, oversized upload, unauthorized file access (T, I, D) | Upload ACL, byte/type limits, generated names, storage outside served frontend. | tests/test_uploads.py::test_upload_reel_acl_octets_limite_type_nom_et_suppression |
-| Clickjacking/content sniffing and browser transport exposure (S, I) | Global headers and CSP; HSTS only on HTTPS/forwarded HTTPS. CSP still permits inline site scripts. | tests/test_security_headers.py::test_api_site_erreurs_et_hsts |
+| Malicious file/path, oversized upload, unauthorized file access (T, I, D) | Upload ACL, byte/type limits, generated names, storage outside served frontend. | tests/test_uploads.py::test_real_upload_acl_bytes_limit_type_name_and_deletion |
+| Clickjacking/content sniffing and browser transport exposure (S, I) | Global headers and CSP; HSTS only on HTTPS/forwarded HTTPS. CSP still permits inline site scripts. | tests/test_security_headers.py::test_api_site_errors_and_hsts |
 | Denial of a business write by its author (R) | Authentication attributes requests to accounts, but no tamper-resistant business audit trail is established. | No dedicated proof: see Known gaps. |
 
 ### TB2 — Payment webhook ↔ backend
@@ -133,7 +133,7 @@ These resource limits do not revoke filesystem/network access or inherited secre
 
 | Threat (STRIDE) | Existing mitigation | Test evidence |
 | --- | --- | --- |
-| Oversized spec or path traversal through project ID (T, I, D) | Spec input bound and opaque validated IDs. | tests/test_platform_service.py::test_entrees_bornees_et_identifiants_opaques |
+| Oversized spec or path traversal through project ID (T, I, D) | Spec input bound and opaque validated IDs. | tests/test_platform_service.py::test_bounded_inputs_and_opaque_identifiers |
 | Stuck worker publishes incomplete output (T, D) | Timeout failure cleans unpublished project. Witness simulates timeout; it does not measure OS resource limits. | tests/test_platform_service.py::test_interrupted_worker_publishes_no_project |
 | Recompilation bypasses admission quotas (D) | Compile/recompile share quota and semaphore. | tests/test_admission_compilation.py::test_compilation_and_recompilation_share_the_quota; tests/test_admission_compilation.py::test_compilation_and_recompilation_share_the_semaphore |
 | Export leaks runtime JWT secret (I) | Compiled archives exclude the secret. | tests/test_platform_service.py::test_validation_compile_inspection_and_archive_share_the_pipeline |
@@ -177,10 +177,10 @@ security boundary. An implementation receives backend process authority.
 
 | Threat | Control | Execution evidence |
 | --- | --- | --- |
-| Online account uses an unconfirmed address (S) | Correct password returns 403 `email_not_verified` until confirmation; incorrect password and absent account share generic 401. | tests/test_verification_email.py::test_inscription_confirmation_et_rejeu |
-| Captured confirmation token is replayed or applied to another account (S, T) | Hash-only storage, account binding and single-use consumption in the confirmation transaction. POST only, no consuming GET. | tests/test_verification_email.py::test_jeton_autre_compte; tests/test_verification_email.py::test_inscription_confirmation_et_rejeu |
-| Expired confirmation link (S) | Expiration checked in the atomic consumption statement. | tests/test_verification_email.py::test_jeton_expire |
-| Enumeration or message flooding through resend (I, D) | Same generic response and duration floor for absent, known and limited addresses; declared persistent resend quota, old token invalidated on issuance. | tests/test_verification_email.py::test_renvoi_generique_limite_et_invalidation |
+| Online account uses an unconfirmed address (S) | Correct password returns 403 `email_not_verified` until confirmation; incorrect password and absent account share generic 401. | tests/test_verification_email.py::test_registration_confirmation_and_replay |
+| Captured confirmation token is replayed or applied to another account (S, T) | Hash-only storage, account binding and single-use consumption in the confirmation transaction. POST only, no consuming GET. | tests/test_verification_email.py::test_token_of_another_account; tests/test_verification_email.py::test_registration_confirmation_and_replay |
+| Expired confirmation link (S) | Expiration checked in the atomic consumption statement. | tests/test_verification_email.py::test_expired_token |
+| Enumeration or message flooding through resend (I, D) | Same generic response and duration floor for absent, known and limited addresses; declared persistent resend quota, old token invalidated on issuance. | tests/test_verification_email.py::test_generic_resend_limit_and_invalidation |
 | Healthy guard is mistakenly reported as broken (D) | Smoke expects the unconfirmed 403 and checks both POST routes; names untested authenticated flows. | tests/test_verification_email.py::test_monl_run_check |
 | Guard silently stops protecting | Each disabled 403, consumption, expiry and resend quota makes the same execution witness fail. | tests/test_verification_email.py::test_contre_epreuves |
 

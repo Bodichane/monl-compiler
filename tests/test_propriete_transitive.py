@@ -90,7 +90,7 @@ PRIX_CHER, PRIX_BON_MARCHE = 189.0, 89.0
 
 
 @contextlib.contextmanager
-def _base(dossier):
+def _base_spec(dossier):
     cnx = sqlite3.connect(os.path.join(dossier, "app.db"))
     try:
         with cnx:
@@ -105,7 +105,7 @@ def application():
         ast = MonlAST(parse_monl_string(SPEC)).validate_and_audit()
         MonlSecureGenerator(ast, output_dir=dossier).generate_all()
         with uvicorn_server(dossier) as base:
-            with _base(dossier) as cnx:
+            with _base_spec(dossier) as cnx:
                 cnx.execute('INSERT INTO article (nom, prix) VALUES (?, ?)',
                             ("Article cher", PRIX_CHER))
                 cnx.execute('INSERT INTO article (nom, prix) VALUES (?, ?)',
@@ -114,7 +114,7 @@ def application():
 
 
 def _vider_quota(dossier):
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         cnx.execute("DELETE FROM _monl_rate_limit")
 
 
@@ -139,7 +139,7 @@ def alice(application):
     # "account id" looks right — that is precisely what hid point 80's defect.
     base, _ = application
     for libelle in ("brouillon", "abandonnée", "en cours"):
-        _commande(base, entetes, libelle)
+        _order(base, entetes, libelle)
     return entetes
 
 
@@ -149,12 +149,12 @@ def bob(application):
 
 
 def _id_article(dossier, prix):
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         return cnx.execute('SELECT id FROM article WHERE prix = ?',
                            (prix,)).fetchone()[0]
 
 
-def _commande(base, entetes, libelle):
+def _order(base, entetes, libelle):
     reponse = requests.post(f"{base}/commande", headers=entetes,
                             json={"libelle": libelle})
     assert reponse.status_code in (200, 201), reponse.text
@@ -168,8 +168,8 @@ def _line(base, entetes, commande_id, article_id, quantite):
                                "quantite": quantite})
 
 
-def _id_compte(dossier, identifiant):
-    with _base(dossier) as cnx:
+def _account_id(dossier, identifiant):
+    with _base_spec(dossier) as cnx:
         return cnx.execute("SELECT id FROM _monl_users WHERE username = ?",
                            (identifiant,)).fetchone()[0]
 
@@ -201,16 +201,16 @@ def test_the_stored_order_is_the_one_requested(application, alice):
     """Point 80's exact defect: the requested attachment was ignored and
     replaced with the calling account's id, silently."""
     base, dossier = application
-    commande = _commande(base, alice, "panier réel")
+    commande = _order(base, alice, "panier réel")
     article = _id_article(dossier, PRIX_CHER)
     reponse = _line(base, alice, commande, article, 2)
     assert reponse.status_code in (200, 201), reponse.text
     ligne_id = reponse.json()["id"]
 
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         stocke = cnx.execute('SELECT commande_id FROM ligne WHERE id = ?',
                              (ligne_id,)).fetchone()[0]
-    compte = _id_compte(dossier, "alice")
+    compte = _account_id(dossier, "alice")
     assert stocke == commande, "la commande désignée n'a pas été enregistrée"
     # The assertion that counts: the two values DIVERGE, so the equality above
     # cannot be chance.
@@ -222,7 +222,7 @@ def test_the_line_amount_is_calculated_by_the_server(application, alice):
     """Brick 10 + brick 11 composition: nine bricks tested one by one do not test
     their pairs (point 78's lesson)."""
     base, dossier = application
-    commande = _commande(base, alice, "calcul")
+    commande = _order(base, alice, "calcul")
     article = _id_article(dossier, PRIX_CHER)
     ligne_id = _line(base, alice, commande, article, 3).json()["id"]
     detail = requests.get(f"{base}/ligne/{ligne_id}", headers=alice).json()
@@ -237,12 +237,12 @@ def test_attaching_a_line_to_someone_elses_order_is_refused(application, alice, 
     """Without this check, the brick would open a wider hole than the one it
     closes: the foreign key is no longer deduced from the token."""
     base, dossier = application
-    commande_alice = _commande(base, alice, "privée")
+    commande_alice = _order(base, alice, "privée")
     article = _id_article(dossier, PRIX_CHER)
     reponse = _line(base, bob, commande_alice, article, 1)
     assert reponse.status_code == 403, reponse.text
 
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         compte = cnx.execute(
             'SELECT COUNT(*) FROM ligne WHERE commande_id = ?',
             (commande_alice,)).fetchone()[0]
@@ -265,9 +265,9 @@ def test_a_nonexistent_order_gives_the_same_answer(application, bob):
 def test_the_list_only_shows_ones_own_lines(application, alice, bob):
     base, dossier = application
     article = _id_article(dossier, PRIX_CHER)
-    commande_alice = _commande(base, alice, "liste alice")
+    commande_alice = _order(base, alice, "liste alice")
     ligne_alice = _line(base, alice, commande_alice, article, 1).json()["id"]
-    commande_bob = _commande(base, bob, "liste bob")
+    commande_bob = _order(base, bob, "liste bob")
     ligne_bob = _line(base, bob, commande_bob, article, 1).json()["id"]
 
     vues_bob = [ligne["id"] for ligne
@@ -284,7 +284,7 @@ def test_the_list_only_shows_ones_own_lines(application, alice, bob):
 def test_the_detail_of_someone_elses_line_is_indistinguishable_from_absence(
         application, alice, bob):
     base, dossier = application
-    commande = _commande(base, alice, "détail")
+    commande = _order(base, alice, "détail")
     article = _id_article(dossier, PRIX_CHER)
     ligne_id = _line(base, alice, commande, article, 1).json()["id"]
 
@@ -300,7 +300,7 @@ def test_the_detail_of_someone_elses_line_is_indistinguishable_from_absence(
 
 def test_updating_someone_elses_line_is_refused(application, alice, bob):
     base, dossier = application
-    commande = _commande(base, alice, "put")
+    commande = _order(base, alice, "put")
     article = _id_article(dossier, PRIX_CHER)
     ligne_id = _line(base, alice, commande, article, 1).json()["id"]
 
@@ -308,7 +308,7 @@ def test_updating_someone_elses_line_is_refused(application, alice, bob):
                           json={"quantite": 50, "commande_id": commande,
                                 "article_id": article})
     assert refuse.status_code == 403, refuse.text
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         quantite = cnx.execute('SELECT quantite FROM ligne WHERE id = ?',
                                (ligne_id,)).fetchone()[0]
     assert quantite == 1, "la ligne a été modifiée malgré le refus"
@@ -316,13 +316,13 @@ def test_updating_someone_elses_line_is_refused(application, alice, bob):
 
 def test_deleting_someone_elses_line_is_refused(application, alice, bob):
     base, dossier = application
-    commande = _commande(base, alice, "delete")
+    commande = _order(base, alice, "delete")
     article = _id_article(dossier, PRIX_CHER)
     ligne_id = _line(base, alice, commande, article, 1).json()["id"]
 
     refuse = requests.delete(f"{base}/ligne/{ligne_id}", headers=bob)
     assert refuse.status_code == 403, refuse.text
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         reste = cnx.execute('SELECT COUNT(*) FROM ligne WHERE id = ?',
                             (ligne_id,)).fetchone()[0]
     assert reste == 1, "la ligne a été supprimée malgré le refus"
@@ -332,7 +332,7 @@ def test_the_owner_updates_and_deletes_their_own_line(application, alice):
     """The indispensable counterpart of the three refusals above: a brick
     refusing everyone would pass these tests while allowing nothing."""
     base, dossier = application
-    commande = _commande(base, alice, "à moi")
+    commande = _order(base, alice, "à moi")
     article = _id_article(dossier, PRIX_CHER)
     ligne_id = _line(base, alice, commande, article, 1).json()["id"]
 
@@ -348,7 +348,7 @@ def test_the_owner_updates_and_deletes_their_own_line(application, alice):
 
     assert requests.delete(f"{base}/ligne/{ligne_id}",
                            headers=alice).status_code == 200
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         reste = cnx.execute('SELECT COUNT(*) FROM ligne WHERE id = ?',
                             (ligne_id,)).fetchone()[0]
     assert reste == 0
@@ -360,15 +360,15 @@ def test_moving_ones_line_to_someone_elses_order_is_impossible(
     behavior: if it changed, a client could drop a line into a third party's cart
     through an update."""
     base, dossier = application
-    commande_bob = _commande(base, bob, "cible")
-    commande_alice = _commande(base, alice, "source")
+    commande_bob = _order(base, bob, "cible")
+    commande_alice = _order(base, alice, "source")
     article = _id_article(dossier, PRIX_CHER)
     ligne_id = _line(base, alice, commande_alice, article, 1).json()["id"]
 
     requests.put(f"{base}/ligne/{ligne_id}", headers=alice,
                  json={"quantite": 2, "commande_id": commande_bob,
                        "article_id": article})
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         stocke = cnx.execute('SELECT commande_id FROM ligne WHERE id = ?',
                              (ligne_id,)).fetchone()[0]
     assert stocke == commande_alice

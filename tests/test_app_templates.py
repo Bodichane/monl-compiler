@@ -13,10 +13,10 @@ from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import _contract_signature, compile_project
 from monl.dialogue_engine import GuidedDialogue
 from monl.parser import parse_monl_string
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cas import check_each_case
 
 
-def _champs_payables(tpl):
+def _payable_fields(tpl):
     """Reproduces `_ask_payable`'s criterion (points 75 and 79).
 
     Since point 79, a `Money` on an owned entity is no longer enough: the amount
@@ -72,7 +72,7 @@ def _run_template(index, followup_answer, want_seed, upload_pour=None,
         "1" if followup_answer == "o" or name == upload_pour else "0"
         for name in upload_entities
     ]
-    candidats_payables = _champs_payables(tpl)
+    candidats_payables = _payable_fields(tpl)
     if candidats_payables:                             # payable question asked (point 75)
         answers += [followup_answer]
         if followup_answer == "o" and len(candidats_payables) > 1:
@@ -131,7 +131,7 @@ def test_each_template_compiles_all_refused():
         spec = _run_template(index, "n", want_seed=False)
         MonlAST(parse_monl_string(spec)).validate_and_audit()
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas, ids=noms)
+    check_each_case([(valeur,) for valeur in table], cas, ids=noms)
 
 
 def test_each_template_compiles_all_accepted():
@@ -147,10 +147,10 @@ def test_each_template_compiles_all_accepted():
         for ref, owner in normalized["security"]["ownership"].items():
             assert owner in normalized["schema"]["entities"]
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas, ids=noms)
+    check_each_case([(valeur,) for valeur in table], cas, ids=noms)
 
 
-def test_chaque_modele_ouvre_l_inscription_a_un_role(index=3):
+def test_each_template_opens_registration_to_a_role(index=3):
     """A spec from the dialogue must stay usable: without a 'selfRegister'
     marker, nobody can create an account on the produced application (regression
     introduced then fixed in beta 3)."""
@@ -393,7 +393,7 @@ def test_public_when_templates_declare_the_supervisor():
         spec = _run_template(index, "n", want_seed=False)
         assert f"rule {reference} sharedBy Moderator" in spec
 
-    verifier_chaque_cas(table, cas, ids=noms)
+    check_each_case(table, cas, ids=noms)
 
 
 def test_custom_entity_on_top_of_the_template():
@@ -563,7 +563,7 @@ def test_the_dialogue_can_still_produce_a_simple_order():
     answers += ["0"]                          # account identifier: none (point 138)
     answers += ["0"]                          # no upload for Order
     answers += ["o"]                          # encaisser un paiement
-    candidats = _champs_payables(tpl)
+    candidats = _payable_fields(tpl)
     if len(candidats) > 1:
         answers += ["1"]
     answers += ["n"]                          # PAS de panier

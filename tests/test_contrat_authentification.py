@@ -65,7 +65,7 @@ def _compiler(tmp_path, spec, nom="spec.ml"):
     return sortie
 
 
-def _contrat(sortie):
+def _contract(sortie):
     with open(os.path.join(str(sortie), "frontend_contract.json"),
               encoding="utf-8") as fh:
         return json.load(fh)
@@ -88,7 +88,7 @@ def test_the_contract_names_the_fields_login_really_returns(tmp_path):
     had no `response` key at all.
     """
     sortie = _compiler(tmp_path, SPEC)
-    auth = _contrat(sortie)["api"]["auth"]
+    auth = _contract(sortie)["api"]["auth"]
 
     assert "response" in auth["login"], (
         "le contrat doit décrire la forme de la réponse, pas seulement dire "
@@ -120,7 +120,7 @@ def test_the_contract_names_the_fields_login_really_returns(tmp_path):
 
 def test_the_contract_names_what_register_returns(tmp_path):
     sortie = _compiler(tmp_path, SPEC)
-    auth = _contrat(sortie)["api"]["auth"]
+    auth = _contract(sortie)["api"]["auth"]
     assert "response" in auth["register"]
 
     with uvicorn_server(str(sortie)) as base:
@@ -141,7 +141,7 @@ def test_with_refresh_tokens_the_response_gains_a_field(tmp_path):
     without a second witness being needed.
     """
     sortie = _compiler(tmp_path, SPEC_REFRESH)
-    reponse_contrat = _contrat(sortie)["api"]["auth"]["login"]["response"]
+    reponse_contrat = _contract(sortie)["api"]["auth"]["login"]["response"]
     assert "refresh_token" in reponse_contrat
     assert "not a JWT" in reponse_contrat["refresh_token"], (
         "le contrat doit dire que ce jeton est OPAQUE : envoyé en "
@@ -167,7 +167,7 @@ def test_without_the_capability_no_refresh_token_is_promised(tmp_path):
     three tests above.
     """
     sortie = _compiler(tmp_path, SPEC)
-    assert "refresh_token" not in _contrat(sortie)["api"]["auth"]["login"]["response"]
+    assert "refresh_token" not in _contract(sortie)["api"]["auth"]["login"]["response"]
 
 
 # --------------------------------------------------------------------------

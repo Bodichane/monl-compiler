@@ -147,7 +147,7 @@ def _authenticate(base, username="client@example.test"):
     return logged.json()["access_token"]
 
 
-def _create_commande(base, token):
+def _create_order(base, token):
     response = requests.post(
         f"{base}/commande", timeout=10,
         headers={"Authorization": f"Bearer {token}"},
@@ -170,12 +170,12 @@ def _assert_one_revocation_lookup(trace_file):
     assert len(queries) == 1, queries
 
 
-def test_index_de_cle_etrangere_filtre_et_dedoublonnage_contre_serveur(tmp_path):
+def test_foreign_key_index_filter_and_dedup_against_server(tmp_path):
     _compile(tmp_path)
     with _server(tmp_path) as (base, trace_file):
         token = _authenticate(base)
         trace_file.write_text("", encoding="utf-8")
-        _create_commande(base, token)
+        _create_order(base, token)
 
         _assert_lookup_layout(tmp_path)
         _assert_one_revocation_lookup(trace_file)
@@ -202,7 +202,7 @@ def test_counterproof_missing_indexes_turn_the_witness_red(
         _assert_lookup_layout(tmp_path)
 
 
-def test_contre_epreuve_un_unique_recoit_un_second_index_si_dedoublonnage_desarme(
+def test_counter_proof_a_unique_gets_a_second_index_if_dedup_disarmed(
         tmp_path, monkeypatch):
     """Disarming the deduplication turns its dedicated witness red."""
     original = MonlSecureGenerator._compute_lookup_indexes
@@ -254,7 +254,7 @@ def test_counterproof_two_distinct_dependencies_turn_the_counter_red(
     with _server(tmp_path) as (base, trace_file):
         token = _authenticate(base, "double@example.test")
         trace_file.write_text("", encoding="utf-8")
-        _create_commande(base, token)
+        _create_order(base, token)
         assert len(_revocation_selects(trace_file)) == 3
         with pytest.raises(AssertionError):
             _assert_one_revocation_lookup(trace_file)

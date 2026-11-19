@@ -22,7 +22,7 @@ from monl.planning import (
     plan_relations,
     plan_routes,
 )
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cas import check_each_case
 
 
 def test_qualified_routes_merge_without_confusing_actions_and_functions():
@@ -123,7 +123,7 @@ def test_derivation_chooses_the_source_not_the_owning_parent():
         copy["factor"] = "autreQuantite"
         assert plan.factor == "quantite"
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
 def test_derivations_keep_several_sources_and_field_order():
@@ -160,7 +160,7 @@ def test_derivation_refuses_a_missing_or_wrong_way_relation():
         with pytest.raises(ValueError, match=r"no foreign-key column.*'Ligne'.*'Produit'.*derivedFrom"):
             plan_derivations([rule], relations)
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
 def test_aggregation_shares_an_immutable_plan_and_selects_the_right_parent():
@@ -189,7 +189,7 @@ def test_aggregation_shares_an_immutable_plan_and_selects_the_right_parent():
         with pytest.raises(TypeError):
             plans.by_source["Ligne"] = ()
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
 def test_aggregation_indexes_several_sums_without_losing_the_trigger():
@@ -218,7 +218,7 @@ def test_aggregation_refuses_a_parent_without_foreign_key_on_the_child():
         with pytest.raises(ValueError, match=r"no foreign-key column.*'Ligne'.*'Commande'.*sumOf"):
             plan_aggregations([rule], relations)
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
 def test_counter_resolves_the_target_and_keeps_the_zero_floor():
@@ -252,7 +252,7 @@ def test_counter_resolves_the_target_and_keeps_the_zero_floor():
         with pytest.raises(TypeError):
             plans["Ligne"] = ()
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
 def test_constant_and_variable_counters_are_not_confused():
@@ -284,4 +284,4 @@ def test_counter_refuses_a_missing_or_reversed_relation():
         with pytest.raises(ValueError, match=r"no foreign key.*'Ligne'.*'Produit'"):
             plan_counters([rule], relations, {})
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)

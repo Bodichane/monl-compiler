@@ -37,7 +37,7 @@ from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import compile_project
 from monl.parser import parse_monl_string
 from monl.serving import rendre_wrapper
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cas import check_each_case
 from tests.support.server import free_port as _port_libre
 
 SPEC = """app BancAssets
@@ -79,7 +79,7 @@ def _valide(spec, base_dir=None):
     return MonlAST(parse_monl_string(spec), base_dir=base_dir).validate_and_audit()
 
 
-def _projet(racine, photo="assets/chaise.jpg", dossier="assets"):
+def _project(racine, photo="assets/chaise.jpg", dossier="assets"):
     """A complete project on disk: spec, real assets, minimal frontend."""
     (racine / dossier).mkdir(parents=True, exist_ok=True)
     (racine / dossier / "logo.svg").write_text(
@@ -103,7 +103,7 @@ def _projet(racine, photo="assets/chaise.jpg", dossier="assets"):
 def test_a_project_whose_assets_exist_compiles(tmp_path, capsys):
     """The witness of all the refusals below: without it, a validator refusing
     EVERY asset would pass them all."""
-    spec = _projet(tmp_path)
+    spec = _project(tmp_path)
     ast = _valide(spec.read_text(encoding="utf-8"), base_dir=str(tmp_path))
     assert ast["assets"]["dir"] == "assets"
     assert ast["assets"]["logo"] == "logo.svg"
@@ -113,7 +113,7 @@ def test_a_project_whose_assets_exist_compiles(tmp_path, capsys):
 def test_a_missing_seed_photo_does_not_compile(tmp_path):
     """Point 83's exact defect: this case compiled, and the broken image only
     showed by eye, online."""
-    spec = _projet(tmp_path, photo="assets/absente.jpg")
+    spec = _project(tmp_path, photo="assets/absente.jpg")
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec.read_text(encoding="utf-8"), base_dir=str(tmp_path))
     message = str(refus.value)
@@ -124,7 +124,7 @@ def test_a_missing_seed_photo_does_not_compile(tmp_path):
 
 
 def test_a_declared_but_missing_logo_does_not_compile(tmp_path):
-    spec = _projet(tmp_path)
+    spec = _project(tmp_path)
     spec.write_text(spec.read_text(encoding="utf-8")
                     .replace('logo: "logo.svg"', 'logo: "logo-absent.svg"'),
                     encoding="utf-8")
@@ -149,7 +149,7 @@ def test_malformed_paths_are_refused_without_touching_disk():
             _valide(spec)                      # AUCUN base_dir
         assert fragment in str(refus.value)
 
-    verifier_chaque_cas(table, cas)
+    check_each_case(table, cas)
 
 
 def test_without_base_dir_existence_is_not_checked(capsys):
@@ -177,7 +177,7 @@ def test_a_remote_address_stays_allowed_as_String(capsys):
 # --------------------------------------------------------------------------
 
 def test_the_contract_declares_the_assets_and_the_media_role(tmp_path, capsys):
-    spec = _projet(tmp_path)
+    spec = _project(tmp_path)
     contrat = compile_project(str(spec), str(tmp_path))
     capsys.readouterr()
 
@@ -200,7 +200,7 @@ def test_the_contract_declares_the_assets_and_the_media_role(tmp_path, capsys):
 
 def test_the_media_role_comes_from_the_type_not_the_name(tmp_path, capsys):
     """The proof that the type takes precedence: a name no heuristic recognizes."""
-    spec = _projet(tmp_path)
+    spec = _project(tmp_path)
     spec.write_text(spec.read_text(encoding="utf-8")
                     .replace("photo: Image", "cliche: Image")
                     .replace('photo: "assets/chaise.jpg"', 'cliche: "assets/chaise.jpg"'),
@@ -218,7 +218,7 @@ def test_the_media_role_comes_from_the_type_not_the_name(tmp_path, capsys):
 # --------------------------------------------------------------------------
 
 @contextlib.contextmanager
-def _serveur(dossier, assets_dir="assets"):
+def _server(dossier, assets_dir="assets"):
     """The project served by the SAME wrapper as 'monl run' — that is what makes
     the test representative: a homemade test wrapper would prove nothing about
     the real wrapper."""
@@ -258,11 +258,11 @@ def test_the_assets_are_really_served(tmp_path, capsys):
     AFTER /site's would exist without ever answering: /site would absorb
     /site/assets/… to look for it in frontend/, where it is not. Checked by
     swapping the order: three 404s."""
-    spec = _projet(tmp_path)
+    spec = _project(tmp_path)
     compile_project(str(spec), str(tmp_path))
     capsys.readouterr()
 
-    with _serveur(tmp_path) as base:
+    with _server(tmp_path) as base:
         statut, corps = _statut(f"{base}/site/assets/logo.svg")
         assert statut == 200, "le logo déclaré n'est pas servi"
         assert b"svg" in corps
@@ -289,11 +289,11 @@ def test_the_seed_photo_is_served_at_the_url_the_api_returns(tmp_path, capsys):
     """The end to end that counts: the API returns a path, that path must answer.
     It is exactly what a browser chains, and what neither the consistency check
     nor jsdom checked."""
-    spec = _projet(tmp_path)
+    spec = _project(tmp_path)
     compile_project(str(spec), str(tmp_path))
     capsys.readouterr()
 
-    with _serveur(tmp_path) as base:
+    with _server(tmp_path) as base:
         with urllib.request.urlopen(f"{base}/product?limit=5", timeout=5) as r:
             produits = json.loads(r.read())["data"]
         assert produits, "le seed n'a rien inséré"
@@ -324,7 +324,7 @@ def test_assets_without_frontend_pass_the_smoke_test(tmp_path, capsys):
     are assets, like `monl run`."""
     from monl.smoke_test import run_smoke_test
 
-    spec = _projet(tmp_path)
+    spec = _project(tmp_path)
     shutil.rmtree(tmp_path / "frontend")
     compile_project(str(spec), str(tmp_path))
     capsys.readouterr()

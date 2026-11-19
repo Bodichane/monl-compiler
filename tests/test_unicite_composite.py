@@ -113,7 +113,7 @@ def test_a_unique_field_duplicate_keeps_its_own_message(scene):
     assert "note must be unique" in reponse.json()["detail"]
 
 
-def test_lindex_compose_existe_reellement_en_base(scene):
+def test_the_composite_index_really_exists_in_the_database(scene):
     """Uniqueness rests on a SQLite index, not an application check: it is the
     index that also protects two concurrent requests."""
     connexion = sqlite3.connect(scene["projet"] / "app.db")

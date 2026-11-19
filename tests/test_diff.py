@@ -66,14 +66,14 @@ def _empreinte(dossier):
 
 
 @pytest.fixture
-def projet(tmp_path, capsys):
+def project(tmp_path, capsys):
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     capsys.readouterr()
     return tmp_path
 
 
-def _lignes_de_delta(sortie):
+def _delta_lines(sortie):
     """The report lines, without the compilation noise nor the banners specific
     to each of the two gestures."""
     gardees, dedans = [], False
@@ -90,88 +90,88 @@ def _lignes_de_delta(sortie):
     return gardees
 
 
-def _modifier(projet):
-    spec = (projet / "spec.ml").read_text(encoding="utf-8")
+def _modifier(project):
+    spec = (project / "spec.ml").read_text(encoding="utf-8")
     spec = spec.replace("    corps: Text", "    corps: Text\n    chapeau: String")
     spec = spec.replace("rule Article.Read public",
                         "rule Article.Read public\n"
                         'rule Article.statut oneOf "brouillon", "publie"')
     spec = spec.replace("    titre: String", "    titre: String\n    statut: String")
-    (projet / "spec.ml").write_text(spec, encoding="utf-8")
+    (project / "spec.ml").write_text(spec, encoding="utf-8")
 
 
 # --------------------------------------------------------------------------
 # What the dry run must NOT do
 # --------------------------------------------------------------------------
 
-def test_diff_writes_nothing_when_the_spec_changed(projet, capsys):
+def test_diff_writes_nothing_when_the_spec_changed(project, capsys):
     """THE test that carries the gesture. The fingerprint covers the whole tree."""
-    _modifier(projet)
-    avant = _empreinte(projet)
-    cmd_diff(str(projet))
+    _modifier(project)
+    avant = _empreinte(project)
+    cmd_diff(str(project))
     capsys.readouterr()
-    assert _empreinte(projet) == avant
+    assert _empreinte(project) == avant
 
 
-def test_diff_does_not_write_the_evolution_instruction(projet, capsys):
+def test_diff_does_not_write_the_evolution_instruction(project, capsys):
     """`update` writes FRONTEND_UPDATE_PROMPT.md when there is something to
     rewrite. `diff` must announce the same change and drop nothing."""
-    _modifier(projet)
-    cmd_diff(str(projet))
+    _modifier(project)
+    cmd_diff(str(project))
     capsys.readouterr()
-    assert not (projet / "docs/FRONTEND_UPDATE_PROMPT.md").exists()
+    assert not (project / "docs/FRONTEND_UPDATE_PROMPT.md").exists()
 
-    cmd_update(str(projet))
+    cmd_update(str(project))
     capsys.readouterr()
-    assert (projet / "docs/FRONTEND_UPDATE_PROMPT.md").exists()
+    assert (project / "docs/FRONTEND_UPDATE_PROMPT.md").exists()
 
 
-def test_diff_does_not_touch_the_reference_contract(projet, capsys):
+def test_diff_does_not_touch_the_reference_contract(project, capsys):
     """The contract already in place is the comparison's REFERENCE: overwriting
     it during a dry run would make the next gesture blind."""
-    _modifier(projet)
-    avant = (projet / "frontend_contract.json").read_text(encoding="utf-8")
-    cmd_diff(str(projet))
+    _modifier(project)
+    avant = (project / "frontend_contract.json").read_text(encoding="utf-8")
+    cmd_diff(str(project))
     capsys.readouterr()
-    assert (projet / "frontend_contract.json").read_text(encoding="utf-8") == avant
+    assert (project / "frontend_contract.json").read_text(encoding="utf-8") == avant
 
 
 # --------------------------------------------------------------------------
 # What it must say
 # --------------------------------------------------------------------------
 
-def test_diff_and_update_say_exactly_the_same_thing(projet, capsys):
+def test_diff_and_update_say_exactly_the_same_thing(project, capsys):
     """The test the gesture called for from its design: one report, one source.
     Two implementations of the delta would end up diverging."""
-    _modifier(projet)
-    cmd_diff(str(projet))
-    par_diff = _lignes_de_delta(capsys.readouterr().out)
-    cmd_update(str(projet))
-    par_update = _lignes_de_delta(capsys.readouterr().out)
+    _modifier(project)
+    cmd_diff(str(project))
+    par_diff = _delta_lines(capsys.readouterr().out)
+    cmd_update(str(project))
+    par_update = _delta_lines(capsys.readouterr().out)
 
     assert par_diff == par_update
     assert par_diff, "le banc doit produire un delta, sinon il ne compare rien"
 
 
-def test_diff_stays_quiet_when_the_spec_did_not_move(projet, capsys):
-    cmd_diff(str(projet))
+def test_diff_stays_quiet_when_the_spec_did_not_move(project, capsys):
+    cmd_diff(str(project))
     sortie = capsys.readouterr().out
     assert "no interface changes" in sortie
     assert "monl update" not in sortie, \
         "ne pas envoyer appliquer un changement qui n'existe pas"
 
 
-def test_diff_announces_it_wrote_nothing(projet, capsys):
-    _modifier(projet)
-    cmd_diff(str(projet))
+def test_diff_announces_it_wrote_nothing(project, capsys):
+    _modifier(project)
+    cmd_diff(str(project))
     sortie = capsys.readouterr().out
     assert "[DRY-RUN]" in sortie
     assert "No files changed" in sortie
 
 
-def test_diff_points_to_update_when_there_is_something(projet, capsys):
-    _modifier(projet)
-    cmd_diff(str(projet))
+def test_diff_points_to_update_when_there_is_something(project, capsys):
+    _modifier(project)
+    cmd_diff(str(project))
     assert "monl update" in capsys.readouterr().out
 
 
@@ -210,12 +210,12 @@ def test_diff_finds_the_real_projects_assets(tmp_path, capsys):
     assert "manquant" not in sortie
 
 
-def test_a_broken_spec_shows_the_compiler_message(projet, capsys):
+def test_a_broken_spec_shows_the_compiler_message(project, capsys):
     """When the trial compilation fails, ITS message is the useful one — ours
     would only say "it did not work"."""
-    spec = (projet / "spec.ml").read_text(encoding="utf-8")
-    (projet / "spec.ml").write_text(
+    spec = (project / "spec.ml").read_text(encoding="utf-8")
+    (project / "spec.ml").write_text(
         spec + "rule Article.fantome hidden\n", encoding="utf-8")
     with pytest.raises(SystemExit):
-        cmd_diff(str(projet))
+        cmd_diff(str(project))
     assert "fantome" in capsys.readouterr().out

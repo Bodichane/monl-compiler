@@ -16,9 +16,9 @@ again), and each carries `-rs` (otherwise the summary exists but names
 nobody).
 """
 
-from support.ci_workflow import CI, commandes_pytest, project_addopts
+from support.ci_workflow import CI, project_addopts, pytest_commands
 
-# `commandes_pytest` lives in `tests/support/ci_workflow.py` and not here: two
+# `pytest_commands` lives in `tests/support/ci_workflow.py` and not here: two
 # test files now read this workflow, and two readings of the same YAML folding
 # would diverge (point 146). Its extractor witness stays at the bottom of THIS
 # file — this is where it was born.
@@ -34,7 +34,7 @@ def test_the_project_does_set_q_in_addopts():
 
 
 def test_no_ci_command_sets_q_again():
-    commandes = commandes_pytest(CI.read_text(encoding="utf-8"))
+    commandes = pytest_commands(CI.read_text(encoding="utf-8"))
     assert commandes, "aucune invocation pytest trouvée dans ci.yml"
     fautives = [c for c in commandes if "-q" in c.split()]
     assert not fautives, (
@@ -43,7 +43,7 @@ def test_no_ci_command_sets_q_again():
 
 
 def test_every_ci_command_names_skipped_tests():
-    commandes = commandes_pytest(CI.read_text(encoding="utf-8"))
+    commandes = pytest_commands(CI.read_text(encoding="utf-8"))
     assert commandes, "aucune invocation pytest trouvée dans ci.yml"
     muettes = [c for c in commandes
                if not any(o.startswith("-r") and "s" in o[2:] for o in c.split())]
@@ -52,7 +52,7 @@ def test_every_ci_command_names_skipped_tests():
         f"et personne ne le lit. Commande(s) : {muettes}")
 
 
-# The two tests above are only worth what `commandes_pytest` is worth. An
+# The two tests above are only worth what `pytest_commands` is worth. An
 # extractor that finds NOTHING would make them green while looking at nothing —
 # the exact error this file exists to forbid elsewhere.
 CI_TEMOIN = """
@@ -72,7 +72,7 @@ CI_TEMOIN = """
 
 
 def test_the_extractor_finds_both_forms_without_mixing_them():
-    commandes = commandes_pytest(CI_TEMOIN)
+    commandes = pytest_commands(CI_TEMOIN)
     assert len(commandes) == 2, commandes
     assert commandes[0].endswith("--cov=src/monl")
     # The folded command is joined back IN FULL: otherwise the `-q` on its
@@ -86,7 +86,7 @@ def test_both_rules_bite_on_a_faulty_workflow():
     """The counter-proof: on the witness above, which sets `-q` and has no
     `-rs`, both rules must REPORT. A test that passes does not prove it bites
     (point 145)."""
-    commandes = commandes_pytest(CI_TEMOIN)
+    commandes = pytest_commands(CI_TEMOIN)
     assert [c for c in commandes if "-q" in c.split()] == commandes
     assert [c for c in commandes
             if not any(o.startswith("-r") and "s" in o[2:] for o in c.split())] == commandes

@@ -5,7 +5,7 @@ import json
 from io import BytesIO
 
 import pytest
-from aide_sections import sections_du_manifeste
+from aide_sections import manifest_sections
 
 from monl import cli, image_ai
 from monl.cli import compile_project
@@ -71,7 +71,7 @@ def _manifest(project):
 def _frontend_from_manifest(project):
     manifest = _manifest(project)
     images = [item["path"] for item in manifest["generated_assets"]]
-    sections = sections_du_manifeste(manifest)
+    sections = manifest_sections(manifest)
     pictures = "\n".join(
         f'<img src="{path}" alt="visuel du projet">' for path in images
     )
@@ -148,7 +148,7 @@ class ReusingTextProvider(FakeTextProvider):
         self.prompts.append(prompt)
         manifest = _manifest(self.project)
         paths = [item["path"] for item in manifest["generated_assets"]]
-        sections = sections_du_manifeste(manifest)
+        sections = manifest_sections(manifest)
         images = "".join(
             f'<img src="{path}" alt="visuel du projet">'
             f'<img src="{path}" alt="visuel dupliqué">'
@@ -340,7 +340,7 @@ def test_image_prompt_reduction_cuts_neither_word_nor_sentence(tmp_path):
     assert not prompt.splitlines()[0].endswith("motlon")
 
 
-def test_yandexart_refuse_localement_un_prompt_au_dessus_de_son_plafond(
+def test_yandexart_locally_refuses_a_prompt_above_its_ceiling(
         monkeypatch):
     monkeypatch.setenv("YANDEX_API_KEY", "cle-image")
     monkeypatch.setenv("YANDEX_FOLDER_ID", "folder-image")
@@ -405,7 +405,7 @@ def test_missing_yandexart_key_names_the_variable_without_breaking_text(tmp_path
     text.last_usage = None
     # The option not being requested, the missing image provider is never built
     # and the text path stays usable.
-    content = ("<html><body>" + sections_du_manifeste(_manifest(project))
+    content = ("<html><body>" + manifest_sections(_manifest(project))
                + "</body></html>")
     def text_provider(_prompt):
         return json.dumps({"files": {"index.html": content}})
@@ -527,7 +527,7 @@ def test_yandexart_accepts_the_width_ratio_form(monkeypatch):
     }) == JPEG_BYTES
 
 
-def test_yandexart_refuse_un_dossier_absent(monkeypatch):
+def test_yandexart_refuses_a_missing_folder(monkeypatch):
     monkeypatch.setenv("YANDEX_API_KEY", "cle-image")
     monkeypatch.delenv("YANDEX_FOLDER_ID", raising=False)
 
@@ -543,7 +543,7 @@ def test_yandexart_refuse_un_dossier_absent(monkeypatch):
         ({"width": True, "height": 9}, "Aspect ratio dimensions must be positive integers"),
     ],
 )
-def test_yandexart_refuse_un_rapport_d_aspect_invalide(
+def test_yandexart_refuses_an_invalid_aspect_ratio(
         monkeypatch, aspect_ratio, message):
     monkeypatch.setenv("YANDEX_API_KEY", "cle-image")
     monkeypatch.setenv("YANDEX_FOLDER_ID", "folder-image")
@@ -608,7 +608,7 @@ def test_yandexart_reports_an_initial_http_failure(monkeypatch):
         (200, {"done": True}, False, "without returning image data"),
     ],
 )
-def test_yandexart_refuse_un_etat_d_operation_inexploitable(
+def test_yandexart_refuses_an_unusable_operation_state(
         monkeypatch, status, payload, json_error, message):
     monkeypatch.setenv("YANDEX_API_KEY", "cle-image")
     monkeypatch.setenv("YANDEX_FOLDER_ID", "folder-image")
@@ -665,7 +665,7 @@ def test_yandexart_reports_an_http_failure_while_polling(monkeypatch):
     ("pas-un-nombre", "must be a positive number"),
     ("0", "must be a positive number"),
 ])
-def test_yandexart_refuse_un_reglage_de_polling_invalide(monkeypatch, raw, message):
+def test_yandexart_refuses_an_invalid_polling_setting(monkeypatch, raw, message):
     monkeypatch.setenv("YANDEX_API_KEY", "cle-image")
     monkeypatch.setenv("YANDEX_FOLDER_ID", "folder-image")
     monkeypatch.setenv("MONL_IMAGE_POLL_TIMEOUT", raw)

@@ -37,7 +37,7 @@ import pytest
 
 from monl.cli import compile_project
 from monl.smoke_test import _sample_value, run_smoke_test
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cas import check_each_case
 from tests.support.processus import arreter_processus
 from tests.support.server import free_port as _port_libre
 
@@ -201,7 +201,7 @@ def test_a_malformed_reference_is_refused(application):
                          {"reference": valeur, "libelle": "essai"}, jeton)
         assert code == 422
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
 def test_a_well_formed_reference_stays_accepted(application):
@@ -215,4 +215,4 @@ def test_a_well_formed_reference_stays_accepted(application):
                          {"reference": valeur, "libelle": "essai"}, jeton)
         assert code == 200
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)

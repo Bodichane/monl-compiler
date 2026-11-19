@@ -134,7 +134,7 @@ def app_server():
 # Privilege escalation through registration
 # --------------------------------------------------------------------------
 
-def test_role_provisionne_refuse_a_inscription(app_server):
+def test_provisioned_role_refused_at_registration(app_server):
     """A client cannot assign itself a role absent from 'selfRegister'."""
     r = requests.post(app_server.base + "/register",
                       json={"username": "pirate", "password": "motdepasse123", "actor": "Admin"})
@@ -143,7 +143,7 @@ def test_role_provisionne_refuse_a_inscription(app_server):
     assert _login(app_server.base, "pirate").status_code == 401
 
 
-def test_role_ouvert_accepte_puis_reste_confine(app_server):
+def test_open_role_accepted_then_stays_confined(app_server):
     """The 'selfRegister' role registers, but does not get Admin rights."""
     requests.post(app_server.base + "/register",
                   json={"username": "membre", "password": "motdepasse123", "actor": "Member"})

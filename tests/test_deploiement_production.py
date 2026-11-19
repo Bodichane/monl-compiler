@@ -137,7 +137,7 @@ def test_smoke_platform_probes_both_endpoints_and_is_executable():
     assert "curl --fail" in contenu
 
 
-def test_script_deploiement_enchaine_validation_compose_et_readiness():
+def test_deploy_script_chains_validation_compose_and_readiness():
     script = RACINE / "scripts/deploy_platform.sh"
     contenu = script.read_text(encoding="utf-8")
 
@@ -321,7 +321,7 @@ def test_example_env_passes_production_validation():
     assert valider(valeurs, erreurs_lecture) == []
 
 
-def test_validation_refuse_un_domaine_local_ou_un_proxy_non_securise():
+def test_validation_refuses_a_local_domain_or_an_insecure_proxy():
     erreurs = valider({
         "MONL_PLATFORM_DOMAIN": "localhost",
         "MONL_PLATFORM_PUBLIC_URL": "http://localhost",
@@ -359,7 +359,7 @@ def test_validation_requires_the_state_secret_if_oauth_is_enabled():
     assert any("OAUTH_STATE_SECRET" in erreur for erreur in erreurs)
 
 
-def test_validation_refuse_un_secret_detat_oauth_trop_court():
+def test_validation_refuses_a_too_short_oauth_state_secret():
     erreurs = valider({
         "MONL_PLATFORM_DOMAIN": "monl.example.com",
         "MONL_PLATFORM_PUBLIC_URL": "https://monl.example.com",

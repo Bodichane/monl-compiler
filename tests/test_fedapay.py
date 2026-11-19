@@ -34,7 +34,7 @@ import requests
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cas import check_each_case
 from tests.support.server import uvicorn_server
 from tests.test_paiement import SPEC_BOUTIQUE
 
@@ -165,7 +165,7 @@ def _application(faux, avec_cles=True):
             yield base, dossier
 
 
-def _commande(base, dossier, montant, identifiant):
+def _order(base, dossier, montant, identifiant):
     cnx = sqlite3.connect(os.path.join(dossier, "app.db"))
     try:
         with cnx:
@@ -224,7 +224,7 @@ def test_both_calls_go_out_with_the_database_amount(faux_fedapay):
     """Creation then token: creation alone returns NO URL, stopping there would
     deliver a "Pay" button leading nowhere."""
     with _application(faux_fedapay) as (base, dossier):
-        identifiant, entetes = _commande(base, dossier, 5000, "awa@example.com")
+        identifiant, entetes = _order(base, dossier, 5000, "awa@example.com")
         faux_fedapay.recu.clear()
         reglement = requests.post(f"{base}/commande/{identifiant}/paiement",
                                   headers=entetes, timeout=10)
@@ -252,7 +252,7 @@ def test_both_calls_go_out_with_the_database_amount(faux_fedapay):
 
 def test_the_signed_webhook_marks_the_order_paid(faux_fedapay):
     with _application(faux_fedapay) as (base, dossier):
-        identifiant, entetes = _commande(base, dossier, 5000, "leo@example.com")
+        identifiant, entetes = _order(base, dossier, 5000, "leo@example.com")
         requests.post(f"{base}/commande/{identifiant}/paiement",
                       headers=entetes, timeout=10)
         assert _etat(dossier, identifiant) == "en_attente"
@@ -279,7 +279,7 @@ def test_a_badly_signed_webhook_pays_nothing(faux_fedapay):
 
     def cas(entete):
         with _application(faux_fedapay) as (base, dossier):
-            identifiant, entetes = _commande(base, dossier, 5000, f"x{len(entete)}@e.fr")
+            identifiant, entetes = _order(base, dossier, 5000, f"x{len(entete)}@e.fr")
             requests.post(f"{base}/commande/{identifiant}/paiement",
                           headers=entetes, timeout=10)
             corps = json.dumps({"name": "transaction.approved",
@@ -292,7 +292,7 @@ def test_a_badly_signed_webhook_pays_nothing(faux_fedapay):
             assert reponse.status_code == 400, reponse.text
             assert _etat(dossier, identifiant) == "en_attente"
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
 def test_a_signature_dated_in_the_future_is_refused(faux_fedapay):
@@ -304,7 +304,7 @@ def test_a_signature_dated_in_the_future_is_refused(faux_fedapay):
     91).
     """
     with _application(faux_fedapay) as (base, dossier):
-        identifiant, entetes = _commande(base, dossier, 5000, "futur@example.com")
+        identifiant, entetes = _order(base, dossier, 5000, "futur@example.com")
         requests.post(f"{base}/commande/{identifiant}/paiement",
                       headers=entetes, timeout=10)
         corps = json.dumps({"name": "transaction.approved",
@@ -325,7 +325,7 @@ def test_a_payload_of_unknown_shape_writes_nothing(faux_fedapay):
     writes NOTHING rather than guessing. Being wrong then costs an unrecorded
     payment, not the wrong record marked paid."""
     with _application(faux_fedapay) as (base, dossier):
-        identifiant, entetes = _commande(base, dossier, 5000, "forme@example.com")
+        identifiant, entetes = _order(base, dossier, 5000, "forme@example.com")
         requests.post(f"{base}/commande/{identifiant}/paiement",
                       headers=entetes, timeout=10)
         corps = json.dumps({"name": "transaction.approved",
@@ -343,7 +343,7 @@ def test_without_key_the_server_refuses_naming_the_variable(faux_fedapay):
     """Point 74's invariant: 503 naming the missing variable, and the rest of the
     server intact — `monl run` and the smoke test stay green offline."""
     with _application(faux_fedapay, avec_cles=False) as (base, dossier):
-        identifiant, entetes = _commande(base, dossier, 5000, "sanscle@example.com")
+        identifiant, entetes = _order(base, dossier, 5000, "sanscle@example.com")
         reponse = requests.post(f"{base}/commande/{identifiant}/paiement",
                                 headers=entetes, timeout=10)
         assert reponse.status_code == 503
@@ -399,7 +399,7 @@ def test_stripe_is_bound_to_no_currency():
 def test_the_provider_reference_is_memorized_at_opening(faux_fedapay):
     """Without this memorization, the webhook fallback has nothing to compare."""
     with _application(faux_fedapay) as (base, dossier):
-        identifiant, entetes = _commande(base, dossier, 5000, "memo@example.com")
+        identifiant, entetes = _order(base, dossier, 5000, "memo@example.com")
         assert _reference(dossier, identifiant) in (None, "")
         requests.post(f"{base}/commande/{identifiant}/paiement",
                       headers=entetes, timeout=10)
@@ -415,7 +415,7 @@ def test_a_webhook_without_merchant_reference_is_matched_by_id(faux_fedapay):
     established by code in production — `merchant_reference` is documented on the
     transaction, never on the webhook payload."""
     with _application(faux_fedapay) as (base, dossier):
-        identifiant, entetes = _commande(base, dossier, 5000, "repli@example.com")
+        identifiant, entetes = _order(base, dossier, 5000, "repli@example.com")
         requests.post(f"{base}/commande/{identifiant}/paiement",
                       headers=entetes, timeout=10)
         corps = json.dumps({
@@ -435,7 +435,7 @@ def test_an_unknown_transaction_id_matches_nothing(faux_fedapay):
     fallback marking the first comer paid would be worse than no fallback at all —
     fail-closed is what holds the whole brick."""
     with _application(faux_fedapay) as (base, dossier):
-        identifiant, entetes = _commande(base, dossier, 5000, "inconnu@example.com")
+        identifiant, entetes = _order(base, dossier, 5000, "inconnu@example.com")
         requests.post(f"{base}/commande/{identifiant}/paiement",
                       headers=entetes, timeout=10)
         corps = json.dumps({

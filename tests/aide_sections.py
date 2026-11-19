@@ -25,7 +25,7 @@ RESSOURCE_DISTANTE = re.compile(
 )
 
 
-def section_avec_matiere(marker, regle=None):
+def section_with_substance(marker, regle=None):
     """Une section de test qui porte sa MATIÈRE, pas seulement son nom.
 
     Depuis le point 143, une section marquée mais vide fait échouer la
@@ -48,10 +48,10 @@ def section_avec_matiere(marker, regle=None):
     return f"<section {marker}>" + "".join(corps) + "</section>"
 
 
-def sections_du_manifeste(manifest, fichier="index.html"):
+def manifest_sections(manifest, fichier="index.html"):
     """Rend toutes les sections obligatoires d'un manifeste, avec leur matière."""
     regles = (manifest.get("section_substance") or {}).get(fichier, {})
     return "\n".join(
-        section_avec_matiere(marker, regles.get(marker))
+        section_with_substance(marker, regles.get(marker))
         for marker in manifest["required_markers"][fichier]
     )

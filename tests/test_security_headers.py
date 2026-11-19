@@ -38,7 +38,7 @@ def assert_headers(response):
     assert "frame-ancestors 'none'" in response.headers['Content-Security-Policy']
 
 
-def test_api_site_erreurs_et_hsts(project):
+def test_api_site_errors_and_hsts(project):
     with uvicorn_server(project, module='serve:app') as base:
         for path, status in [('/health', 200), ('/site/', 200), ('/site', 307),
                              ('/absent', 404), ('/note', 401), ('/temoin-500', 500)]:
@@ -62,7 +62,7 @@ def test_api_site_erreurs_et_hsts(project):
 
 
 @pytest.mark.parametrize('path', ['/docs', '/redoc'])
-def test_documentation_et_ressources_cdn(project, path):
+def test_documentation_and_cdn_resources(project, path):
     with uvicorn_server(project, module='serve:app') as base:
         response = requests.get(base + path, timeout=10)
         assert response.status_code == 200

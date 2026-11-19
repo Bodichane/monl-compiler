@@ -81,7 +81,7 @@ def _documents() -> dict[str, str]:
     return {p.relative_to(RACINE).as_posix(): p.read_text(encoding="utf-8") for p in chemins}
 
 
-def _citations_de_fichiers(texte: str) -> list[str]:
+def _file_citations(texte: str) -> list[str]:
     citations = []
     for brut in MOTIF_CODE.findall(texte):
         cible = brut.strip().rstrip(".,:;")
@@ -92,11 +92,11 @@ def _citations_de_fichiers(texte: str) -> list[str]:
     return citations
 
 
-def _liens(texte: str) -> list[str]:
+def _links(texte: str) -> list[str]:
     return [cible.split(maxsplit=1)[0].strip("<>") for cible in MOTIF_LIEN.findall(texte)]
 
 
-def _commandes(parseur: argparse.ArgumentParser) -> set[str]:
+def _orders(parseur: argparse.ArgumentParser) -> set[str]:
     return {
         choix
         for action in parseur._actions
@@ -105,7 +105,7 @@ def _commandes(parseur: argparse.ArgumentParser) -> set[str]:
     }
 
 
-def _racines_de_paquets() -> tuple[str, ...]:
+def _package_roots() -> tuple[str, ...]:
     """The prefixes PACKAGING removes, read from `pyproject.toml`.
 
     A document describing the contents of a WHEEL cites `monl_platform/static/`,
@@ -127,7 +127,7 @@ def _racines_de_paquets() -> tuple[str, ...]:
     return racines
 
 
-RACINES_DE_PAQUETS = _racines_de_paquets()
+RACINES_DE_PAQUETS = _package_roots()
 
 
 def _resout(citation: str, document: str, fichiers: set[str]) -> bool:
@@ -154,7 +154,7 @@ def _resout(citation: str, document: str, fichiers: set[str]) -> bool:
     )
 
 
-def _commandes_citees(texte: str) -> list[tuple[str, str]]:
+def _cited_commands(texte: str) -> list[tuple[str, str]]:
     return [commande for code in MOTIF_CODE.findall(texte) for commande in MOTIF_CLI.findall(code)]
 
 
@@ -183,7 +183,7 @@ def test_every_shipped_verb_is_documented():
     three verbs were mentioned in passing in a sentence elsewhere, which does not
     make a reference one can look up.
     """
-    attendus = _commandes(build_monl_parser()) - set(VERBES_HORS_TABLEAU)
+    attendus = _orders(build_monl_parser()) - set(VERBES_HORS_TABLEAU)
     assert attendus, "extracteur inopérant : aucun verbe lu sur le parseur"
     tableau = (RACINE / TABLEAU_DES_COMMANDES).read_text(encoding="utf-8")
     lignes = [ligne for ligne in tableau.splitlines()
@@ -197,7 +197,7 @@ def test_every_shipped_verb_is_documented():
         f"verbes livrés et absents du tableau de {TABLEAU_DES_COMMANDES} : "
         f"{manquants}")
 
-    perimes = sorted(set(VERBES_HORS_TABLEAU) - _commandes(build_monl_parser()))
+    perimes = sorted(set(VERBES_HORS_TABLEAU) - _orders(build_monl_parser()))
     assert not perimes, f"exemption de verbe devenue inutile : {perimes}"
 
 
@@ -262,9 +262,9 @@ def test_the_extractors_cannot_succeed_on_nothing():
         "Voir `src/monl/cli/dispatch.py`, lancer `monl compile`, puis "
         "[le guide](docs/GUIDE.md). La suite avait 12 tests et 91,5 % de couverture."
     )
-    assert _citations_de_fichiers(exemple) == ["src/monl/cli/dispatch.py"]
-    assert _commandes_citees(exemple) == [("monl", "compile")]
-    assert _liens(exemple) == ["docs/GUIDE.md"]
+    assert _file_citations(exemple) == ["src/monl/cli/dispatch.py"]
+    assert _cited_commands(exemple) == [("monl", "compile")]
+    assert _links(exemple) == ["docs/GUIDE.md"]
     assert MOTIF_CHIFFRE_TESTS.search(exemple)
     assert MOTIF_COUVERTURE.search(exemple)
 
@@ -277,9 +277,9 @@ def test_the_documentation_respects_the_repository_invariants():
         cwd=RACINE, text=True
     ).splitlines())
     citations = {
-        doc: _citations_de_fichiers(texte) for doc, texte in documents.items()
+        doc: _file_citations(texte) for doc, texte in documents.items()
     }
-    commandes = {doc: _commandes_citees(texte) for doc, texte in documents.items()}
+    commandes = {doc: _cited_commands(texte) for doc, texte in documents.items()}
     assert sum(map(len, citations.values())), "extracteur inopérant : aucun chemin extrait"
     assert sum(map(len, commandes.values())), "extracteur inopérant : aucun verbe CLI extrait"
 
@@ -287,7 +287,7 @@ def test_the_documentation_respects_the_repository_invariants():
     # different places — but in BOTH cases it is what the code RUNS, never a
     # list kept for the test.
     commandes_valides = {
-        "monl": _commandes(build_monl_parser()),
+        "monl": _orders(build_monl_parser()),
         # The French aliases are served by the same dispatch: the design
         # journal, which stays in French, may cite them.
         "monl-platform": set(VERBES_PLATEFORME) | set(ALIAS_DES_VERBES),
@@ -317,7 +317,7 @@ def test_the_documentation_respects_the_repository_invariants():
             if verbe not in commandes_valides[programme]:
                 problemes_doc.append(f"verbe CLI inexistant `{programme} {verbe}`")
 
-        for cible in _liens(texte):
+        for cible in _links(texte):
             if re.match(r"^(?:https?://|mailto:|#)", cible):
                 continue
             if not _resout(cible, doc, fichiers):

@@ -125,10 +125,10 @@ class _RunningServer:
         self.process = process
         self.base = base
         self._morceaux = []
-        self._lecteur = threading.Thread(target=self._lire, daemon=True)
+        self._lecteur = threading.Thread(target=self._read, daemon=True)
         self._lecteur.start()
 
-    def _lire(self):
+    def _read(self):
         for ligne in self.process.stdout:
             self._morceaux.append(ligne)
 
@@ -448,7 +448,7 @@ def test_missing_smtp_variable_is_named(database_kind, faux_smtp, tmp_path):
         server.attendre("MONL_SMTP_HOST")
 
 
-def test_contrat_et_delta_voient_un_message(tmp_path, capsys):
+def test_contract_and_delta_see_a_message(tmp_path, capsys):
     spec = tmp_path / "spec.ml"
     spec.write_text(SPEC, encoding="utf-8")
     with contextlib.redirect_stdout(io.StringIO()):

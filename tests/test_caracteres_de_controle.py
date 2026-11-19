@@ -10,7 +10,7 @@ import json
 import pytest
 
 from monl.frontend_ai import FrontendAIError, parse_files_payload
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cas import check_each_case
 
 NUL = "\x00"
 
@@ -55,4 +55,4 @@ def test_legitimate_whitespace_stays_allowed():
         html = f"<h1>Titre</h1>{blanc}<p>Corps</p>"
         assert parse_files_payload(_reponse(html))["index.html"] == html
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)

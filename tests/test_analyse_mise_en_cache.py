@@ -51,14 +51,14 @@ def _compiler(monkeypatch, n_familles):
     appels = []
     vrai = planning.plan_foreign_keys
 
-    def compte(relations):
+    def account(relations):
         appels.append(1)
         return vrai(relations)
 
     # The replacement targets the module where the name is LOOKED UP (point
     # 153): `modele.py` imports the function, so that is where it is resolved.
     from monl.generator import modele
-    monkeypatch.setattr(modele, "plan_foreign_keys", compte)
+    monkeypatch.setattr(modele, "plan_foreign_keys", account)
 
     ir = MonlAST(parse_monl_string(_spec_a_effets(n_familles))).validate_and_audit()
     generateur = MonlSecureGenerator(ir)

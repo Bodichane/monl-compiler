@@ -261,7 +261,7 @@ def _appel(url, corps=None, jeton=None, methode=None):
                 return err.code, {"brut": brut[:300].decode("utf-8", "replace")}
 
 
-class _Serveur:
+class _Server:
     """An ephemeral server that can be stopped then RESTARTED on the same
     database — what the migration proof requires."""
 
@@ -306,7 +306,7 @@ class _Serveur:
 def carnet(tmp_path):
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
-    serveur = _Serveur(tmp_path)
+    serveur = _Server(tmp_path)
     base = serveur.demarrer()
     try:
         _appel(base + "/register", {"username": "zoe", "password": "motdepasse1",
@@ -373,7 +373,7 @@ def test_earlier_records_stay_without_date_and_the_server_says_so(tmp_path):
     before yesterday as today."""
     (tmp_path / "spec.ml").write_text(SANS_CHAMP, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
-    serveur = _Serveur(tmp_path)
+    serveur = _Server(tmp_path)
     base = serveur.demarrer()
     _appel(base + "/register", {"username": "zoe", "password": "motdepasse1",
                                 "actor": "Client"})
@@ -386,7 +386,7 @@ def test_earlier_records_stay_without_date_and_the_server_says_so(tmp_path):
     # The rule arrives on an ALREADY populated database.
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
-    serveur = _Serveur(tmp_path)
+    serveur = _Server(tmp_path)
     base = serveur.demarrer()
     try:
         _, jeton = _appel(base + "/login", {"username": "zoe", "password": "motdepasse1"})

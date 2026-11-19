@@ -35,7 +35,7 @@ def ancre_github(titre):
     return texte.replace(" ", "-")
 
 
-def _titres_et_liens():
+def _titles_and_links():
     contenu = JOURNAL.read_text(encoding="utf-8")
     titres = [(m.group(1), m.group(0)[3:])
               for m in re.finditer(r"^## (\d+)\. .+$", contenu, re.M)]
@@ -44,7 +44,7 @@ def _titres_et_liens():
 
 
 def test_each_contents_link_reaches_a_heading():
-    titres, liens = _titres_et_liens()
+    titres, liens = _titles_and_links()
     ancres = {ancre_github(titre) for _, titre in titres}
     pendants = [f"[{num}](#{lien})" for num, lien in liens if lien not in ancres]
     assert not pendants, (
@@ -63,7 +63,7 @@ def test_each_journal_point_is_in_the_contents():
     """The counterpart: a point written and never listed is a point nobody
     finds. Both directions are guarded, because both mistakes exist — the
     contents list citing a vanished heading, and the heading the list forgets."""
-    titres, liens = _titres_et_liens()
+    titres, liens = _titles_and_links()
     listes = {num for num, _ in liens}
     absents = sorted({num for num, _ in titres} - listes - SANS_CONTENU, key=int)
     assert not absents, f"points absents du sommaire : {absents}"
@@ -96,7 +96,7 @@ def test_the_english_summary_follows_the_journal_contents():
     summary link that no longer targets anything (the contents list's links
     being themselves guarded by the test above).
     """
-    _, liens = _titres_et_liens()
+    _, liens = _titles_and_links()
     resume = _summary_links()
     assert liens, "aucun lien lu dans le sommaire : l'extracteur ne regarde plus rien"
     manquants = sorted(set(liens) - set(resume), key=lambda lien: int(lien[0]))

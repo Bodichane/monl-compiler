@@ -205,7 +205,7 @@ def test_the_choices_reach_the_route(running_platform):
     assert "[1] Portfolio" in data["question"]
 
 
-def test_chaque_choix_porte_son_aide(running_platform):
+def test_each_choice_carries_its_help(running_platform):
     data = _premiere_question(running_platform)
     aides = data["hints"]
     for option in data["options"]:

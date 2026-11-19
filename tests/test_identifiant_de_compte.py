@@ -142,7 +142,7 @@ def _appel(url, corps=None, jeton=None, methode=None):
 
 
 @pytest.fixture
-def serveur(tmp_path):
+def server(tmp_path):
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     port = _port_libre()
@@ -197,25 +197,25 @@ def _connecter(base, dossier, login, mdp="motdepasse1"):
 
 @pytest.mark.parametrize("bon", ["alice@exemple.fr", "+33 6 12 34 56 78",
                                  "0612345699", "a.b+c@sous.domaine.co.uk"])
-def test_declared_forms_are_accepted(serveur, bon):
-    base, dossier = serveur
+def test_declared_forms_are_accepted(server, bon):
+    base, dossier = server
     code, reponse = _inscrire(base, dossier, bon)
     assert code == 200, reponse
 
 
 @pytest.mark.parametrize("mauvais", ["alice", "pas-un-courriel", "alice@",
                                      "@exemple.fr", "12345", "alice exemple.fr"])
-def test_other_forms_are_refused(serveur, mauvais):
-    base, dossier = serveur
+def test_other_forms_are_refused(server, mauvais):
+    base, dossier = server
     code, reponse = _inscrire(base, dossier, mauvais)
     assert code == 422, reponse
 
 
-def test_two_spellings_of_the_same_address_are_ONE_account(serveur):
+def test_two_spellings_of_the_same_address_are_ONE_account(server):
     """THE heart of the brick. Without a canonical form, the uniqueness check can
     be bypassed by changing a capital letter: two accounts for one person, and
     the second gets the first one's orders."""
-    base, dossier = serveur
+    base, dossier = server
     assert _inscrire(base, dossier, "alice@exemple.fr")[0] == 200
 
     code, reponse = _inscrire(base, dossier, "Alice@Exemple.FR")
@@ -225,9 +225,9 @@ def test_two_spellings_of_the_same_address_are_ONE_account(serveur):
     assert "address" in reponse["detail"] or "identifier" in reponse["detail"]
 
 
-def test_two_spellings_of_the_same_number_are_ONE_account(serveur):
+def test_two_spellings_of_the_same_number_are_ONE_account(server):
     """A number is typed with spaces, dots or dashes — never twice the same way."""
-    base, dossier = serveur
+    base, dossier = server
     assert _inscrire(base, dossier, "+33 6 12 34 56 78")[0] == 200
     for variante in ["+33612345678", "+33-6-12-34-56-78", "+33 (6) 12.34.56.78"]:
         code, reponse = _inscrire(base, dossier, variante)
@@ -236,28 +236,28 @@ def test_two_spellings_of_the_same_number_are_ONE_account(serveur):
 
 @pytest.mark.parametrize("variante", ["alice@exemple.fr", "Alice@Exemple.FR",
                                       "  alice@exemple.fr  ", "ALICE@EXEMPLE.FR"])
-def test_login_works_however_one_types(serveur, variante):
+def test_login_works_however_one_types(server, variante):
     """The OTHER half, and the one people forget: normalizing on one side only
     creates accounts one can no longer log into."""
-    base, dossier = serveur
+    base, dossier = server
     _inscrire(base, dossier, "alice@exemple.fr")
     code, reponse = _connecter(base, dossier, variante)
     assert code == 200, reponse
 
 
-def test_a_malformed_identifier_at_login_reveals_nothing(serveur):
+def test_a_malformed_identifier_at_login_reveals_nothing(server):
     """401 and not 422: login must not teach an attacker which form the accounts
     have — a malformed identifier simply does not exist."""
-    base, dossier = serveur
+    base, dossier = server
     code, _ = _connecter(base, dossier, "alice")
     assert code == 401
 
 
-def test_the_token_carries_the_canonical_form(serveur):
+def test_the_token_carries_the_canonical_form(server):
     """`sub` serves as identity throughout the backend: leaving the typed case in
     it would make two identities for one account."""
     import base64
-    base, dossier = serveur
+    base, dossier = server
     _inscrire(base, dossier, "alice@exemple.fr")
     _, reponse = _connecter(base, dossier, "Alice@Exemple.FR")
     corps = reponse["access_token"].split(".")[1]
@@ -265,11 +265,11 @@ def test_the_token_carries_the_canonical_form(serveur):
     assert json.loads(base64.urlsafe_b64decode(corps))["sub"] == "alice@exemple.fr"
 
 
-def test_manage_py_normalizes_like_the_server(serveur):
+def test_manage_py_normalizes_like_the_server(server):
     """The third place, the one people forget. An account provisioned offline
     with 'Patron@Ex.com' would be stored as is, and login — which normalizes —
     would look for 'patron@ex.com': a brand new account one cannot log into."""
-    base, dossier = serveur
+    base, dossier = server
     proc = subprocess.run(
         [sys.executable, "manage.py", "adduser", "Patron@Exemple.FR", "Patron"],
         cwd=str(dossier), input="motdepasse1\nmotdepasse1\n",
@@ -287,12 +287,12 @@ def test_manage_py_normalizes_like_the_server(serveur):
     assert code == 200, reponse
 
 
-def test_un_compte_anterieur_continue_de_fonctionner(serveur):
+def test_an_earlier_account_keeps_working(server):
     """The rule only applies to FUTURE registrations. Converting an existing
     account is impossible (an address is not invented) and deleting it would be
     worse — the server counts and names them at startup, as at point 89 for
     missing timestamps."""
-    base, dossier = serveur
+    base, dossier = server
     # THE TRAP: without this account, the INSERT ... SELECT below copies
     # NOTHING (empty table), and the test would pass proving the opposite of
     # what it announces — a 401 for a nonexistent account instead of a 401 for
@@ -342,13 +342,13 @@ def test_the_smoke_identifier_follows_the_declared_form():
     role refusal."""
     from monl.smoke_test import _identifiant_smoke
 
-    def contrat(formes):
+    def contract(formes):
         return {"api": {"auth": {"register": {"identifier_forms": formes}}}}
 
-    assert _identifiant_smoke(contrat(["email"])) == "smoke@monl.test"
-    assert _identifiant_smoke(contrat(["phone"])).startswith("+336")
-    assert _identifiant_smoke(contrat([])) == "smoke"
-    distincts = {_identifiant_smoke(contrat(["email"]), r) for r in (0, 1, 2)}
+    assert _identifiant_smoke(contract(["email"])) == "smoke@monl.test"
+    assert _identifiant_smoke(contract(["phone"])).startswith("+336")
+    assert _identifiant_smoke(contract([])) == "smoke"
+    distincts = {_identifiant_smoke(contract(["email"]), r) for r in (0, 1, 2)}
     assert len(distincts) == 3
 
 
@@ -381,10 +381,10 @@ def test_a_calling_code_without_phone_form_is_refused(capsys):
 def test_the_contract_passes_the_calling_code_to_the_frontend(tmp_path, capsys):
     (tmp_path / "spec.ml").write_text(SPEC_PREFIXE, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
-    contrat = json.loads(
+    contract = json.loads(
         (tmp_path / "frontend_contract.json").read_text(encoding="utf-8")
     )
-    inscription = contrat["api"]["auth"]["register"]
+    inscription = contract["api"]["auth"]["register"]
     assert inscription["identifier_forms"] == ["email", "phone"]
     assert inscription["phone_prefix"] == "+33"
     assert "+33" in inscription["note"]
@@ -393,7 +393,7 @@ def test_the_contract_passes_the_calling_code_to_the_frontend(tmp_path, capsys):
 
 
 @pytest.fixture
-def serveur_prefixe(tmp_path):
+def prefixed_server(tmp_path):
     (tmp_path / "spec.ml").write_text(SPEC_PREFIXE, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     port = _port_libre()
@@ -426,22 +426,22 @@ def serveur_prefixe(tmp_path):
             proc.stdout.close()
 
 
-def test_national_and_international_are_ONE_account(serveur_prefixe):
+def test_national_and_international_are_ONE_account(prefixed_server):
     """THE hole found by testing the brick on the real site: '06 12 34 56 78' and
     '+33612345678' designate the same line and made two accounts. monl cannot
     guess it — the calling code depends on the country — so it has it DECLARED."""
-    base, dossier = serveur_prefixe
+    base, dossier = prefixed_server
     assert _inscrire(base, dossier, "06 12 34 56 78")[0] == 200
     for variante in ["+33612345678", "+33 6 12 34 56 78", "0612345678"]:
         code, reponse = _inscrire(base, dossier, variante)
         assert code == 409, f"{variante} a créé un second compte : {reponse}"
 
 
-def test_the_stored_form_is_the_international_one(serveur_prefixe):
+def test_the_stored_form_is_the_international_one(prefixed_server):
     """The canonical form must be the one that does not depend on the country: it
     is the one that will someday be sent to a provider, and it does not get
     reread."""
-    base, dossier = serveur_prefixe
+    base, dossier = prefixed_server
     _inscrire(base, dossier, "06 12 34 56 78")
     connexion = sqlite3.connect(str(dossier / "app.db"))
     try:
@@ -454,19 +454,19 @@ def test_the_stored_form_is_the_international_one(serveur_prefixe):
 
 @pytest.mark.parametrize("notation", ["06 12 34 56 78", "+33612345678",
                                       "0612345678", "+33 6 12 34 56 78"])
-def test_login_works_in_both_notations(serveur_prefixe, notation):
-    base, dossier = serveur_prefixe
+def test_login_works_in_both_notations(prefixed_server, notation):
+    base, dossier = prefixed_server
     _inscrire(base, dossier, "06 12 34 56 78")
     code, reponse = _connecter(base, dossier, notation)
     assert code == 200, reponse
 
 
-def test_without_declared_calling_code_both_notations_stay_distinct(serveur):
+def test_without_declared_calling_code_both_notations_stay_distinct(server):
     """The STATED limit, and its witness. Without `phone_prefix`, monl does not
     know which country a '06…' comes from: it attaches it to nothing rather than
     guessing France. The test exists so that this behavior is a visible choice
     and not an oversight — the declaration is what opens it."""
-    base, dossier = serveur
+    base, dossier = server
     assert _inscrire(base, dossier, "06 12 34 56 78")[0] == 200
     assert _inscrire(base, dossier, "+33612345678")[0] == 200
 
@@ -490,7 +490,7 @@ SPEC_BENIN = SPEC.replace('    identifier: email, phone\n',
 
 
 @pytest.fixture
-def serveur_benin(tmp_path):
+def benin_server(tmp_path):
     (tmp_path / "spec.ml").write_text(SPEC_BENIN, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     port = _port_libre()
@@ -523,10 +523,10 @@ def serveur_benin(tmp_path):
             proc.stdout.close()
 
 
-def test_a_number_without_leading_zero_is_internationalized(serveur_benin):
+def test_a_number_without_leading_zero_is_internationalized(benin_server):
     """The heart of the defect. Before, the STORED form remained "97123456" — a
     number no provider can reach and that cannot be read outside Benin."""
-    base, dossier = serveur_benin
+    base, dossier = benin_server
     assert _inscrire(base, dossier, "97 12 34 56")[0] == 200
     connexion = sqlite3.connect(str(dossier / "app.db"))
     try:
@@ -540,18 +540,18 @@ def test_a_number_without_leading_zero_is_internationalized(serveur_benin):
                                       "+22997123456", "+229 97 12 34 56",
                                       "22997123456"])
 def test_every_way_of_writing_a_beninese_number_opens_the_same_account(
-        serveur_benin, notation):
-    base, dossier = serveur_benin
+        benin_server, notation):
+    base, dossier = benin_server
     _inscrire(base, dossier, "97123456")
     code, reponse = _connecter(base, dossier, notation)
     assert code == 200, reponse
 
 
-def test_an_already_international_number_is_not_prefixed_twice(serveur_benin):
+def test_an_already_international_number_is_not_prefixed_twice(benin_server):
     """The trap the fix could introduce: "22997123456", typed without the `+`,
     must not become "+22922997123456" — that would be a THIRD account, created by
     the fix itself."""
-    base, dossier = serveur_benin
+    base, dossier = benin_server
     assert _inscrire(base, dossier, "22997123456")[0] == 200
     connexion = sqlite3.connect(str(dossier / "app.db"))
     try:
@@ -562,10 +562,10 @@ def test_an_already_international_number_is_not_prefixed_twice(serveur_benin):
     assert _inscrire(base, dossier, "97123456")[0] == 409
 
 
-def test_manage_py_normalizes_like_the_server_without_leading_zero(serveur_benin):
+def test_manage_py_normalizes_like_the_server_without_leading_zero(benin_server):
     """Point 95, the third place — the one people forget. Diverging here creates
     an account `manage.py` can write and nobody can open."""
-    base, dossier = serveur_benin
+    base, dossier = benin_server
     sortie = subprocess.run(
         [sys.executable, "manage.py", "adduser", "97 99 88 77", "Patron"],
         cwd=str(dossier), input="motdepasse1\nmotdepasse1\n",

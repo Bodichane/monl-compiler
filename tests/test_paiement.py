@@ -42,7 +42,7 @@ import requests
 from monl.ast_validator import MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cas import check_each_case
 from tests.support.server import uvicorn_server
 
 SPEC_BOUTIQUE = """app Boutique
@@ -178,7 +178,7 @@ def application_without_keys():
 
 # ------------------------------------------------------------- utilitaires --
 @contextlib.contextmanager
-def _base(dossier):
+def _base_spec(dossier):
     """Opens app.db, committing AND closing on exit (see point 71:
     `with sqlite3.connect(...)` does not close the connection)."""
     cnx = sqlite3.connect(os.path.join(dossier, "app.db"))
@@ -197,7 +197,7 @@ def _entetes(application, identifiant):
     order each other.
     """
     base, dossier = application
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         cnx.execute("DELETE FROM _monl_rate_limit")
     requests.post(f"{base}/register",
                   json={"username": identifiant, "password": MOT_DE_PASSE,
@@ -209,7 +209,7 @@ def _entetes(application, identifiant):
     return {"Authorization": "Bearer " + jeton["access_token"]}
 
 
-def _commande(application, entetes, libelle, total):
+def _order(application, entetes, libelle, total):
     """Creates an order whose DERIVED amount equals `total`.
 
     Since point 79, `payable` requires a server-calculated amount: the client can
@@ -223,7 +223,7 @@ def _commande(application, entetes, libelle, total):
     would widen the tested surface without proving anything more.
     """
     base, dossier = application
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         curseur = cnx.execute('INSERT INTO article (nom, prix) VALUES (?, ?)',
                               (libelle, total))
         article = curseur.lastrowid
@@ -260,8 +260,8 @@ def _evenement(session_id, reference, type_evenement="checkout.session.completed
     }).encode()
 
 
-def _etat_en_base(dossier, identifiant):
-    with _base(dossier) as cnx:
+def _state_in_database(dossier, identifiant):
+    with _base_spec(dossier) as cnx:
         return cnx.execute(
             "SELECT payment_status, payment_ref FROM commande WHERE id = ?",
             (identifiant,)).fetchone()
@@ -275,7 +275,7 @@ def test_the_charged_amount_comes_from_the_database_never_the_client(application
     what the server answered."""
     base, _dossier = application
     entetes = _entetes(application, "acheteuse")
-    identifiant = _commande(application, entetes, "chaise", 42.50)
+    identifiant = _order(application, entetes, "chaise", 42.50)
 
     avant = len(faux_stripe.recu)
     reponse = requests.post(f"{base}/commande/{identifiant}/paiement",
@@ -297,10 +297,10 @@ def test_the_amount_follows_the_database_when_it_changes(application, faux_strip
     stale price be charged after a correction in the database."""
     base, dossier = application
     entetes = _entetes(application, "revisee")
-    identifiant = _commande(application, entetes, "table", 10.00)
+    identifiant = _order(application, entetes, "table", 10.00)
 
     requests.post(f"{base}/commande/{identifiant}/paiement", headers=entetes)
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         cnx.execute("UPDATE commande SET total = 99.99 WHERE id = ?", (identifiant,))
 
     avant = len(faux_stripe.recu)
@@ -315,7 +315,7 @@ def test_the_session_carries_the_reference_and_the_server_key(application, faux_
     Without it, a successful payment lands on no order."""
     base, _dossier = application
     entetes = _entetes(application, "referencee")
-    identifiant = _commande(application, entetes, "lampe", 7.00)
+    identifiant = _order(application, entetes, "lampe", 7.00)
 
     avant = len(faux_stripe.recu)
     requests.post(f"{base}/commande/{identifiant}/paiement", headers=entetes)
@@ -335,7 +335,7 @@ def test_paying_another_accounts_record_is_refused(application):
     will never see — and discover their amount through the response."""
     base, _dossier = application
     proprietaire = _entetes(application, "proprietaire")
-    identifiant = _commande(application, proprietaire, "vélo", 300.00)
+    identifiant = _order(application, proprietaire, "vélo", 300.00)
 
     intruse = _entetes(application, "intruse")
     refus = requests.post(f"{base}/commande/{identifiant}/paiement",
@@ -344,7 +344,7 @@ def test_paying_another_accounts_record_is_refused(application):
     assert "belong to you" in refus.json()["detail"]
 
 
-def test_un_enregistrement_inexistant_donne_404(application):
+def test_a_nonexistent_record_gives_404(application):
     base, _dossier = application
     entetes = _entetes(application, "fantome")
     refus = requests.post(f"{base}/commande/999999/paiement", headers=entetes)
@@ -357,7 +357,7 @@ def test_a_zero_amount_is_not_charged(application, faux_stripe):
     cause."""
     base, _dossier = application
     entetes = _entetes(application, "gratuite")
-    identifiant = _commande(application, entetes, "échantillon", 0)
+    identifiant = _order(application, entetes, "échantillon", 0)
 
     avant = len(faux_stripe.recu)
     refus = requests.post(f"{base}/commande/{identifiant}/paiement",
@@ -372,7 +372,7 @@ def test_a_request_without_token_is_refused(application):
     a `public` creation, for lack of an identity to attach the payment to."""
     base, _dossier = application
     entetes = _entetes(application, "anonyme")
-    identifiant = _commande(application, entetes, "livre", 15.00)
+    identifiant = _order(application, entetes, "livre", 15.00)
     refus = requests.post(f"{base}/commande/{identifiant}/paiement")
     assert refus.status_code in (401, 403), refus.text
 
@@ -383,7 +383,7 @@ def test_the_provider_refusal_comes_up_as_502_with_its_message(application, faux
     whoever debugs has."""
     base, _dossier = application
     entetes = _entetes(application, "recalee")
-    identifiant = _commande(application, entetes, "canapé", 800.00)
+    identifiant = _order(application, entetes, "canapé", 800.00)
 
     faux_stripe.refuser = True
     try:
@@ -402,7 +402,7 @@ def test_without_key_the_server_refuses_loudly_naming_the_variable(
     generated code to understand there is nothing else to configure."""
     base, _dossier = application_without_keys
     entetes = _entetes(application_without_keys, "sansclef")
-    identifiant = _commande(application_without_keys, entetes, "étagère", 55.00)
+    identifiant = _order(application_without_keys, entetes, "étagère", 55.00)
 
     refus = requests.post(f"{base}/commande/{identifiant}/paiement",
                           headers=entetes)
@@ -421,7 +421,7 @@ def test_the_server_without_key_starts_and_serves_the_rest(application_without_k
     impossible offline."""
     base, _dossier = application_without_keys
     entetes = _entetes(application_without_keys, "ordinaire")
-    identifiant = _commande(application_without_keys, entetes, "tabouret", 20.00)
+    identifiant = _order(application_without_keys, entetes, "tabouret", 20.00)
     lu = requests.get(f"{base}/commande/{identifiant}", headers=entetes)
     assert lu.status_code == 200, lu.text
 
@@ -432,7 +432,7 @@ def test_the_signed_webhook_marks_the_record_paid(application):
     through which `payment_status` changes — no business write route touches it."""
     base, dossier = application
     entetes = _entetes(application, "reglee")
-    identifiant = _commande(application, entetes, "bureau", 120.00)
+    identifiant = _order(application, entetes, "bureau", 120.00)
 
     session = requests.post(f"{base}/commande/{identifiant}/paiement",
                             headers=entetes).json()
@@ -442,7 +442,7 @@ def test_the_signed_webhook_marks_the_record_paid(application):
     assert recu.status_code == 200, recu.text
     assert recu.json()["status"] == "success"
 
-    etat, reference = _etat_en_base(dossier, identifiant)
+    etat, reference = _state_in_database(dossier, identifiant)
     assert etat == "payee", etat
     assert reference == session["session_id"], reference
 
@@ -487,17 +487,17 @@ def test_a_badly_signed_webhook_pays_nothing(application):
     def cas(entete):
         base, dossier = application
         entetes = _entetes(application, f"tentative{abs(hash(str(entete))) % 10000}")
-        identifiant = _commande(application, entetes, "coffre", 60.00)
+        identifiant = _order(application, entetes, "coffre", 60.00)
 
         corps = _evenement("cs_forge", identifiant)
         envoi = {} if entete is None else {"stripe-signature": entete}
         refus = requests.post(f"{base}/paiement/webhook", data=corps, headers=envoi)
 
         assert refus.status_code == 400, refus.text
-        assert _etat_en_base(dossier, identifiant)[0] == "en_attente", (
+        assert _state_in_database(dossier, identifiant)[0] == "en_attente", (
             "une signature invalide a suffi à marquer la commande payée")
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas, ids=noms)
+    check_each_case([(valeur,) for valeur in table], cas, ids=noms)
 
 
 def test_a_signature_valid_for_another_body_is_refused(application):
@@ -506,7 +506,7 @@ def test_a_signature_valid_for_another_body_is_refused(application):
     substituted for another."""
     base, dossier = application
     entetes = _entetes(application, "substituee")
-    cible = _commande(application, entetes, "armoire", 200.00)
+    cible = _order(application, entetes, "armoire", 200.00)
 
     autre_corps = _evenement("cs_autre", 1)
     signature_valide = _signer(autre_corps)
@@ -515,7 +515,7 @@ def test_a_signature_valid_for_another_body_is_refused(application):
     refus = requests.post(f"{base}/paiement/webhook", data=corps_substitue,
                           headers={"stripe-signature": signature_valide})
     assert refus.status_code == 400, refus.text
-    assert _etat_en_base(dossier, cible)[0] == "en_attente"
+    assert _state_in_database(dossier, cible)[0] == "en_attente"
 
 
 def test_a_signature_made_with_another_key_is_refused(application):
@@ -524,14 +524,14 @@ def test_a_signature_made_with_another_key_is_refused(application):
     who read the generated code without having the key can forge."""
     base, dossier = application
     entetes = _entetes(application, "mauvaiseclef")
-    identifiant = _commande(application, entetes, "buffet", 90.00)
+    identifiant = _order(application, entetes, "buffet", 90.00)
 
     corps = _evenement("cs_pirate", identifiant)
     refus = requests.post(
         f"{base}/paiement/webhook", data=corps,
         headers={"stripe-signature": _signer(corps, secret="whsec_pirate")})
     assert refus.status_code == 400, refus.text
-    assert _etat_en_base(dossier, identifiant)[0] == "en_attente"
+    assert _state_in_database(dossier, identifiant)[0] == "en_attente"
 
 
 def test_an_event_of_another_type_is_ignored_without_changing_anything(application):
@@ -539,7 +539,7 @@ def test_an_event_of_another_type_is_ignored_without_changing_anything(applicati
     everything as a payment would mark paid an order whose session merely expired."""
     base, dossier = application
     entetes = _entetes(application, "expiree")
-    identifiant = _commande(application, entetes, "miroir", 30.00)
+    identifiant = _order(application, entetes, "miroir", 30.00)
 
     corps = _evenement("cs_expiree", identifiant,
                        type_evenement="checkout.session.expired")
@@ -547,7 +547,7 @@ def test_an_event_of_another_type_is_ignored_without_changing_anything(applicati
                          headers={"stripe-signature": _signer(corps)})
     assert recu.status_code == 200, recu.text
     assert recu.json()["status"] == "ignored"
-    assert _etat_en_base(dossier, identifiant)[0] == "en_attente"
+    assert _state_in_database(dossier, identifiant)[0] == "en_attente"
 
 
 def test_settling_the_same_record_twice_is_refused(application, faux_stripe):
@@ -555,7 +555,7 @@ def test_settling_the_same_record_twice_is_refused(application, faux_stripe):
     click on a payment link charges twice."""
     base, _dossier = application
     entetes = _entetes(application, "doublee")
-    identifiant = _commande(application, entetes, "fauteuil", 250.00)
+    identifiant = _order(application, entetes, "fauteuil", 250.00)
 
     session = requests.post(f"{base}/commande/{identifiant}/paiement",
                             headers=entetes).json()
@@ -579,7 +579,7 @@ def test_the_client_cannot_declare_itself_paid_on_creation(application):
     base, dossier = application
     entetes = _entetes(application, "autoproclamee")
 
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         article = cnx.execute('INSERT INTO article (nom, prix) VALUES (?, ?)',
                               ("gratuite", 500.00)).lastrowid
     # `total` is sent too, and also ignored since point 79: the body tries the
@@ -590,9 +590,9 @@ def test_the_client_cannot_declare_itself_paid_on_creation(application):
                                   "payment_status": "payee",
                                   "payment_ref": "cs_invente"})
     identifiant = reponse.json()["id"]
-    assert _etat_en_base(dossier, identifiant) == ("en_attente", None), (
-        _etat_en_base(dossier, identifiant))
-    with _base(dossier) as cnx:
+    assert _state_in_database(dossier, identifiant) == ("en_attente", None), (
+        _state_in_database(dossier, identifiant))
+    with _base_spec(dossier) as cnx:
         assert cnx.execute("SELECT total FROM commande WHERE id = ?",
                            (identifiant,)).fetchone()[0] == 500.00
 
@@ -603,9 +603,9 @@ def test_an_update_cannot_change_the_payment_state(application):
     reverse — empties the lock of its meaning."""
     base, dossier = application
     entetes = _entetes(application, "modifiee")
-    identifiant = _commande(application, entetes, "commode", 75.00)
+    identifiant = _order(application, entetes, "commode", 75.00)
 
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         article = cnx.execute('SELECT article_id FROM commande WHERE id = ?',
                               (identifiant,)).fetchone()[0]
     modif = requests.put(f"{base}/commande/{identifiant}", headers=entetes,
@@ -614,9 +614,9 @@ def test_an_update_cannot_change_the_payment_state(application):
                                "payment_status": "payee",
                                "payment_ref": "cs_invente"})
     assert modif.status_code in (200, 201), modif.text
-    assert _etat_en_base(dossier, identifiant) == ("en_attente", None)
+    assert _state_in_database(dossier, identifiant) == ("en_attente", None)
     # The amount cannot be rewritten through this route either (point 79).
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         assert cnx.execute("SELECT total FROM commande WHERE id = ?",
                            (identifiant,)).fetchone()[0] == 75.00
 

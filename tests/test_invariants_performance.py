@@ -26,7 +26,7 @@ import pytest
 from monl.ast_validator import MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_file
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cas import check_each_case
 
 EXEMPLES_DIR = os.path.join(os.path.dirname(__file__), "../exemples")
 PROJETS_DIR = os.path.join(os.path.dirname(__file__), "../projets")
@@ -205,7 +205,7 @@ def test_every_business_column_filtering_a_list_is_indexed():
         minimum = MIN_COLONNES_TEMOIN if path == SPEC_TEMOIN else None
         _assert_performance_invariant(path, minimum_witness=minimum)
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas, ids=noms)
+    check_each_case([(valeur,) for valeur in table], cas, ids=noms)
 
 
 def test_the_witness_sees_the_four_social_network_filters():

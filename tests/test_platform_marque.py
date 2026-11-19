@@ -19,7 +19,7 @@ import sys
 from PIL import Image
 
 from monl_platform import brand, theme, theme_fragments
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cas import check_each_case
 
 PAQUET = pathlib.Path(theme.__file__).parent
 COULEUR = re.compile(r"#[0-9a-fA-F]{6}\b")
@@ -80,7 +80,7 @@ def test_the_text_palette_holds_on_the_three_surfaces():
                     f"[{theme_nom}] {avant} ({palette[avant]}) sur {arriere} "
                 f"({palette[arriere]}) : {ratio:.2f}:1, il faut 4.5")
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
 def test_the_text_meets_wcag_aa_contrast():
@@ -95,7 +95,7 @@ def test_the_text_meets_wcag_aa_contrast():
                 f"[{theme_nom}] {avant} ({palette[avant]}) sur {arriere} "
             f"({palette[arriere]}) : {ratio:.2f}:1, il faut 4.5")
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
 def test_controls_stand_out_from_the_background():
@@ -112,7 +112,7 @@ def test_controls_stand_out_from_the_background():
                 f"[{theme_nom}] bordure de contrôle {palette[avant]} sur "
             f"{palette[arriere]} : {ratio:.2f}:1, il faut 3.0")
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
 def test_both_themes_declare_the_same_roles():
@@ -126,7 +126,7 @@ def test_both_themes_declare_the_same_roles():
         manquants = set(blocs["clair"]) - set(blocs["sombre"])
         assert not manquants, f"rôles absents du thème sombre : {sorted(manquants)}"
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
 def test_no_hard_coded_color_outside_the_stylesheet():
@@ -247,7 +247,7 @@ def test_touch_targets_are_at_least_44px():
         assert hauteur >= MINIMUM, (
             f"`{selecteur}` ({module}) : {hauteur}px, il en faut {MINIMUM}")
 
-    verifier_chaque_cas(table, cas)
+    check_each_case(table, cas)
 
 
 def test_the_wordmark_follows_the_theme_instead_of_carrying_its_background():
@@ -284,7 +284,7 @@ def test_the_wordmark_stays_readable_in_both_themes():
             f"[{theme_nom}] lettres {palette['ink']} sur page {palette['bg']} : "
         f"{lettres:.2f}:1")
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
 def test_mark_strokes_carry_no_color():

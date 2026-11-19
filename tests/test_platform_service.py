@@ -47,7 +47,7 @@ def test_validation_compile_inspection_and_archive_share_the_pipeline(tmp_path):
     assert ".jwt_secret" not in names
 
 
-def test_entrees_bornees_et_identifiants_opaques(tmp_path):
+def test_bounded_inputs_and_opaque_identifiers(tmp_path):
     service = CompilationService(tmp_path)
     with pytest.raises(PlatformInputError, match="empty"):
         service.validate(" ")
@@ -69,7 +69,7 @@ def test_interrupted_worker_publishes_no_project(tmp_path, monkeypatch):
     assert list(tmp_path.iterdir()) == []
 
 
-def test_mcp_expose_validation_compilation_et_inspection(tmp_path):
+def test_mcp_exposes_validation_compilation_and_inspection(tmp_path):
     dispatcher = MCPDispatcher(CompilationService(tmp_path))
     initialized = dispatcher.dispatch({"jsonrpc": "2.0", "id": 1,
                                        "method": "initialize", "params": {}})

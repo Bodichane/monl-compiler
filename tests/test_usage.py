@@ -46,7 +46,7 @@ def _write_prices(path, model="modele-test"):
     }), encoding="utf-8")
 
 
-def test_deux_executions_successives_restent_separees(monkeypatch, tmp_path):
+def test_two_successive_runs_stay_separate(monkeypatch, tmp_path):
     project = tmp_path / "projet"
     project.mkdir()
 
@@ -136,7 +136,7 @@ def test_json_is_usable_and_reports_unreadable_lines(tmp_path, capsys):
     assert report["malformed_lines"] == [{"line": 2, "error": "invalid JSON"}]
 
 
-def test_journal_n_ajoute_ni_prompt_ni_cle(tmp_path):
+def test_log_adds_neither_prompt_nor_key(tmp_path):
     project = tmp_path / "projet"
     project.mkdir()
     provider = type("Provider", (), {

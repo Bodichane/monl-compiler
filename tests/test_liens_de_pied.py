@@ -21,7 +21,7 @@ from monl.design_system import ASSET_MANIFEST_FILENAME, activate_asset_manifest
 from monl.frontend_ai import _design_completeness_errors
 from monl.parser import parse_monl_string
 from monl.section_substance import rule_for
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cas import check_each_case
 
 BASE = """app Atelier
 
@@ -84,7 +84,7 @@ def test_an_unusable_address_is_refused():
         with pytest.raises(ValueError, match=attendu):
             _valider([ligne])
 
-    verifier_chaque_cas(table, cas)
+    check_each_case(table, cas)
 
 
 def test_two_links_with_the_same_label_are_refused():
@@ -105,7 +105,7 @@ def test_the_same_address_twice_is_refused():
 
 # ─────────────────────────────────────── what the compiled project requires ──
 @pytest.fixture()
-def projet(tmp_path):
+def project(tmp_path):
     spec = tmp_path / "spec.ml"
     spec.write_text(BASE.format(
         liens='    link "Instagram": "https://instagram.com/atelier"\n'
@@ -139,8 +139,8 @@ def projet(tmp_path):
     return livrer, manifest
 
 
-def test_the_footer_is_a_required_section(projet):
-    _livrer, manifest = projet
+def test_the_footer_is_a_required_section(project):
+    _livrer, manifest = project
 
     assert 'data-monl-section="footer"' in manifest["required_markers"]["index.html"]
     assert 'data-monl-section="footer"' in manifest["section_substance"]["index.html"]
@@ -155,8 +155,8 @@ def test_the_footer_requires_no_title():
     assert regle["action"] and regle["text"]
 
 
-def test_a_declared_link_missing_from_the_site_is_refused(projet):
-    livrer, _ = projet
+def test_a_declared_link_missing_from_the_site_is_refused(project):
+    livrer, _ = project
 
     fautes = livrer(avec_liens=False)
 
@@ -166,9 +166,9 @@ def test_a_declared_link_missing_from_the_site_is_refused(projet):
     assert "mailto:bonjour@atelier.fr" in " ".join(manquants)
 
 
-def test_the_same_site_with_its_links_is_accepted(projet):
+def test_the_same_site_with_its_links_is_accepted(project):
     """Counter-proof: without it, a check refusing everything would pass."""
-    livrer, _ = projet
+    livrer, _ = project
 
     assert livrer(avec_liens=True) == []
 

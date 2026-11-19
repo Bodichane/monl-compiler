@@ -71,7 +71,7 @@ def _inscrire(base, email):
     return session
 
 
-def _creer_projet(base, session):
+def _create_project(base, session):
     reponse = session.post(f"{base}/api/compile", json={"spec": SPEC}, timeout=60)
     assert reponse.status_code == 201, reponse.text
     return reponse.json()["id"]
@@ -79,7 +79,7 @@ def _creer_projet(base, session):
 
 def test_compilation_and_recompilation_share_the_quota(plateforme):
     session = _inscrire(plateforme, "quota@exemple.test")
-    projet = _creer_projet(plateforme, session)
+    projet = _create_project(plateforme, session)
 
     for _ in range(9):
         reponse = session.post(
@@ -96,7 +96,7 @@ def test_a_recompilation_holds_the_semaphore_then_frees_it(
     plateforme, monkeypatch
 ):
     session = _inscrire(plateforme, "semaphore@exemple.test")
-    projet = _creer_projet(plateforme, session)
+    projet = _create_project(plateforme, session)
     entre = threading.Event()
     sortir = threading.Event()
     vrai_compilateur = builder_build_routes.compiler_le_projet
@@ -132,7 +132,7 @@ def test_compilation_and_recompilation_share_the_semaphore(
     plateforme, monkeypatch
 ):
     session = _inscrire(plateforme, "semaphore-partage@exemple.test")
-    projet = _creer_projet(plateforme, session)
+    projet = _create_project(plateforme, session)
     entre = threading.Event()
     sortir = threading.Event()
     vraie_compilation = CompilationService.compile
@@ -169,7 +169,7 @@ def test_a_legitimate_call_passes_and_errors_free_the_slot(plateforme):
 
     invalide = session.post(f"{plateforme}/api/compile", json={"spec": ""}, timeout=10)
     assert invalide.status_code == 422
-    projet = _creer_projet(plateforme, session)
+    projet = _create_project(plateforme, session)
 
     absent = session.post(
         f"{plateforme}/api/projects/projet-absent/compiler", timeout=10

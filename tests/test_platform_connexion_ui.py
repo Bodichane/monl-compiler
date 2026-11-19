@@ -300,7 +300,7 @@ def test_animations_respect_reduced_motion():
     assert ".console-node{animation:none}" in CONSOLE_HTML
 
 
-def test_l_accueil_a_un_ambient_visuel_discret_et_accessible():
+def test_the_home_page_has_a_discreet_accessible_visual_ambiance():
     assert 'class="landing-network" aria-hidden="true"' in LANDING_HTML
     assert "@keyframes landing-node" in LANDING_HTML
     assert ".landing-node,.float-card{animation:none}" in LANDING_HTML

@@ -20,7 +20,7 @@ import pytest
 
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.parser import MonlSyntaxError, parse_monl_string
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cas import check_each_case
 
 
 def _valide(spec):
@@ -142,7 +142,7 @@ def test_a_faulty_rule_is_refused_naming_its_cause():
             _valide(_socle(regles))
         assert fragment in str(refus.value), str(refus.value)
 
-    verifier_chaque_cas(table, cas, ids=noms)
+    check_each_case(table, cas, ids=noms)
 
 
 def test_the_same_well_formed_rule_compiles():
@@ -166,7 +166,7 @@ def test_the_same_well_formed_rule_compiles():
     def cas(regles):
         assert _valide(_socle(regles))
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas, ids=noms)
+    check_each_case([(valeur,) for valeur in table], cas, ids=noms)
 
 
 # Counters have their own witness: they require a relation between the
@@ -192,7 +192,7 @@ workflow W for Membre
 """
 
 
-def test_un_compteur_bien_forme_compile():
+def test_a_well_formed_counter_compiles():
     """Witness of the three `increments` cases above."""
     assert _valide(SPEC_COMPTEUR.format(
         regles="rule Like.Create increments Post.likes by 1"))
@@ -219,7 +219,7 @@ def test_a_counter_outside_creation_is_refused():
 
 
 # --------------------------------- incompatibilities between two mechanisms --
-def test_generated_exige_un_appelant_identifie(spec=None):
+def test_generated_requires_an_identified_caller(spec=None):
     """Point 30: no reliable identity, no derivable pseudonym. A `public` creation
     and a `generated` field on the same entity cannot coexist — and this refusal
     can only be seen by crossing two rules nothing links syntactically."""
@@ -310,7 +310,7 @@ def test_payable_refuses_an_amount_the_client_can_write():
     assert "derivedFrom" in message
 
 
-def test_payable_exige_un_appelant_identifie():
+def test_payable_requires_an_identified_caller():
     """Same reason as at point 30 for `generated`, but with money at the end: a
     `public` creation has no identity to attach the payment to — nor anyone to
     refund. This refusal only shows when crossing two rules nothing links
@@ -454,10 +454,10 @@ def test_annex_blocks_are_validated_like_rules():
             _valide(_socle(bloc))
         assert fragment in str(refus.value)
 
-    verifier_chaque_cas(table, cas, ids=noms)
+    check_each_case(table, cas, ids=noms)
 
 
-def test_un_bloc_ui_bien_forme_compile():
+def test_a_well_formed_ui_block_compiles():
     """Witness of the five cases above."""
     assert _valide(_socle("ui Note\n    primary: titre\n    order: titre, score"))
 
@@ -569,7 +569,7 @@ def test_malformed_derivations_are_refused():
             _valide(_socle_derive(regles))
         assert fragment in str(refus.value)
 
-    verifier_chaque_cas(table, cas, ids=noms)
+    check_each_case(table, cas, ids=noms)
 
 
 def test_the_multiplier_must_be_declared_required():
@@ -983,10 +983,10 @@ def test_writable_after_payment_refuses_a_server_written_field():
         assert "writableAfterPayment" in str(refus.value)
         assert regle_serveur.split()[2] in str(refus.value)
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas, ids=noms)
+    check_each_case([(valeur,) for valeur in table], cas, ids=noms)
 
 
-def test_writable_after_payment_refuse_un_champ_somme():
+def test_writable_after_payment_refuses_a_summed_field():
     """`sumOf` was missing from the list of server families above: a 'payable'
     entity whose amount is 'sumOf' (the multi-line cart, the only form tested
     since point 82 for a chargeable total) could declare 'writableAfterPayment'
@@ -1008,7 +1008,7 @@ def test_writable_after_payment_refuses_the_owner():
     assert "who already owns 'Commande'" in str(refus.value)
 
 
-def test_writable_after_payment_refuse_deux_acteurs_par_entite():
+def test_writable_after_payment_refuses_two_actors_per_entity():
     spec = _apres_paiement(
         "actor AutreSuperviseur\n"
         "rule Commande.statut writableAfterPayment Superviseur\n"
@@ -1019,14 +1019,14 @@ def test_writable_after_payment_refuse_deux_acteurs_par_entite():
     assert "AutreSuperviseur" in str(refus.value)
 
 
-def test_writable_after_payment_refuse_un_doublon_de_champ():
+def test_writable_after_payment_refuses_a_duplicate_field():
     regle = "rule Commande.statut writableAfterPayment Superviseur"
     with pytest.raises(ASTValidationError) as refus:
         _valide(_apres_paiement(regle + "\n" + regle))
     assert "multiple 'writableAfterPayment' rules are declared" in str(refus.value)
 
 
-def test_writable_after_payment_bien_forme_compile_et_normalise():
+def test_well_formed_writable_after_payment_compiles_and_normalizes():
     ast = _valide(_apres_paiement(
         "rule Commande.statut writableAfterPayment Superviseur\n"
         "rule Commande.libelle writableAfterPayment Superviseur"))
@@ -1068,7 +1068,7 @@ def test_writable_after_payment_breaks_neither_create_nor_update(tmp_path):
     assert "only after the payment is confirmed" in genere
 
 
-def test_refus_de_somme_mal_formee():
+def test_malformed_sum_refusals():
     table = [
         ("rule Fantome.total sumOf Ligne.sousTotal", "does not exist"),
         ("rule Commande.total sumOf Fantome.sousTotal", "does not exist"),
@@ -1090,7 +1090,7 @@ def test_refus_de_somme_mal_formee():
             _valide(SPEC_PANIER.format(regles=regle))
         assert attendu in str(refus.value)
 
-    verifier_chaque_cas(table, cas)
+    check_each_case(table, cas)
 
 
 def test_a_hidden_sum_is_refused():
@@ -1202,7 +1202,7 @@ def test_charging_a_sum_of_client_written_amounts_is_refused():
     assert "derivedFrom" in message
 
 
-def test_sommer_un_champ_client_reste_permis_hors_paiement():
+def test_summing_a_client_field_stays_allowed_outside_payment():
     """The witness of the refusal above: the combination with `payable` is
     forbidden, not the sum of a client-provided field. Counting a cart's items is
     legitimate and charges nothing."""

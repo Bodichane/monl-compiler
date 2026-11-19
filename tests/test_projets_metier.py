@@ -214,7 +214,7 @@ def gestion(tmp_path_factory):
 
 @pytest.mark.parametrize("source", [COMMUNAUTE, GESTION],
                          ids=["CommunauteHub", "GestionPro"])
-def test_chaque_modele_metier_produit_un_backend_valide(source, tmp_path):
+def test_each_business_template_produces_a_valid_backend(source, tmp_path):
     _normalise, contrat = _compiler(source, tmp_path)
     assert contrat["business_rules"] is not None
     compile((tmp_path / "app.py").read_text(encoding="utf-8"),
@@ -263,7 +263,7 @@ def test_management_carries_business_calculations(gestion):
         normalise["security"]["aggregated_fields"]
 
 
-def test_achat_expose_calcul_paiement_et_livraison_post_paiement(gestion):
+def test_purchase_exposes_calculation_payment_and_post_payment_delivery(gestion):
     normalise, contrat, chemin = gestion
     securite = normalise["security"]
     assert securite["payable_fields"] == [{"entity": "Purchase", "field": "total"}]

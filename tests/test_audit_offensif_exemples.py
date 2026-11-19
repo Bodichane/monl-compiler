@@ -93,7 +93,7 @@ def _corps_valide(projet, entite):
     }
 
 
-def _jeton(base, identifiant, acteur):
+def _token(base, identifiant, acteur):
     inscrit = requests.post(base + "/register", timeout=20, json={
         "username": identifiant, "password": MOT_DE_PASSE, "actor": acteur})
     assert inscrit.status_code == 200, inscrit.text
@@ -112,7 +112,7 @@ def test_the_offensive_audit_fails_on_every_example(spec, tmp_path):
 
     with uvicorn_server(str(tmp_path / "projet")) as base:
         if creation["inscriptible"]:
-            legitime = _jeton(base, "legitime@example.test", creation["acteur"])
+            legitime = _token(base, "legitime@example.test", creation["acteur"])
             accepte = requests.post(base + route, json={}, timeout=10,
                                     headers={"Authorization": f"Bearer {legitime}"})
             assert accepte.status_code != 401, accepte.text
@@ -130,7 +130,7 @@ def test_the_offensive_audit_fails_on_every_example(spec, tmp_path):
         assert refuse.status_code == 401, refuse.text
 
         if elevation:
-            jeton = _jeton(base, "adverse@example.test", elevation["acteur"])
+            jeton = _token(base, "adverse@example.test", elevation["acteur"])
             suppression = elevation["verbe"] == "Delete"
             methode = requests.delete if suppression else requests.put
             corps = None if suppression else _corps_valide(tmp_path / "projet", elevation["entite"])

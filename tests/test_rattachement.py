@@ -225,18 +225,18 @@ def test_the_choice_does_not_depend_on_relation_order(tmp_path, capsys):
     _, _, schema_b = _compile(tmp_path, acteur_dabord)
     capsys.readouterr()
 
-    def liens_avis(schema):
+    def review_links(schema):
         bloc = schema[schema.index('CREATE TABLE IF NOT EXISTS "avis"'):]
         # The trailing comma depends on the line's RANK in the block, not its
         # meaning: remove it, otherwise the test compares formatting.
         return {li.strip().rstrip(",") for li in bloc.splitlines()
                 if "FOREIGN KEY" in li}
 
-    assert liens_avis(schema_a) == liens_avis(schema_b)
+    assert review_links(schema_a) == review_links(schema_b)
     assert any('"client_id"' in li and "_monl_users" in li
-               for li in liens_avis(schema_a))
+               for li in review_links(schema_a))
     assert any('"produit_id"' in li and '"produit"(id)' in li
-               for li in liens_avis(schema_a))
+               for li in review_links(schema_a))
 
 
 # --------------------------------------------------------------------------
@@ -469,7 +469,7 @@ def boutique(tmp_path):
         arreter_processus(processus, delai=10)
 
 
-def _en_base(tmp_path, requete, params=()):
+def _in_database(tmp_path, requete, params=()):
     connexion = sqlite3.connect(str(tmp_path / "app.db"))
     try:
         return connexion.execute(requete, params).fetchall()
@@ -485,7 +485,7 @@ def test_the_variant_attaches_to_its_product(boutique):
     _, catalogue = _appel(base + "/produit?limit=20")
     deck = next(p for p in catalogue["data"] if p["nom"] == "Deck Low")
 
-    comptes = _en_base(tmp_path, "SELECT id FROM _monl_users WHERE username = 'victor'")
+    comptes = _in_database(tmp_path, "SELECT id FROM _monl_users WHERE username = 'victor'")
     id_compte = comptes[0][0]
     assert id_compte != deck["id"], \
         "les deux identifiants doivent DIVERGER, sinon le test ne prouve rien"
@@ -494,7 +494,7 @@ def test_the_variant_attaches_to_its_product(boutique):
                             {"taille": "42", "stock": 5, "produit_id": deck["id"]},
                             patron)
     assert code == 200
-    rattachement = _en_base(tmp_path, 'SELECT "produit_id" FROM "variante" WHERE id = ?',
+    rattachement = _in_database(tmp_path, 'SELECT "produit_id" FROM "variante" WHERE id = ?',
                             (variante["id"],))[0][0]
     assert rattachement == deck["id"]
     assert rattachement != id_compte, \
@@ -514,7 +514,7 @@ def test_the_designated_product_is_the_requested_one(boutique):
                               "produit_id": produits[nom]}, patron)
         poses[nom] = variante["id"]
     for nom, variante_id in poses.items():
-        assert _en_base(tmp_path, 'SELECT "produit_id" FROM "variante" WHERE id = ?',
+        assert _in_database(tmp_path, 'SELECT "produit_id" FROM "variante" WHERE id = ?',
                         (variante_id,))[0][0] == produits[nom]
 
 
@@ -568,8 +568,8 @@ def test_a_nonexistent_product_creates_no_orphan_variant(boutique):
     write. Here the foreign key constraint takes care of it — point 81's design
     rule, applied to the other family of columns."""
     base, _, patron, tmp_path = boutique
-    avant = _en_base(tmp_path, 'SELECT COUNT(*) FROM "variante"')[0][0]
+    avant = _in_database(tmp_path, 'SELECT COUNT(*) FROM "variante"')[0][0]
     code, _ = _appel(base + "/variante",
                      {"taille": "42", "stock": 1, "produit_id": 99999}, patron)
     assert code == 409
-    assert _en_base(tmp_path, 'SELECT COUNT(*) FROM "variante"')[0][0] == avant
+    assert _in_database(tmp_path, 'SELECT COUNT(*) FROM "variante"')[0][0] == avant

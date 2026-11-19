@@ -60,7 +60,7 @@ def _fresh_project(tmp_path):
     return proj, spec_path, contract
 
 
-def test_delta_signale_un_type_de_champ_modifie(tmp_path, capsys):
+def test_delta_reports_a_changed_field_type(tmp_path, capsys):
     ancienne = {
         "routes": [],
         "entities": {"Note": {"fields": [{"name": "priority", "type": "String"}]}},
@@ -79,7 +79,7 @@ def test_delta_signale_un_type_de_champ_modifie(tmp_path, capsys):
     assert "field type changed: Note.priority: String → Integer" in capsys.readouterr().out
 
 
-def test_brief_express_autorise_textes_blocs_et_images_matricielles_locales(tmp_path):
+def test_express_brief_allows_texts_blocks_and_local_raster_images(tmp_path):
     answers = iter(["1", "StudioExpress", "Portfolio de céramique contemporaine."])
     spec_text = GuidedDialogue(
         ask=lambda prompt: next(answers), express=True).run()
@@ -159,7 +159,7 @@ def test_contract_fields_mark_required(tmp_path):
     assert auth[("/note", "GET")] is True
 
 
-def test_run_check_detecte_spec_modifiee_et_contrat_edite(tmp_path):
+def test_run_check_detects_modified_spec_and_edited_contract(tmp_path):
     proj, spec_path, _ = _fresh_project(tmp_path)
     ok, errors, _w = check_coherence(str(proj))
     assert ok, errors
@@ -183,7 +183,7 @@ def test_run_check_detecte_spec_modifiee_et_contrat_edite(tmp_path):
     assert not ok and any("modified manually" in e for e in errors)
 
 
-def test_run_check_signale_un_artefact_produit_par_un_compilateur_anterieur(tmp_path):
+def test_run_check_reports_an_artifact_from_an_earlier_compiler(tmp_path):
     """Point 81. The consistency checks compared against the fingerprints
     RECORDED at compile time: they detected a hand edit — their purpose — and let
     through a project whose artifacts came from an earlier compiler. 'monl run'
@@ -239,7 +239,7 @@ def test_run_check_signale_un_artefact_produit_par_un_compilateur_anterieur(tmp_
                    for w in warnings)
 
 
-def test_frontend_hors_contrat_declenche_avertissement(tmp_path):
+def test_out_of_contract_frontend_triggers_warning(tmp_path):
     proj, _spec, _c = _fresh_project(tmp_path)
     front = proj / "frontend"
     front.mkdir()
@@ -351,7 +351,7 @@ workflow Gerer for Admin
 """
 
 
-def _contrat_archetypes(tmp_path):
+def _archetypes_contract(tmp_path):
     proj = tmp_path / "formes"
     proj.mkdir()
     spec = proj / "spec.ml"
@@ -363,7 +363,7 @@ def test_archetype_derived_from_the_spec(tmp_path):
     """Restoring, in the contract, what the pivot had removed with the generated
     frontend (points 35 then 54). Without it, the AI only gets a list of {name,
     type} and must guess everything again."""
-    c = _contrat_archetypes(tmp_path)
+    c = _archetypes_contract(tmp_path)
     formes = {e: s["archetype"] for e, s in c["entities"].items()}
     assert formes["Project"] == "gallery"      # media + title + description
     assert formes["Product"] == "shop"         # un Money l'emporte
@@ -376,7 +376,7 @@ def test_archetype_derived_from_the_spec(tmp_path):
 
 
 def test_field_roles_derived_and_never_on_a_hidden_field(tmp_path):
-    c = _contrat_archetypes(tmp_path)
+    c = _archetypes_contract(tmp_path)
     roles = {f["name"]: f["role"] for f in c["entities"]["Project"]["fields"]}
     assert roles == {"title": "title", "description": "description",
                      "imageUrl": "media", "category": "category"}
@@ -389,7 +389,7 @@ def test_field_roles_derived_and_never_on_a_hidden_field(tmp_path):
 def test_the_brief_passes_on_the_advised_form(tmp_path):
     """A role computed but absent from the brief would serve nobody."""
     proj = tmp_path / "formes"
-    _contrat_archetypes(tmp_path)
+    _archetypes_contract(tmp_path)
     brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "Suggested form: gallery" in brief
     assert "Suggested form: shop" in brief
@@ -604,7 +604,7 @@ def test_the_brief_gives_the_anatomy_and_the_neighbors(tmp_path):
     because they meet the same expectations: naming them gives the model a
     reference point, where the mere list of fields left it improvising."""
     proj = tmp_path / "formes"
-    _contrat_archetypes(tmp_path)
+    _archetypes_contract(tmp_path)
     brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "Close to:" in brief
     assert "What a visitor expects to find there" in brief
@@ -672,7 +672,7 @@ workflow Acheter for Client
 """
 
 
-def _projet_payable(tmp_path):
+def _payable_project(tmp_path):
     proj = tmp_path / "boutique"
     proj.mkdir()
     (proj / "spec.ml").write_text(SPEC_PAYABLE, encoding="utf-8")
@@ -690,7 +690,7 @@ def test_the_payment_routes_are_in_the_contract(tmp_path):
     The test is the non-divergence one, applied to a payable spec: it is not the
     presence of the two paths that is checked, but equality with the decorators
     really written in app.py."""
-    proj, contract = _projet_payable(tmp_path)
+    proj, contract = _payable_project(tmp_path)
     app_code = (proj / "app.py").read_text(encoding="utf-8")
     real_routes = {(m.group(1).upper(), m.group(2)) for m in
                    re.finditer(r"@app\.(get|post|put|delete)\('([^']+)'", app_code)}
@@ -707,7 +707,7 @@ def test_the_brief_says_how_to_pay_and_not_to_call_the_webhook(tmp_path):
     listed without its procedure — no body, redirect to `url` — is hard to guess;
     and the webhook must be explicitly ruled out, otherwise a conscientious
     interface will try to notify it itself."""
-    proj, _contract = _projet_payable(tmp_path)
+    proj, _contract = _payable_project(tmp_path)
     brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "POST /commande/{id}/paiement" in brief
     assert "NO body" in brief and "montant_centimes" in brief
@@ -733,7 +733,7 @@ def test_the_tracking_columns_are_not_announced_as_input(tmp_path):
     """`payment_status` and `payment_ref` belong to the server. The contract must
     not include them in the creation body: a faithful frontend would send them,
     and believe it could decide itself that an order is paid."""
-    _proj, contract = _projet_payable(tmp_path)
+    _proj, contract = _payable_project(tmp_path)
     creation = next(r for r in contract["routes"]
                     if r["method"] == "POST" and r["path"] == "/commande")
     # The witness is `quantite`: since point 79, `total` is CALCULATED by the
@@ -746,7 +746,7 @@ def test_the_tracking_columns_are_not_announced_as_input(tmp_path):
 
 # ------------------------------------- payment tracking (point 76) -----------
 
-def _champs_commande(contract):
+def _order_fields(contract):
     return {f["name"]: f for f in contract["entities"]["Commande"]["fields"]}
 
 
@@ -756,8 +756,8 @@ def test_the_tracking_columns_are_declared_as_output(tmp_path):
     nowhere — while the backend returns them (`SELECT *`) on every read. An
     interface AI faithful to the contract therefore could not know they exist,
     nor show a payment's outcome: the button could be drawn, its result not."""
-    _proj, contract = _projet_payable(tmp_path)
-    champs = _champs_commande(contract)
+    _proj, contract = _payable_project(tmp_path)
+    champs = _order_fields(contract)
     for colonne in ("payment_status", "payment_ref"):
         assert colonne in champs, f"{colonne} absent du contrat"
         assert champs[colonne]["server_generated"] is True
@@ -770,8 +770,8 @@ def test_the_tracking_columns_steal_no_layout_role(tmp_path):
     Passing these two columns to role assignment gave them two, hence displayed
     them as any secondary information — evicting real spec fields. They have no
     role, and the declared fields keep theirs."""
-    _proj, contract = _projet_payable(tmp_path)
-    champs = _champs_commande(contract)
+    _proj, contract = _payable_project(tmp_path)
+    champs = _order_fields(contract)
     assert champs["payment_status"]["role"] is None
     assert champs["payment_ref"]["role"] is None
     # The spec's fields do not move, nor the form deduced from the entity.
@@ -785,8 +785,8 @@ def test_the_brief_explains_each_tracking_column_distinctly(tmp_path):
     columns announced "'en_attente' / 'payee'" for `payment_ref`, which contains
     a session reference: a defect seen by rereading the produced brief, not the
     code. Each column says what it carries."""
-    proj, contract = _projet_payable(tmp_path)
-    champs = _champs_commande(contract)
+    proj, contract = _payable_project(tmp_path)
+    champs = _order_fields(contract)
     assert champs["payment_status"]["note"] != champs["payment_ref"]["note"]
     brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     # The values to compare are written: without them, the AI guesses 'paid'.
@@ -1271,7 +1271,7 @@ landing
 """
 
 
-def _projet_faq(tmp_path, spec=SPEC_FAQ, nom="faq"):
+def _faq_project(tmp_path, spec=SPEC_FAQ, nom="faq"):
     proj = tmp_path / nom
     proj.mkdir()
     (proj / "spec.ml").write_text(spec, encoding="utf-8")
@@ -1284,7 +1284,7 @@ def test_the_faq_is_a_list_of_pairs_in_the_contract(tmp_path):
     paragraph. It was faithful — the content model could not say "a FAQ". A
     structure one does not declare is a structure the AI must guess, and that it
     will lose again at the next rebuild."""
-    _proj, contract = _projet_faq(tmp_path)
+    _proj, contract = _faq_project(tmp_path)
     assert contract["faq"] == [
         {"question": "Comment choisir ma taille ?",
          "answer": "Nos paires taillent normalement."},
@@ -1300,7 +1300,7 @@ def test_the_question_order_is_the_specs(tmp_path):
     inverse = SPEC_FAQ.replace(
         '    question "Comment choisir ma taille ?": "Nos paires taillent normalement."\n', "")
     inverse += '    question "Comment choisir ma taille ?": "Nos paires taillent normalement."\n'
-    _proj, contract = _projet_faq(tmp_path, inverse, nom="ordre")
+    _proj, contract = _faq_project(tmp_path, inverse, nom="ordre")
     assert [q["question"] for q in contract["faq"]] == [
         "Puis-je annuler une commande ?", "Comment choisir ma taille ?"]
 
@@ -1309,7 +1309,7 @@ def test_the_brief_says_the_faq_is_a_list_never_a_paragraph(tmp_path):
     """The AI does not read the contract's JSON, it reads the brief. Putting the
     pairs there without saying what they are would get exactly the prose block we
     are fixing remade."""
-    proj, _contract = _projet_faq(tmp_path)
+    proj, _contract = _faq_project(tmp_path)
     brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "Frequently asked questions — a LIST" in brief
     assert "Never as a single paragraph" in brief
@@ -1349,7 +1349,7 @@ def test_the_delta_reports_an_added_question_and_a_rewritten_text(tmp_path, caps
     Comparing titles alone is point 89's exact mistake."""
     from monl.cli import cmd_update
 
-    proj, _contract = _projet_faq(tmp_path, nom="delta")
+    proj, _contract = _faq_project(tmp_path, nom="delta")
     capsys.readouterr()
     evolue = (SPEC_FAQ.replace('"Atelier fondé en 2015."', '"Atelier fondé en 2015, et agrandi depuis."')
               + '    question "Livrez-vous en Europe ?": "Oui, sous 3 à 5 jours."\n')

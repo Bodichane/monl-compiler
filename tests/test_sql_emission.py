@@ -21,7 +21,7 @@ from monl.parser import parse_monl_string
 # The layer's invariant: a value never crosses the text
 # -----------------------------------------------------------------------------
 
-def test_bind_sort_un_placeholder_et_retient_l_expression():
+def test_bind_outputs_a_placeholder_and_keeps_the_expression():
     q = sql.bind("data.commande_id")
     assert q.text == "?"
     assert q.params == ("data.commande_id",)
@@ -37,14 +37,14 @@ def test_ident_met_entre_guillemets():
     assert sql.ident("commande_id").params == ()
 
 
-def test_ident_refuse_un_guillemet_interne():
+def test_ident_refuses_an_inner_quote():
     # A validated entity/column never carries one; guessing the escaping would
     # hide a divergence upstream.
     with pytest.raises(ValueError):
         sql.ident('col"; DROP TABLE users; --')
 
 
-def test_kw_refuse_un_placeholder():
+def test_kw_refuses_a_placeholder():
     # A '?' is only written with bind() — otherwise a value could slip into a
     # fragment deemed "fixed".
     with pytest.raises(ValueError):

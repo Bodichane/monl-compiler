@@ -4,7 +4,7 @@
 suite produced 370. For a pure check (no server, no file nor setting shared
 between cases), it is the same work, spread over as many items.
 
-`verifier_chaque_cas` keeps what makes a parametrization useful: ALL cases
+`check_each_case` keeps what makes a parametrization useful: ALL cases
 run, even after a failure, and the message names each faulty case with its
 cause. It does not keep the count: a case is not a test.
 """
@@ -16,7 +16,7 @@ from collections.abc import Callable, Iterable, Sequence
 import pytest
 
 
-def verifier_chaque_cas(table: Iterable[tuple], verifier: Callable, *,
+def check_each_case(table: Iterable[tuple], verifier: Callable, *,
                         ids: Sequence[str] | None = None) -> None:
     """Calls `verifier(*cas)` for each tuple of `table`.
 

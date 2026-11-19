@@ -58,7 +58,7 @@ workflow Ecrire for Auteur
 
 
 @pytest.fixture
-def projet(tmp_path, capsys):
+def project(tmp_path, capsys):
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     capsys.readouterr()
@@ -172,11 +172,11 @@ def test_the_swap_message_proposes_a_usable_command(tmp_path, monkeypatch,
     assert propose.strip().endswith("projets/SneakerLab")
 
 
-def test_a_well_written_touch_up_passes_the_check(projet, capsys):
+def test_a_well_written_touch_up_passes_the_check(project, capsys):
     """The end-to-end witness: detection must not get in the way of normal use.
     We stop for lack of a frontend, not on the arguments."""
     with pytest.raises(SystemExit):
-        cmd_retouche(str(projet), "les images sont mal cadrées")
+        cmd_retouche(str(project), "les images sont mal cadrées")
     sortie = capsys.readouterr().out
     assert "arguments appear to be reversed" not in sortie
     assert "No frontend to touch up (frontend/index.html is missing)" in sortie

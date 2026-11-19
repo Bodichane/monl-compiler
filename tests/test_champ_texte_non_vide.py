@@ -46,7 +46,7 @@ def _spec(index, reponse="n", seed=False):
         return _run_template(index, reponse, want_seed=seed)
 
 
-def _premiers_champs(index, reponse, seed):
+def _first_fields(index, reponse, seed):
     """The FIRST field of each entity, with its type — that is the one the
     dialogue makes required (`emit_base_rules`)."""
     with contextlib.redirect_stdout(io.StringIO()):
@@ -98,7 +98,7 @@ def test_every_required_text_field_is_also_bounded():
     manquants = []
     for index, modele in enumerate(TEMPLATES, 1):
         for reponse, seed in (("n", False), ("o", True)):
-            _spec_, regles, premiers = _premiers_champs(index, reponse, seed)
+            _spec_, regles, premiers = _first_fields(index, reponse, seed)
             for (entite, champ), type_ in premiers.items():
                 obligatoire = f"rule {entite}.{champ} required" in regles
                 borne = f"rule {entite}.{champ} min 1" in regles
@@ -129,7 +129,7 @@ def test_a_first_numeric_field_gets_no_floor():
             f"un plancher sur du {type_} interdirait la valeur zéro : {lignes}")
 
 
-def test_un_premier_champ_texte_recoit_son_plancher():
+def test_a_first_text_field_gets_its_floor():
     """The counter-proof of the witness above: without it, a function that never
     emitted a floor again would make both green."""
     for type_ in TYPES_TEXTE:
@@ -188,7 +188,7 @@ def test_the_server_still_accepts_a_named_record(boutique, entete):
     assert fiche.json()["data"]["displayName"] == " a "
 
 
-def test_un_total_a_zero_reste_accepte(boutique, entete):
+def test_a_zero_total_stays_accepted(boutique, entete):
     """The limit, tested against the server and not only in the spec: an empty
     cart is worth zero, and refusing it would break the shop."""
     reponse = requests.post(f"{boutique}/order", headers=entete,
@@ -209,7 +209,7 @@ def test_update_refuses_empty_without_changing_the_value(boutique, entete):
     assert requests.get(url, headers=entete, timeout=10).json()["data"]["displayName"] == " a "
 
 
-def test_texte_non_required_reste_accepte(boutique, entete):
+def test_non_required_text_stays_accepted(boutique, entete):
     creation = requests.post(f"{boutique}/order", headers=entete,
                              json={"total": 0, "status": "   "}, timeout=10)
     assert creation.status_code == 200, creation.text

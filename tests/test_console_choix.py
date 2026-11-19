@@ -122,7 +122,7 @@ def test_the_title_does_not_repeat_the_terminal_menu(rapport_jsdom):
     assert "[1]" not in intitule
 
 
-def test_chaque_bouton_porte_son_rang_son_nom_et_son_aide(rapport_jsdom):
+def test_each_button_carries_its_rank_name_and_help(rapport_jsdom):
     premier = rapport_jsdom["premier"]
     assert premier["rang"] == "1"
     assert premier["libelle"] == "Portfolio / showcase site"

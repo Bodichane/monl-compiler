@@ -85,7 +85,7 @@ def test_telemetry_groups_on_the_readable_name(monkeypatch, tmp_path):
     assert "gpt://folder-de-test/" not in (tmp_path / frontend_ai.USAGE_FILENAME).read_text()
 
 
-def test_model_absent_reste_refuse(monkeypatch):
+def test_missing_model_stays_refused(monkeypatch):
     _configure_yandex(monkeypatch)
 
     with pytest.raises(frontend_ai.FrontendAIError, match="model missing"):

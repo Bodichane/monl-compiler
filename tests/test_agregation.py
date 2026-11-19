@@ -138,7 +138,7 @@ def faux_stripe():
 
 
 @contextlib.contextmanager
-def _base(dossier):
+def _base_spec(dossier):
     cnx = sqlite3.connect(os.path.join(dossier, "app.db"))
     try:
         with cnx:
@@ -158,7 +158,7 @@ def application(faux_stripe):
                "STRIPE_WEBHOOK_SECRET": CLE_WEBHOOK,
                "MONL_STRIPE_BASE_URL": f"http://{hote}:{port_stripe}"}
         with uvicorn_server(dossier, env=env) as base:
-            with _base(dossier) as cnx:
+            with _base_spec(dossier) as cnx:
                 cnx.execute('INSERT INTO article (nom, prix) VALUES (?, ?)',
                             ("Article A", PRIX_A))
                 cnx.execute('INSERT INTO article (nom, prix) VALUES (?, ?)',
@@ -167,7 +167,7 @@ def application(faux_stripe):
 
 
 def _vider_quota(dossier):
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         cnx.execute("DELETE FROM _monl_rate_limit")
 
 
@@ -195,12 +195,12 @@ def bob(application):
 
 
 def _id_article(dossier, prix):
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         return cnx.execute('SELECT id FROM article WHERE prix = ?',
                            (prix,)).fetchone()[0]
 
 
-def _commande(base, entetes, libelle):
+def _order(base, entetes, libelle):
     reponse = requests.post(f"{base}/commande", headers=entetes,
                             json={"libelle": libelle})
     assert reponse.status_code in (200, 201), reponse.text
@@ -238,13 +238,13 @@ def test_an_order_starts_at_zero_not_null(application, alice):
     """NULL is not 0: no interface can display "null €", and a sum starting from
     NULL would stay NULL in SQLite."""
     base, _ = application
-    commande = _commande(base, alice, "panier vide")
+    commande = _order(base, alice, "panier vide")
     assert _total(base, alice, commande) == 0
 
 
 def test_the_total_sent_by_the_client_is_ignored(application, alice):
     base, dossier = application
-    commande = _commande(base, alice, "tentative")
+    commande = _order(base, alice, "tentative")
     article = _id_article(dossier, PRIX_A)
     _line(base, alice, commande, article, 1)
     # The field does not exist in the schema: Pydantic silently ignores it.
@@ -260,7 +260,7 @@ def test_the_total_sent_by_the_client_is_ignored(application, alice):
 def test_the_total_is_the_sum_of_several_items(application, alice):
     """The heart of the brick: what `derivedFrom` could not do."""
     base, dossier = application
-    commande = _commande(base, alice, "deux articles")
+    commande = _order(base, alice, "deux articles")
     assert _line(base, alice, commande, _id_article(dossier, PRIX_A),
                   2).status_code in (200, 201)
     assert _total(base, alice, commande) == pytest.approx(PRIX_A * 2)
@@ -275,7 +275,7 @@ def test_the_total_follows_the_updated_quantity(application, alice):
     """Without recalculation on PUT, the flaw would move from the line to the
     quantity: add an item at 1 then switch to 10."""
     base, dossier = application
-    commande = _commande(base, alice, "modification")
+    commande = _order(base, alice, "modification")
     article = _id_article(dossier, PRIX_A)
     ligne = _line(base, alice, commande, article, 1).json()["id"]
     assert _total(base, alice, commande) == pytest.approx(PRIX_A)
@@ -290,7 +290,7 @@ def test_the_total_goes_down_when_a_line_is_deleted(application, alice):
     """The direction one forgets: without it, removing an item from the cart
     would let a returned item be paid for."""
     base, dossier = application
-    commande = _commande(base, alice, "suppression")
+    commande = _order(base, alice, "suppression")
     ligne_a = _line(base, alice, commande, _id_article(dossier, PRIX_A),
                      1).json()["id"]
     _line(base, alice, commande, _id_article(dossier, PRIX_B), 1)
@@ -302,9 +302,9 @@ def test_the_total_goes_down_when_a_line_is_deleted(application, alice):
     assert _total(base, alice, commande) == pytest.approx(PRIX_B)
 
 
-def test_un_panier_vide_de_ses_lignes_retombe_a_zero(application, alice):
+def test_a_cart_emptied_of_its_lines_falls_back_to_zero(application, alice):
     base, dossier = application
-    commande = _commande(base, alice, "à vider")
+    commande = _order(base, alice, "à vider")
     ligne = _line(base, alice, commande, _id_article(dossier, PRIX_A),
                    2).json()["id"]
     requests.delete(f"{base}/ligne/{ligne}", headers=alice)
@@ -315,7 +315,7 @@ def test_the_sum_is_rounded(application, alice):
     """Adding floats drifts. On an amount, a cent of drift is a cent charged too
     much or too little."""
     base, dossier = application
-    commande = _commande(base, alice, "arrondi")
+    commande = _order(base, alice, "arrondi")
     _line(base, alice, commande, _id_article(dossier, PRIX_A), QTE_A)
     _line(base, alice, commande, _id_article(dossier, PRIX_B), QTE_B)
     total = _total(base, alice, commande)
@@ -335,7 +335,7 @@ def test_someone_elses_total_does_not_move(application, alice, bob):
     """Brick 11's 403 is not enough to assert it: we must check that NOTHING was
     recalculated on the targeted order."""
     base, dossier = application
-    commande = _commande(base, alice, "privée")
+    commande = _order(base, alice, "privée")
     _line(base, alice, commande, _id_article(dossier, PRIX_A), 1)
     avant = _total(base, alice, commande)
 
@@ -357,7 +357,7 @@ def test_the_charged_amount_is_the_cart_sum(application, alice, faux_stripe):
     line, brick 11 attaches and protects it, brick 12 sums them, brick 9 charges
     the result."""
     base, dossier = application
-    commande = _commande(base, alice, "à régler")
+    commande = _order(base, alice, "à régler")
     _line(base, alice, commande, _id_article(dossier, PRIX_A), 2)
     _line(base, alice, commande, _id_article(dossier, PRIX_B), 3)
     attendu_centimes = str(round(round(PRIX_A * 2 + PRIX_B * 3, 2) * 100))
@@ -380,7 +380,7 @@ def test_the_charged_amount_follows_a_removed_line(application, alice, faux_stri
     """The case that tells "recalculated" from "calculated once": a returned item
     must not be charged before payment."""
     base, dossier = application
-    commande = _commande(base, alice, "panier corrigé")
+    commande = _order(base, alice, "panier corrigé")
     ligne_a = _line(base, alice, commande, _id_article(dossier, PRIX_A),
                      4).json()["id"]
     _line(base, alice, commande, _id_article(dossier, PRIX_B), 1)

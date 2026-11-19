@@ -22,7 +22,7 @@ from monl.ast_validator import ASTValidationError
 from monl.cli import _contract_signature, compile_project
 from monl.cli.delta import cmd_update
 from tests.support.server import uvicorn_server
-from tests.support.sqlite import base_sqlite
+from tests.support.sqlite import sqlite_db
 from tests.test_authentification_b4 import faux_smtp as faux_smtp
 from tests.test_messages import _uvicorn_with_output
 
@@ -76,7 +76,7 @@ def _login(base, account, password=PASSWORD):
     return _post(base, '/login', username=account, password=password)
 
 def _sql(directory, statement, parameters=()):
-    with base_sqlite(directory / 'app.db') as conn:
+    with sqlite_db(directory / 'app.db') as conn:
         return conn.execute(statement, parameters).fetchall()
 
 def _messages(smtp, count):
@@ -162,7 +162,7 @@ def _assert_limit(base, smtp, directory):
     assert _login(base, ACCOUNTS[0]).status_code == 403
     assert _login(base, ACCOUNTS[1]).status_code == 403
 
-def test_inscription_confirmation_et_rejeu(tmp_path, faux_smtp):
+def test_registration_confirmation_and_replay(tmp_path, faux_smtp):
     with _application(tmp_path, faux_smtp) as (base, tokens):
         _assert_login(base)
         hashes = _sql(tmp_path, 'SELECT token_hash FROM _monl_verify_email_tokens')
@@ -173,12 +173,12 @@ def test_inscription_confirmation_et_rejeu(tmp_path, faux_smtp):
         assert requests.get(base + '/verify-email', timeout=10).status_code == 405
 
 
-def test_jeton_expire(tmp_path, faux_smtp):
+def test_expired_token(tmp_path, faux_smtp):
     with _application(tmp_path, faux_smtp) as (base, tokens):
         _assert_expiration(base, tokens, tmp_path)
 
 
-def test_jeton_autre_compte(tmp_path, faux_smtp):
+def test_token_of_another_account(tmp_path, faux_smtp):
     with _application(tmp_path, faux_smtp) as (base, tokens):
         assert _confirm(base, ACCOUNTS[1], tokens[0]).status_code == 400
         assert _confirm(base, 'étranger@example.test', tokens[0]).status_code == 400
@@ -188,7 +188,7 @@ def test_jeton_autre_compte(tmp_path, faux_smtp):
         assert _confirm(base, ACCOUNTS[1], tokens[1]).status_code == 200
 
 
-def test_renvoi_generique_limite_et_invalidation(tmp_path, faux_smtp):
+def test_generic_resend_limit_and_invalidation(tmp_path, faux_smtp):
     with _application(tmp_path, faux_smtp) as (base, tokens):
         _assert_limit(base, faux_smtp, tmp_path)
         assert _confirm(base, ACCOUNTS[0], tokens[0]).status_code == 400
@@ -229,7 +229,7 @@ def test_contre_epreuves(guard, tmp_path, faux_smtp):
     '    verify_email: 1\n    verify_resend: 0 in 3600\n',
     '    verify_email: 1\n    verify_resend: 3 in 0\n',
 ])
-def test_refus_reglages_incomplets_ou_invalides(settings, tmp_path):
+def test_incomplete_or_invalid_settings_refused(settings, tmp_path):
     with pytest.raises(ASTValidationError):
         _compile(tmp_path, LEGACY.replace('    identifier: email\n', '    identifier: email\n' + settings))
 
@@ -240,7 +240,7 @@ def test_refused_without_email_identifier(identifier, tmp_path):
         _compile(tmp_path, SPEC.replace('    identifier: email\n', identifier))
 
 
-def test_comptes_anterieurs_et_manage_restent_confirmes(tmp_path, faux_smtp):
+def test_earlier_accounts_and_manage_stay_confirmed(tmp_path, faux_smtp):
     _compile(tmp_path, LEGACY)
     env = _env(faux_smtp)
     with uvicorn_server(tmp_path, env=env) as base:
@@ -268,7 +268,7 @@ def test_comptes_anterieurs_et_manage_restent_confirmes(tmp_path, faux_smtp):
         assert not faux_smtp.messages
 
 
-def test_contrat_signature_et_monl_update(tmp_path, capsys):
+def test_contract_signature_and_monl_update(tmp_path, capsys):
     previous = _compile(tmp_path, LEGACY)
     (tmp_path / 'spec.ml').write_text(SPEC)
     cmd_update(str(tmp_path))
@@ -296,7 +296,7 @@ def test_monl_run_check(tmp_path):
     assert 'confirmation' in result.stdout.lower(), result.stdout
 
 
-def test_dialogue_email_vers_serveur(tmp_path, faux_smtp):
+def test_dialogue_email_to_server(tmp_path, faux_smtp):
     from tests.test_app_templates import _run_template
     spec = _run_template(1, 'n', False, account_answers=['2', 'o', '86400', '3', '3600'])
     assert SETTINGS.strip() in spec

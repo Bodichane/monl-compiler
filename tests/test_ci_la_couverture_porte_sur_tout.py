@@ -26,31 +26,31 @@ import pytest
 from support.ci_workflow import (
     CI,
     RACINE,
-    commandes_coverage,
-    commandes_pytest,
-    fichiers_de_tests,
-    options_de_couverture,
+    coverage_commands,
+    coverage_options,
+    order_selection,
     project_coverage_threshold,
-    selection_dune_commande,
+    pytest_commands,
+    test_files_of,
 )
 
 
-def _commandes(texte):
-    commandes = commandes_pytest(texte)
+def _orders(texte):
+    commandes = pytest_commands(texte)
     assert commandes, "aucune invocation pytest trouvée"
     return commandes
 
 
-def fichiers_hors_mesure(texte):
+def unmeasured_files(texte):
     """For each command that MEASURES coverage, the test files it does not run.
     These files exercise the package without counting in the measurement: the
     announced percentage is not the package's."""
-    tous = fichiers_de_tests()
+    tous = test_files_of()
     hors = {}
-    for commande in _commandes(texte):
-        if not any(o.startswith("--cov=") for o in options_de_couverture(commande)):
+    for commande in _orders(texte):
+        if not any(o.startswith("--cov=") for o in coverage_options(commande)):
             continue
-        manquants = tous - selection_dune_commande(commande)
+        manquants = tous - order_selection(commande)
         if manquants:
             hors[commande] = sorted(str(f) for f in manquants)
     return hors
@@ -59,9 +59,9 @@ def fichiers_hors_mesure(texte):
 def files_never_run(texte):
     """The test files NO workflow command selects."""
     executes = set()
-    for commande in _commandes(texte):
-        executes |= selection_dune_commande(commande)
-    return sorted(str(f) for f in fichiers_de_tests() - executes)
+    for commande in _orders(texte):
+        executes |= order_selection(commande)
+    return sorted(str(f) for f in test_files_of() - executes)
 
 
 def barrieres_par_paquet(texte):
@@ -74,7 +74,7 @@ def barrieres_par_paquet(texte):
                if d.is_dir() and (d / "__init__.py").exists()}
     assert paquets, "aucun paquet trouvé sous src/"
     barrieres = {}
-    for commande in commandes_coverage(texte):
+    for commande in coverage_commands(texte):
         seuils = [j for j in commande.split() if j.startswith("--fail-under=")]
         if not seuils:
             continue
@@ -92,7 +92,7 @@ def test_a_coverage_gate_covers_the_whole_suite():
     percentage of the package having exercised only part of what exercises it:
     the number is too low because it ignores real tests, and fragile because the
     next test filed elsewhere will silently leave it."""
-    hors = fichiers_hors_mesure(CI.read_text(encoding="utf-8"))
+    hors = unmeasured_files(CI.read_text(encoding="utf-8"))
     assert not hors, (
         "une barrière de couverture ne doit pas être mesurée sur une "
         "sélection de fichiers : les tests hors sélection exercent le paquet "
@@ -154,7 +154,7 @@ CI_AMPUTE = """
 
 def test_the_rule_bites_on_the_form_ci_carried():
     """On the EXACT text `ci.yml` carried before this fix."""
-    hors = fichiers_hors_mesure(CI_FAUTIF)
+    hors = unmeasured_files(CI_FAUTIF)
     assert len(hors) == 1, hors
     manquants = next(iter(hors.values()))
     # The file NAMED by this session's measurement must be among them.
@@ -173,15 +173,15 @@ def test_the_two_other_rules_bite_on_a_truncated_workflow():
     assert barrieres["monl"] < project_coverage_threshold()
 
 
-def test_lextracteur_developpe_motifs_dossiers_et_absence_de_cible():
+def test_the_extractor_expands_patterns_folders_and_missing_target():
     """The three forms the workflow can take, on REAL paths."""
-    tous = fichiers_de_tests()
+    tous = test_files_of()
     # A folder is walked the way pytest walks it.
-    assert selection_dune_commande("run: python -m pytest tests/ -rs") == tous
+    assert order_selection("run: python -m pytest tests/ -rs") == tous
     # Without a target, pytest falls back to `testpaths` — hence the same set.
-    assert selection_dune_commande("run: python -m pytest -rs") == tous
+    assert order_selection("run: python -m pytest -rs") == tous
     # A pattern expands ONLY what it designates.
-    motif = selection_dune_commande(
+    motif = order_selection(
         "run: python -m pytest tests/test_platform_*.py")
     assert motif and motif < tous
     assert all(f.name.startswith("test_platform_") for f in motif)
@@ -191,7 +191,7 @@ def test_the_extractor_raises_on_a_target_it_cannot_read():
     """A target that cannot be resolved must never evaporate: ignored, it would
     make a narrow command pass for a wide one."""
     with pytest.raises(AssertionError, match="aucun fichier existant"):
-        selection_dune_commande("run: python -m pytest tests/test_inexistant.py")
+        order_selection("run: python -m pytest tests/test_inexistant.py")
 
 
 def test_the_extractor_splits_the_commands_of_a_literal_block():
@@ -204,7 +204,7 @@ def test_the_extractor_splits_the_commands_of_a_literal_block():
           python -m coverage report --include='src/monl/*' --fail-under=90
           python -m coverage report --include='src/monl_platform/*' --fail-under=90
 """
-    commandes = commandes_coverage(bloc)
+    commandes = coverage_commands(bloc)
     assert len(commandes) == 2, commandes
     assert "src/monl/*" in commandes[0] and "src/monl_platform" not in commandes[0]
     assert "src/monl_platform/*" in commandes[1]
@@ -217,5 +217,5 @@ def test_the_extractor_splits_the_commands_of_a_literal_block():
           python -m pytest tests/ -rs
           --cov=src/monl --cov-fail-under=0
 """
-    assert commandes_pytest(plie) == [
+    assert pytest_commands(plie) == [
         "python -m pytest tests/ -rs --cov=src/monl --cov-fail-under=0"]

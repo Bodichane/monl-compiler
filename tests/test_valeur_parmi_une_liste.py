@@ -229,7 +229,7 @@ def _appel(url, corps=None, jeton=None, methode=None):
 
 
 @pytest.fixture
-def serveur(tmp_path):
+def server(tmp_path):
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     port = _port_libre()
@@ -260,34 +260,34 @@ def serveur(tmp_path):
 
 
 @pytest.mark.parametrize("valide", ["panier", "en préparation", "expédiée", "livrée"])
-def test_the_declared_values_are_accepted(serveur, valide):
-    base, jeton = serveur
+def test_the_declared_values_are_accepted(server, valide):
+    base, jeton = server
     code, reponse = _appel(base + "/commande", {"statut": valide, "note": "x"}, jeton)
     assert code == 200, reponse
 
 
 @pytest.mark.parametrize("invalide", ["livrée par moi", "", "PANIER", "expediee"])
-def test_any_other_value_is_refused(serveur, invalide):
+def test_any_other_value_is_refused(server, invalide):
     """THE defect measured on the real shop: the client declared itself
     "delivered" on its own, on an unpaid order."""
-    base, jeton = serveur
+    base, jeton = server
     code, _ = _appel(base + "/commande", {"statut": invalide, "note": "x"}, jeton)
     assert code == 422
 
 
-def test_the_refusal_lists_the_allowed_values(serveur):
+def test_the_refusal_lists_the_allowed_values(server):
     """A 422 that does not say what it expects forces reading the documentation.
     The list is in the message, it comes from `Literal`."""
-    base, jeton = serveur
+    base, jeton = server
     _, reponse = _appel(base + "/commande", {"statut": "inventé", "note": "x"}, jeton)
     message = json.dumps(reponse, ensure_ascii=False)
     assert "panier" in message and "livrée" in message
 
 
-def test_the_constraint_ALSO_holds_on_update(serveur):
+def test_the_constraint_ALSO_holds_on_update(server):
     """The branch one forgets (points 91, 92): the Pydantic schema is unique per
     entity, so PUT is covered — but it must be CHECKED, not assumed."""
-    base, jeton = serveur
+    base, jeton = server
     _, cree = _appel(base + "/commande", {"statut": "panier", "note": "x"}, jeton)
 
     code, _ = _appel(f"{base}/commande/{cree['id']}",
@@ -301,10 +301,10 @@ def test_the_constraint_ALSO_holds_on_update(serveur):
     assert relue["data"]["statut"] == "expédiée"
 
 
-def test_a_refusal_leaves_nothing_in_the_database(serveur):
+def test_a_refusal_leaves_nothing_in_the_database(server):
     """422 before any INSERT: the guard lives in input validation, not in the
     middle of a write."""
-    base, jeton = serveur
+    base, jeton = server
     _appel(base + "/commande", {"statut": "inventé", "note": "x"}, jeton)
     _, liste = _appel(base + "/commande", jeton=jeton)
     assert liste["total"] == 0

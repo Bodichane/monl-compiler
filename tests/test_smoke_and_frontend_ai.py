@@ -80,7 +80,7 @@ def test_smoke_passes_without_frontend_and_does_not_touch_the_database(project):
         "le smoke test a modifié la base réelle du projet")
 
 
-def test_smoke_valide_un_frontend_correct(project):
+def test_smoke_validates_a_correct_frontend(project):
     front = project / "frontend"
     front.mkdir()
     (front / "index.html").write_text(GOOD_FRONT, encoding="utf-8")
@@ -189,7 +189,7 @@ def test_a_declared_but_missing_assets_folder_falls_back_on_frontend(project):
                for error in _frontend_local_reference_errors(str(project)))
 
 
-def test_smoke_bloque_un_frontend_casse(project):
+def test_smoke_blocks_a_broken_frontend(project):
     front = project / "frontend"
     front.mkdir()
     (front / "index.html").write_text(BAD_FRONT, encoding="utf-8")
@@ -199,7 +199,7 @@ def test_smoke_bloque_un_frontend_casse(project):
     assert any("/fantome" in e for e in errors), errors        # hors contrat
 
 
-def test_smoke_nomme_lurl_absolue_au_lieu_de_fetch_failed(project):
+def test_smoke_names_the_absolute_url_instead_of_fetch_failed(project):
     """Regression (point 51): with the ephemeral server listening on a free port,
     a frontend hard-targeting 8000 failed with 'TypeError: fetch failed' — a
     message silent about the cause, on which automatic correction went round in
@@ -264,7 +264,7 @@ def test_coherence_spots_a_dataset_id_compared_without_conversion(project):
     assert _frontend_behavioral_quality_errors(str(project)) == []
 
 
-def test_design_refuse_image_generee_reutilisee_et_texte_editorial_duplique(project):
+def test_design_refuses_reused_generated_image_and_duplicated_editorial_text(project):
     front = project / "frontend"
     front.mkdir()
     (front / "index.html").write_text(
@@ -399,7 +399,7 @@ GOOD_SPLIT_JS = ("fetch('/item?limit=5').then(r => r.json()).then(d => {"
                  "document.getElementById('l').textContent = d.total;});")
 
 
-def test_import_zip_realiste_sous_dossier_et_parasite(project, tmp_path):
+def test_realistic_zip_import_subfolder_and_stray_file(project, tmp_path):
     """A zip 'as Claude returns it': subfolder, separate JS, file outside the
     allowlist — installed, filtered, and app.js's fetch is indeed TESTED (local
     scripts are inlined before jsdom, otherwise false positive)."""
@@ -414,7 +414,7 @@ def test_import_zip_realiste_sous_dossier_et_parasite(project, tmp_path):
     assert not (project / "frontend" / "notes.py").exists()
 
 
-def test_import_refuse_zip_slip_et_cdn(project, tmp_path):
+def test_import_refuses_zip_slip_and_cdn(project, tmp_path):
     evil = tmp_path / "evil.zip"
     with zipfile.ZipFile(evil, "w") as z:
         z.writestr("../evasion.html", "x")
@@ -494,7 +494,7 @@ def test_project_claude_md_generated_and_never_overwritten(project):
     assert claude_md.read_text(encoding="utf-8") == "# mes propres consignes"
 
 
-def test_claude_code_reussit_et_verifie(project, tmp_path):
+def test_claude_code_succeeds_and_checks(project, tmp_path):
     agent = _fake_agent(tmp_path, GOOD_AGENT)
     ok, errors = generate_with_claude_code(str(project), command=agent, say=_quiet)
     assert ok, errors
@@ -822,7 +822,7 @@ def test_telemetry_keeps_neither_prompt_nor_response(project, monkeypatch):
     assert GOOD_FRONT not in contenu
 
 
-def test_chaque_prereglage_nomme_sa_propre_variable_de_cle(monkeypatch):
+def test_each_preset_names_its_own_key_variable(monkeypatch):
     """A missing key must name THE expected variable: "missing key" without
     saying which sends the user to read the code."""
     from monl.frontend_ai import FrontendAIError
@@ -845,7 +845,7 @@ def test_no_default_model_outside_the_anthropic_path(monkeypatch):
     assert "--model" in str(e.value)
 
 
-def test_point_de_terminaison_libre_par_lenvironnement(monkeypatch):
+def test_free_endpoint_through_the_environment(monkeypatch):
     monkeypatch.setenv("MONL_AI_BASE_URL", "https://exemple.interne/v1")
     monkeypatch.setenv("MONL_AI_API_KEY", "cle-maison")
     vu = {}
@@ -1205,7 +1205,7 @@ def test_a_truncated_response_never_goes_through_the_safety_net():
         parse_single_file_payload(tronquee, "app.js")
 
 
-def test_l_echelle_de_reprise_atteint_vraiment_sa_borne():
+def test_the_retry_ladder_really_reaches_its_bound():
     """A bound no path reaches constrains nothing.
 
     The ladder went 8,000 → 12,000 → 18,000 while the code announced a maximum

@@ -58,7 +58,7 @@ def test_publishing_restores_all_old_files_if_a_replacement_fails(
     assert (target / "schema.sql").read_text(encoding="utf-8") == "ancien schema"
 
 
-def test_publication_refuse_un_staging_incomplet(tmp_path):
+def test_publication_refuses_an_incomplete_staging(tmp_path):
     target = tmp_path / "projet"
     staging = tmp_path / "stage"
     target.mkdir()

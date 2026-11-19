@@ -21,7 +21,7 @@ from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import _contract_signature, compile_project
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cas import check_each_case
 from tests.support.server import uvicorn_server
 
 SPEC = """app B3
@@ -126,7 +126,7 @@ def _create(base, headers, title, status, active, rank):
     return response.json()["id"]
 
 
-def test_filtre_exact_tri_acl_pagination_et_valeurs_hostiles(database_url):
+def test_exact_filter_sort_acl_pagination_and_hostile_values(database_url):
     with _application(SPEC, database_url) as base:
         alice = _register(base, f"alice-{uuid4().hex[:8]}")
         bob = _register(base, f"bob-{uuid4().hex[:8]}")
@@ -261,4 +261,4 @@ workflow W for User
         with pytest.raises(ASTValidationError, match=needle):
             MonlAST(parse_monl_string(spec)).validate_and_audit()
 
-    verifier_chaque_cas(table, cas)
+    check_each_case(table, cas)

@@ -7,7 +7,7 @@ import requests
 
 from monl.cli import compile_project
 from tests.support.server import uvicorn_server
-from tests.support.sqlite import base_sqlite
+from tests.support.sqlite import sqlite_db
 
 RACINE = Path(__file__).resolve().parents[1]
 MOT_DE_PASSE = "MotDePasse123!"
@@ -25,7 +25,7 @@ def _compiler_exemple(tmp_path, nom):
     return projet, contrat
 
 
-def _jeton(base, acteur, identifiant):
+def _token(base, acteur, identifiant):
     r = requests.post(f"{base}/register", timeout=10,
                       json={"username": identifiant, "password": MOT_DE_PASSE,
                             "actor": acteur})
@@ -42,20 +42,20 @@ def test_contract_orderline_post_decrements_the_variant(tmp_path):
                  if r["method"] == "POST" and r["path"] == "/orderline")
     assert set(route["request_fields"]) == {"order_id", "quantity", "variant_id"}
     with uvicorn_server(str(projet)) as base:
-        headers = _jeton(base, "Customer", "client@example.test")
+        headers = _token(base, "Customer", "client@example.test")
         commande_r = requests.post(f"{base}/order", timeout=10, headers=headers, json={})
         assert commande_r.status_code == 200, commande_r.text
         commande = commande_r.json()
         variantes = requests.get(f"{base}/variant", timeout=10).json()["data"]
         variante = variantes[0]
-        with base_sqlite(projet / "app.db") as db:
+        with sqlite_db(projet / "app.db") as db:
             before = db.execute("SELECT stock FROM variant WHERE id = ?",
                                 (variante["id"],)).fetchone()[0]
         valeurs = {"order_id": commande["id"], "variant_id": variante["id"], "quantity": 1}
         corps = {field: valeurs[field] for field in route["request_fields"]}
         resultat = requests.post(f"{base}/orderline", timeout=10, headers=headers, json=corps)
         assert resultat.status_code == 200, resultat.text
-        with base_sqlite(projet / "app.db") as db:
+        with sqlite_db(projet / "app.db") as db:
             after = db.execute("SELECT stock FROM variant WHERE id = ?",
                                (variante["id"],)).fetchone()[0]
     assert after == before - 1
@@ -67,16 +67,16 @@ def test_contract_like_post_increments_the_post(tmp_path):
                  if r["method"] == "POST" and r["path"] == "/like")
     assert set(route["request_fields"]) == {"note", "post_id"}
     with uvicorn_server(str(projet)) as base:
-        headers = _jeton(base, "Member", "membre@example.test")
+        headers = _token(base, "Member", "membre@example.test")
         post = requests.get(f"{base}/post", timeout=10).json()["data"][0]
-        with base_sqlite(projet / "app.db") as db:
+        with sqlite_db(projet / "app.db") as db:
             before = db.execute("SELECT likes FROM post WHERE id = ?",
                                  (post["id"],)).fetchone()[0]
         valeurs = {"note": "bravo", "post_id": post["id"]}
         corps = {field: valeurs[field] for field in route["request_fields"]}
         resultat = requests.post(f"{base}/like", timeout=10, headers=headers, json=corps)
         assert resultat.status_code == 200, resultat.text
-        with base_sqlite(projet / "app.db") as db:
+        with sqlite_db(projet / "app.db") as db:
             after = db.execute("SELECT likes FROM post WHERE id = ?",
                                (post["id"],)).fetchone()[0]
     assert after == before + 1

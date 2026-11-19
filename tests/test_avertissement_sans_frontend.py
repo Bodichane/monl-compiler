@@ -41,7 +41,7 @@ def _warning_without_frontend(projet):
     return trouves[0]
 
 
-def _chemins_cites(message):
+def _cited_paths(message):
     """The URL paths the message names (`/`, `/docs`, `/site/`…).
 
     A path is a slash at the start of a word; `frontend/` is not one (the slash
@@ -55,7 +55,7 @@ def test_each_path_announced_without_frontend_answers_as_announced(tmp_path, cap
     assert not (tmp_path / "frontend").exists()
 
     message = _warning_without_frontend(tmp_path)
-    chemins = _chemins_cites(message)
+    chemins = _cited_paths(message)
     # Non-emptiness: without an extracted path, the loop below would check
     # nothing and return green (point 161). We do NOT require a precise list:
     # the server, not a sentence copied here, judges each path.

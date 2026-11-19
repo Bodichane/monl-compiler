@@ -3,10 +3,10 @@ import sqlite3
 import pytest
 
 from monl_platform.identity import IdentityError, IdentityStore
-from tests.support.sqlite import base_sqlite
+from tests.support.sqlite import sqlite_db
 
 
-def test_compte_session_et_mot_de_passe_hache(tmp_path):
+def test_account_session_and_hashed_password(tmp_path):
     store = IdentityStore(tmp_path)
     user = store.register(" Alice@Example.COM ", "mot-de-passe-solide")
     assert user["email"] == "alice@example.com"
@@ -18,7 +18,7 @@ def test_compte_session_et_mot_de_passe_hache(tmp_path):
     store.revoke_session(token)
     assert store.session_user(token) is None
 
-    with base_sqlite(store.path) as db:
+    with sqlite_db(store.path) as db:
         password_hash, salt = db.execute(
             "SELECT password_hash, password_salt FROM users WHERE id = ?", (user["id"],)
         ).fetchone()
@@ -46,7 +46,7 @@ def test_projects_belong_to_a_single_account(tmp_path):
     assert store.projects(bob["id"]) == []
     reopened = IdentityStore(tmp_path)
     assert reopened.projects(alice["id"])[0]["project_id"] == "a" * 32
-    with base_sqlite(store.path) as db:
+    with sqlite_db(store.path) as db:
         db.execute("UPDATE projects SET expires_at = 0 WHERE project_id = ?", ("a" * 32,))
     assert reopened.expired_projects() == ["a" * 32]
     assert reopened.projects(alice["id"]), "La sélection des projets échus ne doit pas effacer leur propriétaire"
@@ -66,7 +66,7 @@ def test_api_key_shown_once_hashed_and_revocable(tmp_path):
     assert listed[0]["prefix"] == created["prefix"]
     assert "key" not in listed[0]
 
-    with base_sqlite(store.path) as db:
+    with sqlite_db(store.path) as db:
         stored = db.execute("SELECT key_hash FROM api_keys").fetchone()[0]
     assert created["key"] not in stored
     assert store.api_key_user(created["key"]) == user
@@ -75,7 +75,7 @@ def test_api_key_shown_once_hashed_and_revocable(tmp_path):
     assert store.api_key_user(created["key"]) is None
 
 
-def test_limite_de_debit_persistante_et_atomique(tmp_path):
+def test_persistent_and_atomic_rate_limit(tmp_path):
     store = IdentityStore(tmp_path)
     assert store.consume_limit("login", "127.0.0.1", limit=2, window=60, now=100) is None
     assert store.consume_limit("login", "127.0.0.1", limit=2, window=60, now=101) is None
@@ -141,7 +141,7 @@ def test_wal_waits_for_the_lock_on_a_new_database(tmp_path, monkeypatch, generat
         assert not worker.is_alive()
         assert errors == []
         assert len(stores) == 1
-        with base_sqlite(tmp_path / "platform.sqlite3") as check:
+        with sqlite_db(tmp_path / "platform.sqlite3") as check:
             assert check.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
     finally:
         blocker.rollback()

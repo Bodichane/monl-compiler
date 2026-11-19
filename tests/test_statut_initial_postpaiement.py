@@ -108,7 +108,7 @@ def faux_stripe():
 
 
 @contextlib.contextmanager
-def _base(dossier):
+def _base_spec(dossier):
     connexion = sqlite3.connect(Path(dossier) / "app.db")
     try:
         with connexion:
@@ -171,7 +171,7 @@ def application(faux_stripe):
         ast = MonlAST(parse_monl_string(SPEC)).validate_and_audit()
         MonlSecureGenerator(ast, output_dir=dossier).generate_all()
         with uvicorn_server(dossier, env=_env_paiement(faux_stripe)) as base:
-            with _base(dossier) as connexion:
+            with _base_spec(dossier) as connexion:
                 connexion.execute(
                     "INSERT INTO article (prix, stock) VALUES (12.5, 10)")
             client = _inscrire(base, "cliente", "Client")
@@ -190,7 +190,7 @@ def test_creation_takes_the_first_oneof_and_leaves_text_empty(application):
     assert lecture.status_code == 200, lecture.text
     assert lecture.json()["data"]["statut"] == "panier"
     assert lecture.json()["data"]["suivi"] is None
-    with _base(dossier) as connexion:
+    with _base_spec(dossier) as connexion:
         assert connexion.execute(
             "SELECT statut, suivi FROM commande WHERE id = ?", (identifiant,),
         ).fetchone() == ("panier", None)
@@ -215,7 +215,7 @@ def test_after_payment_changes_the_status(application):
         f"{base}/commande/{commande}/apres-paiement",
         headers=gestionnaire, json={"statut": "expédiée"}, timeout=10)
     assert modification.status_code == 200, modification.text
-    with _base(dossier) as connexion:
+    with _base_spec(dossier) as connexion:
         assert connexion.execute(
             "SELECT statut FROM commande WHERE id = ?", (commande,),
         ).fetchone()[0] == "expédiée"
@@ -267,7 +267,7 @@ def test_an_old_null_row_is_counted_not_backfilled(
     ast = MonlAST(parse_monl_string(SPEC)).validate_and_audit()
     MonlSecureGenerator(ast, output_dir=str(tmp_path)).generate_all()
     env = _env_paiement(faux_stripe)
-    with uvicorn_server(str(tmp_path), env=env), _base(tmp_path) as connexion:
+    with uvicorn_server(str(tmp_path), env=env), _base_spec(tmp_path) as connexion:
         connexion.execute(
             "INSERT INTO commande (total, statut, suivi) VALUES (0, NULL, NULL)")
 
@@ -277,7 +277,7 @@ def test_an_old_null_row_is_counted_not_backfilled(
     journal = sortie.decode("utf-8", "replace")
     assert '"commande"."statut": 1 record(s)' in journal
     assert "NULL value outside the oneOf" in journal
-    with _base(tmp_path) as connexion:
+    with _base_spec(tmp_path) as connexion:
         assert connexion.execute(
             "SELECT statut FROM commande WHERE id = 1").fetchone()[0] is None
 

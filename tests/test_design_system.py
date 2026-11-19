@@ -36,7 +36,7 @@ def _manifest(path):
     return json.loads("\n".join(lines[1:]))
 
 
-def test_compile_prepare_design_system_et_manifest(tmp_path):
+def test_compile_prepares_design_system_and_manifest(tmp_path):
     spec = tmp_path / "spec.ml"
     spec.write_text(SPEC, encoding="utf-8")
     compile_project(str(spec), str(tmp_path))
@@ -183,7 +183,7 @@ def test_frontend_accepts_a_media_marker_on_several_cards(tmp_path):
     assert not errors
 
 
-def test_manifest_generated_devient_bloquant_apres_frontend(tmp_path):
+def test_generated_manifest_becomes_blocking_after_frontend(tmp_path):
     spec = tmp_path / "spec.ml"
     spec.write_text(SPEC, encoding="utf-8")
     compile_project(str(spec), str(tmp_path))

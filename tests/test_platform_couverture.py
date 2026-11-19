@@ -539,7 +539,7 @@ def test_the_store_validates_its_metadata_and_transitions(tmp_path):
     assert store.discard_project(user["id"], project_id) is True
 
 
-def test_l_adaptateur_oauth_couvre_configuration_et_reponses_fournisseur(monkeypatch):
+def test_the_oauth_adapter_covers_configuration_and_provider_responses(monkeypatch):
     from monl_platform import oauth
 
     environnement = {

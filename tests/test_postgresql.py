@@ -136,7 +136,7 @@ def _register(base: str, username: str) -> dict:
     return {"Authorization": f"Bearer {login.json()['access_token']}"}
 
 
-def test_inscription_creation_et_lecture_restent_filtrees_par_propriete(postgres_dsn):
+def test_registration_creation_and_read_stay_filtered_by_ownership(postgres_dsn):
     spec = """app PgAccess
 
 entity User
@@ -557,7 +557,7 @@ migration broken
         assert returncode != 0 and "the database will not be served" in output
 
 
-def test_migration_postgresql_down_retablit_noms_types_et_donnees(postgres_dsn):
+def test_postgresql_down_migration_restores_names_types_and_data(postgres_dsn):
     spec_v1 = """app PgDown
 
 entity Note

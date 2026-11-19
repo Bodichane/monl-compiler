@@ -255,7 +255,7 @@ PRIX = 42.5
 
 
 @contextlib.contextmanager
-def _base(dossier):
+def _base_spec(dossier):
     cnx = sqlite3.connect(os.path.join(dossier, "app.db"))
     try:
         with cnx:
@@ -270,14 +270,14 @@ def application():
         ast = MonlAST(parse_monl_string(SPEC)).validate_and_audit()
         MonlSecureGenerator(ast, output_dir=dossier).generate_all()
         with uvicorn_server(dossier) as base:
-            with _base(dossier) as cnx:
+            with _base_spec(dossier) as cnx:
                 cnx.execute('INSERT INTO article (nom, prix) VALUES (?, ?)',
                             ("Article test", PRIX))
             yield base, dossier
 
 
 def _vider_quota(dossier):
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         cnx.execute("DELETE FROM _monl_rate_limit")
 
 
@@ -303,7 +303,7 @@ def alice(application):
     # confused with an account would hide the bug we try to settle at depth 2).
     dernier = None
     for libelle in ("brouillon", "abandonnée", "en cours"):
-        dernier = _commande(base, entetes, libelle)
+        dernier = _order(base, entetes, libelle)
     for _ in range(3):
         _bloc(base, entetes, dernier)
     return entetes
@@ -314,7 +314,7 @@ def bob(application):
     return _entetes(application, "bob_prof")
 
 
-def _commande(base, entetes, libelle):
+def _order(base, entetes, libelle):
     r = requests.post(f"{base}/commande", headers=entetes,
                       json={"libelle": libelle})
     assert r.status_code in (200, 201), r.text
@@ -335,13 +335,13 @@ def _line(base, entetes, bloc_id, article_id, quantite):
 
 
 def _id_article(dossier):
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         return cnx.execute('SELECT id FROM article WHERE prix = ?',
                            (PRIX,)).fetchone()[0]
 
 
-def _id_compte(dossier, identifiant):
-    with _base(dossier) as cnx:
+def _account_id(dossier, identifiant):
+    with _base_spec(dossier) as cnx:
         return cnx.execute("SELECT id FROM _monl_users WHERE username = ?",
                            (identifiant,)).fetchone()[0]
 
@@ -366,17 +366,17 @@ def test_the_chain_foreign_keys_are_in_the_schema(application):
 
 def test_the_stored_link_is_the_one_requested(application, alice):
     base, dossier = application
-    commande = _commande(base, alice, "panier profond")
+    commande = _order(base, alice, "panier profond")
     bloc = _bloc(base, alice, commande)
     article = _id_article(dossier)
     reponse = _line(base, alice, bloc, article, 2)
     assert reponse.status_code in (200, 201), reponse.text
     ligne_id = reponse.json()["id"]
 
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         stocke = cnx.execute('SELECT bloc_id FROM ligne WHERE id = ?',
                              (ligne_id,)).fetchone()[0]
-    compte = _id_compte(dossier, "alice_prof")
+    compte = _account_id(dossier, "alice_prof")
     assert stocke == bloc, "le maillon désigné n'a pas été enregistré"
     assert bloc != compte and stocke != compte, "maillon et compte confondus"
 
@@ -387,7 +387,7 @@ def test_the_stored_link_is_the_one_requested(application, alice):
 
 def test_reading_someone_elses_line_answers_404(application, alice, bob):
     base, dossier = application
-    commande = _commande(base, alice, "lire")
+    commande = _order(base, alice, "lire")
     bloc = _bloc(base, alice, commande)
     ligne_id = _line(base, alice, bloc, _id_article(dossier), 1).json()["id"]
     assert requests.get(f"{base}/ligne/{ligne_id}",
@@ -396,7 +396,7 @@ def test_reading_someone_elses_line_answers_404(application, alice, bob):
 
 def test_creating_in_someone_elses_block_is_refused(application, alice, bob):
     base, dossier = application
-    commande = _commande(base, alice, "créer")
+    commande = _order(base, alice, "créer")
     bloc = _bloc(base, alice, commande)
     reponse = _line(base, bob, bloc, _id_article(dossier), 1)
     assert reponse.status_code == 403, reponse.text
@@ -404,14 +404,14 @@ def test_creating_in_someone_elses_block_is_refused(application, alice, bob):
 
 def test_updating_someone_elses_line_is_refused(application, alice, bob):
     base, dossier = application
-    commande = _commande(base, alice, "modifier")
+    commande = _order(base, alice, "modifier")
     bloc = _bloc(base, alice, commande)
     ligne_id = _line(base, alice, bloc, _id_article(dossier), 1).json()["id"]
     refuse = requests.put(f"{base}/ligne/{ligne_id}", headers=bob,
                           json={"quantite": 50, "bloc_id": bloc,
                                 "article_id": _id_article(dossier)})
     assert refuse.status_code == 403, refuse.text
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         quantite = cnx.execute('SELECT quantite FROM ligne WHERE id = ?',
                                (ligne_id,)).fetchone()[0]
     assert quantite == 1, "la ligne a été modifiée malgré le refus"
@@ -419,12 +419,12 @@ def test_updating_someone_elses_line_is_refused(application, alice, bob):
 
 def test_deleting_someone_elses_line_is_refused(application, alice, bob):
     base, dossier = application
-    commande = _commande(base, alice, "supprimer")
+    commande = _order(base, alice, "supprimer")
     bloc = _bloc(base, alice, commande)
     ligne_id = _line(base, alice, bloc, _id_article(dossier), 1).json()["id"]
     refuse = requests.delete(f"{base}/ligne/{ligne_id}", headers=bob)
     assert refuse.status_code == 403, refuse.text
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         reste = cnx.execute('SELECT COUNT(*) FROM ligne WHERE id = ?',
                             (ligne_id,)).fetchone()[0]
     assert reste == 1, "la ligne a été supprimée malgré le refus"
@@ -432,7 +432,7 @@ def test_deleting_someone_elses_line_is_refused(application, alice, bob):
 
 def test_the_owner_updates_and_deletes_their_line(application, alice):
     base, dossier = application
-    commande = _commande(base, alice, "à moi")
+    commande = _order(base, alice, "à moi")
     bloc = _bloc(base, alice, commande)
     ligne_id = _line(base, alice, bloc, _id_article(dossier), 1).json()["id"]
 
@@ -445,7 +445,7 @@ def test_the_owner_updates_and_deletes_their_line(application, alice):
 
     assert requests.delete(f"{base}/ligne/{ligne_id}",
                            headers=alice).status_code == 200
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         reste = cnx.execute('SELECT COUNT(*) FROM ligne WHERE id = ?',
                             (ligne_id,)).fetchone()[0]
     assert reste == 0
@@ -453,12 +453,12 @@ def test_the_owner_updates_and_deletes_their_line(application, alice):
 
 def test_the_list_only_shows_the_customers_lines(application, alice, bob):
     base, dossier = application
-    commande = _commande(base, alice, "liste")
+    commande = _order(base, alice, "liste")
     bloc = _bloc(base, alice, commande)
     article = _id_article(dossier)
     ids_alice = {_line(base, alice, bloc, article, 1).json()["id"] for _ in range(2)}
 
-    commande_bob = _commande(base, bob, "liste bob")
+    commande_bob = _order(base, bob, "liste bob")
     bloc_bob = _bloc(base, bob, commande_bob)
     _line(base, bob, bloc_bob, article, 1)
 

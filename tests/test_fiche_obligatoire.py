@@ -384,7 +384,7 @@ def test_without_an_order_the_record_stays_deletable(boutique):
     assert code == 200, reponse
 
 
-def test_lavant_derniere_fiche_reste_supprimable(boutique):
+def test_the_second_to_last_record_stays_deletable(boutique):
     """`requiresOwn` requires "at least one": as long as one remains, the order
     stays attached. Refusing here would be stricter than the rule."""
     base, _ = boutique

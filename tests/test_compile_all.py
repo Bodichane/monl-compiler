@@ -28,7 +28,7 @@ import tempfile
 from monl.ast_validator import MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_file
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cas import check_each_case
 
 EXEMPLES_DIR = os.path.join(os.path.dirname(__file__), "../exemples")
 PLUGIN_EXEMPLES_DIR = os.path.join(os.path.dirname(__file__), "../plugin/reference/exemples")
@@ -78,7 +78,7 @@ def test_example_compiles():
                 f"{os.path.basename(yaml_path)} n'a aucun bloc 'custom' et reçoit "
             "pourtant le module vide")
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas, ids=noms)
+    check_each_case([(valeur,) for valeur in table], cas, ids=noms)
 
 
 def test_at_least_one_example_exists():

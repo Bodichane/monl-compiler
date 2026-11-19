@@ -14,8 +14,8 @@ import requests
 
 from monl_platform.app import create_app
 from monl_platform.hosting_control import _adresses
-from tests.support.sqlite import base_sqlite
-from tests.test_platform_hebergement import _compiler, _get, _serveur_plateforme
+from tests.support.sqlite import sqlite_db
+from tests.test_platform_hebergement import _compiler, _get, _platform_server
 
 
 def _attendre_workers(serveur, base, workspace, journal):
@@ -44,7 +44,7 @@ def _verifier_workers(pids):
 def test_cli_deletion_with_two_uvicorn_workers(tmp_path):
     app = create_app(workspace=tmp_path)
     user = app.state.identity_store.register("workers@monl.test", "MotDePasse-123")
-    projet, dossier = _projet(app, user, "multiworker")
+    projet, dossier = _project(app, user, "multiworker")
     with socket.socket() as reservation:
         reservation.bind(("127.0.0.1", 0))
         port = reservation.getsockname()[1]
@@ -85,14 +85,14 @@ def test_cli_deletion_with_two_uvicorn_workers(tmp_path):
                 serveur.wait(timeout=5)
 
 
-def _projet(app, user, nom):
+def _project(app, user, nom):
     pid = uuid.uuid4().hex
     app.state.identity_store.add_project(user["id"], pid, nom)
     app.state.store.create_project(user["id"], pid, nom)
     projet = app.state.store.get_project(pid)
     dossier = _compiler(projet, app.state.compilation_service.workspace,
                         app.state.compilation_service.workspace)
-    with base_sqlite(dossier / "app.db") as db:
+    with sqlite_db(dossier / "app.db") as db:
         db.execute("CREATE TABLE visiteurs_prives (email TEXT)")
         db.execute("INSERT INTO visiteurs_prives VALUES (?)", ("visiteur@prive.test",))
     (dossier / ".jwt_secret").write_text("secret du site", encoding="utf-8")
@@ -129,7 +129,7 @@ def _supprimer(mode, app, base, session, user, projet):
 
 
 @pytest.mark.parametrize("mode", ["projet", "compte", "cli", "purge"])
-def test_suppression_complete_et_sites_voisins_preserves(tmp_path, monkeypatch, mode):
+def test_complete_deletion_and_neighbor_sites_preserved(tmp_path, monkeypatch, mode):
     monkeypatch.setenv("MONL_PURGE_INTERVAL_SECONDS", "1")
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES", "3")
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES_PER_ACCOUNT", "2")
@@ -137,11 +137,11 @@ def test_suppression_complete_et_sites_voisins_preserves(tmp_path, monkeypatch, 
     identites = app.state.identity_store
     alice = identites.register("alice@monl.test", "MotDePasse-123")
     bob = identites.register("bob@monl.test", "MotDePasse-123")
-    cible, dossier = _projet(app, alice, "cible")
-    voisin, dossier_voisin = _projet(app, bob, "voisin")
-    autre, dossier_autre = _projet(app, alice, "autre")
+    cible, dossier = _project(app, alice, "cible")
+    voisin, dossier_voisin = _project(app, bob, "voisin")
+    autre, dossier_autre = _project(app, alice, "autre")
     sites = app.state.sites
-    with _serveur_plateforme(app) as base:
+    with _platform_server(app) as base:
         session = _connexion(base, alice["email"])
         cle = session.post(base + "/api/keys", json={"name": "preuve"}, timeout=10).json()
         vivant = sites.start_project(cible)
@@ -173,16 +173,16 @@ def test_suppression_complete_et_sites_voisins_preserves(tmp_path, monkeypatch, 
         else:
             assert dossier_autre.exists()
             assert _get(autre_vivant.port, "/openapi.json")[0] == 200
-        remplacement, _ = _projet(app, alice, "remplacement")
+        remplacement, _ = _project(app, alice, "remplacement")
         nouveau = sites.start_project(remplacement)
         assert _get(nouveau.port, "/openapi.json")[0] == 200, "Le créneau du site supprimé n'est pas libéré"
         # Server cleanup stops every site still legitimately running.
 
 
-def test_compte_local_exige_toujours_son_mot_de_passe(tmp_path):
+def test_local_account_always_requires_its_password(tmp_path):
     app = create_app(workspace=tmp_path)
     app.state.identity_store.register("locale@monl.test", "MotDePasse-123")
-    with _serveur_plateforme(app) as base:
+    with _platform_server(app) as base:
         session = _connexion(base, "locale@monl.test")
         for charge in ({}, {"password": "incorrect"}):
             refus = session.delete(base + "/api/auth/account", json=charge, timeout=10)

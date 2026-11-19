@@ -47,7 +47,7 @@ def _compte(base, email="test@example.com"):
     return session
 
 
-def test_page_explique_compile_et_mcp(tmp_path):
+def test_page_explains_compile_and_mcp(tmp_path):
     with _plateforme(tmp_path) as base:
         session = _compte(base)
         page = requests.get(base + "/", timeout=30)
@@ -137,7 +137,7 @@ def test_page_explique_compile_et_mcp(tmp_path):
         assert len(mcp.json()["result"]["tools"]) == 7
 
 
-def test_erreurs_web_restent_actionnables(tmp_path):
+def test_web_errors_stay_actionable(tmp_path):
     with _plateforme(tmp_path) as base:
         session = _compte(base)
         empty = requests.post(base + "/api/validate", json={"spec": ""}, timeout=30)
@@ -160,7 +160,7 @@ def test_login_is_limited_and_announces_the_delay(tmp_path):
         assert int(blocked.headers["Retry-After"]) > 0
 
 
-def test_comptes_isolent_projets_et_cles_mcp(tmp_path):
+def test_accounts_isolate_projects_and_mcp_keys(tmp_path):
     with _plateforme(tmp_path) as base:
         alice = _compte(base, "alice@example.com")
         bob = _compte(base, "bob@example.com")
@@ -265,7 +265,7 @@ def test_the_examples_are_served_and_compile_through_the_api(tmp_path):
         assert requests.get(base + "/api/examples/inconnu", timeout=30).status_code == 404
 
 
-def test_version_favicon_et_page_introuvable(tmp_path):
+def test_version_favicon_and_not_found_page(tmp_path):
     with _plateforme(tmp_path) as base:
         session = _compte(base, "errors@example.com")
         version = requests.get(base + "/api/version", timeout=30).json()

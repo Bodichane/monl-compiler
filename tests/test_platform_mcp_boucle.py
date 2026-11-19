@@ -88,7 +88,7 @@ def plateforme(tmp_path):
         assert not fil.is_alive()
 
 
-def _cle(base, identifiant="agent@example.test"):
+def _key(base, identifiant="agent@example.test"):
     """Creates an account, draws an MCP key from it, THEN forgets the session."""
     inscription = requests.post(
         f"{base}/api/auth/register",
@@ -248,7 +248,7 @@ def test_recovery_refuses_an_already_started_key_creation(plateforme, monkeypatc
 
 def test_an_agent_compiles_lists_and_downloads_without_ever_opening_a_session(plateforme):
     base = plateforme
-    cle = _cle(base)
+    cle = _key(base)
 
     compile = _appel(base, cle, "monl_compile_backend", {"spec": SPEC})
     project_id = compile["project_id"]
@@ -275,7 +275,7 @@ def test_an_agent_compiles_lists_and_downloads_without_ever_opening_a_session(pl
 def test_without_key_or_session_the_archive_stays_closed(plateforme):
     """The counter-proof: opening the door to the key does not open it to all."""
     base = plateforme
-    cle = _cle(base, "proprietaire@example.test")
+    cle = _key(base, "proprietaire@example.test")
     project_id = _appel(base, cle, "monl_compile_backend", {"spec": SPEC})["project_id"]
     chemin = f"{base}/api/projects/{project_id}/download"
 
@@ -285,7 +285,7 @@ def test_without_key_or_session_the_archive_stays_closed(plateforme):
     ).status_code == 401
     # A VALID key of another account is no better: 404, never 403 — the opaque
     # identifier does not become an existence oracle.
-    autre = _cle(base, "intrus@example.test")
+    autre = _key(base, "intrus@example.test")
     assert requests.get(
         chemin, headers={"authorization": f"Bearer {autre}"}, timeout=10
     ).status_code == 404
@@ -293,7 +293,7 @@ def test_without_key_or_session_the_archive_stays_closed(plateforme):
 
 def test_the_diff_announces_the_delta_without_writing_anything(plateforme):
     base = plateforme
-    cle = _cle(base, "diff@example.test")
+    cle = _key(base, "diff@example.test")
     project_id = _appel(base, cle, "monl_compile_backend", {"spec": SPEC})["project_id"]
 
     avant = _appel(base, cle, "monl_inspect_contract", {"project_id": project_id})
@@ -319,7 +319,7 @@ def test_the_diff_announces_the_delta_without_writing_anything(plateforme):
 
 def test_the_update_recompiles_in_place_and_keeps_the_address(plateforme):
     base = plateforme
-    cle = _cle(base, "update@example.test")
+    cle = _key(base, "update@example.test")
     project_id = _appel(base, cle, "monl_compile_backend", {"spec": SPEC})["project_id"]
 
     rapport = _appel(base, cle, "monl_update_backend",
@@ -353,7 +353,7 @@ def test_the_update_recompiles_in_place_and_keeps_the_address(plateforme):
 def test_a_refused_spec_leaves_the_project_intact(plateforme):
     """A failing compilation must destroy nothing."""
     base = plateforme
-    cle = _cle(base, "refus@example.test")
+    cle = _key(base, "refus@example.test")
     project_id = _appel(base, cle, "monl_compile_backend", {"spec": SPEC})["project_id"]
     avant = _appel(base, cle, "monl_inspect_contract", {"project_id": project_id})
 

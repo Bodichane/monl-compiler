@@ -20,7 +20,7 @@ def store(tmp_path):
     return PlatformStore(tmp_path)
 
 
-def _compte_et_projet(store, email, slug):
+def _account_and_project(store, email, slug):
     identity = IdentityStore(store.workspace)
     user = identity.register(email, "MotDePasse-123")
     project_id = uuid.uuid4().hex
@@ -30,14 +30,14 @@ def _compte_et_projet(store, email, slug):
 
 
 def test_a_new_slug_is_stored_in_canonical_form(store):
-    _user_id, project_id = _compte_et_projet(store, "a@monl.test", "  myOwn  ")
+    _user_id, project_id = _account_and_project(store, "a@monl.test", "  myOwn  ")
 
     assert store.get_project(project_id)["slug"] == "myown"
 
 
 def test_a_stored_project_with_a_capital_stays_reachable(store, tmp_path):
     """The real case: the row already exists, the site is already built."""
-    _user_id, project_id = _compte_et_projet(store, "a@monl.test", "provisoire")
+    _user_id, project_id = _account_and_project(store, "a@monl.test", "provisoire")
     # We put the capital back the way the previous version did.
     raw = sqlite3.connect(store.database)
     raw.execute("UPDATE builder_projects SET slug = 'myOwn' WHERE project_id = ?", (project_id,))
@@ -50,7 +50,7 @@ def test_a_stored_project_with_a_capital_stays_reachable(store, tmp_path):
 
 
 def test_the_host_a_browser_sends_designates_the_project(store, tmp_path):
-    _user_id, project_id = _compte_et_projet(store, "a@monl.test", "myOwn")
+    _user_id, project_id = _account_and_project(store, "a@monl.test", "myOwn")
     sites = SiteManager(store, tmp_path / "projets", "localhost")
 
     project = sites.project_for_host("myown.localhost:8020")
@@ -70,7 +70,7 @@ def test_two_cases_of_one_name_do_not_make_two_addresses(store):
     a difference in case does not make the same address twice — only the
     outcome changes: step aside instead of refusing.
     """
-    user_id, _first = _compte_et_projet(store, "a@monl.test", "myOwn")
+    user_id, _first = _account_and_project(store, "a@monl.test", "myOwn")
     second = uuid.uuid4().hex
     IdentityStore(store.workspace).add_project(user_id, second, "autre")
 
@@ -92,7 +92,7 @@ def test_an_address_already_in_capitals_is_seen_as_taken(store):
     case of the witness
     `test_a_stored_project_with_a_capital_stays_reachable`.
     """
-    user_id, premier = _compte_et_projet(store, "a@monl.test", "provisoire")
+    user_id, premier = _account_and_project(store, "a@monl.test", "provisoire")
     raw = sqlite3.connect(store.database)
     raw.execute("UPDATE builder_projects SET slug = 'myOwn' WHERE project_id = ?",
                 (premier,))

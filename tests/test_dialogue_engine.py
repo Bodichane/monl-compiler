@@ -110,7 +110,7 @@ def test_spec_produite_compile_reellement():
     assert normalized["seeds"], "le seed demandé doit être présent"
 
 
-def test_determinisme_memes_reponses_meme_spec():
+def test_determinism_same_answers_same_spec():
     assert _run(SCENARIO_PORTFOLIO) == _run(SCENARIO_PORTFOLIO)
 
 
@@ -208,7 +208,7 @@ def test_reponse_invalide_redemandee_puis_erreur():
         _run(["11", "9mauvais", "aussi mauvais", "toujours-mauvais"])
 
 
-def test_relation_emise_et_validee():
+def test_relation_emitted_and_validated():
     answers = [
         "11",
         "TopTest", "Un classement communautaire.",
@@ -234,7 +234,7 @@ def test_relation_emise_et_validee():
     MonlAST(parse_monl_string(spec)).validate_and_audit()
 
 
-def test_ownership_cree_entite_proprietaire_et_regles():
+def test_ownership_creates_owner_entity_and_rules():
     """ownedBy: the dialogue creates the owning entity named like the actor, the
     relation providing the foreign key, and the Update/Delete rules — all
     validated by the real pipeline (pattern of exemples/03, point 5)."""
@@ -342,7 +342,7 @@ def test_without_brief_no_intent_question():
 
 # ---- Static editorial content (point 55) ----
 
-def test_sections_editoriales_emises_et_validees():
+def test_editorial_sections_emitted_and_validated():
     """The only content of the contract that is not data. Without it, an "about"
     page has no entity, no field, no route to be born from — the AI literally has
     nothing to build it with."""
@@ -368,7 +368,7 @@ def test_sections_refused_without_brief():
     assert "section " not in spec and "landing" not in spec
 
 
-def test_un_texte_en_plusieurs_paragraphes_survit_jusqu_au_contrat():
+def test_a_multi_paragraph_text_survives_to_the_contract():
     """POINT 64: an "about" pasted from a word processor arrived flattened —
     paragraphs glued back without even a space, and the interface AI received a
     wall of text. The grammar still forbids line breaks: the dialogue therefore

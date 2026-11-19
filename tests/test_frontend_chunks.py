@@ -311,7 +311,7 @@ def test_a_chunk_timeout_does_not_replay_already_paid_files(project):
 
 # ---- The requested budget follows the contract (point 149) ----
 
-def _contrat(tmp_path, nb_routes, nb_entites=3):
+def _contract(tmp_path, nb_routes, nb_entites=3):
     tmp_path.mkdir(parents=True, exist_ok=True)
     (tmp_path / "frontend_contract.json").write_text(json.dumps({
         "routes": [{"method": "GET", "path": f"/r{i}"} for i in range(nb_routes)],
@@ -331,9 +331,9 @@ def test_the_app_js_budget_follows_the_number_of_routes(tmp_path):
     from monl.frontend_ai import ampleur_du_contrat
 
     petit = _build_chunk_prompt("brief", "app.js", {},
-                                ampleur_du_contrat(_contrat(tmp_path / "a", 2)))
+                                ampleur_du_contrat(_contract(tmp_path / "a", 2)))
     grand = _build_chunk_prompt("brief", "app.js", {},
-                                ampleur_du_contrat(_contrat(tmp_path / "b", 15)))
+                                ampleur_du_contrat(_contract(tmp_path / "b", 15)))
 
     assert _vise(grand) > _vise(petit), (_vise(petit), _vise(grand))
     assert _vise(grand) >= 6_000, "un contrat à 15 routes ne tient pas en moins"
@@ -346,7 +346,7 @@ def test_the_budget_never_exceeds_the_stage_ceiling(tmp_path):
     from monl.frontend_ai import DEFAULT_CHUNK_MAX_OUTPUT_TOKENS, ampleur_du_contrat
 
     enorme = _build_chunk_prompt("brief", "app.js", {},
-                                 ampleur_du_contrat(_contrat(tmp_path / "c", 400)))
+                                 ampleur_du_contrat(_contract(tmp_path / "c", 400)))
 
     assert _vise(enorme) <= DEFAULT_CHUNK_MAX_OUTPUT_TOKENS
 
@@ -356,7 +356,7 @@ def test_the_hard_limit_no_longer_contradicts_the_budget(tmp_path):
     from monl.frontend_ai import ampleur_du_contrat
 
     prompt = _build_chunk_prompt("brief", "app.js", {},
-                                 ampleur_du_contrat(_contrat(tmp_path / "d", 15)))
+                                 ampleur_du_contrat(_contract(tmp_path / "d", 15)))
     caracteres = int(re.search(r"finish before (\d+) characters", prompt).group(1))
 
     assert caracteres >= _vise(prompt) * 3, (
@@ -370,7 +370,7 @@ def test_the_route_floor_is_STATED_to_the_model(tmp_path):
     from monl.frontend_ai import ampleur_du_contrat
 
     prompt = _build_chunk_prompt("brief", "app.js", {},
-                                 ampleur_du_contrat(_contrat(tmp_path / "e", 15)))
+                                 ampleur_du_contrat(_contract(tmp_path / "e", 15)))
 
     assert "15 routes" in prompt
     assert "REFUSED" in prompt

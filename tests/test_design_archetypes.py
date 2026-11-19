@@ -14,7 +14,7 @@ produces, and which without it would give two identical anchors in one page.
 from monl.design_system import _declared_section_markers, infer_design_profile
 
 
-def _contrat(**extra):
+def _contract(**extra):
     base = {"entities": {}, "routes": [], "design_skills": []}
     base.update(extra)
     return base
@@ -24,7 +24,7 @@ def test_booking_takes_precedence_over_price():
     """A bookable service carries a price: by archetype alone it looks like a
     shop. The booking signal must win, otherwise a cart is drawn where a
     calendar is needed."""
-    profil = infer_design_profile(_contrat(
+    profil = infer_design_profile(_contract(
         entities={"Creneau": {"archetype": "shop"}},
         sections=[{"title": "Réserver un créneau", "body": "Prenez rendez-vous."}]))
     assert profil["kind"] == "service"
@@ -32,20 +32,20 @@ def test_booking_takes_precedence_over_price():
 
 
 def test_a_payment_action_is_enough_to_make_commerce():
-    profil = infer_design_profile(_contrat(routes=[{"action": "Pay"}]))
+    profil = infer_design_profile(_contract(routes=[{"action": "Pay"}]))
     assert profil["kind"] == "commerce"
     assert "Catalog" in profil["pages"]
     assert "Cart or summary" in profil["pages"]
 
 
 def test_the_operations_skill_gives_a_workspace():
-    profil = infer_design_profile(_contrat(design_skills=["monl-operations"]))
+    profil = infer_design_profile(_contract(design_skills=["monl-operations"]))
     assert profil["kind"] == "operations"
     assert "Workspace per role" in profil["pages"]
 
 
 def test_sections_without_other_signal_give_an_editorial_site():
-    profil = infer_design_profile(_contrat(
+    profil = infer_design_profile(_contract(
         sections=[{"title": "Notre atelier", "body": "Depuis 2019."}]))
     assert profil["kind"] == "editorial"
     assert "Narrative hero" in profil["pattern"]
@@ -54,12 +54,12 @@ def test_sections_without_other_signal_give_an_editorial_site():
 def test_without_any_signal_the_profile_stays_generic():
     """The witness: a classification that put everything somewhere would
     classify nothing."""
-    profil = infer_design_profile(_contrat())
+    profil = infer_design_profile(_contract())
     assert profil["kind"] == "generic"
 
 
 def test_a_faq_adds_its_screen():
-    profil = infer_design_profile(_contrat(faq=[{"question": "Où ?", "answer": "Ici."}]))
+    profil = infer_design_profile(_contract(faq=[{"question": "Où ?", "answer": "Ici."}]))
     assert "Structured FAQ" in profil["pages"]
 
 
@@ -70,7 +70,7 @@ def test_the_word_service_is_enough_when_nothing_else_speaks():
     # The analyzed text comes from the NAME and the brief, not the routes: a
     # classification reading route summaries would change its verdict at the
     # slightest API rewording.
-    profil = infer_design_profile(_contrat(app="Service de dépannage à domicile"))
+    profil = infer_design_profile(_contract(app="Service de dépannage à domicile"))
     assert profil["kind"] == "service"
 
 

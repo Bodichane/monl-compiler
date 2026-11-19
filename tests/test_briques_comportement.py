@@ -95,7 +95,7 @@ def application():
 
 
 @contextlib.contextmanager
-def _base(dossier):
+def _base_spec(dossier):
     """Opens app.db, committing AND closing on exit.
 
     `with sqlite3.connect(...)` alone does NOT close the connection — it only
@@ -120,7 +120,7 @@ def _vider_quota(dossier):
     quota. Emptying a counter table on the bench side weakens nothing in the
     product — loosening the quota itself would.
     """
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         cnx.execute("DELETE FROM _monl_rate_limit")
 
 
@@ -142,7 +142,7 @@ def _entetes(application, identifiant):
     return {"Authorization": "Bearer " + jeton["access_token"]}
 
 
-def _cree(base, chemin, entetes, corps):
+def _created(base, chemin, entetes, corps):
     reponse = requests.post(f"{base}/{chemin}", headers=entetes, json=corps)
     assert reponse.status_code in (200, 201), reponse.text
     identifiant = reponse.json().get("id")
@@ -163,7 +163,7 @@ def test_the_generated_field_cannot_be_forged_by_the_client(application):
     base, dossier = application
     entetes = _entetes(application, "forgeuse")
 
-    identifiant = _cree(base, "post", entetes,
+    identifiant = _created(base, "post", entetes,
                         {"content": "coucou", "author": "Administration",
                          "likes": 0, "score": 0})
 
@@ -174,7 +174,7 @@ def test_the_generated_field_cannot_be_forged_by_the_client(application):
 
     # And not only on display: the forged value is not in the database either,
     # where another reader (export, direct query) would find it.
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         en_base = cnx.execute("SELECT author FROM post WHERE id = ?",
                               (identifiant,)).fetchone()
     assert en_base and en_base[0] == corps["author"], en_base
@@ -187,8 +187,8 @@ def test_the_pseudonym_is_stable_per_account_and_distinct_between_accounts(appli
     base, _dossier = application
     entetes = _entetes(application, "stable")
 
-    premier = _cree(base, "post", entetes, {"content": "un", "score": 0})
-    second = _cree(base, "post", entetes, {"content": "deux", "score": 0})
+    premier = _created(base, "post", entetes, {"content": "un", "score": 0})
+    second = _created(base, "post", entetes, {"content": "deux", "score": 0})
     assert _post(base, premier)["author"] == _post(base, second)["author"]
 
     # Reconnection: the pseudonym is fixed at registration, not drawn at each
@@ -196,13 +196,13 @@ def test_the_pseudonym_is_stable_per_account_and_distinct_between_accounts(appli
     rejeton = requests.post(f"{base}/login",
                             json={"username": "stable",
                                   "password": MOT_DE_PASSE}).json()
-    apres = _cree(base, "post",
+    apres = _created(base, "post",
                   {"Authorization": "Bearer " + rejeton["access_token"]},
                   {"content": "trois", "score": 0})
     assert _post(base, apres)["author"] == _post(base, premier)["author"]
 
     autre = _entetes(application, "voisine")
-    ailleurs = _cree(base, "post", autre, {"content": "quatre", "score": 0})
+    ailleurs = _created(base, "post", autre, {"content": "quatre", "score": 0})
     assert _post(base, ailleurs)["author"] != _post(base, premier)["author"]
 
 
@@ -237,12 +237,12 @@ def test_increments_touches_the_right_record_and_only_it(application):
     base, dossier = application
     entetes = _entetes(application, "likeuse")
 
-    vise = _cree(base, "post", entetes, {"content": "visé", "score": 0})
-    temoin = _cree(base, "post", entetes, {"content": "témoin", "score": 0})
+    vise = _created(base, "post", entetes, {"content": "visé", "score": 0})
+    temoin = _created(base, "post", entetes, {"content": "témoin", "score": 0})
 
-    _cree(base, "like", entetes, {"note": "bravo", "post_id": vise})
+    _created(base, "like", entetes, {"note": "bravo", "post_id": vise})
 
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         valeurs = dict(cnx.execute(
             "SELECT id, likes FROM post WHERE id IN (?, ?)", (vise, temoin)))
     assert valeurs[vise] == 1, valeurs
@@ -255,10 +255,10 @@ def test_decrements_removes_the_declared_amount_from_the_target(application):
     base, _dossier = application
     entetes = _entetes(application, "signaleuse")
 
-    cible = _cree(base, "post", entetes, {"content": "cible", "score": 100})
-    temoin = _cree(base, "post", entetes, {"content": "témoin", "score": 100})
+    cible = _created(base, "post", entetes, {"content": "cible", "score": 100})
+    temoin = _created(base, "post", entetes, {"content": "témoin", "score": 100})
 
-    _cree(base, "report", entetes, {"reason": "spam", "post_id": cible})
+    _created(base, "report", entetes, {"reason": "spam", "post_id": cible})
 
     assert _post(base, cible)["score"] == 90
     assert _post(base, temoin)["score"] == 100
@@ -272,14 +272,14 @@ def test_a_nonexistent_target_cancels_the_whole_creation(application):
     base, dossier = application
     entetes = _entetes(application, "fantome")
 
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         avant = cnx.execute('SELECT COUNT(*) FROM "like"').fetchone()[0]
 
     refus = requests.post(f"{base}/like", headers=entetes,
                           json={"note": "sur du vide", "post_id": 999_999})
     assert refus.status_code == 409, refus.text
 
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         apres = cnx.execute('SELECT COUNT(*) FROM "like"').fetchone()[0]
         orphelin = cnx.execute(
             'SELECT COUNT(*) FROM "like" WHERE note = ?', ("sur du vide",)
@@ -296,7 +296,7 @@ def test_categorized_replaces_the_value_in_list_and_detail(application):
     base, dossier = application
     entetes = _entetes(application, "categorisee")
 
-    identifiant = _cree(base, "post", entetes, {"content": "chiffres", "score": 0})
+    identifiant = _created(base, "post", entetes, {"content": "chiffres", "score": 0})
 
     _peupler_compteur(dossier, identifiant, 137)
     detail = _post(base, identifiant)
@@ -318,7 +318,7 @@ def test_categorized_treats_below_as_a_strict_bound(application):
 
     attendus = {9: "discret", 10: "populaire", 99: "populaire", 100: "viral"}
     for valeur, libelle in attendus.items():
-        identifiant = _cree(base, "post", entetes,
+        identifiant = _created(base, "post", entetes,
                             {"content": f"likes={valeur}", "score": 0})
         _peupler_compteur(dossier, identifiant, valeur)
         assert _post(base, identifiant)["likes_category"] == libelle, (
@@ -332,10 +332,10 @@ def test_categorized_does_not_touch_the_stored_value(application):
     base, dossier = application
     entetes = _entetes(application, "stockage")
 
-    identifiant = _cree(base, "post", entetes, {"content": "en base", "score": 0})
+    identifiant = _created(base, "post", entetes, {"content": "en base", "score": 0})
 
     _peupler_compteur(dossier, identifiant, 137)
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         stocke = cnx.execute("SELECT likes FROM post WHERE id = ?",
                              (identifiant,)).fetchone()
     assert stocke and stocke[0] == 137, stocke
@@ -343,20 +343,20 @@ def test_categorized_does_not_touch_the_stored_value(application):
 
 def _peupler_compteur(dossier, identifiant, valeur):
     """Server-side preparation of the categories, without simulating client input."""
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         cnx.execute("UPDATE post SET likes = ? WHERE id = ?", (valeur, identifiant))
 
 
-def test_compteur_ignore_post_et_put(application):
+def test_counter_ignores_post_and_put(application):
     base, dossier = application
     entetes = _entetes(application, "forgecompteur")
-    identifiant = _cree(base, "post", entetes,
+    identifiant = _created(base, "post", entetes,
                        {"content": "attaque", "score": 100, "likes": 5000})
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         assert cnx.execute("SELECT likes FROM post WHERE id = ?", (identifiant,)).fetchone()[0] == 0
     reponse = requests.put(f"{base}/post/{identifiant}", headers=entetes,
                            json={"content": "modifié", "score": 100, "likes": 9000})
     assert reponse.status_code == 200, reponse.text
-    _cree(base, "like", entetes, {"note": "bravo", "post_id": identifiant})
-    with _base(dossier) as cnx:
+    _created(base, "like", entetes, {"note": "bravo", "post_id": identifiant})
+    with _base_spec(dossier) as cnx:
         assert cnx.execute("SELECT likes FROM post WHERE id = ?", (identifiant,)).fetchone()[0] == 1

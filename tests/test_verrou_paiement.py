@@ -40,7 +40,7 @@ import requests
 from monl.ast_validator import MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cas import check_each_case
 from tests.support.server import uvicorn_server
 
 SPEC = """app BancVerrou
@@ -132,7 +132,7 @@ def faux_stripe():
 
 
 @contextlib.contextmanager
-def _base(dossier):
+def _base_spec(dossier):
     cnx = sqlite3.connect(os.path.join(dossier, "app.db"))
     try:
         with cnx:
@@ -152,7 +152,7 @@ def application(faux_stripe):
                "STRIPE_WEBHOOK_SECRET": CLE_WEBHOOK,
                "MONL_STRIPE_BASE_URL": f"http://{hote}:{port_stripe}"}
         with uvicorn_server(dossier, env=env) as base:
-            with _base(dossier) as cnx:
+            with _base_spec(dossier) as cnx:
                 cnx.execute('INSERT INTO article (nom, prix) VALUES (?, ?)',
                             ("Deck", PRIX))
                 cnx.execute('INSERT INTO article (nom, prix) VALUES (?, ?)',
@@ -162,7 +162,7 @@ def application(faux_stripe):
 
 def _entetes(application, identifiant):
     base, dossier = application
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         cnx.execute("DELETE FROM _monl_rate_limit")
     requests.post(f"{base}/register",
                   json={"username": identifiant, "password": MOT_DE_PASSE,
@@ -180,12 +180,12 @@ def alice(application):
 
 
 def _article(dossier, prix):
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         return cnx.execute('SELECT id FROM article WHERE prix = ?',
                            (prix,)).fetchone()[0]
 
 
-def _commande(base, entetes, libelle="panier"):
+def _order(base, entetes, libelle="panier"):
     reponse = requests.post(f"{base}/commande", headers=entetes,
                             json={"libelle": libelle,
                                   "courriel": "acheteuse@exemple.fr"})
@@ -206,7 +206,7 @@ def _total(base, entetes, commande_id):
 
 
 def _etat(dossier, commande_id):
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         ligne = cnx.execute(
             'SELECT payment_status FROM commande WHERE id = ?',
             (commande_id,)).fetchone()
@@ -233,11 +233,11 @@ def _webhook(base, commande_id, decalage=0, session="cs_test_1"):
         timeout=10)
 
 
-def _commande_reglee(application, entetes):
+def _settled_order(application, entetes):
     """A one-line order at €89, really sent through the payment route then the
     provider's signed webhook."""
     base, dossier = application
-    identifiant = _commande(base, entetes)
+    identifiant = _order(base, entetes)
     assert _line(base, entetes, identifiant,
                   _article(dossier, PRIX)).status_code in (200, 201)
     reponse = requests.post(f"{base}/commande/{identifiant}/paiement",
@@ -252,7 +252,7 @@ def _commande_reglee(application, entetes):
 
 def test_a_settled_order_refuses_updates(application, alice):
     base, dossier = application
-    identifiant = _commande_reglee(application, alice)
+    identifiant = _settled_order(application, alice)
 
     reponse = requests.put(f"{base}/commande/{identifiant}", headers=alice,
                            json={"libelle": "renommée",
@@ -260,7 +260,7 @@ def test_a_settled_order_refuses_updates(application, alice):
 
     assert reponse.status_code == 409, reponse.text
     assert "already paid" in reponse.json()["detail"]
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         assert cnx.execute('SELECT libelle FROM commande WHERE id = ?',
                            (identifiant,)).fetchone()[0] == "panier"
 
@@ -270,7 +270,7 @@ def test_a_settled_order_refuses_deletion(application, alice):
     only held as long as a line remained: this test empties the order first,
     which is exactly the path through which it disappeared."""
     base, dossier = application
-    identifiant = _commande_reglee(application, alice)
+    identifiant = _settled_order(application, alice)
     lignes = requests.get(f"{base}/ligne?limit=100", headers=alice).json()["data"]
     ligne = next(li for li in lignes if li["commande_id"] == identifiant)
 
@@ -279,7 +279,7 @@ def test_a_settled_order_refuses_deletion(application, alice):
 
     assert retrait.status_code == 409, retrait.text
     assert suppression.status_code == 409, suppression.text
-    with _base(dossier) as cnx:
+    with _base_spec(dossier) as cnx:
         assert cnx.execute('SELECT COUNT(*) FROM commande WHERE id = ?',
                            (identifiant,)).fetchone()[0] == 1
 
@@ -288,7 +288,7 @@ def test_a_line_can_no_longer_be_added_to_a_settled_order(application, alice):
     """The original hole, in the direction it was exploited: €89 charged, then a
     pair at €149 added, and €238 shown still 'payee'."""
     base, dossier = application
-    identifiant = _commande_reglee(application, alice)
+    identifiant = _settled_order(application, alice)
 
     ajout = _line(base, alice, identifiant, _article(dossier, PRIX_CHER))
 
@@ -300,7 +300,7 @@ def test_a_line_can_no_longer_be_added_to_a_settled_order(application, alice):
 
 def test_the_quantity_of_a_settled_line_no_longer_changes(application, alice):
     base, dossier = application
-    identifiant = _commande_reglee(application, alice)
+    identifiant = _settled_order(application, alice)
     lignes = requests.get(f"{base}/ligne?limit=100", headers=alice).json()["data"]
     ligne = next(li for li in lignes if li["commande_id"] == identifiant)
 
@@ -318,7 +318,7 @@ def test_before_payment_the_five_writes_still_pass(application, alice):
     """WITHOUT this test, a lock freezing everything would make the previous
     ones pass while guaranteeing nothing — and would make the shop unusable."""
     base, dossier = application
-    identifiant = _commande(base, alice, "en cours")
+    identifiant = _order(base, alice, "en cours")
 
     ajout = _line(base, alice, identifiant, _article(dossier, PRIX))
     ligne_id = ajout.json()["id"]
@@ -344,8 +344,8 @@ def test_the_lock_does_not_spill_onto_the_next_order(application, alice):
     """A settled order only freezes itself: the lock reads the line's parent,
     not "a paid order exists somewhere"."""
     base, dossier = application
-    _commande_reglee(application, alice)
-    voisine = _commande(base, alice, "voisine")
+    _settled_order(application, alice)
+    voisine = _order(base, alice, "voisine")
 
     ajout = _line(base, alice, voisine, _article(dossier, PRIX))
 
@@ -360,7 +360,7 @@ def test_a_signed_but_old_webhook_is_refused(application, alice):
     ever being dated, so a legitimate captured call stayed replayable
     indefinitely. Ten minutes are enough to show it."""
     base, dossier = application
-    identifiant = _commande(base, alice, "rejeu")
+    identifiant = _order(base, alice, "rejeu")
     _line(base, alice, identifiant, _article(dossier, PRIX))
 
     reponse = _webhook(base, identifiant, decalage=-600)
@@ -372,7 +372,7 @@ def test_a_signed_but_old_webhook_is_refused(application, alice):
 
 def test_an_unreadable_timestamp_does_not_pass_as_fresh(application, alice):
     base, dossier = application
-    identifiant = _commande(base, alice, "horodatage")
+    identifiant = _order(base, alice, "horodatage")
     corps = json.dumps({"type": "checkout.session.completed",
                         "data": {"object": {"id": "cs_x",
                                             "client_reference_id":
@@ -407,7 +407,7 @@ def test_the_email_type_refuses_an_address_that_is_not_one(application, alice):
 
         assert reponse.status_code == 422, reponse.text
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
 def test_a_valid_address_stays_accepted(application, alice):
@@ -425,4 +425,4 @@ def test_a_valid_address_stays_accepted(application, alice):
 
         assert reponse.status_code in (200, 201), reponse.text
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)

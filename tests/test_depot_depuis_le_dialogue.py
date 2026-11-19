@@ -71,7 +71,7 @@ def _compte(base, nom):
 
 
 @pytest.fixture(scope="module")
-def deux_comptes(server_from_the_dialogue):
+def two_accounts(server_from_the_dialogue):
     """TWO accounts, otherwise "is the file private?" does not arise.
 
     With one, the question becomes "can I read my own file?", which a server
@@ -106,8 +106,8 @@ def _depense(base, entetes, libelle):
     return reponse.json()["id"]
 
 
-def test_un_justificatif_se_depose_et_se_relit(deux_comptes):
-    base, alice, _bob = deux_comptes
+def test_a_receipt_is_uploaded_and_read_back(two_accounts):
+    base, alice, _bob = two_accounts
     identifiant = _depense(base, alice, "Déjeuner client")
 
     depot = requests.post(
@@ -122,13 +122,13 @@ def test_un_justificatif_se_depose_et_se_relit(deux_comptes):
     assert relecture.content == PNG, "les octets rendus ne sont pas ceux déposés"
 
 
-def test_another_accounts_receipt_stays_inaccessible(deux_comptes):
+def test_another_accounts_receipt_stays_inaccessible(two_accounts):
     """The promise announced by the dialogue's question, checked.
 
     The dialogue says "the file will be readable only by its owner". A sentence
     is not a guarantee: this refusal is.
     """
-    base, alice, bob = deux_comptes
+    base, alice, bob = two_accounts
     identifiant = _depense(base, alice, "Note d'hôtel")
     depot = requests.post(
         f"{base}/expense/{identifiant}/photo",
@@ -145,13 +145,13 @@ def test_another_accounts_receipt_stays_inaccessible(deux_comptes):
     assert sans_compte.status_code == 401, sans_compte.status_code
 
 
-def test_the_limits_declared_by_the_dialogue_really_bite(deux_comptes):
+def test_the_limits_declared_by_the_dialogue_really_bite(two_accounts):
     """5 MiB and two image types: written by the dialogue, enforced here.
 
     The type is determined by the BYTE SIGNATURE and never by the name nor the
     announced type — an SVG renamed `.png` must be refused.
     """
-    base, alice, _bob = deux_comptes
+    base, alice, _bob = two_accounts
     identifiant = _depense(base, alice, "Taxi")
 
     trop_gros = requests.post(

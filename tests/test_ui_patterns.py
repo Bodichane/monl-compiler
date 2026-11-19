@@ -74,7 +74,7 @@ def test_kora_maison_shop_gets_a_catalog_without_a_booking_journey():
     assert "booking" not in names
 
 
-def test_entite_message_recoit_un_formulaire_de_contact():
+def test_message_entity_gets_a_contact_form():
     contract = {
         "brief": "Un portfolio de photographe.",
         "entities": {

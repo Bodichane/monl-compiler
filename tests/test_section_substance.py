@@ -175,7 +175,7 @@ def _compiler(tmp_path):
 
 
 @pytest.fixture()
-def projet(tmp_path):
+def project(tmp_path):
     manifest = _compiler(tmp_path)
     (tmp_path / "frontend").mkdir()
 
@@ -200,8 +200,8 @@ def projet(tmp_path):
     return livrer, manifest
 
 
-def test_a_project_delivered_as_an_empty_shell_is_refused(projet):
-    livrer, manifest = projet
+def test_a_project_delivered_as_an_empty_shell_is_refused(project):
+    livrer, manifest = project
 
     fautes = livrer(remplie=False)
 
@@ -210,15 +210,15 @@ def test_a_project_delivered_as_an_empty_shell_is_refused(projet):
     assert len(vides) == len(manifest["section_substance"]["index.html"])
 
 
-def test_the_same_project_really_filled_is_accepted(projet):
+def test_the_same_project_really_filled_is_accepted(project):
     """Counter-proof: without it, a barrier refusing everything would pass."""
-    livrer, _ = projet
+    livrer, _ = project
 
     assert livrer(remplie=True) == []
 
 
-def test_the_manifest_carries_each_sections_rule(projet):
-    _livrer, manifest = projet
+def test_the_manifest_carries_each_sections_rule(project):
+    _livrer, manifest = project
     regles = manifest["section_substance"]["index.html"]
 
     assert set(regles) <= set(manifest["required_markers"]["index.html"])

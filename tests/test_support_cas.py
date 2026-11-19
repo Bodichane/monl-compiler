@@ -1,4 +1,4 @@
-"""`verifier_chaque_cas` carries the guarantee `parametrize` gave: a failing
+"""`check_each_case` carries the guarantee `parametrize` gave: a failing
 case never hides the next ones, and every faulty case is named.
 
 Forty functions of the suite depend on it; if it stopped at the first
@@ -6,7 +6,7 @@ failure or passed on an empty table, they would check less without going red.
 """
 import pytest
 
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cas import check_each_case
 
 
 def test_every_case_runs_and_every_failure_is_named():
@@ -19,7 +19,7 @@ def test_every_case_runs_and_every_failure_is_named():
             pytest.fail("échec explicite sur 4")
 
     with pytest.raises(pytest.fail.Exception) as echec:
-        verifier_chaque_cas([(1,), (2,), (3,), (4,), (6,)], cas,
+        check_each_case([(1,), (2,), (3,), (4,), (6,)], cas,
                             ids=["un", "deux", "trois", "quatre", "six"])
     assert vus == [1, 2, 3, 4, 6], "un échec a interrompu les cas suivants"
     message = str(echec.value)
@@ -32,10 +32,10 @@ def test_every_case_runs_and_every_failure_is_named():
 
 def test_an_empty_table_does_not_pass():
     with pytest.raises(AssertionError, match="vide"):
-        verifier_chaque_cas([], lambda: None)
+        check_each_case([], lambda: None)
 
 
 def test_a_sound_table_passes_and_unpacks_each_tuple():
     recus = []
-    verifier_chaque_cas([(1, "a"), (2, "b")], lambda n, s: recus.append((n, s)))
+    check_each_case([(1, "a"), (2, "b")], lambda n, s: recus.append((n, s)))
     assert recus == [(1, "a"), (2, "b")]

@@ -76,7 +76,7 @@ def test_a_too_large_chunked_body_is_refused(plateforme):
     assert contenu["detail"] == "Request too large."
 
 
-def test_un_corps_chunked_borne_et_valide_reste_accepte(plateforme):
+def test_a_bounded_valid_chunked_body_stays_accepted(plateforme):
     statut, contenu = _post_chunked(
         plateforme,
         [b'{"email":"inconnu@exemple.test",', b'"password":"mauvais"}'],
@@ -106,7 +106,7 @@ def test_too_large_content_length_is_refused_before_reading(plateforme):
     assert contenu["detail"] == "Request too large."
 
 
-def test_un_json_chunked_non_objet_garde_son_erreur(plateforme):
+def test_a_non_object_chunked_json_keeps_its_error(plateforme):
     statut, contenu = _post_chunked(plateforme, [b"[", b"]"])
 
     assert statut == 400

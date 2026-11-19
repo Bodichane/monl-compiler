@@ -23,7 +23,7 @@ from monl.ast_validator import ASTValidationError, MonlAST
 from monl.parser import parse_monl_string
 from monl_platform.guide import guide_html
 from monl_platform.guide_data import LIMITES
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cas import check_each_case
 
 RACINE = Path(__file__).resolve().parent.parent
 
@@ -61,7 +61,7 @@ def _compile(spec, dossier):
 
 # --- what the compiler REALLY does -------------------------------------------
 
-def test_un_champ_upload_compile(tmp_path):
+def test_an_upload_field_compiles(tmp_path):
     """The file sent at RUNTIME: that is what the table denied."""
     spec = _spec(
         champs="    piece: Upload\n",
@@ -129,7 +129,7 @@ def test_the_file_limit_names_both_moments():
 
 # --- what the reader is told to install --------------------------------------
 
-def _nom_de_distribution():
+def _distribution_name():
     """The name READ from `pyproject.toml`, never copied.
 
     The import is INSIDE the function and carries its fallback: `tomllib` only
@@ -144,7 +144,7 @@ def _nom_de_distribution():
         return tomllib.load(f)["project"]["name"]
 
 
-def _noms_installes_depuis_un_index(texte):
+def _names_installed_from_an_index(texte):
     """The names `pip install` / `pipx install` commands will LOOK UP on an index,
     as opposed to a local path or a requirements file.
 
@@ -170,15 +170,15 @@ def _noms_installes_depuis_un_index(texte):
     return noms
 
 
-def test_l_extracteur_distingue_un_nom_d_un_chemin():
+def test_the_extractor_tells_a_name_from_a_path():
     """Without this witness, an extractor returning nothing would make the rule
     below green while looking at nothing (point 161)."""
-    assert _noms_installes_depuis_un_index("pip install monl") == ["monl"]
-    assert _noms_installes_depuis_un_index(
+    assert _names_installed_from_an_index("pip install monl") == ["monl"]
+    assert _names_installed_from_an_index(
         "pip install 'monl-compiler[ai]'") == ["monl-compiler"]
-    assert _noms_installes_depuis_un_index(
+    assert _names_installed_from_an_index(
         "pipx install monl-compiler==0.9.0b9") == ["monl-compiler"]
-    assert _noms_installes_depuis_un_index(
+    assert _names_installed_from_an_index(
         "pip install ./monl-compiler -r requirements.txt -e .") == []
 
 
@@ -200,21 +200,21 @@ def test_an_installation_from_an_index_names_the_real_distribution():
     table = ["README.md", "QUICKSTART.md"]
 
     def cas(chemin):
-        nom = _nom_de_distribution()
-        etrangers = [n for n in _noms_installes_depuis_un_index(
+        nom = _distribution_name()
+        etrangers = [n for n in _names_installed_from_an_index(
             (RACINE / chemin).read_text(encoding="utf-8")) if n != nom]
         assert not etrangers, (
             f"{chemin} fait installer depuis un index autre chose que {nom} : "
         f"{etrangers}")
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
 def test_the_guide_only_installs_the_real_distribution():
     """Same rule on the SERVED page, not on the module constant: point 163 saw a
     page break between the two."""
-    nom = _nom_de_distribution()
-    etrangers = [n for n in _noms_installes_depuis_un_index(guide_html())
+    nom = _distribution_name()
+    etrangers = [n for n in _names_installed_from_an_index(guide_html())
                  if n != nom]
     assert not etrangers, (
         f"le guide servi fait installer autre chose que {nom} : {etrangers}")

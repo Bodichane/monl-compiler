@@ -161,7 +161,7 @@ def _diagnostic(entete, journal):
     return f"{entete}\n--- sortie d'uvicorn ---\n{sortie or '(rien écrit)'}"
 
 
-def _pousser_et_mesurer(base, chemin, pid, *, hote=None, mio=POUSSE_MIO):
+def _push_and_measure(base, chemin, pid, *, hote=None, mio=POUSSE_MIO):
     """Pushes `mio` megabytes chunked, sampling RSS during the send.
 
     In chunked mode, the server has NO way to know the size in advance: it is
@@ -212,7 +212,7 @@ def test_the_platform_refuses_a_huge_body_without_keeping_it(tmp_path):
     """
     with _plateforme_mesurable(tmp_path / "projets") as (base, processus):
         repos = _rss_mio(processus.pid)
-        statut, pic, _ = _pousser_et_mesurer(base, "/api/auth/register",
+        statut, pic, _ = _push_and_measure(base, "/api/auth/register",
                                              processus.pid)
         croissance = pic - repos
 
@@ -270,7 +270,7 @@ def test_the_relay_refuses_a_huge_body_without_keeping_it(tmp_path):
             f"le relais n'a pas atteint le site ({amorce.status_code}) : "
             f"{amorce.text[:200]}")
         repos = _rss_mio(processus.pid)
-        statut, pic, _ = _pousser_et_mesurer(base, "/note", processus.pid,
+        statut, pic, _ = _push_and_measure(base, "/note", processus.pid,
                                              hote="memoire.localhost")
         croissance = pic - repos
 

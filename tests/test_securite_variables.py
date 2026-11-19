@@ -87,7 +87,7 @@ def variables_documentees(texte):
     return set(noms)
 
 
-def test_securite_md_and_backend_read_the_same_variables(tmp_path, capsys):
+def test_security_md_and_backend_read_the_same_variables(tmp_path, capsys):
     lues = backend_variables(tmp_path)
     documentees = variables_documentees(DOC.read_text(encoding="utf-8"))
     # An extractor that finds nothing would make both directions pass while

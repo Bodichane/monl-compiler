@@ -39,7 +39,7 @@ import pytest
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import compile_project
 from monl.parser import parse_monl_string
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cas import check_each_case
 from tests.support.server import free_port as _port_libre
 
 SPEC = """app BancContraintes
@@ -111,7 +111,7 @@ def test_a_nonexistent_field_is_refused(capsys):
         assert "does not apply to anything" in message
         capsys.readouterr()
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
 def test_a_nonexistent_entity_is_refused(capsys):
@@ -306,7 +306,7 @@ def _appel(url, corps=None, jeton=None, methode=None):
 
 
 @pytest.fixture
-def serveur(tmp_path):
+def server(tmp_path):
     """A real ephemeral server on the bench spec."""
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
@@ -347,10 +347,10 @@ def serveur(tmp_path):
             processus.stdout.close()
 
 
-def test_unique_refuses_a_duplicate_on_creation(serveur):
+def test_unique_refuses_a_duplicate_on_creation(server):
     """Before point 85: both POSTs answered 200 and the database carried two
     rows. Checked, not assumed."""
-    base, jeton, dossier = serveur
+    base, jeton, dossier = server
     membre = {"pseudo": "zoe", "courriel": "z@x.fr", "age": 30}
     code1, _ = _appel(base + "/membre", membre, jeton)
     code2, corps2 = _appel(base + "/membre", membre, jeton)
@@ -369,11 +369,11 @@ def test_unique_refuses_a_duplicate_on_creation(serveur):
     assert lignes == 1, "l'unicité doit tenir EN BASE, pas seulement dans la réponse"
 
 
-def test_unique_refuses_a_duplicate_on_update(serveur):
+def test_unique_refuses_a_duplicate_on_update(server):
     """The Update route wrote no foreign key, so it had no guard: the first try
     of this brick gave a 500 and left the connection open. SQLite raises at
     `execute`, not at `commit`."""
-    base, jeton, _ = serveur
+    base, jeton, _ = server
     _appel(base + "/membre", {"pseudo": "zoe", "courriel": "z@x.fr", "age": 30}, jeton)
     _appel(base + "/membre", {"pseudo": "autre", "courriel": "b@x.fr", "age": 40}, jeton)
 
@@ -393,8 +393,8 @@ def test_unique_refuses_a_duplicate_on_update(serveur):
     ({"pseudo": "abc", "courriel": "a@x.fr", "age": 17}, "age"),     # min 18
     ({"pseudo": "abd", "courriel": "a@x.fr", "age": 130}, "age"),    # max 120
 ])
-def test_bounds_give_a_422_before_any_insert(serveur, corps, champ):
-    base, jeton, dossier = serveur
+def test_bounds_give_a_422_before_any_insert(server, corps, champ):
+    base, jeton, dossier = server
     code, reponse = _appel(base + "/membre", corps, jeton)
     assert code == 422
     assert any(champ in str(e.get("loc", "")) for e in reponse["detail"])
@@ -405,9 +405,9 @@ def test_bounds_give_a_422_before_any_insert(serveur, corps, champ):
         base_donnees.close()
 
 
-def test_a_value_within_bounds_passes(serveur):
+def test_a_value_within_bounds_passes(server):
     """The witness of the three refusals above."""
-    base, jeton, _ = serveur
+    base, jeton, _ = server
     code, _ = _appel(base + "/membre",
                      {"pseudo": "zoe", "courriel": "z@x.fr", "age": 18}, jeton)
     assert code == 200

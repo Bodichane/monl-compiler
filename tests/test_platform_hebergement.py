@@ -108,7 +108,7 @@ def application_hebergement(tmp_path, request):
 
 def test_the_fixture_stops_a_site_that_answered(tmp_path, application_hebergement):
     app = application_hebergement()
-    projet = _projet_compile(
+    projet = _compiled_project(
         app.state.store, app.state.identity_store, tmp_path / "projets",
         "temoin-nettoyage@monl.test", "temoin-nettoyage",
     )
@@ -157,7 +157,7 @@ def test_invalid_caps_fall_back_to_defaults(monkeypatch, valeur):
 
 
 @contextmanager
-def _serveur_plateforme(application):
+def _platform_server(application):
     config = uvicorn.Config(application, host="127.0.0.1", port=0, log_level="error")
     server = uvicorn.Server(config)
     with server.capture_signals():
@@ -174,7 +174,7 @@ def _serveur_plateforme(application):
             fil.join(10)
 
 
-def _projet_compile(store, identities, racine, email, slug):
+def _compiled_project(store, identities, racine, email, slug):
     user = identities.register(email, "MotDePasse-123")
     project_id = uuid.uuid4().hex
     identities.add_project(user["id"], project_id, slug)
@@ -190,7 +190,7 @@ def test_global_cap_refuses_without_creating_a_process_and_answers_503(
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES_PER_ACCOUNT", "10")
     app = application_hebergement()
     projets = [
-        _projet_compile(app.state.store, app.state.identity_store,
+        _compiled_project(app.state.store, app.state.identity_store,
                         tmp_path / "projets", f"global-{i}@monl.test", f"global-{i}")
         for i in range(3)
     ]
@@ -200,7 +200,7 @@ def test_global_cap_refuses_without_creating_a_process_and_answers_503(
     sites.start_project(projets[1])
     processus = {site.process.pid for site in sites._running.values()}
 
-    with _serveur_plateforme(app) as base:
+    with _platform_server(app) as base:
         refus = requests.get(
             base + "/openapi.json", headers={"Host": "global-2.localhost"}, timeout=10
         )
@@ -216,7 +216,7 @@ def test_evicting_the_oldest_idle_and_refusing_when_all_are_recent(
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES_PER_ACCOUNT", "10")
     app = application_hebergement()
     projets = [
-        _projet_compile(app.state.store, app.state.identity_store,
+        _compiled_project(app.state.store, app.state.identity_store,
                         tmp_path / "projets", f"eviction-{i}@monl.test", f"eviction-{i}")
         for i in range(4)
     ]
@@ -254,7 +254,7 @@ def test_per_account_cap_does_not_block_another_account(
         projet = store.get_project(project_id)
         _compiler(projet, tmp_path / "projets", tmp_path)
         projets.append(projet)
-    bob = _projet_compile(store, identities, tmp_path / "projets",
+    bob = _compiled_project(store, identities, tmp_path / "projets",
                           "bob-plafond@monl.test", "bob")
     capsys.readouterr()
     sites = app.state.sites
@@ -296,7 +296,7 @@ def test_relay_bounds_the_body_and_forwards_a_legitimate_body_intact(
         tmp_path, monkeypatch, capsys, application_hebergement):
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES", "2")
     app = application_hebergement()
-    projet = _projet_compile(
+    projet = _compiled_project(
         app.state.store, app.state.identity_store, tmp_path / "projets",
         "relais@monl.test", "relais",
     )
@@ -318,7 +318,7 @@ async def echo(request: Request):
     )
     capsys.readouterr()
     corps = b"monl" * (1024 * 1024 // 4)
-    with _serveur_plateforme(app) as base:
+    with _platform_server(app) as base:
         accepte = requests.post(
             base + "/echo", data=corps, headers={"Host": "relais.localhost"}, timeout=20
         )
@@ -341,7 +341,7 @@ async def echo(request: Request):
     assert refuse_annonce == 413, refuse_annonce
 
 
-def test_un_projet_compile_demarre_et_son_api_repond(plateforme, capsys):
+def test_a_compiled_project_starts_and_its_api_answers(plateforme, capsys):
     store, projet, sites, tmp_path = plateforme
     dossier = _compiler(projet, tmp_path / "projets", tmp_path)
     capsys.readouterr()
@@ -527,7 +527,7 @@ def test_creation_compilee_demarre_directement(application_hebergement, canal):
     app = application_hebergement()
     spec = (Path(__file__).parents[1] / "exemples/02_boutique.ml").read_text()
     try:
-        with _serveur_plateforme(app) as base, requests.Session() as session:
+        with _platform_server(app) as base, requests.Session() as session:
             inscription = session.post(base + "/api/auth/register", json={
                 "email": "direct@monl.test", "password": "MotDePasse-123"}, timeout=10)
             assert inscription.status_code == 201, inscription.text

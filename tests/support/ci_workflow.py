@@ -61,7 +61,7 @@ def project_coverage_threshold():
     return _charger_pyproject()["tool"]["coverage"]["report"]["fail_under"]
 
 
-def _commandes(texte, marqueur):
+def _orders(texte, marqueur):
     """The workflow commands containing `marqueur`, joined back on one line.
 
     The workflow uses both forms: "run: <command>" on one line, and a folded
@@ -96,17 +96,17 @@ def _commandes(texte, marqueur):
     return commandes
 
 
-def commandes_pytest(texte):
+def pytest_commands(texte):
     """The workflow's pytest invocations."""
-    return _commandes(texte, "python -m pytest")
+    return _orders(texte, "python -m pytest")
 
 
-def commandes_coverage(texte):
+def coverage_commands(texte):
     """The workflow's coverage reports — where the gates live."""
-    return _commandes(texte, "coverage report")
+    return _orders(texte, "coverage report")
 
 
-def fichiers_de_tests(racine=RACINE):
+def test_files_of(racine=RACINE):
     """The test files present on DISK, never a written list.
 
     That is the whole point of point 169: a hand-kept list stops guarding the
@@ -121,7 +121,7 @@ def fichiers_de_tests(racine=RACINE):
     return trouves
 
 
-def selection_dune_commande(commande, racine=RACINE):
+def order_selection(commande, racine=RACINE):
     """The test files a pytest command really selects.
 
     Patterns (`tests/test_platform_*.py`) are expanded, a folder is walked the
@@ -155,6 +155,6 @@ def selection_dune_commande(commande, racine=RACINE):
     return selection
 
 
-def options_de_couverture(commande):
+def coverage_options(commande):
     """The `--cov…` options a command carries."""
     return [j for j in commande.split() if j.startswith("--cov")]

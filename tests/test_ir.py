@@ -135,7 +135,7 @@ workflow Gerer for Admin
     assert placements["Adresse"][0]["owner_entity"] == "Parent"
 
 
-def test_access_policy_reunit_visibilite_acteurs_et_propriete(tmp_path):
+def test_access_policy_combines_visibility_actors_and_ownership(tmp_path):
     spec = """app Acces
 
 entity Auteur

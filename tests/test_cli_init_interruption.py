@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 
-def _commande(tmp_path, dossier):
+def _order(tmp_path, dossier):
     env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parents[1] / "src"))
     return [sys.executable, "-m", "monl.cli", "init", "--dir", dossier], env
 
@@ -24,7 +24,7 @@ def _commande(tmp_path, dossier):
 def test_init_interrompu_en_sous_processus(tmp_path, existant, entree, dossier, message):
     if existant:
         (tmp_path / dossier).mkdir()
-    commande, env = _commande(tmp_path, dossier)
+    commande, env = _order(tmp_path, dossier)
     resultat = subprocess.run(commande, input=entree, text=True, capture_output=True,
                               cwd=tmp_path, env=env, timeout=20)
     assert resultat.returncode == 2
@@ -39,7 +39,7 @@ def test_init_interrompu_en_sous_processus(tmp_path, existant, entree, dossier, 
 
 
 def test_init_ctrl_c_en_sous_processus(tmp_path):
-    commande, env = _commande(tmp_path, "p3")
+    commande, env = _order(tmp_path, "p3")
     with subprocess.Popen(commande, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                           stderr=subprocess.PIPE, cwd=tmp_path, env=env) as processus:
         try:

@@ -251,7 +251,7 @@ def _stock(base):
     return r["data"]["stock"]
 
 
-def _commande_de(base, jeton, quantite):
+def _order_of(base, jeton, quantite):
     _, cmd = _appel(base + "/commande", {"statut": "panier"}, jeton)
     _appel(base + "/ligne", {"quantite": quantite, "commande_id": cmd["id"],
                              "produit_id": 1}, jeton)
@@ -263,7 +263,7 @@ def test_cancelling_gives_the_stock_back(boutique):
     kept the lines, so the stock stayed consumed."""
     base, jeton = boutique
     depart = _stock(base)
-    cmd = _commande_de(base, jeton, 3)
+    cmd = _order_of(base, jeton, 3)
     assert _stock(base) == depart - 3
 
     code, reponse = _appel(f"{base}/commande/{cmd}", {"statut": "annulée"},
@@ -277,7 +277,7 @@ def test_cancelling_KEEPS_the_lines(boutique):
     """The brick's whole reason for being: deleting the lines already gave the
     stock back (point 92), but erased the history. A merchant wants both."""
     base, jeton = boutique
-    cmd = _commande_de(base, jeton, 2)
+    cmd = _order_of(base, jeton, 2)
     _appel(f"{base}/commande/{cmd}", {"statut": "annulée"}, jeton, methode="PUT")
 
     _, lignes = _appel(f"{base}/ligne", jeton=jeton)
@@ -290,7 +290,7 @@ def test_cancelling_again_does_NOT_give_back_a_second_time(boutique):
     invent pairs."""
     base, jeton = boutique
     depart = _stock(base)
-    cmd = _commande_de(base, jeton, 3)
+    cmd = _order_of(base, jeton, 3)
     for _ in range(3):
         code, _ = _appel(f"{base}/commande/{cmd}", {"statut": "annulée"},
                          jeton, methode="PUT")
@@ -305,7 +305,7 @@ def test_reactivating_after_cancellation_is_refused(boutique):
     77's exploits."""
     base, jeton = boutique
     depart = _stock(base)
-    cmd = _commande_de(base, jeton, 3)
+    cmd = _order_of(base, jeton, 3)
     _appel(f"{base}/commande/{cmd}", {"statut": "annulée"}, jeton, methode="PUT")
 
     code, reponse = _appel(f"{base}/commande/{cmd}", {"statut": "en préparation"},
@@ -322,7 +322,7 @@ def test_another_status_releases_nothing(boutique):
     Without it, a brick giving back on every PUT would pass the previous tests."""
     base, jeton = boutique
     depart = _stock(base)
-    cmd = _commande_de(base, jeton, 2)
+    cmd = _order_of(base, jeton, 2)
 
     code, _ = _appel(f"{base}/commande/{cmd}", {"statut": "en préparation"},
                      jeton, methode="PUT")
@@ -336,8 +336,8 @@ def test_cancelling_gives_back_only_ITS_lines(boutique):
     consumed. The foreign key trap, once more."""
     base, jeton = boutique
     depart = _stock(base)
-    premiere = _commande_de(base, jeton, 3)
-    _commande_de(base, jeton, 2)
+    premiere = _order_of(base, jeton, 3)
+    _order_of(base, jeton, 2)
     assert _stock(base) == depart - 5
 
     _appel(f"{base}/commande/{premiere}", {"statut": "annulée"}, jeton, methode="PUT")

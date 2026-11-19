@@ -29,7 +29,7 @@ from monl_platform.identity import IdentityStore
 from monl_platform.paths import project_directory
 from monl_platform.store import PlatformStore
 from tests.support.server import uvicorn_server
-from tests.support.sqlite import base_sqlite
+from tests.support.sqlite import sqlite_db
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MOT_DE_PASSE = "MotDePasse-Administration-2026"
@@ -42,7 +42,7 @@ def _environnement(**extra):
     return env
 
 
-def _serveur(dossier, **extra):
+def _server(dossier, **extra):
     return uvicorn_server(str(dossier), env=_environnement(**extra),
                           module="monl_platform.app:app", ready_path="/health")
 
@@ -73,7 +73,7 @@ def _inscrire(base, adresse):
 # ---------------------------------------------------------------------------
 
 def test_the_list_shows_accounts_and_what_they_carry(tmp_path):
-    with _serveur(tmp_path) as base:
+    with _server(tmp_path) as base:
         session, _ = _inscrire(base, "alice@exemple.test")
         _inscrire(base, "bob@exemple.test")
         assert session.post(f"{base}/api/keys", json={"name": "portable"},
@@ -89,7 +89,7 @@ def test_the_list_shows_accounts_and_what_they_carry(tmp_path):
 
 
 def test_an_account_detail_names_its_projects_and_keys(tmp_path):
-    with _serveur(tmp_path) as base:
+    with _server(tmp_path) as base:
         session, _ = _inscrire(base, "detail@exemple.test")
         cle = session.post(f"{base}/api/keys", json={"name": "poste-fixe"}, timeout=30)
         identifiant_cle = cle.json()["id"]
@@ -108,14 +108,14 @@ def test_an_account_detail_names_its_projects_and_keys(tmp_path):
 def test_the_address_is_normalized_as_at_registration(tmp_path):
     """Without it, the operator types the address as it was dictated to them and
     finds nothing, while the account exists."""
-    with _serveur(tmp_path) as base:
+    with _server(tmp_path) as base:
         _inscrire(base, "casse@exemple.test")
     rendu = admin(tmp_path, "compte", "  CASSE@Exemple.TEST  ")
     assert rendu.returncode == 0, rendu.stderr
     assert "casse@exemple.test" in rendu.stdout
 
 
-def test_un_compte_inconnu_echoue_franchement(tmp_path):
+def test_an_unknown_account_fails_outright(tmp_path):
     IdentityStore(tmp_path)
     rendu = admin(tmp_path, "compte", "personne@exemple.test")
     assert rendu.returncode == 1
@@ -134,7 +134,7 @@ def test_the_new_codes_really_open_the_account(tmp_path):
     is that one of these codes, presented on the wire, really resets the
     password.
     """
-    with _serveur(tmp_path) as base:
+    with _server(tmp_path) as base:
         _, corps = _inscrire(base, "bloque@exemple.test")
         anciens = corps["recovery_codes"]
 
@@ -159,7 +159,7 @@ def test_the_new_codes_really_open_the_account(tmp_path):
 
 
 def test_a_revoked_key_stops_working_on_the_wire(tmp_path):
-    with _serveur(tmp_path) as base:
+    with _server(tmp_path) as base:
         session, _ = _inscrire(base, "cle@exemple.test")
         cle = session.post(f"{base}/api/keys", json={"name": "à révoquer"},
                            timeout=30).json()
@@ -183,24 +183,24 @@ def test_a_revoked_key_stops_working_on_the_wire(tmp_path):
 def test_prolonger_repousse_lecheance_depuis_maintenant(tmp_path):
     """"Keep it thirty more days" is said afterwards, often on an ALREADY expired
     project: starting from the old date would extend nothing."""
-    with _serveur(tmp_path) as base:
+    with _server(tmp_path) as base:
         session, _ = _inscrire(base, "prolonge@exemple.test")
         spec = requests.get(f"{base}/api/examples/vitrine", timeout=30).json()["spec"]
         projet = session.post(f"{base}/api/compile", json={"spec": spec},
                               timeout=180).json()["id"]
 
     magasin = IdentityStore(_espace(tmp_path))
-    with base_sqlite(magasin.path) as db:
+    with sqlite_db(magasin.path) as db:
         db.execute("UPDATE projects SET expires_at = ?", (int(time.time()) - 100_000,))
 
     assert admin(tmp_path, "prolonger", projet, "--jours", "30").returncode == 0
-    with base_sqlite(magasin.path) as db:
+    with sqlite_db(magasin.path) as db:
         echeance = db.execute("SELECT expires_at FROM projects").fetchone()[0]
     assert echeance > int(time.time()) + 29 * 24 * 3600
 
 
 def test_extending_without_limit_removes_the_deadline(tmp_path):
-    with _serveur(tmp_path) as base:
+    with _server(tmp_path) as base:
         session, _ = _inscrire(base, "toujours@exemple.test")
         spec = requests.get(f"{base}/api/examples/vitrine", timeout=30).json()["spec"]
         projet = session.post(f"{base}/api/compile", json={"spec": spec},
@@ -208,7 +208,7 @@ def test_extending_without_limit_removes_the_deadline(tmp_path):
 
     assert admin(tmp_path, "prolonger", projet, "--jamais").returncode == 0
     magasin = IdentityStore(_espace(tmp_path))
-    with base_sqlite(magasin.path) as db:
+    with sqlite_db(magasin.path) as db:
         assert db.execute("SELECT expires_at FROM projects").fetchone()[0] is None
 
 
@@ -216,7 +216,7 @@ def test_expire_lets_the_purge_clean_up(tmp_path):
     """Deleting from the command would double the deletion path, and two paths
     end up diverging — the least used one being the one that breaks. The command
     marks expired, the purge cleans up."""
-    with _serveur(tmp_path, MONL_PURGE_INTERVAL_SECONDS="1") as base:
+    with _server(tmp_path, MONL_PURGE_INTERVAL_SECONDS="1") as base:
         session, _ = _inscrire(base, "expire@exemple.test")
         spec = requests.get(f"{base}/api/examples/vitrine", timeout=30).json()["spec"]
         projet = session.post(f"{base}/api/compile", json={"spec": spec},
@@ -226,18 +226,18 @@ def test_expire_lets_the_purge_clean_up(tmp_path):
 
         magasin = IdentityStore(_espace(tmp_path))
         for _ in range(40):
-            with base_sqlite(magasin.path) as db:
+            with sqlite_db(magasin.path) as db:
                 if db.execute("SELECT COUNT(*) FROM projects").fetchone()[0] == 0:
                     break
             time.sleep(0.25)
-        with base_sqlite(magasin.path) as db:
+        with sqlite_db(magasin.path) as db:
             assert db.execute("SELECT COUNT(*) FROM projects").fetchone()[0] == 0
 
 
 def test_deleting_without_confirm_touches_nothing(tmp_path):
     """The witness. Without it, a command that ALWAYS deleted would pass the next
     test."""
-    with _serveur(tmp_path) as base:
+    with _server(tmp_path) as base:
         _inscrire(base, "prudent@exemple.test")
 
     rendu = admin(tmp_path, "supprimer-compte", "prudent@exemple.test")
@@ -247,7 +247,7 @@ def test_deleting_without_confirm_touches_nothing(tmp_path):
 
 
 def test_deleting_with_confirm_erases_down_to_disk(tmp_path):
-    with _serveur(tmp_path) as base:
+    with _server(tmp_path) as base:
         session, _ = _inscrire(base, "partant@exemple.test")
         spec = requests.get(f"{base}/api/examples/vitrine", timeout=30).json()["spec"]
         projet = session.post(f"{base}/api/compile", json={"spec": spec},
@@ -260,7 +260,7 @@ def test_deleting_with_confirm_erases_down_to_disk(tmp_path):
     assert not dossier.exists(), "le dossier compilé survit à la suppression"
 
     magasin = IdentityStore(_espace(tmp_path))
-    with base_sqlite(magasin.path) as db:
+    with sqlite_db(magasin.path) as db:
         for table in ("users", "projects", "api_keys", "recovery_codes"):
             assert db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0, table
 
@@ -272,7 +272,7 @@ def test_deleting_with_confirm_erases_down_to_disk(tmp_path):
 def test_every_writing_gesture_leaves_a_trace(tmp_path):
     """"Who deleted this account?" is the question asked the day things go
     wrong. Without a log, it has no answer."""
-    with _serveur(tmp_path) as base:
+    with _server(tmp_path) as base:
         session, _ = _inscrire(base, "trace@exemple.test")
         cle = session.post(f"{base}/api/keys", json={"name": "tracee"},
                            timeout=30).json()["id"]
@@ -292,11 +292,11 @@ def test_every_writing_gesture_leaves_a_trace(tmp_path):
 def test_the_administration_log_gives_no_bare_identifier(tmp_path):
     """Same rule as for the server: identifiers are truncated to eight characters
     — enough to cross-check, too short to look like a secret."""
-    with _serveur(tmp_path) as base:
+    with _server(tmp_path) as base:
         _, corps = _inscrire(base, "nu@exemple.test")
 
     magasin = IdentityStore(_espace(tmp_path))
-    with base_sqlite(magasin.path) as db:
+    with sqlite_db(magasin.path) as db:
         identifiant = db.execute("SELECT id FROM users").fetchone()[0]
 
     rendu = admin(tmp_path, "codes", "nu@exemple.test")
@@ -314,7 +314,7 @@ def test_administration_opens_no_route(tmp_path):
     accounts. This test fails if someone one day adds an administration route
     meaning well.
     """
-    with _serveur(tmp_path) as base:
+    with _server(tmp_path) as base:
         schema = requests.get(f"{base}/openapi.json", timeout=30).json()
         chemins = list(schema["paths"])
     assert not [chemin for chemin in chemins if "admin" in chemin.lower()], chemins
@@ -460,7 +460,7 @@ def test_the_english_names_do_the_same_gestures(tmp_path):
     them); this one proves the new names are not mere help text: each verb
     changes the database exactly as its French twin does."""
     adresse = "anglais@exemple.test"
-    with _serveur(tmp_path) as base:
+    with _server(tmp_path) as base:
         session, _ = _inscrire(base, adresse)
         spec = requests.get(f"{base}/api/examples/vitrine", timeout=30).json()["spec"]
         projet = session.post(f"{base}/api/compile", json={"spec": spec},
@@ -468,7 +468,7 @@ def test_the_english_names_do_the_same_gestures(tmp_path):
     magasin = IdentityStore(_espace(tmp_path))
 
     def echeance():
-        with base_sqlite(magasin.path) as db:
+        with sqlite_db(magasin.path) as db:
             return db.execute("SELECT expires_at FROM projects").fetchone()[0]
 
     assert adresse in admin(tmp_path, "accounts").stdout

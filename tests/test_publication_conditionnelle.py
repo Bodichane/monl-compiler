@@ -64,7 +64,7 @@ def application(tmp_path_factory):
         yield base_url
 
 
-def _jeton(base_url, identifiant):
+def _token(base_url, identifiant):
     reponse = requests.post(f"{base_url}/login", timeout=10, json={
         "username": identifiant, "password": MOT_DE_PASSE})
     reponse.raise_for_status()
@@ -74,7 +74,7 @@ def _jeton(base_url, identifiant):
 def _inscrire(base_url, identifiant):
     requests.post(f"{base_url}/register", timeout=10, json={
         "username": identifiant, "password": MOT_DE_PASSE, "actor": "Member"})
-    return _jeton(base_url, identifiant)
+    return _token(base_url, identifiant)
 
 
 def _entete(jeton):
@@ -86,7 +86,7 @@ def scene(application):
     """A hidden post, its author, a third member and a moderator."""
     auteur = _inscrire(application, "auteur@x.co")
     tiers = _inscrire(application, "tiers@x.co")
-    moderateur = _jeton(application, "mod@x.co")
+    moderateur = _token(application, "mod@x.co")
     cree = requests.post(f"{application}/post", timeout=10, headers=_entete(auteur),
                          json={"content": "Contenu litigieux", "status": "published"})
     identifiant = cree.json()["id"]
@@ -97,7 +97,7 @@ def scene(application):
             "moderateur": moderateur, "id": identifiant}
 
 
-def _liste(scene, jeton=None):
+def _list(scene, jeton=None):
     entetes = _entete(jeton) if jeton else {}
     reponse = requests.get(f"{scene['base_url']}/post", timeout=10, headers=entetes)
     assert reponse.status_code == 200
@@ -111,7 +111,7 @@ def _detail(scene, jeton=None):
 
 
 def test_the_anonymous_user_does_not_see_hidden_content(scene):
-    assert _liste(scene)["total"] == 0
+    assert _list(scene)["total"] == 0
 
 
 def test_the_anonymous_user_cannot_reach_it_by_its_id_either(scene):
@@ -122,7 +122,7 @@ def test_the_anonymous_user_cannot_reach_it_by_its_id_either(scene):
 
 def test_the_moderator_still_sees_what_they_hid(scene):
     """THE defect the brick had: hiding meant losing the content."""
-    donnees = _liste(scene, scene["moderateur"])
+    donnees = _list(scene, scene["moderateur"])
     assert donnees["total"] == 1
     assert donnees["data"][0]["status"] == "hidden"
 
@@ -135,14 +135,14 @@ def test_the_moderator_can_reopen_the_hidden_record(scene):
 
 def test_lauteur_retrouve_son_propre_contenu_masque(scene):
     """Otherwise a draft would be lost by the person who just wrote it."""
-    assert _liste(scene, scene["auteur"])["total"] == 1
+    assert _list(scene, scene["auteur"])["total"] == 1
     assert _detail(scene, scene["auteur"]).status_code == 200
 
 
 def test_a_third_member_stays_at_the_door(scene):
     """The exemption is DECLARED, never granted to whoever is merely signed in:
     otherwise "hidden" would mean nothing as soon as one has an account."""
-    assert _liste(scene, scene["tiers"])["total"] == 0
+    assert _list(scene, scene["tiers"])["total"] == 0
     assert _detail(scene, scene["tiers"]).status_code == 404
 
 
@@ -164,7 +164,7 @@ def test_published_content_stays_visible_to_all(scene):
     requests.post(f"{scene['base_url']}/post", timeout=10,
                   headers=_entete(scene["auteur"]),
                   json={"content": "Annonce ouverte", "status": "published"})
-    contenus = [p["content"] for p in _liste(scene)["data"]]
+    contenus = [p["content"] for p in _list(scene)["data"]]
     assert contenus == ["Annonce ouverte"]
 
 

@@ -44,7 +44,7 @@ def _grammar_literals():
     return litteraux
 
 
-def _passages_de_code(texte):
+def _code_passages(texte):
     """Les passages écrits COMME DU CODE : `mot`, et les blocs clôturés.
 
     Un passage de code ne franchit pas la fin de ligne — `[^`\\n]+` et non
@@ -66,7 +66,7 @@ def _written_as_code(texte, mot):
     strict rule wrongly requests nothing.
     """
     motif = rf"(?<![A-Za-z0-9_]){re.escape(mot)}(?![A-Za-z0-9_])"
-    return any(re.search(motif, passage) for passage in _passages_de_code(texte))
+    return any(re.search(motif, passage) for passage in _code_passages(texte))
 
 # The project's modules. A PACKAGE counts as a single node: its internal split
 # is a matter of layers, not boundaries.
@@ -114,7 +114,7 @@ def _project_imports(chemin, profondeur=0):
     return {m for m in trouves if m in MODULES}
 
 
-def _depend_de(module):
+def _depends_on(module):
     """The dependency graph of a project module, its PACKAGES included.
 
     A package's graph is the union of its modules', minus itself: a submodule
@@ -172,7 +172,7 @@ INTERDITS = [
 def test_the_architecture_boundaries_hold():
     violations = []
     for source, interdits, pourquoi in INTERDITS:
-        for cible in _depend_de(source) & set(interdits):
+        for cible in _depends_on(source) & set(interdits):
             violations.append(f"{source} → {cible} : {pourquoi}")
     assert not violations, "frontières franchies :\n  " + "\n  ".join(violations)
 
@@ -183,7 +183,7 @@ def test_the_compiler_stays_usable_alone():
     orchestration = {"cli", "dialogue_engine", "frontend_ai", "tui",
                      "app_templates", "smoke_test"}
     for module in ("parser", "ast_validator", "generator"):
-        assert not _depend_de(module) & orchestration, module
+        assert not _depends_on(module) & orchestration, module
 
 
 def test_no_module_imports_itself_in_a_cycle():
@@ -191,7 +191,7 @@ def test_no_module_imports_itself_in_a_cycle():
     between cli and frontend_ai, where it is known and documented."""
     connu = {("cli", "frontend_ai"), ("frontend_ai", "cli")}
     cycles = set()
-    graphe = {m: _depend_de(m) for m in MODULES}
+    graphe = {m: _depends_on(m) for m in MODULES}
     for source, cibles in graphe.items():
         for cible in cibles:
             if source in graphe.get(cible, set()):
@@ -203,9 +203,9 @@ def test_the_graph_really_sees_something():
     """The safeguard's safeguard: a boundary test that no longer detects any
     dependency would always pass, and would say nothing any more. The
     repository's known dependencies must therefore appear."""
-    assert {"parser", "generator", "frontend_contract"} <= _depend_de("cli")
-    assert {"tui", "app_templates", "parser"} <= _depend_de("dialogue_engine")
-    assert "frontend_contract" in _depend_de("smoke_test")
+    assert {"parser", "generator", "frontend_contract"} <= _depends_on("cli")
+    assert {"tui", "app_templates", "parser"} <= _depends_on("dialogue_engine")
+    assert "frontend_contract" in _depends_on("smoke_test")
 
 
 def test_monl_never_imports_monl_platform():
@@ -325,7 +325,7 @@ EXCEPTIONS_DE_TAILLE = {
 }
 
 
-def _fichiers_de_src():
+def _src_files():
     for racine, _d, fichiers in os.walk(os.path.join(SRC, "..")):
         if "__pycache__" in racine:
             continue
@@ -338,7 +338,7 @@ def _fichiers_de_src():
 
 def test_no_src_file_exceeds_the_ceiling():
     trop = {}
-    for rel, chemin in _fichiers_de_src():
+    for rel, chemin in _src_files():
         with open(chemin, encoding="utf-8") as fh:
             n = len(fh.read().splitlines())
         if n > PLAFOND_FICHIER and rel not in EXCEPTIONS_DE_TAILLE:
@@ -351,7 +351,7 @@ def test_no_src_file_exceeds_the_ceiling():
 def test_no_function_exceeds_the_ceiling():
     """A short file made of two 500-line functions has gained nothing."""
     trop = {}
-    for rel, chemin in _fichiers_de_src():
+    for rel, chemin in _src_files():
         with open(chemin, encoding="utf-8") as fh:
             arbre = ast.parse(fh.read())
         for n in ast.walk(arbre):
@@ -369,7 +369,7 @@ def test_each_size_exception_targets_a_file_still_over():
     `test_no_ruff_exception_targets_a_vanished_file`: a forgotten exemption ends
     up covering a file one believed held."""
     tailles = {}
-    for rel, chemin in _fichiers_de_src():
+    for rel, chemin in _src_files():
         with open(chemin, encoding="utf-8") as fh:
             tailles[rel] = len(fh.read().splitlines())
     for rel, raison in EXCEPTIONS_DE_TAILLE.items():
@@ -464,8 +464,8 @@ def _complexite_fonction(noeud):
     return compteur.score
 
 
-def _fonctions_de_src():
-    for rel, chemin in _fichiers_de_src():
+def _src_functions():
+    for rel, chemin in _src_files():
         with open(chemin, encoding="utf-8") as fh:
             arbre = ast.parse(fh.read(), filename=chemin)
         for noeud in ast.walk(arbre):
@@ -473,7 +473,7 @@ def _fonctions_de_src():
                 yield f"{rel}:{noeud.name}", _complexite_fonction(noeud)
 
 
-def _violations_de_complexite(fonctions, exceptions):
+def _complexity_violations(fonctions, exceptions):
     violations = {}
     for nom, score in fonctions:
         limite = exceptions.get(nom, (PLAFOND_COMPLEXITE, ""))[0]
@@ -484,8 +484,8 @@ def _violations_de_complexite(fonctions, exceptions):
 
 def test_no_src_function_exceeds_the_complexity_ceiling():
     """The common ceiling also applies to new functions."""
-    violations = _violations_de_complexite(
-        _fonctions_de_src(), EXCEPTIONS_DE_COMPLEXITE)
+    violations = _complexity_violations(
+        _src_functions(), EXCEPTIONS_DE_COMPLEXITE)
     assert not violations, (
         f"fonctions au-dessus de {PLAFOND_COMPLEXITE} sans cliquet valide : "
         f"{violations}")
@@ -495,14 +495,14 @@ def test_each_complexity_exception_is_still_needed():
     """An exception back under the ceiling must be removed.
 
     THIS is where the ratchet lives, in strict equality with the recorded score —
-    not in a separate test. A second test replaying `_violations_de_complexite`
+    not in a separate test. A second test replaying `_complexity_violations`
     existed under the name "the ratchet forbids any regression": measured, it
     NEVER turned red alone (counter-proof done on the three ways of breaking the
     safeguard), it repeated the ceiling assertion word for word. A witness
     announcing a guarantee carried elsewhere ends up making it look guarded twice
     — point 167bis.
     """
-    fonctions = dict(_fonctions_de_src())
+    fonctions = dict(_src_functions())
     for nom, (valeur, raison) in EXCEPTIONS_DE_COMPLEXITE.items():
         assert nom in fonctions, f"exception sur une fonction disparue : {nom}"
         assert fonctions[nom] > PLAFOND_COMPLEXITE, (
@@ -548,7 +548,7 @@ def test_the_safeguard_turns_red_for_a_too_complex_function():
     fonctions = [(f"synthetic.py:{n.name}", _complexite_fonction(n))
                  for n in ast.walk(arbre)
                  if isinstance(n, ast.FunctionDef)]
-    assert _violations_de_complexite(fonctions, {}) == {
+    assert _complexity_violations(fonctions, {}) == {
         "synthetic.py:trop_complexe": {"mesure": 17, "limite": 15}}
 
 
@@ -560,19 +560,19 @@ def test_the_safeguard_turns_red_when_a_needed_exception_is_removed():
     synthetic function one decision above the ceiling goes through the REAL
     counter and the REAL guard: it must be reported, and be the only one —
     otherwise an empty table would only prove that nothing is measured."""
-    fonctions = list(_fonctions_de_src())
+    fonctions = list(_src_functions())
     assert fonctions, "no function read from src/: the guard would measure nothing"
     exceptions = dict(EXCEPTIONS_DE_COMPLEXITE)
     if exceptions:
         retiree = next(iter(exceptions))
         del exceptions[retiree]
-        violations = _violations_de_complexite(fonctions, exceptions)
+        violations = _complexity_violations(fonctions, exceptions)
         assert retiree in violations
     source = "def trop_complexe(x):\n" + "".join(
         f"    if x == {i}:\n        x += 1\n" for i in range(PLAFOND_COMPLEXITE))
     score = _complexite_fonction(ast.parse(source).body[0])
     assert score == PLAFOND_COMPLEXITE + 1
-    violations = _violations_de_complexite(
+    violations = _complexity_violations(
         fonctions + [("synthetique:trop_complexe", score)], EXCEPTIONS_DE_COMPLEXITE)
     assert set(violations) == {"synthetique:trop_complexe"}
 
@@ -717,7 +717,7 @@ def test_no_sqlite_connection_is_opened_by_a_bare_with():
     (`identity_database`, `backup_healthcheck`, `store_core`). `pyproject.toml`'s
     `error::ResourceWarning` filter catches a leak WHEN a test produces it; this
     guard refuses the pattern before it is used. Use
-    `tests.support.sqlite.base_sqlite` (or `try/finally` + `close`).
+    `tests.support.sqlite.sqlite_db` (or `try/finally` + `close`).
     """
     racine = pathlib.Path(__file__).resolve().parent.parent
     fautifs = []
@@ -728,7 +728,7 @@ def test_no_sqlite_connection_is_opened_by_a_bare_with():
                         for ligne in _ouvertures_sqlite_nues(source, str(chemin))]
     assert not fautifs, (
         "`with sqlite3.connect(...)` valide sans fermer — utiliser "
-        "tests.support.sqlite.base_sqlite : " + ", ".join(fautifs))
+        "tests.support.sqlite.sqlite_db : " + ", ".join(fautifs))
 
 
 OUVERTURES_A_FERMER = {"open", "io.open", "codecs.open", "urllib.request.urlopen", "urlopen"}
@@ -798,11 +798,11 @@ def test_the_bare_connection_extractor_sees_the_pattern():
     assert _ouvertures_sqlite_nues(fautif, "fautif.py") == [3, 5]
     sain = (
         "import sqlite3\n"
-        "from tests.support.sqlite import base_sqlite\n"
+        "from tests.support.sqlite import sqlite_db\n"
         "# with sqlite3.connect(p) as db:  -- un commentaire ne compte pas\n"
         "CODE = 'with sqlite3.connect(p) as db:'\n"
         "def f(p):\n"
-        "    with base_sqlite(p) as db:\n"
+        "    with sqlite_db(p) as db:\n"
         "        db.execute('select 1')\n"
     )
     assert _ouvertures_sqlite_nues(sain, "sain.py") == []
@@ -1002,7 +1002,7 @@ def test_the_keyword_extractor_does_not_look_at_nothing():
     assert {"app", "rule", "Upload"} <= mots
 
 
-def _paragraphe_de_reference(memoire):
+def _reference_paragraph(memoire):
     """The `CLAUDE.md` paragraph that LISTS the DSL keywords."""
     debut = memoire.index("**DSL keyword reference.**")
     fin = memoire.index("none is a standalone brick.", debut)
@@ -1020,7 +1020,7 @@ def test_the_keyword_reference_names_nothing_that_vanished():
     """
     racine = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     with open(os.path.join(racine, "CLAUDE.md"), encoding="utf-8") as fh:
-        reference = _paragraphe_de_reference(fh.read())
+        reference = _reference_paragraph(fh.read())
     reels = _grammar_literals()
     annonces = set(re.findall(r"`([a-zA-Z][a-zA-Z_]{1,24})`", reference))
     fantomes = sorted(annonces - reels)

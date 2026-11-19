@@ -5,10 +5,10 @@ import uuid
 
 from monl_platform.identity import IdentityStore
 from monl_platform.store import PlatformStore
-from tests.support.sqlite import base_sqlite
+from tests.support.sqlite import sqlite_db
 
 
-def _projet(identity, platform, user, slug, name=None):
+def _project(identity, platform, user, slug, name=None):
     project_id = uuid.uuid4().hex
     identity.add_project(user["id"], project_id, name or slug)
     platform.create_project(user["id"], project_id, slug)
@@ -19,9 +19,9 @@ def test_identity_deletion_cascades_to_the_project(tmp_path):
     identity = IdentityStore(tmp_path)
     platform = PlatformStore(tmp_path)
     user = identity.register("cascade@example.test", "MotDePasse-123")
-    project_id = _projet(identity, platform, user, "boutique")
+    project_id = _project(identity, platform, user, "boutique")
 
-    with base_sqlite(platform.database) as db:
+    with sqlite_db(platform.database) as db:
         assert {
             (row[3], row[2], row[6])
             for row in db.execute("PRAGMA foreign_key_list(builder_projects)")
@@ -31,7 +31,7 @@ def test_identity_deletion_cascades_to_the_project(tmp_path):
     # the stores'. Deletion goes through IdentityStore._connect, which enables
     # it on every transaction.
     assert identity.delete_user(user["id"]) == [project_id]
-    with base_sqlite(platform.database) as db:
+    with sqlite_db(platform.database) as db:
         assert db.execute("SELECT COUNT(*) FROM projects WHERE project_id = ?",
                           (project_id,)).fetchone()[0] == 0
         assert db.execute(
@@ -59,8 +59,8 @@ def test_the_slug_is_GLOBALLY_unique_and_homonyms_step_aside(tmp_path):
     alice = identity.register("alice@example.test", "MotDePasse-123")
     bob = identity.register("bob@example.test", "MotDePasse-123")
 
-    premier = _projet(identity, platform, alice, "boutique")
-    vole = _projet(identity, platform, bob, "boutique")
+    premier = _project(identity, platform, alice, "boutique")
+    vole = _project(identity, platform, bob, "boutique")
 
     duplicate_id = uuid.uuid4().hex
     identity.add_project(alice["id"], duplicate_id, "Deuxième boutique")
@@ -81,7 +81,7 @@ def test_an_oauth_account_refuses_a_password_exactly_like_a_wrong_one(tmp_path):
         "github:4242", "github", "alice@example.test"
     )
     assert created is True
-    with base_sqlite(identity.path) as db:
+    with sqlite_db(identity.path) as db:
         password_hash, password_salt, provider = db.execute(
             "SELECT password_hash, password_salt, auth_provider FROM users WHERE id = ?",
             (oauth_id,),
@@ -110,7 +110,7 @@ def test_an_oauth_account_refuses_a_password_exactly_like_a_wrong_one(tmp_path):
 def test_legacy_accounts_are_counted_and_stay_out_of_users(tmp_path, monkeypatch):
     identity = IdentityStore(tmp_path)
     platform = PlatformStore(tmp_path)
-    with base_sqlite(platform.database) as db:
+    with sqlite_db(platform.database) as db:
         db.execute(
             "INSERT INTO accounts(identifier, password_hash, created_at) "
             "VALUES (?, ?, ?)",
@@ -119,7 +119,7 @@ def test_legacy_accounts_are_counted_and_stay_out_of_users(tmp_path, monkeypatch
 
     assert identity.comptes_herites() == 1
     assert platform.legacy_account_count() == 1
-    with base_sqlite(identity.path) as db:
+    with sqlite_db(identity.path) as db:
         assert db.execute(
             "SELECT COUNT(*) FROM users WHERE email = ?", ("ancien-compte",)
         ).fetchone()[0] == 0

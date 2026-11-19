@@ -448,7 +448,7 @@ def _expire_reset_token(directory, dsn, raw_token):
 MARGE_FENETRE_TOTP = 10.0
 
 
-def _pas_totp_stable(marge=MARGE_FENETRE_TOTP):
+def _stable_totp_step(marge=MARGE_FENETRE_TOTP):
     """The current TOTP step, with the guarantee it stays so for `marge` seconds.
 
     Without this wait, the 30 s window can flip between computing a code and the
@@ -468,7 +468,7 @@ def _pas_totp_stable(marge=MARGE_FENETRE_TOTP):
 def _totp_code(secret, step):
     """The code of the REQUESTED step. The step is mandatory: deducing it here
     from the clock is precisely what let a replay assertion be about a new code
-    (see `_pas_totp_stable`)."""
+    (see `_stable_totp_step`)."""
     padded = secret + "=" * ((8 - len(secret) % 8) % 8)
     key = base64.b32decode(padded, casefold=True)
     digest = hmac.new(key, struct.pack(">Q", step), hashlib.sha1).digest()
@@ -652,10 +652,10 @@ def test_full_b4_authentication_on_both_engines(b4_application):
     assert setup.status_code == 200, setup.text
     secret = setup.json()["secret"]
     assert setup.json()["otpauth_uri"].startswith("otpauth://totp/")
-    # The step is fixed BEFORE login: `_pas_totp_stable` may wait for the start
+    # The step is fixed BEFORE login: `_stable_totp_step` may wait for the start
     # of the next window, and that wait would make the access token stale if it
     # happened after its issuance.
-    pas_activation = _pas_totp_stable()
+    pas_activation = _stable_totp_step()
     # FRESH token: 'setup' and 'enable' are two calls, and the access token is
     # deliberately short. Reusing it would make the test sensitive to the first
     # call's duration rather than to the measured behavior.
@@ -668,7 +668,7 @@ def test_full_b4_authentication_on_both_engines(b4_application):
     # The step is fixed ONCE: the three logins that follow therefore all fall
     # in the same window, and the "previous" window is indeed the one right
     # before the accepted code.
-    pas = _pas_totp_stable()
+    pas = _stable_totp_step()
     code_courant = _totp_code(secret, pas)
     # The PREVIOUS window is tested BEFORE the valid login. After it, the
     # current step is consumed and replay protection refuses this code whatever
@@ -748,7 +748,7 @@ def _session_b4(base, username):
 
 
 def _activation_b4(base, session, password="motdepasse8"):
-    pas = _pas_totp_stable()
+    pas = _stable_totp_step()
     setup = _call("POST", base, "/totp/setup", token=session["access_token"])
     assert setup.status_code == 200, setup.text
     secret = setup.json()["secret"]
@@ -779,7 +779,7 @@ def test_b4_activation_requires_the_password(b4_application):
     base, _, _, _, _ = b4_application
     username = "victime@example.invalid"
     session = _session_b4(base, username)
-    pas = _pas_totp_stable()
+    pas = _stable_totp_step()
     setup = _call("POST", base, "/totp/setup", token=session["access_token"])
     code = _totp_code(setup.json()["secret"], pas)
     absent = _call("POST", base, "/totp/enable", token=session["access_token"],
@@ -850,7 +850,7 @@ def test_b4_change_revokes_the_sessions(b4_application, changement):
         f"Rafraîchissement légitime refusé après {changement}")
 
 
-def test_b4_reset_email_preserve_totp_et_signature(b4_application):
+def test_b4_email_reset_preserves_totp_and_signature(b4_application):
     import copy
     import json
 

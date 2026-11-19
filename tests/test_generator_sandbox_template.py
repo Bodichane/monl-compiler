@@ -25,7 +25,7 @@ from monl.generator import (
     sandbox,
     schemas,
 )
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cas import check_each_case
 from tests.test_bloc_custom_absent import AVEC_CUSTOM, _compiler
 
 MIGRATED_MODULES = (
@@ -38,7 +38,7 @@ MIGRATED_MODULES = (
 DATABASE_MONTAGE_MODULES = (runtime_montage,)
 
 
-def test_liste_modules_montage_non_vide():
+def test_mount_modules_list_not_empty():
     assert DATABASE_MONTAGE_MODULES
 
 
@@ -62,10 +62,10 @@ def test_mounting_without_legacy_splitting():
             for node in ast.walk(tree)
         )
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
-def test_liste_modules_migres_non_vide():
+def test_migrated_modules_list_not_empty():
     assert MIGRATED_MODULES
 
 
@@ -78,10 +78,10 @@ def test_sandbox_emission_without_f_string_or_concatenation():
         assert not any(isinstance(node, (ast.BinOp, ast.AugAssign))
                        and isinstance(node.op, ast.Add) for node in ast.walk(tree))
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
-def test_sandbox_custom_octets_et_execution(tmp_path):
+def test_custom_sandbox_bytes_and_execution(tmp_path):
     source = AVEC_CUSTOM.replace('Publie une note', 'Publie ${name} {note} $5 \\n')
     folder = _compiler(source, tmp_path / 'custom')
     generated = (folder / 'sandbox_ai.py').read_bytes()
