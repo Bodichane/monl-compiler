@@ -1,6 +1,6 @@
-# Tests du moteur de dialogue guidé (pivot orchestrateur, brique 1).
-# Conformément à la méthode du projet : la spec produite est réellement
-# parsée ET validée par le vrai pipeline, jamais seulement relue.
+# Tests of the guided dialogue engine (orchestrator pivot, brick 1). Following
+# the project's method: the produced spec is really parsed AND validated by the
+# real pipeline, never only reread.
 
 import pytest
 
@@ -8,45 +8,45 @@ from monl.ast_validator import MonlAST
 from monl.dialogue_engine import DialogueError, GuidedDialogue
 from monl.parser import parse_monl_string
 
-# Le scénario est composé de morceaux NOMMÉS. Il était découpé par des
-# nombres négatifs (`[:-4]`, `[:-5]`) : chaque question ajoutée en fin de
-# dialogue déplaçait la coupe et cassait huit tests d'un coup, sans que le
-# nombre magique dise jamais ce qu'il retirait.
+# The scenario is composed of NAMED pieces. It was cut with negative numbers
+# (`[:-4]`, `[:-5]`): each question added at the end of the dialogue moved the
+# cut and broke eight tests at once, without the magic number ever saying what
+# it removed.
 SCENARIO_PORTFOLIO_BASE = [
-    "11",              # partir de zéro (dialogue libre)
+    "11",              # start from scratch (free dialogue)
     "StudioTest", "Un portfolio de studio créatif avec contact.",
     "Project", "title", "1", "imageUrl", "1", "year", "3", "",
     "Message", "author", "1", "content", "2", "email", "7", "",
     "",
     "o", "n",          # Project lisible public, Message non
-    "2",               # création publique : Message
+    "2",               # public creation: Message
     "Admin", "Visitor", "",
-    "1", "1",          # Admin gère les deux entités
-    "n", "n",          # pas de propriété par enregistrement
-    "n", "n",          # Visitor ne lit rien de plus
-    "n",               # pas de relation
-    "1",               # inscription libre : 1er rôle proposé
-    "0",               # identifiant de compte : aucun (point 138)
+    "1", "1",          # Admin manages both entities
+    "n", "n",          # no per-record ownership
+    "n", "n",          # Visitor reads nothing more
+    "n",               # no relation
+    "1",               # open registration: 1st offered role
+    "0",               # account identifier: none (point 138)
     "o",               # seed
-    "n",               # images génériques (point 59)
+    "n",               # generic images (point 59)
 ]
 LANDING_OUI = ["o"]
 LANDING_NON = ["n"]
 SCENARIO_PORTFOLIO_TRONC = SCENARIO_PORTFOLIO_BASE + LANDING_OUI
 
-# Brief transmis -> l'intention visuelle est demandée (point 53) :
-# action attendue du visiteur, registre, place des images.
+# Brief passed on -> the visual intent is asked (point 53): action expected
+# from the visitor, register, placement of images.
 INTENTION_PAR_DEFAUT = ["voir les projets et écrire", "2", "1"]
 AUCUNE_SECTION = ["n"]                     # point 55
-#: Les destinations du pied de page (brique 30). Le nombre d'entrées
-#: proposées est LU sur la source : le figer ici le ferait diverger en
-#: silence à la première entrée ajoutée.
+#: The footer destinations (brick 30). The number of offered entries is READ
+#: from the source: freezing it here would make it diverge silently at the
+#: first added entry.
 AUCUN_LIEN = [""] * len(GuidedDialogue.LIENS_PROPOSES) + ["n"]
 
 SCENARIO_PORTFOLIO = (SCENARIO_PORTFOLIO_TRONC + INTENTION_PAR_DEFAUT
                       + AUCUNE_SECTION + AUCUN_LIEN)
-#: Le même parcours en refusant la page d'accueil : ni intention, ni
-#: rubrique, ni lien ne sont alors demandés.
+#: The same journey refusing the home page: neither intent, nor section, nor
+#: link is then asked.
 SCENARIO_SANS_LANDING = SCENARIO_PORTFOLIO_BASE + LANDING_NON
 
 
@@ -55,11 +55,12 @@ def _run(answers):
     return GuidedDialogue(ask=lambda p: next(it)).run()
 
 
-def test_mode_express_ne_pose_que_identite_et_description_apres_le_modele():
-    """Le parcours recommandé ne transforme pas les finitions en questionnaire.
+def test_express_mode_only_asks_identity_and_description_after_the_template():
+    """The recommended journey does not turn the finishing touches into a
+    questionnaire.
 
-    L'itérateur ne contient volontairement aucune réponse supplémentaire :
-    toute nouvelle question ferait échouer le test par StopIteration.
+    The iterator deliberately contains no extra answer: any new question would
+    make the test fail with StopIteration.
     """
     answers = iter(["1", "StudioExpress", "Portfolio de céramique contemporaine."])
     spec = GuidedDialogue(ask=lambda p: next(answers), express=True).run()
@@ -68,13 +69,13 @@ def test_mode_express_ne_pose_que_identite_et_description_apres_le_modele():
     assert normalized["seeds"]
     assert "landing" in spec
     assert "express mode" in spec
-    # Le mode express déduit un sujet d'illustration du modèle choisi ; il
-    # part dans le brief, plus dans une URL distante.
+    # Express mode deduces an illustration subject from the chosen template; it
+    # goes into the brief, no longer into a remote URL.
     assert "The illustrations should evoke: creative-studio" in spec
     assert "loremflickr" not in spec and "picsum" not in spec
 
 
-def test_mode_express_ouvre_seulement_le_role_non_privilegie():
+def test_express_mode_only_opens_the_unprivileged_role():
     answers = iter(["3", "BoutiqueExpress", "Boutique de mobilier français."])
     spec = GuidedDialogue(ask=lambda p: next(answers), express=True).run()
     normalized = MonlAST(parse_monl_string(spec)).validate_and_audit()
@@ -82,7 +83,7 @@ def test_mode_express_ouvre_seulement_le_role_non_privilegie():
     assert "Admin selfRegister" not in spec
 
 
-def test_le_menu_interactif_propose_express_avant_la_personnalisation():
+def test_the_interactive_menu_offers_express_before_customization():
     prompts = []
     answers = iter([
         "1", "1", "StudioExpress", "Portfolio de céramique contemporaine."
@@ -105,7 +106,7 @@ def test_spec_produite_compile_reellement():
     assert set(normalized["schema"]["entities"]) == {"Project", "Message"}
     assert "Project.Read" in normalized["security"]["public"]
     assert "Message.Create" in normalized["security"]["public"]
-    # Un seul gestionnaire d'écriture par entité -> jamais de collision.
+    # A single write manager per entity -> never a collision.
     assert normalized["seeds"], "le seed demandé doit être présent"
 
 
@@ -113,43 +114,42 @@ def test_determinisme_memes_reponses_meme_spec():
     assert _run(SCENARIO_PORTFOLIO) == _run(SCENARIO_PORTFOLIO)
 
 
-def test_aucune_spec_ne_nomme_un_hote_distant():
-    """Le point 59 réglait la RÉSOLUTION des photos de démonstration (1600×900
-    plutôt que 800×600). La question ne se pose plus : il n'y a plus de photo
-    de démonstration du tout.
+def test_no_spec_names_a_remote_host():
+    """Point 59 settled the RESOLUTION of demo photos (1600×900 rather than
+    800×600). The question no longer arises: there is no demo photo at all any
+    more.
 
-    Une application monl est autonome et son compilateur n'appelle jamais
-    l'extérieur — mais la première page que le prospect ouvrait allait chercher
-    ses images chez un tiers, et ne s'ouvrait donc pas hors ligne ni sur un
-    forfait de données compté. La vraie photo passe par `monl assets add`,
-    qui la vérifie à la compilation."""
+    A monl application is autonomous and its compiler never calls outside — but
+    the first page the prospect opened fetched its images from a third party, and
+    therefore did not open offline nor on a metered data plan. The real photo goes
+    through `monl assets add`, which checks it at compile time."""
     spec = _run(SCENARIO_PORTFOLIO)
     for hote in ("picsum", "loremflickr", "http://", "https://"):
         assert hote not in spec, f"la spec nomme un hôte distant : {hote}"
 
 
-# ---- Les destinations du pied de page (brique 30) ----
+# ---- The footer destinations (brick 30) ----
 
-def _scenario_avec_liens(saisies):
-    """SCENARIO_PORTFOLIO dont on ne change que les réponses du pied de page."""
+def _scenario_with_links(saisies):
+    """SCENARIO_PORTFOLIO with only the footer answers changed."""
     entrees = list(saisies) + [""] * len(GuidedDialogue.LIENS_PROPOSES)
     return (SCENARIO_PORTFOLIO_TRONC + INTENTION_PAR_DEFAUT + AUCUNE_SECTION
             + entrees[:len(GuidedDialogue.LIENS_PROPOSES)] + ["n"])
 
 
-def test_le_dialogue_produit_reellement_des_liens_de_pied_de_page():
-    """La brique 30 existait depuis le point 144 et RIEN ne la produisait.
+def test_the_dialogue_really_produces_footer_links():
+    """Brick 30 had existed since point 144 and NOTHING produced it.
 
-    Ni ce dialogue ni aucun des dix modèles ne déclarait un seul lien : tout
-    site sortait donc avec un pied de page sans une destination. Une règle
-    qui ne produit rien est ce que le point 85 interdit au compilateur, et
-    l'interdit vaut pour le dialogue qui écrit la spec.
+    Neither this dialogue nor any of the ten templates declared a single link:
+    every site therefore came out with a footer without a single destination. A
+    rule producing nothing is what point 85 forbids the compiler, and the ban
+    holds for the dialogue writing the spec.
     """
-    spec = _run(_scenario_avec_liens(
+    spec = _run(_scenario_with_links(
         ["contact@studio.fr", "+33 6 12 34 56 78", "instagram.com/studio"]))
 
-    # Personne ne tape « mailto: » ni « https:// » : le dialogue complète, et
-    # ne complète que là où il n'existe qu'une lecture.
+    # Nobody types "mailto:" or "https://": the dialogue completes, and only
+    # completes where there is a single reading.
     assert 'link "Email": "mailto:contact@studio.fr"' in spec
     assert 'link "Phone": "tel:+33612345678"' in spec
     assert 'link "Instagram": "https://instagram.com/studio"' in spec
@@ -158,11 +158,11 @@ def test_le_dialogue_produit_reellement_des_liens_de_pied_de_page():
         "Email", "Phone", "Instagram"]
 
 
-def test_une_adresse_incomprehensible_est_passee_et_dite():
-    """Deviner une adresse serait pire que la passer : le lien mènerait
-    quelque part, et personne ne saurait où."""
+def test_an_incomprehensible_address_is_skipped_and_stated():
+    """Guessing an address would be worse than skipping it: the link would lead
+    somewhere, and nobody would know where."""
     dits = []
-    scenario = _scenario_avec_liens(["pas une adresse du tout"])
+    scenario = _scenario_with_links(["pas une adresse du tout"])
     it = iter(scenario)
     spec = GuidedDialogue(ask=lambda p: next(it), say=dits.append).run()
 
@@ -171,31 +171,31 @@ def test_une_adresse_incomprehensible_est_passee_et_dite():
     MonlAST(parse_monl_string(spec)).validate_and_audit()
 
 
-def test_le_pied_de_page_n_est_pas_demande_sans_page_d_accueil():
-    """Sans accueil à écrire, ces liens n'auraient nulle part où aller —
-    même règle que l'intention visuelle et que les rubriques."""
-    spec = _run(SCENARIO_SANS_LANDING)   # ne doit PAS lever StopIteration
+def test_the_footer_is_not_asked_without_a_home_page():
+    """Without a home page to write, these links would have nowhere to go — same
+    rule as the visual intent and the sections."""
+    spec = _run(SCENARIO_SANS_LANDING)   # must NOT raise StopIteration
 
     assert "link " not in spec
 
 
-def test_le_sujet_dillustration_part_dans_le_brief_et_non_dans_une_url():
-    """La question du dialogue GARDE un effet — sinon elle serait une question
-    sans conséquence, ce que le point 85 interdit au compilateur et qui vaut
-    autant pour le dialogue qui écrit la spec.
+def test_the_illustration_subject_goes_into_the_brief_not_a_url():
+    """The dialogue question KEEPS an effect — otherwise it would be a question
+    without consequence, which point 85 forbids the compiler and which holds just
+    as much for the dialogue writing the spec.
 
-    Le sujet ne peut pas être déduit d'une phrase libre en français sans
-    interprétation, donc on le demande (point 59) ; ce qu'on en fait a changé.
-    Il atteint l'IA d'interface par le brief, la seule phrase du contrat qui
-    dise à quoi sert le site."""
+    The subject cannot be deduced from a free sentence in French without
+    interpretation, so it is asked (point 59); what is done with it changed. It
+    reaches the interface AI through the brief, the only sentence of the contract
+    saying what the site is for."""
     scenario = list(SCENARIO_PORTFOLIO)
-    scenario[scenario.index("n", scenario.index("o", 28))] = "o"   # sujet précis
+    scenario[scenario.index("n", scenario.index("o", 28))] = "o"   # precise subject
     scenario.insert(scenario.index("o", 28) + 2, "cybersecurity")
     spec = _run(scenario)
     assert "The illustrations should evoke: cybersecurity" in spec
-    # Écrit AUSSI en commentaire : sans bloc `landing`, la spec n'aurait pas de
-    # brief où le porter, et l'humain qui rouvre le fichier doit retrouver ce
-    # qu'il avait demandé.
+    # ALSO written as a comment: without a `landing` block, the spec would have
+    # no brief to carry it, and the human reopening the file must find what
+    # they asked for.
     assert "# Illustration subject: cybersecurity" in spec
     for hote in ("picsum", "loremflickr", "http://", "https://"):
         assert hote not in spec
@@ -203,7 +203,7 @@ def test_le_sujet_dillustration_part_dans_le_brief_et_non_dans_une_url():
 
 
 def test_reponse_invalide_redemandee_puis_erreur():
-    # Nom d'app invalide 3 fois -> DialogueError (le moteur ne devine jamais).
+    # Invalid app name 3 times -> DialogueError (the engine never guesses).
     with pytest.raises(DialogueError):
         _run(["11", "9mauvais", "aussi mauvais", "toujours-mauvais"])
 
@@ -216,17 +216,17 @@ def test_relation_emise_et_validee():
         "Vote", "note", "1", "",
         "",
         "o", "n",      # Entry publique en lecture
-        "0",           # pas de création publique
+        "0",           # no public creation
         "Participant", "",
-        # un seul acteur -> gestionnaire implicite, aucune question posée
-        "n", "n",      # pas de propriété par enregistrement
-        "o",           # des relations ?
+        # single actor -> implicit manager, no question asked
+        "n", "n",      # no per-record ownership
+        "o",           # relations?
         "1",           # source Entry
         "1",           # hasMany
         "1",           # cible Vote
-        "n",           # pas d'autre relation
-        "1",           # inscription libre : 1er rôle proposé
-        "0",           # identifiant de compte : aucun (point 138)
+        "n",           # no other relation
+        "1",           # open registration: 1st offered role
+        "0",           # account identifier: none (point 138)
         "n", "n",      # ni seed ni landing
     ]
     spec = _run(answers)
@@ -235,25 +235,25 @@ def test_relation_emise_et_validee():
 
 
 def test_ownership_cree_entite_proprietaire_et_regles():
-    """ownedBy : le dialogue crée l'entité propriétaire homonyme de l'acteur,
-    la relation qui fournit la clé étrangère, et les règles Update/Delete —
-    le tout validé par le vrai pipeline (motif de exemples/03, point 5)."""
+    """ownedBy: the dialogue creates the owning entity named like the actor, the
+    relation providing the foreign key, and the Update/Delete rules — all
+    validated by the real pipeline (pattern of exemples/03, point 5)."""
     answers = [
         "11",
         "ForumTest", "Un forum où chacun gère ses propres sujets.",
         "Topic", "title", "1", "body", "2", "",
         "",
-        "n",           # Topic pas public en lecture
-        "0",           # pas de création publique
+        "n",           # Topic not publicly readable
+        "0",           # no public creation
         "Member", "",
-        # un seul acteur -> gestionnaire implicite
-        "o",           # propriété par enregistrement sur Topic
-        # (l'entité Member est créée automatiquement -> nouvelles questions :)
-        "n",           # propriété sur Member lui-même ? non
-        "n",           # relations supplémentaires ? non
-        "1",           # inscription libre : 1er rôle proposé
-        "0",           # identifiant de compte : aucun (point 138)
-        "0",           # aucun dépôt pour Topic
+        # single actor -> implicit manager
+        "o",           # per-record ownership on Topic
+        # (the Member entity is created automatically -> new questions:)
+        "n",           # ownership on Member itself? no
+        "n",           # additional relations? no
+        "1",           # open registration: 1st offered role
+        "0",           # account identifier: none (point 138)
+        "0",           # no upload for Topic
         "n", "n",      # ni seed ni landing
     ]
     it = iter(answers)
@@ -262,19 +262,18 @@ def test_ownership_cree_entite_proprietaire_et_regles():
     assert "relation Member hasMany Topic" in spec
     assert "rule Topic.Update ownedBy Member" in spec
     assert "rule Topic.Delete ownedBy Member" in spec
-    # Entité possédée et non publique : la LECTURE est réservée au propriétaire
-    # elle aussi, sans quoi tout titulaire d'un compte listerait les
-    # enregistrements des autres (bêta 3).
+    # Owned and non-public entity: READING is reserved to the owner too,
+    # otherwise any account holder would list the others' records (beta 3).
     assert "rule Topic.Read ownedBy Member" in spec
     normalized = MonlAST(parse_monl_string(spec)).validate_and_audit()
     assert normalized["security"]["ownership"] == {
         "Topic.Read": "Member", "Topic.Update": "Member", "Topic.Delete": "Member"}
 
 
-def test_gestion_partagee_emet_sharedby_sans_collision():
-    """sharedBy : deux acteurs se partagent l'écriture — le dialogue émet un
-    workflow par acteur ET les règles sharedBy, la seule voie légitime prévue
-    par la règle stricte n° 1 (collision de privilèges)."""
+def test_shared_management_emits_sharedby_without_collision():
+    """sharedBy: two actors share writing — the dialogue emits one workflow per
+    actor AND the sharedBy rules, the only legitimate path provided by strict rule
+    no. 1 (privilege collision)."""
     answers = [
         "11",
         "ModTest", "Un blog co-géré par deux rôles.",
@@ -283,13 +282,13 @@ def test_gestion_partagee_emet_sharedby_sans_collision():
         "o",           # Post public en lecture
         "0",
         "Admin", "Moderator", "",
-        "3",           # gestion partagée (option après les 2 acteurs)
+        "3",           # shared management (option after the 2 actors)
         "o", "o",      # Admin ET Moderator participent
-        # gestion partagée -> pas de question de propriété
-        "n", "n",      # aucun lecteur supplémentaire (déjà gestionnaires)
-        # (une seule entité : la question des relations est sautée)
-        "1",           # inscription libre : 1er rôle proposé
-        "0",           # identifiant de compte : aucun (point 138)
+        # shared management -> no ownership question
+        "n", "n",      # no additional reader (already managers)
+        # (a single entity: the relations question is skipped)
+        "1",           # open registration: 1st offered role
+        "0",           # account identifier: none (point 138)
         "n", "n",      # ni seed ni brief
     ]
     it = iter(answers)
@@ -300,56 +299,56 @@ def test_gestion_partagee_emet_sharedby_sans_collision():
     MonlAST(parse_monl_string(spec)).validate_and_audit()
 
 
-# ---- L'intention visuelle atteint le brief (point 53) ----
+# ---- The visual intent reaches the brief (point 53) ----
 
 def _scenario_portfolio(intention):
-    """SCENARIO_PORTFOLIO, dont on ne change que les réponses d'intention."""
+    """SCENARIO_PORTFOLIO, with only the intent answers changed."""
     return (SCENARIO_PORTFOLIO_TRONC + list(intention)
             + AUCUNE_SECTION + AUCUN_LIEN)
 
 
-def test_intention_visuelle_arrive_dans_le_brief():
-    """Le brief transmis à l'IA UI ne doit plus se réduire à la description :
-    c'est la seule phrase du contrat qui dise à quoi sert le site, face à des
-    routes décrites au champ près. Une interface sans intention retombe sur le
-    dénominateur commun (point 53)."""
+def test_visual_intent_reaches_the_brief():
+    """The brief passed to the UI AI must no longer boil down to the description:
+    it is the only sentence of the contract saying what the site is for, facing
+    routes described down to the field. An interface without intent falls back on
+    the lowest common denominator (point 53)."""
     spec = _run(_scenario_portfolio(["parcourir la galerie", "4", "1"]))
-    # La ligne DÉCLARÉE du bloc `landing`, pas le commentaire d'en-tête :
-    # « # Project brief: » contient lui aussi « brief: ».
+    # The `landing` block's DECLARED line, not the header comment: "# Project
+    # brief:" contains "brief:" too.
     ligne = next(x for x in spec.splitlines() if x.lstrip().startswith("brief:"))
     assert "parcourir la galerie" in ligne
     assert "bold, graphic register" in ligne        # registre n° 4
     assert "the images carry the site" in ligne     # imagerie n° 1
-    # La description d'origine reste en tête du brief.
+    # The original description stays at the top of the brief.
     assert ligne.index("Un portfolio") < ligne.index("parcourir la galerie")
     MonlAST(parse_monl_string(spec)).validate_and_audit()
 
 
-def test_registres_differents_donnent_des_briefs_differents():
-    """Sans quoi les menus seraient décoratifs."""
+def test_different_registers_give_different_briefs():
+    """Otherwise the menus would be decorative."""
     a = _run(_scenario_portfolio(["voir", "1", "3"]))
     b = _run(_scenario_portfolio(["voir", "3", "3"]))
     assert a != b
 
 
-def test_sans_brief_aucune_question_d_intention():
-    """L'intention n'est demandée que si un brief part vers l'IA : sinon ces
-    réponses n'auraient personne à qui servir, et le dialogue ferait perdre
-    trois questions à l'utilisateur."""
-    spec = _run(SCENARIO_SANS_LANDING)   # ne doit PAS lever StopIteration
+def test_without_brief_no_intent_question():
+    """The intent is only asked if a brief goes to the AI: otherwise these
+    answers would serve nobody, and the dialogue would waste three questions of
+    the user's."""
+    spec = _run(SCENARIO_SANS_LANDING)   # must NOT raise StopIteration
     assert "landing" not in spec
     MonlAST(parse_monl_string(spec)).validate_and_audit()
 
 
-# ---- Contenu éditorial statique (point 55) ----
+# ---- Static editorial content (point 55) ----
 
 def test_sections_editoriales_emises_et_validees():
-    """Le seul contenu du contrat qui ne soit pas une donnée. Sans lui,
-    une page « à propos » n'a aucune entité, aucun champ, aucune route d'où
-    naître — l'IA n'a littéralement rien pour la construire."""
+    """The only content of the contract that is not data. Without it, an "about"
+    page has no entity, no field, no route to be born from — the AI literally has
+    nothing to build it with."""
     scenario = SCENARIO_PORTFOLIO_TRONC + INTENTION_PAR_DEFAUT + [
-        # Point 64 : chaque corps se termine par une ligne vide — ici un
-        # seul paragraphe par rubrique.
+        # Point 64: each body ends with an empty line — here a single paragraph
+        # per section.
         "o", "À propos", "Studio fondé en 2015 à Lyon.", "",
         "o", "Méthode", "Repérage, prise de vue, retouche.", "",
         "n",
@@ -362,19 +361,18 @@ def test_sections_editoriales_emises_et_validees():
     assert titres == ["À propos", "Méthode"], "l'ordre de saisie doit être conservé"
 
 
-def test_sections_refusees_si_aucun_brief():
-    """Même règle que l'intention visuelle : sans page d'accueil à écrire,
-    ces textes n'auraient nulle part où aller."""
+def test_sections_refused_without_brief():
+    """Same rule as the visual intent: without a home page to write, these texts
+    would have nowhere to go."""
     spec = _run(SCENARIO_SANS_LANDING)
     assert "section " not in spec and "landing" not in spec
 
 
 def test_un_texte_en_plusieurs_paragraphes_survit_jusqu_au_contrat():
-    """POINT 64 : un « à propos » collé depuis un traitement de texte
-    arrivait aplati — paragraphes recollés sans même une espace, et l'IA
-    d'interface recevait un mur de texte. La grammaire interdit toujours le
-    retour à la ligne : le dialogue demande donc les paragraphes un à un, et
-    le contrat les rétablit."""
+    """POINT 64: an "about" pasted from a word processor arrived flattened —
+    paragraphs glued back without even a space, and the interface AI received a
+    wall of text. The grammar still forbids line breaks: the dialogue therefore
+    asks for paragraphs one by one, and the contract restores them."""
     import tempfile
 
     from monl.frontend_contract import build_contract
@@ -385,18 +383,17 @@ def test_un_texte_en_plusieurs_paragraphes_survit_jusqu_au_contrat():
         "Photographe basée à Lyon depuis 2015.",
         "Mon travail mêle rigueur technique et composition.",
         "Chaque projet traduit une idée en image forte.",
-        "",                       # fin des paragraphes
-        "n",                      # pas d'autre section
+        "",                       # end of paragraphs
+        "n",                      # no other section
     ] + AUCUN_LIEN
     spec = _run(scenario)
-    # Dans la spec : une seule ligne, marquée — c'est ce que la grammaire
-    # sait porter.
+    # In the spec: a single line, marked — it is what the grammar can carry.
     ligne = next(x for x in spec.splitlines() if x.strip().startswith('section'))
     assert ligne.count("¶") == 2, ligne
     assert "\n" not in ligne.strip("\n")
 
     normalized = MonlAST(parse_monl_string(spec)).validate_and_audit()
-    # output_dir : sans lui, la graine de thème atterrit dans le dépôt.
+    # output_dir: without it, the theme seed lands in the repository.
     with tempfile.TemporaryDirectory() as sortie:
         contrat = build_contract(
             normalized, MonlSecureGenerator(normalized, output_dir=sortie))
@@ -409,8 +406,8 @@ def test_un_texte_en_plusieurs_paragraphes_survit_jusqu_au_contrat():
     assert "¶" not in corps, "le séparateur ne doit jamais atteindre l'IA"
 
 
-def test_un_texte_sans_marqueur_traverse_inchange():
-    """Une spec écrite à la main, ou antérieure au point 64, doit se lire
-    exactement comme avant — le marqueur est un ajout, pas un format."""
+def test_a_text_without_marker_goes_through_unchanged():
+    """A hand-written spec, or one from before point 64, must read exactly as
+    before — the marker is an addition, not a format."""
     from monl.frontend_contract import paragraphes
     assert paragraphes("Un seul paragraphe.") == "Un seul paragraphe."
