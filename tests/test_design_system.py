@@ -1,4 +1,4 @@
-"""Le design system est produit avant le frontend et reste vérifiable."""
+"""The design system is produced before the frontend and stays checkable."""
 
 import json
 
@@ -58,7 +58,7 @@ def test_compile_prepare_design_system_et_manifest(tmp_path):
     assert "ASSET_MANIFEST.json" in prompt
 
 
-def test_manifest_ne_planifie_plus_d_images_depuis_le_brief(tmp_path):
+def test_manifest_no_longer_plans_images_from_the_brief(tmp_path):
     spec = tmp_path / "spec.ml"
     spec.write_text(SPEC.replace(
         "Une boutique artisanale chaleureuse et éditoriale.",
@@ -66,8 +66,8 @@ def test_manifest_ne_planifie_plus_d_images_depuis_le_brief(tmp_path):
         encoding="utf-8")
     compile_project(str(spec), str(tmp_path))
     manifest = _manifest(tmp_path / ASSET_MANIFEST_FILENAME)
-    # Renversement explicite du point F : le brief libre ne décide plus d'une
-    # dépense image. L'option --generate-images est couverte séparément.
+    # Explicit reversal of point F: the free brief no longer decides an image
+    # spend. The --generate-images option is covered separately.
     assert manifest["generated_assets"] == []
     assert 'data-monl-section="a-propos"' in manifest["required_markers"]["index.html"]
     assert manifest["unique_section_markers"]["index.html"] == [
@@ -82,12 +82,12 @@ def test_manifest_ne_planifie_plus_d_images_depuis_le_brief(tmp_path):
 
 
 def _section(marker, manifest=None):
-    """Une section qui porte sa MATIÈRE, pas seulement son nom.
+    """A section that carries its SUBSTANCE, not only its name.
 
-    Depuis le point 119, une section marquée mais vide fait échouer la
-    vérification : ces tests portent sur l'unicité des marqueurs et sur les
-    médias, pas sur la vacuité, et doivent donc fournir de quoi passer la
-    barrière de substance sans rien lui concéder.
+    Since point 119, a marked but empty section makes the check fail: these
+    tests are about marker uniqueness and media, not emptiness, and must
+    therefore provide enough to pass the substance barrier without conceding
+    anything to it.
     """
     regle = ((manifest or {}).get("section_substance", {}).get("index.html", {})
              .get(marker, {}))
@@ -104,7 +104,7 @@ def _section(marker, manifest=None):
     return f"<section {marker}>" + "".join(corps) + "</section>"
 
 
-def test_sections_au_meme_slug_sont_distinctes_et_acceptees(tmp_path):
+def test_sections_with_the_same_slug_are_distinct_and_accepted(tmp_path):
     spec = tmp_path / "spec.ml"
     spec.write_text(SPEC.replace(
         '    section "À propos": "Des objets fabriqués en petites séries."\n',
@@ -158,21 +158,21 @@ def _active_manifest_errors(tmp_path, section_count=1, media_count=1):
     return _design_completeness_errors(str(tmp_path)), manifest
 
 
-def test_frontend_refuse_l_absence_d_une_section_declaree(tmp_path):
+def test_frontend_refuses_a_missing_declared_section(tmp_path):
     errors, manifest = _active_manifest_errors(tmp_path, section_count=0)
     marker = manifest["unique_section_markers"]["index.html"][0]
 
     assert any(marker in error and "missing" in error for error in errors)
 
 
-def test_frontend_refuse_la_duplication_d_une_section_declaree(tmp_path):
+def test_frontend_refuses_a_duplicated_declared_section(tmp_path):
     errors, manifest = _active_manifest_errors(tmp_path, section_count=2)
     marker = manifest["unique_section_markers"]["index.html"][0]
 
     assert any(marker in error and "2 times" in error for error in errors)
 
 
-def test_frontend_accepte_un_marqueur_media_sur_plusieurs_cartes(tmp_path):
+def test_frontend_accepts_a_media_marker_on_several_cards(tmp_path):
     errors, manifest = _active_manifest_errors(tmp_path, media_count=3)
     media_marker = next(
         marker for marker in manifest["required_markers"]["index.html"]

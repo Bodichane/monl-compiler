@@ -1,4 +1,4 @@
-"""Preuves de la tranche 2 : identité unique, projets et héritage."""
+"""Proofs of slice 2: unique identity, projects and legacy."""
 
 import importlib
 import uuid
@@ -15,7 +15,7 @@ def _projet(identity, platform, user, slug, name=None):
     return project_id
 
 
-def test_la_suppression_identite_cascade_le_projet(tmp_path):
+def test_identity_deletion_cascades_to_the_project(tmp_path):
     identity = IdentityStore(tmp_path)
     platform = PlatformStore(tmp_path)
     user = identity.register("cascade@example.test", "MotDePasse-123")
@@ -27,9 +27,9 @@ def test_la_suppression_identite_cascade_le_projet(tmp_path):
             for row in db.execute("PRAGMA foreign_key_list(builder_projects)")
         } >= {("user_id", "users", "CASCADE"), ("project_id", "projects", "CASCADE")}
 
-    # La connexion brute ci-dessus montre la valeur SQLite par défaut (OFF) :
-    # ce n'est pas celle des stores. La suppression passe par
-    # IdentityStore._connect, qui l'active à chaque transaction.
+    # The raw connection above shows SQLite's default value (OFF): it is not
+    # the stores'. Deletion goes through IdentityStore._connect, which enables
+    # it on every transaction.
     assert identity.delete_user(user["id"]) == [project_id]
     with base_sqlite(platform.database) as db:
         assert db.execute("SELECT COUNT(*) FROM projects WHERE project_id = ?",
@@ -42,17 +42,17 @@ def test_la_suppression_identite_cascade_le_projet(tmp_path):
         assert db.execute("PRAGMA foreign_keys").fetchone()[0] == 1
 
 
-def test_le_slug_est_unique_GLOBALEMENT_et_les_homonymes_sont_ecartes(tmp_path):
-    """L'adresse est un SOUS-DOMAINE : son unicité ne peut pas être par compte.
+def test_the_slug_is_GLOBALLY_unique_and_homonyms_step_aside(tmp_path):
+    """The address is a SUBDOMAIN: its uniqueness cannot be per account.
 
-    Ce témoin exigeait l'inverse, et c'était le défaut. Deux comptes pouvaient
-    porter « boutique » ; après quoi `project_for_host` refusait de servir les
-    DEUX (« l'hôte désigne plusieurs projets »), donc un inconnu rendait votre
-    site injoignable rien qu'en le nommant comme le vôtre. Et sur un MÊME
-    compte, le second nom identique sortait en 500.
+    This witness required the opposite, and that was the defect. Two accounts
+    could carry "boutique"; after which `project_for_host` refused to serve BOTH
+    ("the host designates several projects"), so a stranger made your site
+    unreachable just by naming theirs like yours. And on the SAME account, the
+    second identical name came out as a 500.
 
-    Le détail des deux défauts est dans tests/test_projets_homonymes.py ; ce
-    qu'on garde ici, c'est que chaque compte continue de ne voir que les siens.
+    The details of both defects are in tests/test_projets_homonymes.py; what is
+    kept here is that each account still only sees its own.
     """
     identity = IdentityStore(tmp_path)
     platform = PlatformStore(tmp_path)
@@ -75,7 +75,7 @@ def test_le_slug_est_unique_GLOBALEMENT_et_les_homonymes_sont_ecartes(tmp_path):
     assert len(platform.list_projects(bob["id"])) == 1
 
 
-def test_un_oauth_refuse_le_mot_de_passe_exactement_comme_un_faux(tmp_path):
+def test_an_oauth_account_refuses_a_password_exactly_like_a_wrong_one(tmp_path):
     identity = IdentityStore(tmp_path)
     oauth_id, created = identity.upsert_oauth_account(
         "github:4242", "github", "alice@example.test"
@@ -93,8 +93,8 @@ def test_un_oauth_refuse_le_mot_de_passe_exactement_comme_un_faux(tmp_path):
     absent_password = identity.authenticate("absent@example.test", "MotDePasse-123")
     assert faux_password == absent_password is None
 
-    # Contre-épreuve de la garde « avant comparaison » : l'authentification
-    # d'un compte OAuth ne doit même pas appeler le KDF.
+    # Counter-proof of the "before comparison" guard: authenticating an OAuth
+    # account must not even call the KDF.
     original = identity._password_hash
     appels = []
 
@@ -107,7 +107,7 @@ def test_un_oauth_refuse_le_mot_de_passe_exactement_comme_un_faux(tmp_path):
     assert appels == []
 
 
-def test_les_comptes_herites_sont_comptes_et_restent_hors_users(tmp_path, monkeypatch):
+def test_legacy_accounts_are_counted_and_stay_out_of_users(tmp_path, monkeypatch):
     identity = IdentityStore(tmp_path)
     platform = PlatformStore(tmp_path)
     with base_sqlite(platform.database) as db:

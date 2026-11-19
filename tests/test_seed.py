@@ -1,7 +1,7 @@
-"""AJOUT (roadmap frontend, bloc 'seed') : vérifie les données de
-démonstration — validation à la compilation, insertion idempotente au
-démarrage (pas de doublons au redémarrage, données réelles préservées), et
-remplissage synthétique des champs 'generated' (pseudonyme anonyme).
+"""ADDED (frontend roadmap, 'seed' block): checks the demo data —
+validation at compile time, idempotent insertion at startup (no duplicates
+on restart, real data preserved), and synthetic filling of 'generated'
+fields (anonymous pseudonym).
 """
 import subprocess
 import sys
@@ -64,7 +64,7 @@ def test_seed_unknown_field_is_rejected():
 
 
 def test_seed_type_mismatch_is_rejected():
-    # price (Money) attend un nombre, pas une chaîne.
+    # price (Money) expects a number, not a string.
     spec = SEED_SPEC.replace('name: "Chaise", price: 249.90, stock: 12',
                              'name: "Chaise", price: "cher", stock: 12')
     with pytest.raises(ASTValidationError, match="expects a number"):
@@ -72,8 +72,8 @@ def test_seed_type_mismatch_is_rejected():
 
 
 def test_generated_field_is_filled_in_seed():
-    # Un champ 'generated' non fourni dans le seed reçoit un pseudonyme
-    # synthétique (comme à la création réelle, assigné par le serveur).
+    # A 'generated' field not provided in the seed gets a synthetic pseudonym
+    # (as on a real creation, assigned by the server).
     spec = """app S
 
 entity Post
@@ -97,11 +97,10 @@ seed Post
     with tempfile.TemporaryDirectory() as workdir:
         gen = MonlSecureGenerator(ast, output_dir=workdir)
         seed_data = gen._compute_seed_data()
-    # BRIQUE 21 (point 100) : chaque entrée est désormais un couple
-    # {"values": …, "parent": …} — le rattachement d'un enfant ne peut pas vivre
-    # dans la ligne elle-même, la colonne qui le porte n'étant pas un champ
-    # déclaré. Un seed sans parent le laisse à None, et les valeurs sont
-    # inchangées.
+    # BRICK 21 (point 100): each entry is now a pair {"values": …, "parent": …}
+    # — a child's attachment cannot live in the row itself, the column carrying
+    # it not being a declared field. A seed without a parent leaves it at None,
+    # and the values are unchanged.
     rows = [entree["values"] for entree in seed_data["post"]]
     assert all(entree["parent"] is None for entree in seed_data["post"])
     assert len(rows) == 2
@@ -109,7 +108,7 @@ seed Post
     assert rows[0]["author"] != rows[1]["author"]  # uniques
 
 
-# --- Insertion idempotente au démarrage (serveur réel) ---
+# --- Idempotent insertion at startup (real server) ---
 
 def _wait(port, timeout=15):
     start = time.time()
@@ -144,7 +143,7 @@ def test_seed_populates_on_startup_and_is_idempotent():
     with tempfile.TemporaryDirectory() as workdir:
         MonlSecureGenerator(ast, output_dir=workdir).generate_all()
 
-        # 1er démarrage : la vitrine publique est déjà peuplée.
+        # 1st start: the public showcase is already populated.
         port = _find_free_port()
         proc = _serve(workdir, port)
         try:
@@ -153,7 +152,7 @@ def test_seed_populates_on_startup_and_is_idempotent():
         finally:
             _stop(proc)
 
-        # 2e démarrage : pas de doublons (insertion idempotente).
+        # 2nd start: no duplicates (idempotent insertion).
         port = _find_free_port()
         proc = _serve(workdir, port)
         try:

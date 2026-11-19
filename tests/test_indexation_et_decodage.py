@@ -1,10 +1,10 @@
-"""Preuves réelles des index de recherche et du décodage unique.
+"""Real proofs of the lookup indexes and of single decoding.
 
-Le banc compile une application, démarre son vrai serveur uvicorn, inspecte
-la base SQLite créée au démarrage et trace les requêtes du processus serveur.
-Les contre-épreuves compilent des variantes temporaires qui désarment chaque
-correctif ; l'assertion métier est alors bien rouge, et le test vérifie que
-cette rougeur a eu lieu sans la masquer par un saut ou un ``xfail``.
+The bench compiles an application, starts its real uvicorn server, inspects
+the SQLite database created at startup and traces the server process's
+queries. The counter-proofs compile temporary variants that disarm each fix;
+the business assertion then goes red, and the test checks that this red
+happened without hiding it behind a skip or an ``xfail``.
 """
 
 import contextlib
@@ -181,7 +181,7 @@ def test_index_de_cle_etrangere_filtre_et_dedoublonnage_contre_serveur(tmp_path)
         _assert_one_revocation_lookup(trace_file)
 
 
-def test_un_logout_revoque_toujours_le_jeton_utilise(tmp_path):
+def test_a_logout_always_revokes_the_token_used(tmp_path):
     _compile(tmp_path)
     with _server(tmp_path) as (base, _trace_file):
         token = _authenticate(base, "sortant@example.test")
@@ -192,9 +192,9 @@ def test_un_logout_revoque_toujours_le_jeton_utilise(tmp_path):
         assert refused.status_code == 401, refused.text
 
 
-def test_contre_epreuve_les_index_manquants_font_rougir_le_temoins(
+def test_counterproof_missing_indexes_turn_the_witness_red(
         tmp_path, monkeypatch):
-    """Désarmer l'émission rend la preuve d'index effectivement rouge."""
+    """Disarming the emission really turns the index proof red."""
     monkeypatch.setattr(MonlSecureGenerator, "_compute_lookup_indexes",
                         lambda _generator: [])
     _compile(tmp_path)
@@ -204,7 +204,7 @@ def test_contre_epreuve_les_index_manquants_font_rougir_le_temoins(
 
 def test_contre_epreuve_un_unique_recoit_un_second_index_si_dedoublonnage_desarme(
         tmp_path, monkeypatch):
-    """Désarmer le dédoublonnage fait rougir son témoin dédié."""
+    """Disarming the deduplication turns its dedicated witness red."""
     original = MonlSecureGenerator._compute_lookup_indexes
 
     def with_redundant_unique_index(generator):
@@ -245,7 +245,7 @@ def _disarm_shared_token_dependency(app):
     return app
 
 
-def test_contre_epreuve_deux_dependances_distinctes_font_rougir_le_compteur(
+def test_counterproof_two_distinct_dependencies_turn_the_counter_red(
         tmp_path):
     _compile(tmp_path)
     app = (tmp_path / "app.py").read_text(encoding="utf-8")
@@ -260,7 +260,7 @@ def test_contre_epreuve_deux_dependances_distinctes_font_rougir_le_compteur(
             _assert_one_revocation_lookup(trace_file)
 
 
-def test_contre_epreuve_sans_controle_de_revocation_fait_rougir_le_temoins(
+def test_counterproof_without_revocation_check_turns_the_witness_red(
         tmp_path):
     _compile(tmp_path)
     app = (tmp_path / "app.py").read_text(encoding="utf-8")

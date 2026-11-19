@@ -1,9 +1,9 @@
-"""Preuves d'exécution du socle de plateforme, sans serveur HTTP public.
+"""Execution proofs of the platform base, without a public HTTP server.
 
-POINT 162. Ce fichier éprouvait la boucle de CONSTRUCTION : quota, appel du
-modèle, consommation de jetons, snapshot. Le constructeur retiré, ce qui reste
-à prouver est la compilation d'un projet de compte — déterministe, hors ligne,
-et confinée au dossier privé de son propriétaire.
+POINT 162. This file tested the BUILD loop: quota, model call, token
+consumption, snapshot. With the builder removed, what remains to prove is
+the compilation of an account's project — deterministic, offline, and
+confined to its owner's private folder.
 """
 
 import uuid
@@ -58,16 +58,16 @@ def _new_project(platform, identifier="alice", slug="site"):
     return user["id"], project
 
 
-def _poser_la_spec(root, account, project, spec=SPEC):
+def _put_the_spec(root, account, project, spec=SPEC):
     directory = project_directory(root, account, project)
     directory.joinpath("spec.ml").write_text(spec, encoding="utf-8")
     return directory
 
 
-def test_compiler_un_projet_produit_son_backend_dans_le_dossier_prive(platform):
+def test_compiling_a_project_produces_its_backend_in_the_private_folder(platform):
     store, root = platform
     account, project = _new_project(platform)
-    directory = _poser_la_spec(root, account, project)
+    directory = _put_the_spec(root, account, project)
 
     resultat = compiler_le_projet(
         project, account_id=account, store=store, workspace_root=root
@@ -77,16 +77,16 @@ def test_compiler_un_projet_produit_son_backend_dans_le_dossier_prive(platform):
     assert (directory / "serve.py").is_file()
     assert (directory / "frontend_contract.json").is_file()
     assert resultat["contract"]["routes"], "le contrat doit décrire des routes"
-    # Le cap : la plateforme ne construit AUCUNE interface.
+    # The heading: the platform builds NO interface.
     assert not (directory / "frontend").exists()
     assert ".jwt_secret" not in resultat["files"]
 
 
-def test_une_spec_refusee_est_une_faute_d_entree_pas_une_panne(platform):
-    """Le validateur tranche AVANT le worker : le message doit rester lisible."""
+def test_a_refused_spec_is_an_input_fault_not_a_failure(platform):
+    """The validator decides BEFORE the worker: the message must stay readable."""
     store, root = platform
     account, project = _new_project(platform)
-    _poser_la_spec(root, account, project, spec="app Cassee\n\nentity\n")
+    _put_the_spec(root, account, project, spec="app Cassee\n\nentity\n")
 
     with pytest.raises(PlatformInputError):
         compiler_le_projet(
@@ -94,7 +94,7 @@ def test_une_spec_refusee_est_une_faute_d_entree_pas_une_panne(platform):
         )
 
 
-def test_deux_utilisateurs_sont_isoles(platform):
+def test_two_users_are_isolated(platform):
     store, root = platform
     alice, projet_alice = _new_project(platform, "alice", "site")
     bob, projet_bob = _new_project(platform, "bob", "site")
@@ -112,7 +112,7 @@ def test_deux_utilisateurs_sont_isoles(platform):
         store.create_project(alice, uuid.uuid4().hex, "../autre")
 
 
-def test_un_modele_du_catalogue_produit_une_spec_qui_compile(tmp_path):
+def test_a_catalog_template_produces_a_spec_that_compiles(tmp_path):
     spec = materialize_template(
         "Portfolio / showcase site",
         app_name="CatalogueSocle",
