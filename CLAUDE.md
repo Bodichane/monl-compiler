@@ -1058,15 +1058,15 @@ making a touch-up: does the content really say what we want to see?
   it would need its own authentication and a privilege column, and would become
   the target whose compromise exposes every account — while whoever has the
   shell already has the database. A test reads `/openapi.json` and
-  fails if an administration route appears. `expirer` marks an account expired
+  fails if an administration route appears. `expire` marks an account expired
   without deleting it (purge handles cleanup: two deletion paths would
-  eventually diverge); `prolonger` counts from NOW, never from the old date.
+  eventually diverge); `extend` counts from NOW, never from the old date.
   Every action that writes is logged.
   **Tests verify the EFFECT, never the display** — a revoked key replayed
   against the MCP server, regenerated codes actually presented to
   `/api/auth/recover`. A command that prints “key revoked” without making the
   key stop working would be worse than absent: people would believe it was done.
-  **Along the way**: `--garder N` archives backups (sorting is by DATE,
+  **Along the way**: `--keep N` archives backups (sorting is by DATE,
   never by name), the compose file includes a companion backup service on a
   separate volume, and the coverage threshold has regained its declared scope —
   `--cov=src/monl` and not `--cov=src`, with the platform reported
@@ -1292,7 +1292,7 @@ making a touch-up: does the content really say what we want to see?
   **(b) A hosted site that crashes left no trace**—
   `stdout`/`stderr` redirected to `DEVNULL`, `_wait_ready` catching only
   startup failure. Point 140 moved into operations. Output goes to `site.log`,
-  read by `monl-platform admin journal` and **never by a web route** (point
+  read by `monl-platform admin log` and **never by a web route** (point
   142; a test reads `/openapi.json`).
   **WHAT VERIFICATION FOUND IN THE FIX, and this is the lesson.** The 1 MiB
   bound was enforced—and kept the BEGINNING. Measured: 10 MiB of traffic then

@@ -451,3 +451,54 @@ def crash():
     assert secret not in rendu.stdout
     assert "token=[masked]" in rendu.stdout
     assert "journal_site_lu_par_exploitant" in rendu.stderr
+
+
+def test_les_noms_anglais_font_les_memes_gestes(tmp_path):
+    """The English verb and option names, measured by their EFFECT.
+
+    The French names stay accepted as aliases (the tests above go through
+    them); this one proves the new names are not mere help text: each verb
+    changes the database exactly as its French twin does."""
+    adresse = "anglais@exemple.test"
+    with _serveur(tmp_path) as base:
+        session, _ = _inscrire(base, adresse)
+        spec = requests.get(f"{base}/api/examples/vitrine", timeout=30).json()["spec"]
+        projet = session.post(f"{base}/api/compile", json={"spec": spec},
+                              timeout=180).json()["id"]
+    magasin = IdentityStore(_espace(tmp_path))
+
+    def echeance():
+        with base_sqlite(magasin.path) as db:
+            return db.execute("SELECT expires_at FROM projects").fetchone()[0]
+
+    assert adresse in admin(tmp_path, "accounts").stdout
+    assert projet in admin(tmp_path, "account", adresse).stdout
+    assert projet in admin(tmp_path, "projects", "--account", adresse).stdout
+    assert admin(tmp_path, "extend", projet, "--never").returncode == 0
+    assert echeance() is None
+    assert admin(tmp_path, "extend", projet, "--days", "30").returncode == 0
+    assert echeance() > int(time.time()) + 29 * 24 * 3600
+    assert admin(tmp_path, "expire", projet).returncode == 0
+    assert echeance() <= int(time.time())
+    assert admin(tmp_path, "delete-account", adresse).returncode == 1
+    assert adresse in admin(tmp_path, "accounts").stdout
+    rendu = admin(tmp_path, "delete-account", adresse, "--confirm")
+    assert rendu.returncode == 0, rendu.stderr
+    assert adresse not in admin(tmp_path, "accounts").stdout
+
+
+def test_backup_et_keep_comme_sauvegarde_et_garder(tmp_path, capsys):
+    """`backup --keep` rotates like `sauvegarde --garder`, which stays accepted."""
+    from monl_platform.__main__ import main as plateforme
+
+    espace = tmp_path / "espace"
+    IdentityStore(espace)
+    dossier = tmp_path / "copies"
+    for i, verbe, option in ((1, "backup", "--keep"), (2, "sauvegarde", "--garder"),
+                             (3, "backup", "--keep")):
+        cible = dossier / f"base-{i}.sqlite3"
+        assert plateforme([verbe, str(cible), "--workspace", str(espace),
+                           option, "2"]) == 0
+        os.utime(cible, (i, i))
+    assert sorted(f.name for f in dossier.iterdir()) == ["base-2.sqlite3", "base-3.sqlite3"]
+    assert "Backup removed" in capsys.readouterr().out

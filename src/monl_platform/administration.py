@@ -259,21 +259,23 @@ def construire_parseur() -> argparse.ArgumentParser:
     parseur.add_argument("--workspace", default=None, help=argparse.SUPPRESS)
     sous = parseur.add_subparsers(dest="geste", required=True)
 
-    sous.add_parser("comptes", parents=[commun],
+    sous.add_parser("accounts", aliases=["comptes"], parents=[commun],
                     help="List all accounts.").set_defaults(faire=_comptes)
 
     detail = sous.add_parser(
-"compte", parents=[commun], help="Account details: projects and keys.")
+"account", aliases=["compte"], parents=[commun],
+        help="Account details: projects and keys.")
     detail.add_argument("email")
     detail.set_defaults(faire=_compte)
 
     liste = sous.add_parser(
-"projets", parents=[commun], help="List projects.")
-    liste.add_argument("--compte", default=None, metavar="EMAIL")
+"projects", aliases=["projets"], parents=[commun], help="List projects.")
+    liste.add_argument("--account", "--compte", dest="compte", default=None,
+                       metavar="EMAIL")
     liste.set_defaults(faire=_projets)
 
     journal = sous.add_parser(
-        "journal", aliases=["journaux"], parents=[commun],
+        "log", aliases=["journal", "journaux"], parents=[commun],
         help="Read the site output from the shell.")
     journal.add_argument("projet")
     journal.set_defaults(faire=_journal)
@@ -284,27 +286,32 @@ def construire_parseur() -> argparse.ArgumentParser:
     codes.set_defaults(faire=_codes)
 
     prolonger = sous.add_parser(
-"prolonger", parents=[commun], help="Push back a project's expiry.")
+"extend", aliases=["prolonger"], parents=[commun],
+        help="Push back a project's expiry.")
     prolonger.add_argument("projet")
-    prolonger.add_argument("--jours", type=int, default=30)
-    prolonger.add_argument("--jamais", action="store_true",
+    prolonger.add_argument("--days", "--jours", dest="jours", type=int, default=30)
+    prolonger.add_argument("--never", "--jamais", dest="jamais", action="store_true",
                            help="The project no longer expires.")
     prolonger.set_defaults(faire=_prolonger)
 
     expirer = sous.add_parser(
-"expirer", parents=[commun], help="Mark a project expired; the purge will clean it up.")
+"expire", aliases=["expirer"], parents=[commun],
+        help="Mark a project expired; the purge will clean it up.")
     expirer.add_argument("projet")
     expirer.set_defaults(faire=_expirer)
 
     revoquer = sous.add_parser(
-"revoquer-cle", parents=[commun], help="Revoke an API key by its identifier.")
+"revoke-key", aliases=["revoquer-cle"], parents=[commun],
+        help="Revoke an API key by its identifier.")
     revoquer.add_argument("cle")
     revoquer.set_defaults(faire=_revoquer)
 
     supprimer = sous.add_parser(
-"supprimer-compte", parents=[commun], help="Erase an account and everything that belongs to it.")
+"delete-account", aliases=["supprimer-compte"], parents=[commun],
+        help="Erase an account and everything that belongs to it.")
     supprimer.add_argument("email")
-    supprimer.add_argument("--confirmer", action="store_true")
+    supprimer.add_argument("--confirm", "--confirmer", dest="confirmer",
+                           action="store_true")
     supprimer.set_defaults(faire=_supprimer)
 
     return parseur
