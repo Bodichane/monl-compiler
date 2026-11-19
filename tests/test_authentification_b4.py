@@ -1,8 +1,8 @@
-"""B4 : authentification complète contre un vrai serveur, SQLite et PostgreSQL.
+"""B4: full authentication against a real server, SQLite and PostgreSQL.
 
-Chaque paramètre démarre son propre uvicorn séquentiellement. Les assertions
-portent sur les réponses HTTP et, pour la réinitialisation, sur le message
-effectivement reçu par un faux SMTP.
+Each parameter starts its own uvicorn sequentially. The assertions are about
+the HTTP responses and, for reset, about the message actually received by a
+fake SMTP.
 """
 
 from __future__ import annotations
@@ -54,10 +54,10 @@ workflow Main for User
     Read Note
 """
 
-# Le banc garde deux fenêtres délibérément différentes. Le serveur principal
-# éprouve la réouverture spontanée avec la fenêtre courte ; le serveur de
-# mesure doit pouvoir contenir l'escalade complète (135 paires, soit 270
-# appels) sans transformer le verrou en variable cachée de la mesure.
+# The bench keeps two deliberately different windows. The main server tests
+# spontaneous reopening with the short window; the measurement server must be
+# able to hold the full escalation (135 pairs, i.e. 270 calls) without turning
+# the lock into a hidden variable of the measurement.
 SPEC_B4_MESURE = SPEC_B4.replace("lockout: 3 in 10", "lockout: 3 in 300")
 
 SPEC_LEGACY = """app CompleteAuth
@@ -164,13 +164,13 @@ def b4_application(request, tmp_path, faux_smtp):
     env.update({
         "MONL_JWT_SECRET": "b4-integration-secret-32-bytes-min",
         "MONL_TRUST_PROXY": "1",
-        # Court, pour PROUVER que le jeton d'accès expire — mais pas au point
-        # qu'un simple aller-retour HTTP le périme. À 1 seconde, la phase TOTP
-        # échouait par intermittence sous la charge de la suite complète : le
-        # jeton obtenu à la connexion était déjà expiré à l'appel suivant, et
-        # le test dénonçait alors une application saine. C'est le reproche que
-        # la bêta 4 avait déjà traité sur le test du canal temporel : un test
-        # ne doit pas dépendre de la charge de la machine.
+        # Short, to PROVE the access token expires — but not so short that a
+        # plain HTTP round trip makes it stale. At 1 second, the TOTP phase
+        # failed intermittently under the full suite's load: the token obtained
+        # at login was already expired at the next call, and the test then
+        # denounced a healthy application. It is the complaint beta 4 had
+        # already addressed on the timing channel test: a test must not depend
+        # on the machine's load.
         "MONL_TOKEN_TTL_SECONDS": ("3" if "complete_sur" in request.node.name else "120"),
         "MONL_SMTP_HOST": faux_smtp.server_address[0],
         "MONL_SMTP_PORT": str(faux_smtp.server_address[1]),
@@ -278,57 +278,53 @@ def _token(response):
     return value
 
 
-# Nombre de tours de départ des mesures de temps. Le compteur de messages plus
-# bas en dépend : la voie « adresse connue » envoie un courriel à CHAQUE tour.
-# Le témoin de bruit peut acheter de la résolution, sans dépasser la borne
-# déclarée ci-dessous.
+# Starting number of rounds of the time measurements. The message counter below
+# depends on it: the "known address" path sends an email on EVERY round. The
+# noise witness can buy resolution, without exceeding the bound declared below.
 TOURS_MESURE = 15
 TOURS_ESCALADE = (TOURS_MESURE, TOURS_MESURE * 3, TOURS_MESURE * 9)
 
-# La tolérance vient d'un TÉMOIN mesuré juste avant chaque comparaison : deux
-# appels du même chemin, avec des IP distinctes. Leur écart ne peut pas porter
-# une fuite applicative ; il mesure le bruit du runner à cet instant. Deux fois
-# ce bruit couvrent les deux médianes comparées, et le plancher protège la
-# machine assez rapide pour laquelle un témoin nul ne signifie pas une horloge
-# parfaite.
+# The tolerance comes from a WITNESS measured just before each comparison: two
+# calls of the same path, with distinct IPs. Their gap cannot carry an
+# application leak; it measures the runner's noise at that moment. Twice that
+# noise covers the two compared medians, and the floor protects the machine
+# fast enough that a zero witness does not mean a perfect clock.
 #
-# Le bruit n'est PAS autorisé à désarmer l'oracle. Le témoin doit rester sous
-# 7,5 ms, ce qui borne la marge dérivée à 15 ms et laisse une fuite de l'ordre
-# de 20 ms détectable. S'il dépasse cette borne, on dépense d'abord plus de
-# mesure (15 → 45 → 135) ; s'il reste trop grand, le test échoue explicitement.
+# Noise is NOT allowed to disarm the oracle. The witness must stay below 7.5
+# ms, which bounds the derived margin at 15 ms and leaves a leak of about 20 ms
+# detectable. If it exceeds that bound, more measurement is spent first (15 →
+# 45 → 135); if it stays too large, the test fails explicitly.
 #
-# Ces deux constantes expriment une exigence de résolution, pas un étalonnage
-# de machine : la fuite de 20 ms est la contre-épreuve du point 160.
+# These two constants express a resolution requirement, not a machine
+# calibration: the 20 ms leak is point 160's counter-proof.
 FACTEUR_MARGE_BRUIT = 2.0
 BRUIT_MAX_RESOLUBLE = 0.0075
 PLANCHER_ECART = 0.005
 
 
 def _ecart_apparie(appel_a, appel_b, tours=TOURS_MESURE):
-    """Écart médian entre deux chemins, mesuré en ALTERNANCE et par paires.
+    """Median gap between two paths, measured ALTERNATELY and in pairs.
 
-    Un oracle temporel est une TENDANCE, pas un instant. Mesuré à un seul
-    tirage sur un runner partagé, il suffit d'un sursaut (ordonnanceur,
-    ramasse-miettes, voisin bruyant) pour faire échouer la comparaison : la CI
-    est tombée exactement comme ça, à 0,4 ms près sur un seuil de 200 ms,
-    pendant que le même test passait sur l'autre exécution de la même version
-    de Python. Un test de sécurité qui se trompe une fois sur deux apprend à
-    ne plus lire les échecs — c'est l'arbitrage du point 57.
+    A timing oracle is a TREND, not an instant. Measured with a single draw on a
+    shared runner, one spike (scheduler, garbage collector, noisy neighbor) is
+    enough to make the comparison fail: CI fell exactly that way, by 0.4 ms on a
+    200 ms threshold, while the same test passed on the other run of the same
+    Python version. A security test that is wrong one time out of two teaches
+    people to stop reading failures — point 57's ruling.
 
-    Deux corrections, et la seconde est celle qui manquait. La MÉDIANE écarte
-    un sursaut isolé sans rien masquer : une vraie fuite de temps déplace
-    TOUTES les mesures, pas une seule. Mais mesurer un chemin en entier PUIS
-    l'autre laisse toute la dérive de la machine dans l'écart : sous huit
-    cœurs saturés, la première série montait de 0,20 à 0,37 s pendant que la
-    seconde restait plate — un écart de 130 ms attribué au verrouillage, alors
-    qu'il n'appartenait qu'à l'ORDRE des mesures. Les deux chemins sont donc
-    appelés en ALTERNANCE et l'écart est calculé PAIRE PAR PAIRE : un sursaut
-    frappe les deux membres d'une même paire et s'annule dans leur différence,
-    là où une vraie fuite, elle, est présente dans chaque paire.
+    Two fixes, and the second is the one that was missing. The MEDIAN discards an
+    isolated spike without hiding anything: a real timing leak shifts ALL
+    measurements, not one. But measuring one path entirely THEN the other leaves
+    all of the machine's drift in the gap: under eight saturated cores, the first
+    series rose from 0.20 to 0.37 s while the second stayed flat — a 130 ms gap
+    attributed to locking, while it belonged only to the ORDER of the
+    measurements. The two paths are therefore called ALTERNATELY and the gap is
+    computed PAIR BY PAIR: a spike hits both members of a pair and cancels out in
+    their difference, while a real leak is present in every pair.
 
-    L'IP change à chaque tour : sans quoi la limitation par IP (5 / 60 s,
-    points 13 et 33) répondrait 429 au sixième appel et mesurerait le refus du
-    limiteur au lieu du chemin d'authentification.
+    The IP changes at every round: otherwise per-IP limiting (5 / 60 s, points 13
+    and 33) would answer 429 on the sixth call and measure the limiter's refusal
+    instead of the authentication path.
     """
     ecarts, durees = [], []
     reponse_a = reponse_b = None
@@ -341,20 +337,20 @@ def _ecart_apparie(appel_a, appel_b, tours=TOURS_MESURE):
         duree_b = time.perf_counter() - depart
         ecarts.append(duree_a - duree_b)
         durees += [duree_a, duree_b]
-    # La durée médiane accompagne l'écart : c'est l'ÉCHELLE à laquelle il doit
-    # être jugé. Sans elle, l'appelant ne pourrait comparer qu'à un nombre de
-    # secondes écrit d'avance, qui ne veut pas dire la même chose d'une machine
-    # à l'autre.
+    # The median duration goes with the gap: it is the SCALE at which the gap
+    # must be judged. Without it, the caller could only compare with a number
+    # of seconds written in advance, which does not mean the same thing from
+    # one machine to another.
     return (statistics.median(ecarts), statistics.median(durees),
             reponse_a, reponse_b)
 
 
 def _mesurer_bruit(appel_a, appel_b, *, nom):
-    """Mesure le bruit pur, puis augmente la dépense si nécessaire.
+    """Measures pure noise, then increases the spend if needed.
 
-    `appel_a` et `appel_b` doivent représenter le même chemin. Le décalage
-    transmis aux callbacks rend les IP uniques même si une escalade rejoue la
-    mesure : le limiteur ne doit jamais devenir le signal observé.
+    `appel_a` and `appel_b` must represent the same path. The offset passed to
+    the callbacks makes the IPs unique even if an escalation replays the
+    measurement: the limiter must never become the observed signal.
     """
     offset = 0
     dernier_ecart = 0.0
@@ -375,19 +371,19 @@ def _mesurer_bruit(appel_a, appel_b, *, nom):
 
 
 def _tolerance_ecart(ecart_bruit):
-    """La marge dérivée du témoin, avec une borne de résolution."""
+    """The margin derived from the witness, with a resolution bound."""
     return max(FACTEUR_MARGE_BRUIT * abs(ecart_bruit), PLANCHER_ECART)
 
 
 def _mesurer_ecart_corrige(appel_a, appel_b, *, bruit, tours_depart,
                            statut_attendu, nom):
-    """Mesure l'écart réel, en rendant un sursaut isolé indécis explicite.
+    """Measures the real gap, making an isolated undecided spike explicit.
 
-    Le témoin choisit un premier nombre de paires. Si la mesure réelle reste
-    au-delà de sa marge, on achète la même résolution supplémentaire (45 puis
-    135 paires) ; le banc long garantit que le compte verrouillé reste fermé
-    pendant cette reprise. Une fuite réelle reste présente à chaque palier et
-    échoue donc encore à la fin.
+    The witness chooses a first number of pairs. If the real measurement stays
+    beyond its margin, the same extra resolution is bought (45 then 135 pairs);
+    the long bench guarantees the locked account stays closed during this
+    retry. A real leak stays present at every step and therefore still fails at
+    the end.
     """
     tolerance = _tolerance_ecart(bruit)
     candidats = TOURS_ESCALADE[TOURS_ESCALADE.index(tours_depart):]
@@ -447,21 +443,21 @@ def _expire_reset_token(directory, dsn, raw_token):
             conn.close()
 
 
-# Marge exigée avant d'employer un pas TOTP : de quoi tenir les quelques
-# allers-retours HTTP qui suivent, même sous la charge de la suite complète.
+# Margin required before using a TOTP step: enough to hold the few HTTP round
+# trips that follow, even under the full suite's load.
 MARGE_FENETRE_TOTP = 10.0
 
 
 def _pas_totp_stable(marge=MARGE_FENETRE_TOTP):
-    """Le pas TOTP courant, avec la garantie qu'il le reste `marge` secondes.
+    """The current TOTP step, with the guarantee it stays so for `marge` seconds.
 
-    Sans cette attente, la fenêtre de 30 s peut basculer entre le calcul d'un
-    code et sa vérification par le serveur : le test mesure alors autre chose
-    que ce qu'il annonce. C'est ce qui faisait échouer l'assertion de rejeu en
-    CI (run 33136766014, `assert 200 == 401`) — le code recalculé après la
-    bascule était un code NEUF, jamais consommé, que le serveur acceptait à
-    juste titre. Attendre le début de la fenêtre suivante est le seul moyen
-    d'écrire une assertion de rejeu qui porte réellement sur un rejeu.
+    Without this wait, the 30 s window can flip between computing a code and the
+    server checking it: the test then measures something other than what it
+    announces. That is what made the replay assertion fail in CI (run
+    33136766014, `assert 200 == 401`) — the code recomputed after the flip was a
+    NEW code, never consumed, which the server rightly accepted. Waiting for the
+    start of the next window is the only way to write a replay assertion that is
+    really about a replay.
     """
     reste = 30 - time.time() % 30
     if reste < marge:
@@ -470,9 +466,9 @@ def _pas_totp_stable(marge=MARGE_FENETRE_TOTP):
 
 
 def _totp_code(secret, step):
-    """Le code du pas DEMANDÉ. Le pas est obligatoire : le déduire ici de
-    l'horloge est précisément ce qui laissait une assertion de rejeu porter
-    sur un code neuf (voir `_pas_totp_stable`)."""
+    """The code of the REQUESTED step. The step is mandatory: deducing it here
+    from the clock is precisely what let a replay assertion be about a new code
+    (see `_pas_totp_stable`)."""
     padded = secret + "=" * ((8 - len(secret) % 8) % 8)
     key = base64.b32decode(padded, casefold=True)
     digest = hmac.new(key, struct.pack(">Q", step), hashlib.sha1).digest()
@@ -484,15 +480,15 @@ def _totp_code(secret, step):
     return f"{number % 1_000_000:06d}"
 
 
-def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
+def test_full_b4_authentication_on_both_engines(b4_application):
     base, directory, dsn, smtp, mesure_base = b4_application
     alice = "alice-b4@example.invalid"
     bob = "bob-b4@example.invalid"
     _register(base, alice)
     _register(base, bob)
 
-    # La fenêtre courte est éprouvée sur le serveur principal. Le sommeil est
-    # volontaire : il prouve la réouverture spontanée, sans écriture SQL.
+    # The short window is tested on the main server. The sleep is deliberate:
+    # it proves spontaneous reopening, without an SQL write.
     for index in range(3):
         failed = _login(base, alice, "mauvais-pass", ip=f"lock-fail-{index}")
         assert failed.status_code == 401
@@ -505,14 +501,14 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
     time.sleep(10.5)
     alice_token = _token(_login(base, alice, "motdepasse8", ip="lock-expired"))
 
-    # Le témoin et la mesure vivent sur le second serveur : son `3 in 300`
-    # n'est pas une valeur de production, mais la configuration de banc qui
-    # rend la résolution indépendante du temps dépensé par l'escalade.
+    # The witness and the measurement live on the second server: its `3 in 300`
+    # is not a production value, but the bench configuration that makes
+    # resolution independent of the time spent by the escalation.
     mesure_alice = "alice-lock-mesure@example.invalid"
     _register(mesure_base, mesure_alice)
-    # 1. Compteur par compte, réponse générique et durée comparable à
-    # l'identifiant absent. Les IP changent pour ne pas confondre ce test avec
-    # la limitation historique par IP.
+    # 1. Per-account counter, generic response and duration comparable to the
+    # missing identifier. The IPs change so as not to confuse this test with
+    # the historical per-IP limiting.
     for index in range(3):
         failed = _login(mesure_base, mesure_alice, "mauvais-pass",
                         ip=f"mesure-lock-fail-{index}")
@@ -522,10 +518,10 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
     assert locked.status_code == 401
     assert locked.json()["detail"] == "Invalid credentials."
 
-    # Le témoin est pris immédiatement AVANT la mesure, mais APRÈS avoir posé
-    # le verrou : sur le banc long, même l'escalade complète ne peut plus le
-    # faire expirer. Le bruit et la comparaison subissent ainsi la même charge
-    # du serveur, au lieu de comparer deux instants éloignés.
+    # The witness is taken right BEFORE the measurement, but AFTER setting the
+    # lock: on the long bench, even the full escalation can no longer make it
+    # expire. Noise and comparison thus undergo the same server load, instead
+    # of comparing two distant moments.
     bruit_verrou, _, tours_verrou, control_a, control_b = _mesurer_bruit(
         lambda tour: _login(mesure_base, f"absent-lock-a-{tour}@example.invalid",
                             "motdepasse8", ip=f"lock-noise-a-{tour}"),
@@ -545,9 +541,9 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
         statut_attendu=401, nom="verrouillage")
     assert locked_probe.status_code == missing_probe.status_code == 401
     assert locked_probe.json() == missing_probe.json()
-    # Un compte VERROUILLÉ et un compte INEXISTANT doivent être
-    # indiscernables : les distinguer, fût-ce par le temps de réponse,
-    # apprendrait à un attaquant quelles adresses existent.
+    # A LOCKED account and a NONEXISTENT account must be indistinguishable:
+    # telling them apart, even through response time, would teach an attacker
+    # which addresses exist.
     ecart_corrige = ecart_verrou - bruit_verrou
     tolerance = _tolerance_ecart(bruit_verrou)
     assert abs(ecart_corrige) < tolerance, (
@@ -555,8 +551,8 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
         f"{bruit_verrou*1000:.2f} ms, pour un appel de "
         f"{duree_verrou*1000:.2f} ms — au-dela de "
         f"{tolerance*1000:.2f} ms ({tours_verrou_reel} tours)")
-    # 2. Réinitialisation réellement livrée par la brique de messages, sans
-    # différence de réponse entre une adresse connue et une adresse absente.
+    # 2. Reset really delivered by the message brick, with no response
+    # difference between a known address and a missing one.
     bruit_reset, _, tours_reset, reset_control_a, reset_control_b = _mesurer_bruit(
         lambda tour: _call("POST", base, "/password-reset/request",
                            body={"username": f"reset-noise-a-{tour}@example.invalid"},
@@ -585,8 +581,8 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
         f"{bruit_reset*1000:.2f} ms, pour un appel de "
         f"{duree_reset*1000:.2f} ms — au-dela de "
         f"{tolerance*1000:.2f} ms ({tours_reset_reel} tours)")
-    # La voie « adresse connue » a envoyé un courriel par tour : le jeton
-    # utilisable est celui du DERNIER, les précédents ayant pu être invalidés.
+    # The "known address" path sent one email per round: the usable token is
+    # the LAST one's, the previous ones possibly having been invalidated.
     alice_reset = _wait_for_message(smtp, reset_known_count)
 
     _call("POST", base, "/password-reset/request",
@@ -625,9 +621,9 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
                          ip="login-after-reset"))
     assert _login(base, alice, "motdepasse8", ip="login-old-password").status_code == 401
 
-    # 3. Le JWT d'accès expire, le jeton opaque tourne, et il n'est pas
-    # interchangeable avec un Bearer JWT.
-    time.sleep(3.3)  # au-delà de MONL_TOKEN_TTL_SECONDS, réglé à 3
+    # 3. The access JWT expires, the opaque token rotates, and it is not
+    # interchangeable with a Bearer JWT.
+    time.sleep(3.3)  # beyond MONL_TOKEN_TTL_SECONDS, set to 3
     assert _call("GET", base, "/note", token=alice_token,
                  ip="expired-access").status_code == 401
     refresh = _login(base, alice, "nouveau-alice-8", ip="refresh-login").json()
@@ -649,43 +645,43 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
                  body={"refresh_token": rotated["refresh_token"]},
                  ip="refresh-revoked").status_code == 401
 
-    # 4. TOTP hors ligne : activation, code courant, fenêtre précédente et
-    # rejeu. Le compte Alice, sans TOTP activé, est resté connectable ci-dessus.
+    # 4. Offline TOTP: activation, current code, previous window and replay.
+    # The Alice account, without TOTP enabled, stayed able to log in above.
     bob_token = _token(_login(base, bob, "motdepasse8", ip="totp-session"))
     setup = _call("POST", base, "/totp/setup", token=bob_token, ip="totp-setup")
     assert setup.status_code == 200, setup.text
     secret = setup.json()["secret"]
     assert setup.json()["otpauth_uri"].startswith("otpauth://totp/")
-    # Le pas est arrêté AVANT la connexion : `_pas_totp_stable` peut attendre
-    # le début de la fenêtre suivante, et cette attente périmerait le jeton
-    # d'accès si elle avait lieu après son émission.
+    # The step is fixed BEFORE login: `_pas_totp_stable` may wait for the start
+    # of the next window, and that wait would make the access token stale if it
+    # happened after its issuance.
     pas_activation = _pas_totp_stable()
-    # Jeton NEUF : 'setup' et 'enable' sont deux appels, et le jeton d'accès
-    # est volontairement court. Le réutiliser rendrait le test sensible à la
-    # durée du premier appel plutôt qu'au comportement mesuré.
+    # FRESH token: 'setup' and 'enable' are two calls, and the access token is
+    # deliberately short. Reusing it would make the test sensitive to the first
+    # call's duration rather than to the measured behavior.
     enabled = _call("POST", base, "/totp/enable",
                     token=_token(_login(base, bob, "motdepasse8",
                                         ip="totp-enable-session")),
                     body={"code": _totp_code(secret, pas_activation), "password": "motdepasse8"},
                     ip="totp-enable")
     assert enabled.status_code == 200, enabled.text
-    # Le pas est arrêté UNE fois : les trois connexions qui suivent portent
-    # donc toutes sur la même fenêtre, et la fenêtre « précédente » est bien
-    # celle qui précède immédiatement le code accepté.
+    # The step is fixed ONCE: the three logins that follow therefore all fall
+    # in the same window, and the "previous" window is indeed the one right
+    # before the accepted code.
     pas = _pas_totp_stable()
     code_courant = _totp_code(secret, pas)
-    # La fenêtre PRÉCÉDENTE s'éprouve AVANT la connexion valide. Après elle,
-    # le pas courant est consommé et l'anti-rejeu refuse ce code quoi qu'il
-    # arrive : l'assertion resterait verte sans plus rien mesurer. Vérifié en
-    # donnant au serveur une tolérance de ±1 fenêtre — placée après, elle
-    # passait ; placée ici, elle devient rouge.
+    # The PREVIOUS window is tested BEFORE the valid login. After it, the
+    # current step is consumed and replay protection refuses this code whatever
+    # happens: the assertion would stay green while measuring nothing. Checked
+    # by giving the server a ±1 window tolerance — placed after, it passed;
+    # placed here, it turns red.
     assert _login(base, bob, "motdepasse8", ip="totp-other-window",
                   code=_totp_code(secret, pas - 1)).status_code == 401
     valid = _login(base, bob, "motdepasse8", ip="totp-valid", code=code_courant)
     assert valid.status_code == 200, valid.text
-    # Le MÊME code, rejoué : recalculer ici ne prouverait rien dès que la
-    # fenêtre a basculé entre les deux appels — c'est la variable, et elle
-    # seule, qui fait de cette ligne une assertion de rejeu.
+    # The SAME code, replayed: recomputing here would prove nothing as soon as
+    # the window flipped between the two calls — the variable, and only it,
+    # makes this line a replay assertion.
     assert _login(base, bob, "motdepasse8", ip="totp-replay",
                   code=code_courant).status_code == 401
     assert _login(base, bob, "motdepasse8", ip="totp-missing").status_code == 401
@@ -706,7 +702,7 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
     assert alice in manage.stdout and bob in manage.stdout
 
 
-def test_b4_ne_casse_pas_un_compte_historique(legacy_b4_application):
+def test_b4_does_not_break_a_historical_account(legacy_b4_application):
     base, directory, dsn, old_token = legacy_b4_application
     assert _call("GET", base, "/note", token=old_token).status_code == 200, (
         "La migration doit préserver le jeton ancien du compte inchangé")
@@ -768,7 +764,7 @@ def _manage_b4(directory, dsn, command, username, password=None):
     env["MONL_JWT_SECRET"] = "b4-integration-secret-32-bytes-min"
     if dsn:
         env["MONL_DATABASE_URL"] = dsn
-    # getpass est remplacé dans le processus enfant, sans modifier manage.py.
+    # getpass is replaced in the child process, without modifying manage.py.
     script = ("import getpass, runpy, sys; "
               f"getpass.getpass = lambda *a, **k: {password!r}; "
               f"sys.argv = ['manage.py', {command!r}, {username!r}]; "
@@ -779,7 +775,7 @@ def _manage_b4(directory, dsn, command, username, password=None):
     return result
 
 
-def test_b4_activation_exige_le_mot_de_passe(b4_application):
+def test_b4_activation_requires_the_password(b4_application):
     base, _, _, _, _ = b4_application
     username = "victime@example.invalid"
     session = _session_b4(base, username)
@@ -800,7 +796,7 @@ def test_b4_activation_exige_le_mot_de_passe(b4_application):
 
 
 @pytest.mark.parametrize("jeton", ["refresh", "access"])
-def test_b4_activation_revoque_les_jetons(b4_application, jeton):
+def test_b4_activation_revokes_the_tokens(b4_application, jeton):
     base, _, _, _, _ = b4_application
     username = "activation@example.invalid"
     session = _session_b4(base, username)
@@ -820,7 +816,7 @@ def test_b4_activation_revoque_les_jetons(b4_application, jeton):
 
 
 @pytest.mark.parametrize("changement", ["reset", "passwd", "totp-reset"])
-def test_b4_changement_revoque_les_sessions(b4_application, changement):
+def test_b4_change_revokes_the_sessions(b4_application, changement):
     base, directory, dsn, smtp, _ = b4_application
     username = "recuperation@example.invalid"
     session = _session_b4(base, username)

@@ -119,9 +119,9 @@ admin web endpoint. The shell operator is intentionally trusted.
 
 | Threat (STRIDE) | Existing mitigation | Test evidence |
 | --- | --- | --- |
-| Visitor obtains provisioned role or web administration (S, E) | Offline provisioning; platform admin creates no HTTP administration routes. | tests/test_beta3_regressions.py::test_role_provisionne_par_manage_py; tests/test_administration.py::test_ladministration_nouvre_aucune_route |
-| Accidental destructive administration (T, D) | Platform deletion requires its explicit CLI confirmation flag. | tests/test_administration.py::test_supprimer_sans_confirmer_ne_touche_a_rien |
-| Operator denies changes / logs disclose identities (R, I) | Platform mutations are journaled, identifiers are redacted. This is traceability, not protection against a malicious shell operator. | tests/test_administration.py::test_tout_geste_qui_ecrit_laisse_une_trace; tests/test_administration.py::test_le_journal_de_ladministration_ne_livre_aucun_identifiant_nu |
+| Visitor obtains provisioned role or web administration (S, E) | Offline provisioning; platform admin creates no HTTP administration routes. | tests/test_beta3_regressions.py::test_role_provisionne_par_manage_py; tests/test_administration.py::test_administration_opens_no_route |
+| Accidental destructive administration (T, D) | Platform deletion requires its explicit CLI confirmation flag. | tests/test_administration.py::test_deleting_without_confirm_touches_nothing |
+| Operator denies changes / logs disclose identities (R, I) | Platform mutations are journaled, identifiers are redacted. This is traceability, not protection against a malicious shell operator. | tests/test_administration.py::test_every_writing_gesture_leaves_a_trace; tests/test_administration.py::test_the_administration_log_gives_no_bare_identifier |
 
 ### TB5 — Compiler ↔ third-party specification (compilation isolation)
 

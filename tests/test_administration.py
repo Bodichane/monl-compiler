@@ -1,18 +1,18 @@
-"""`monl-platform admin` — les gestes d'exploitation, éprouvés sur un vrai service.
+"""`monl-platform admin` — the operating gestures, tested on a real service.
 
-Toute intervention sur un compte passait par `sqlite3` à la main, serveur
-arrêté : tenable à dix comptes, pas à cent, et chaque geste risquait une
-requête tapée de travers, sans trace de qui l'avait faite.
+Every intervention on an account went through `sqlite3` by hand, with the
+server stopped: bearable at ten accounts, not at a hundred, and each gesture
+risked a mistyped query, with no trace of who made it.
 
-**Ces tests vérifient l'EFFET, jamais l'affichage.** Une commande qui imprime
-« clé révoquée » sans que la clé cesse de fonctionner serait pire qu'absente :
-on la croirait faite. Chaque geste d'écriture est donc rejoué contre un
-serveur réel, ou relu en base.
+**These tests check the EFFECT, never the display.** A command printing "key
+revoked" without the key ceasing to work would be worse than absent: people
+would believe it done. Every writing gesture is therefore replayed against a
+real server, or reread in the database.
 
-La voie écartée mérite d'être connue : un panneau web aurait demandé sa propre
-authentification, une colonne de privilège dans `users`, et serait devenu la
-cible dont une seule faille donne tous les comptes. Qui possède le shell
-possède déjà la base — la ligne de commande n'ajoute aucune surface d'attaque.
+The rejected path deserves to be known: a web panel would have needed its own
+authentication, a privilege column in `users`, and would have become the
+target whose single flaw gives all accounts. Whoever owns the shell already
+owns the database — the command line adds no attack surface.
 """
 
 import json
@@ -53,7 +53,7 @@ def _espace(tmp_path):
 
 
 def admin(tmp_path, *arguments):
-    """Lance la commande comme l'exploitant la lance, et rend le processus."""
+    """Runs the command the way the operator runs it, and returns the process."""
     return subprocess.run(
         [sys.executable, "-m", "monl_platform", "admin", *arguments,
          "--workspace", str(_espace(tmp_path))],
@@ -72,7 +72,7 @@ def _inscrire(base, adresse):
 # Lectures
 # ---------------------------------------------------------------------------
 
-def test_la_liste_montre_les_comptes_et_ce_quils_portent(tmp_path):
+def test_the_list_shows_accounts_and_what_they_carry(tmp_path):
     with _serveur(tmp_path) as base:
         session, _ = _inscrire(base, "alice@exemple.test")
         _inscrire(base, "bob@exemple.test")
@@ -88,7 +88,7 @@ def test_la_liste_montre_les_comptes_et_ce_quils_portent(tmp_path):
     assert ligne_alice.split()[-3:] == ["0", "1", "8"], ligne_alice
 
 
-def test_le_detail_dun_compte_nomme_ses_projets_et_ses_cles(tmp_path):
+def test_an_account_detail_names_its_projects_and_keys(tmp_path):
     with _serveur(tmp_path) as base:
         session, _ = _inscrire(base, "detail@exemple.test")
         cle = session.post(f"{base}/api/keys", json={"name": "poste-fixe"}, timeout=30)
@@ -105,9 +105,9 @@ def test_le_detail_dun_compte_nomme_ses_projets_et_ses_cles(tmp_path):
     assert "Recovery codes left: 8" in rendu.stdout
 
 
-def test_ladresse_est_normalisee_comme_a_linscription(tmp_path):
-    """Sans ça, l'exploitant tape l'adresse telle qu'on la lui a dictée et ne
-    trouve rien, alors que le compte existe."""
+def test_the_address_is_normalized_as_at_registration(tmp_path):
+    """Without it, the operator types the address as it was dictated to them and
+    finds nothing, while the account exists."""
     with _serveur(tmp_path) as base:
         _inscrire(base, "casse@exemple.test")
     rendu = admin(tmp_path, "compte", "  CASSE@Exemple.TEST  ")
@@ -123,16 +123,16 @@ def test_un_compte_inconnu_echoue_franchement(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Écritures — l'effet, pas l'affichage
+# Writes — the effect, not the display
 # ---------------------------------------------------------------------------
 
-def test_les_nouveaux_codes_ouvrent_vraiment_le_compte(tmp_path):
-    """Le geste de dépannage entier : quelqu'un a perdu son mot de passe ET
-    ses codes, l'exploitant lui en dicte de nouveaux, et il reprend la main.
+def test_the_new_codes_really_open_the_account(tmp_path):
+    """The whole help-desk gesture: someone lost their password AND their codes,
+    the operator dictates new ones, and they take back control.
 
-    Vérifier que la commande imprime huit codes ne prouverait rien : ce qui
-    compte est qu'un de ces codes, présenté sur le fil, réinitialise vraiment
-    le mot de passe.
+    Checking that the command prints eight codes would prove nothing: what counts
+    is that one of these codes, presented on the wire, really resets the
+    password.
     """
     with _serveur(tmp_path) as base:
         _, corps = _inscrire(base, "bloque@exemple.test")
@@ -145,11 +145,11 @@ def test_les_nouveaux_codes_ouvrent_vraiment_le_compte(tmp_path):
         assert len(nouveaux) == 8
         assert not set(anciens) & set(nouveaux)
 
-        # L'ancienne série est morte…
+        # The old series is dead…
         assert requests.post(f"{base}/api/auth/recover", timeout=30, json={
             "email": "bloque@exemple.test", "code": anciens[0],
             "password": "Repris-Par-Ancien-2026"}).status_code == 401
-        # …la nouvelle ouvre.
+        # …the new one opens.
         assert requests.post(f"{base}/api/auth/recover", timeout=30, json={
             "email": "bloque@exemple.test", "code": nouveaux[0],
             "password": "Repris-Par-Nouveau-2026"}).status_code == 204
@@ -158,7 +158,7 @@ def test_les_nouveaux_codes_ouvrent_vraiment_le_compte(tmp_path):
             "password": "Repris-Par-Nouveau-2026"}).status_code == 200
 
 
-def test_une_cle_revoquee_cesse_de_fonctionner_sur_le_fil(tmp_path):
+def test_a_revoked_key_stops_working_on_the_wire(tmp_path):
     with _serveur(tmp_path) as base:
         session, _ = _inscrire(base, "cle@exemple.test")
         cle = session.post(f"{base}/api/keys", json={"name": "à révoquer"},
@@ -174,15 +174,15 @@ def test_une_cle_revoquee_cesse_de_fonctionner_sur_le_fil(tmp_path):
         refus = requests.post(f"{base}/mcp", json=appel, headers=entete, timeout=30)
         assert refus.status_code in (401, 403), refus.text
 
-    # Deux fois : elle n'est plus active, la commande le dit sans mentir.
+    # Twice: it is no longer active, the command says so without lying.
     encore = admin(tmp_path, "revoquer-cle", cle["id"])
     assert encore.returncode == 1
     assert "No active key" in encore.stderr
 
 
 def test_prolonger_repousse_lecheance_depuis_maintenant(tmp_path):
-    """« Garde-le trente jours de plus » se dit après coup, souvent sur un
-    projet DÉJÀ échu : repartir de l'ancienne date ne prolongerait rien."""
+    """"Keep it thirty more days" is said afterwards, often on an ALREADY expired
+    project: starting from the old date would extend nothing."""
     with _serveur(tmp_path) as base:
         session, _ = _inscrire(base, "prolonge@exemple.test")
         spec = requests.get(f"{base}/api/examples/vitrine", timeout=30).json()["spec"]
@@ -199,7 +199,7 @@ def test_prolonger_repousse_lecheance_depuis_maintenant(tmp_path):
     assert echeance > int(time.time()) + 29 * 24 * 3600
 
 
-def test_prolonger_sans_limite_retire_lecheance(tmp_path):
+def test_extending_without_limit_removes_the_deadline(tmp_path):
     with _serveur(tmp_path) as base:
         session, _ = _inscrire(base, "toujours@exemple.test")
         spec = requests.get(f"{base}/api/examples/vitrine", timeout=30).json()["spec"]
@@ -212,10 +212,10 @@ def test_prolonger_sans_limite_retire_lecheance(tmp_path):
         assert db.execute("SELECT expires_at FROM projects").fetchone()[0] is None
 
 
-def test_expirer_laisse_la_purge_faire_le_menage(tmp_path):
-    """Effacer depuis la commande doublerait le chemin de suppression, et deux
-    chemins finissent par diverger — celui qu'on emprunte le moins étant celui
-    qui se casse. La commande marque échu, la purge nettoie."""
+def test_expire_lets_the_purge_clean_up(tmp_path):
+    """Deleting from the command would double the deletion path, and two paths
+    end up diverging — the least used one being the one that breaks. The command
+    marks expired, the purge cleans up."""
     with _serveur(tmp_path, MONL_PURGE_INTERVAL_SECONDS="1") as base:
         session, _ = _inscrire(base, "expire@exemple.test")
         spec = requests.get(f"{base}/api/examples/vitrine", timeout=30).json()["spec"]
@@ -234,9 +234,9 @@ def test_expirer_laisse_la_purge_faire_le_menage(tmp_path):
             assert db.execute("SELECT COUNT(*) FROM projects").fetchone()[0] == 0
 
 
-def test_supprimer_sans_confirmer_ne_touche_a_rien(tmp_path):
-    """Le témoin. Sans lui, une commande qui supprimerait TOUJOURS passerait
-    le test suivant."""
+def test_deleting_without_confirm_touches_nothing(tmp_path):
+    """The witness. Without it, a command that ALWAYS deleted would pass the next
+    test."""
     with _serveur(tmp_path) as base:
         _inscrire(base, "prudent@exemple.test")
 
@@ -246,7 +246,7 @@ def test_supprimer_sans_confirmer_ne_touche_a_rien(tmp_path):
     assert "prudent@exemple.test" in admin(tmp_path, "comptes").stdout
 
 
-def test_supprimer_avec_confirmer_efface_jusquau_disque(tmp_path):
+def test_deleting_with_confirm_erases_down_to_disk(tmp_path):
     with _serveur(tmp_path) as base:
         session, _ = _inscrire(base, "partant@exemple.test")
         spec = requests.get(f"{base}/api/examples/vitrine", timeout=30).json()["spec"]
@@ -269,9 +269,9 @@ def test_supprimer_avec_confirmer_efface_jusquau_disque(tmp_path):
 # La trace
 # ---------------------------------------------------------------------------
 
-def test_tout_geste_qui_ecrit_laisse_une_trace(tmp_path):
-    """« Qui a supprimé ce compte ? » est la question qu'on pose le jour où ça
-    tourne mal. Sans journal, elle n'a pas de réponse."""
+def test_every_writing_gesture_leaves_a_trace(tmp_path):
+    """"Who deleted this account?" is the question asked the day things go
+    wrong. Without a log, it has no answer."""
     with _serveur(tmp_path) as base:
         session, _ = _inscrire(base, "trace@exemple.test")
         cle = session.post(f"{base}/api/keys", json={"name": "tracee"},
@@ -289,9 +289,9 @@ def test_tout_geste_qui_ecrit_laisse_une_trace(tmp_path):
         assert evenement in rendu.stderr, f"{evenement} absent du journal"
 
 
-def test_le_journal_de_ladministration_ne_livre_aucun_identifiant_nu(tmp_path):
-    """Même règle que pour le serveur : les identifiants sont tronqués à huit
-    caractères — assez pour recouper, trop court pour ressembler à un secret."""
+def test_the_administration_log_gives_no_bare_identifier(tmp_path):
+    """Same rule as for the server: identifiers are truncated to eight characters
+    — enough to cross-check, too short to look like a secret."""
     with _serveur(tmp_path) as base:
         _, corps = _inscrire(base, "nu@exemple.test")
 
@@ -302,17 +302,17 @@ def test_le_journal_de_ladministration_ne_livre_aucun_identifiant_nu(tmp_path):
     rendu = admin(tmp_path, "codes", "nu@exemple.test")
     assert identifiant not in rendu.stderr, "l'identifiant complet est journalisé"
     assert identifiant[:8] in rendu.stderr
-    # Et aucun code de secours ne doit finir dans le journal.
+    # And no recovery code must end up in the log.
     for code in corps["recovery_codes"]:
         assert code not in rendu.stderr
 
 
-def test_ladministration_nouvre_aucune_route(tmp_path):
-    """La décision qui porte ce module : la surface HTTP ne bouge PAS.
+def test_administration_opens_no_route(tmp_path):
+    """The decision this module carries: the HTTP surface does NOT move.
 
-    Un panneau web serait devenu la cible dont une seule faille donne tous les
-    comptes. Ce test échoue si quelqu'un ajoute un jour une route
-    d'administration en pensant bien faire.
+    A web panel would have become the target whose single flaw gives all
+    accounts. This test fails if someone one day adds an administration route
+    meaning well.
     """
     with _serveur(tmp_path) as base:
         schema = requests.get(f"{base}/openapi.json", timeout=30).json()
@@ -321,12 +321,12 @@ def test_ladministration_nouvre_aucune_route(tmp_path):
     assert "administration" not in json.dumps(schema).lower()
 
 
-def test_les_actions_de_la_cli_sont_aussi_verifiees_dans_le_processus(tmp_path, capsys):
-    """Les subprocess prouvent le geste complet ; ceci couvre ses décisions.
+def test_the_cli_actions_are_also_checked_in_process(tmp_path, capsys):
+    """The subprocesses prove the complete gesture; this covers its decisions.
 
-    Une commande qui imprime le bon texte mais branche le mauvais argument
-    resterait autrement invisible à la couverture : ici chaque action lit ou
-    modifie le même magasin, et les assertions portent sur l'effet obtenu.
+    A command printing the right text but wiring the wrong argument would
+    otherwise stay invisible to coverage: here each action reads or modifies the
+    same store, and the assertions are about the effect obtained.
     """
     from argparse import Namespace
 
@@ -382,7 +382,7 @@ def test_les_actions_de_la_cli_sont_aussi_verifiees_dans_le_processus(tmp_path, 
     assert magasin.compte_par_adresse("direct@exemple.test") is None
 
 
-def test_la_cli_nomme_les_entrees_invalides_et_les_positions_d_options(tmp_path, capsys):
+def test_the_cli_names_invalid_inputs_and_option_positions(tmp_path, capsys):
     from argparse import Namespace
 
     from monl_platform import administration
@@ -404,14 +404,14 @@ def test_la_cli_nomme_les_entrees_invalides_et_les_positions_d_options(tmp_path,
     ) == 1
     capsys.readouterr()
 
-    # Le parseur accepte --workspace avant ET après le sous-verbe.
+    # The parser accepts --workspace before AND after the sub-verb.
     assert administration.main(["--workspace", str(tmp_path), "comptes"]) == 0
     assert administration.main(["comptes", "--workspace", str(tmp_path)]) == 0
     assert "No accounts" in capsys.readouterr().out
 
 
-def test_la_cli_lit_le_journal_du_site_sans_exposer_son_jeton(tmp_path):
-    """La trace d'un crash est lisible au shell, jamais servie par HTTP."""
+def test_the_cli_reads_the_site_log_without_exposing_its_token(tmp_path):
+    """A crash trace is readable from the shell, never served over HTTP."""
     identifiant = "a" * 32
     secret = "monl_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6"
     magasin = IdentityStore(tmp_path)
@@ -453,7 +453,7 @@ def crash():
     assert "journal_site_lu_par_exploitant" in rendu.stderr
 
 
-def test_les_noms_anglais_font_les_memes_gestes(tmp_path):
+def test_the_english_names_do_the_same_gestures(tmp_path):
     """The English verb and option names, measured by their EFFECT.
 
     The French names stay accepted as aliases (the tests above go through
@@ -487,7 +487,7 @@ def test_les_noms_anglais_font_les_memes_gestes(tmp_path):
     assert adresse not in admin(tmp_path, "accounts").stdout
 
 
-def test_backup_et_keep_comme_sauvegarde_et_garder(tmp_path, capsys):
+def test_backup_and_keep_like_sauvegarde_and_garder(tmp_path, capsys):
     """`backup --keep` rotates like `sauvegarde --garder`, which stays accepted."""
     from monl_platform.__main__ import main as plateforme
 
