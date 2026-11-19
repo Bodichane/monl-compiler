@@ -9,7 +9,7 @@ The goal of this phase is to design a parser that can read a raw file written in
 ## Technical Choices
 - **Language**: Python 3.10+
 - **Library**: `lark` (LALR parser)
-- **Indentation handling**: Adapt the native `PythonIndenter` module for monl (`MonlIndenter`) to cleanly capture logical blocks of 4 spaces without braces.
+- **Indentation handling**: Adapt the native `PythonIndenter` module for monl (`MonlIndent`) to cleanly capture logical blocks of 4 spaces without braces.
 
 ## Implementation (`src/parser.py`)
 The parser uses a formal grammar that strictly defines the language keywords (`app`, `entity`, `relation`, `actor`, `rule`, `workflow`) and relies on the `Transformer` class to extract tokens.

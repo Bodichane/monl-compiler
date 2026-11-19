@@ -15,8 +15,8 @@ from .brand import (
     NAV_MARK_PATH,
     NAV_TEXT_OFFSET_Y,
     NAV_TEXT_PATH,
-    NAV_VUE,
-    VUE,
+    NAV_VIEW,
+    VIEW,
     WORDMARK_PATH,
 )
 from .theme_ambiance import CSS as AMBIANCE_CSS
@@ -75,10 +75,10 @@ LOGO_SVG = (
 )
 FAVICON = LOGO_SVG
 
-ICONE_ICO = Path(__file__).with_name("static") / "favicon.ico"
+ICON_ICO = Path(__file__).with_name("static") / "favicon.ico"
 
 
-def _empreinte(donnees: bytes) -> str:
+def _fingerprint(donnees: bytes) -> str:
     """Eight characters DERIVED from the icon's content.
 
     They travel in the URL declared by the page. Without them, `/favicon.ico`
@@ -91,11 +91,11 @@ def _empreinte(donnees: bytes) -> str:
     return hashlib.sha256(donnees).hexdigest()[:8]
 
 
-VERSION_ICO = _empreinte(ICONE_ICO.read_bytes())
-VERSION_SVG = _empreinte(FAVICON.encode())
+VERSION_ICO = _fingerprint(ICON_ICO.read_bytes())
+VERSION_SVG = _fingerprint(FAVICON.encode())
 
 
-def cache_icone(demandee: str, attendue: str) -> dict:
+def cache_icon(requested: str, expected: str) -> dict:
     """An icon's cache header, depending on whether the URL carries its
     fingerprint.
 
@@ -104,7 +104,7 @@ def cache_icone(demandee: str, attendue: str) -> dict:
     the one the browser requests by default without reading the page — it
     cannot be versioned, so it is kept briefly, so that a stale icon expires
     by itself instead of surviving a day."""
-    if demandee == attendue:
+    if requested == expected:
         return {"Cache-Control": "public, max-age=31536000, immutable"}
     return {"Cache-Control": "public, max-age=300"}
 
@@ -115,14 +115,14 @@ def cache_icone(demandee: str, attendue: str) -> dict:
 # background stays transparent.
 WORDMARK = (
     '<svg class="brand-wordmark brand-wordmark-full" xmlns="http://www.w3.org/2000/svg" '
-    f'viewBox="0 0 {VUE[0]} {VUE[1]}" role="img" aria-label="monl">'
+    f'viewBox="0 0 {VIEW[0]} {VIEW[1]}" role="img" aria-label="monl">'
     f'<path d="{WORDMARK_PATH}" fill="currentColor" fill-rule="evenodd"/>'
     '</svg>'
 )
 
 NAV_WORDMARK = (
     '<svg class="brand-wordmark" xmlns="http://www.w3.org/2000/svg" '
-    f'viewBox="0 0 {NAV_VUE[0]} {NAV_VUE[1]}" role="img" aria-label="Monl">'
+    f'viewBox="0 0 {NAV_VIEW[0]} {NAV_VIEW[1]}" role="img" aria-label="Monl">'
     f'<path d="{NAV_MARK_PATH}" fill="currentColor" fill-rule="evenodd"/>'
     f'<path d="{NAV_TEXT_PATH}" fill="currentColor" fill-rule="evenodd" '
     f'transform="translate(0 {NAV_TEXT_OFFSET_Y})"/>'
@@ -134,9 +134,9 @@ def _brand() -> str:
     return NAV_WORDMARK
 
 
-def _lien(href: str, libelle: str, actif: str, cle: str) -> str:
-    courant = ' aria-current="page"' if actif == cle else ""
-    return f'<a href="{href}"{courant}>{libelle}</a>'
+def _link(href: str, label: str, active: str, key: str) -> str:
+    current = ' aria-current="page"' if active == key else ""
+    return f'<a href="{href}"{current}>{label}</a>'
 
 
 def _social(title: str, description: str) -> str:
@@ -148,7 +148,7 @@ def _social(title: str, description: str) -> str:
     guessed from the `Host` header, which a third party controls (the same
     boundary as point 145 for the OAuth return address)."""
     base = (os.environ.get("MONL_PLATFORM_PUBLIC_URL") or "").rstrip("/")
-    commun = (
+    common = (
         f'<meta property="og:type" content="website">'
         f'<meta property="og:site_name" content="MONL">'
         f'<meta property="og:title" content="{title}">'
@@ -158,8 +158,8 @@ def _social(title: str, description: str) -> str:
         f'<meta name="twitter:description" content="{description}">'
     )
     if not base:
-        return commun + '<meta name="twitter:card" content="summary">'
-    return (commun
+        return common + '<meta name="twitter:card" content="summary">'
+    return (common
             + f'<meta property="og:url" content="{base}/">'
             + f'<meta property="og:image" content="{base}/brand/monl-social.png">'
             + '<meta property="og:image:width" content="1200">'
@@ -194,11 +194,11 @@ def page(*, title: str, description: str, body: str, active: str = "",
 <header class="topbar"><nav class="shell nav" aria-label="Main navigation">
 <a class="brand" href="/" aria-label="MONL">{_brand()}</a>
 <div class="navlinks">
-{_lien("/", icon("home") + "Home", active, "home")}
-{_lien("/guide", icon("book") + "Guide", active, "guide")}
-{_lien("/mcp", icon("mcp") + "MCP", active, "mcp")}
-{_lien("/docs", icon("docs") + "API docs", active, "docs")}
-{_lien("/account", icon("user") + "Account", active, "account")}
+{_link("/", icon("home") + "Home", active, "home")}
+{_link("/guide", icon("book") + "Guide", active, "guide")}
+{_link("/mcp", icon("mcp") + "MCP", active, "mcp")}
+{_link("/docs", icon("docs") + "API docs", active, "docs")}
+{_link("/account", icon("user") + "Account", active, "account")}
 <button class="icon-btn" id="theme-toggle" type="button" aria-label="Toggle theme">{ICON_THEME}</button>
 <a class="nav-cta" href="/console" target="_blank" rel="noopener">{icon("compiler")} Open the console</a>
 </div>

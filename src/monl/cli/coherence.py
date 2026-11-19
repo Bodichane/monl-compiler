@@ -19,11 +19,11 @@ from ..frontend_contract import (
 )
 from ..generator import MonlSecureGenerator
 from ..parser import parse_monl_file
-from . import couverture, emplacement, nomenclature
+from . import coverage, location, nomenclature
 
 
 # ----------------------------------------------------------- consistency ----
-def _empreintes_regenerees(spec_path):
+def _fingerprints_regenerated(spec_path):
     """Fingerprints of the artifacts a recompilation would produce NOW, or None
     if the spec no longer compiles (the check must not turn into a failure:
     the modified spec is already reported by its own check).
@@ -32,8 +32,8 @@ def _empreintes_regenerees(spec_path):
     touched — and its output is captured: a consistency check has no business
     replaying the security audit on screen."""
 
-    empreintes = {}
-    with tempfile.TemporaryDirectory() as temporaire:
+    fingerprints = {}
+    with tempfile.TemporaryDirectory() as temporary:
         try:
             with contextlib.redirect_stdout(io.StringIO()):
                 # base_dir = the SPEC's folder, not the temporary folder: that
@@ -42,16 +42,16 @@ def _empreintes_regenerees(spec_path):
                     parse_monl_file(spec_path),
                     base_dir=os.path.dirname(os.path.abspath(spec_path)),
                 ).validate_and_audit()
-                generator = MonlSecureGenerator(normalized, output_dir=temporaire)
+                generator = MonlSecureGenerator(normalized, output_dir=temporary)
                 generator.generate_all()
-                generate_frontend_contract(normalized, generator, temporaire)
+                generate_frontend_contract(normalized, generator, temporary)
         except Exception:
             return None
-        for nom in ("app.py", "schema.sql", "sandbox_ai.py", CONTRACT_FILENAME):
-            chemin = os.path.join(temporaire, nom)
-            if os.path.exists(chemin):
-                empreintes[nom] = emplacement._sha256_file(chemin)
-    return empreintes
+        for name in ("app.py", "schema.sql", "sandbox_ai.py", CONTRACT_FILENAME):
+            path = os.path.join(temporary, name)
+            if os.path.exists(path):
+                fingerprints[name] = location._sha256_file(path)
+    return fingerprints
 
 def check_coherence(project_dir):
     """Checks that spec, backend, contract and frontend form a consistent whole.
@@ -87,10 +87,10 @@ def check_coherence(project_dir):
 
 def _project_state(project_dir):
     """Resolves the project, its state and the path of its spec."""
-    souci = emplacement._erreur_de_chemin(project_dir)
-    if souci:
-        return None, None, [souci.replace(" ❌ ", "").strip()]
-    state = emplacement._load_state(project_dir)
+    issue = location._error_of_path(project_dir)
+    if issue:
+        return None, None, [issue.replace(" ❌ ", "").strip()]
+    state = location._load_state(project_dir)
     if state is None:
         return None, None, [
             f"{nomenclature.STATE_FILENAME} not found — this directory is not a compiled "
@@ -101,7 +101,7 @@ def _project_state(project_dir):
     if not os.path.exists(spec_path):
         return None, None, [f"Spec not found: {spec_path}"]
     errors = []
-    if emplacement._sha256_file(spec_path) != state["spec_sha256"]:
+    if location._sha256_file(spec_path) != state["spec_sha256"]:
         errors.append("The spec has changed since the last compilation — run 'monl update' "
                       "to resynchronize the backend and contract.")
     return state, spec_path, errors
@@ -109,53 +109,53 @@ def _project_state(project_dir):
 
 def _missing_artifacts(project_dir):
     return [
-        f"Missing artifact: {artefact}"
-        for artefact in ("app.py", "schema.sql", CONTRACT_FILENAME)
-        if not os.path.exists(os.path.join(project_dir, artefact))
+        f"Missing artifact: {artifact}"
+        for artifact in ("app.py", "schema.sql", CONTRACT_FILENAME)
+        if not os.path.exists(os.path.join(project_dir, artifact))
     ]
 
 
 def _backend_integrity(project_dir, state):
     """Checks the backend's recorded seal."""
-    empreintes = state.get("backend_sha256")
-    if not empreintes:
+    fingerprints = state.get("backend_sha256")
+    if not fingerprints:
         return [], ["State predates the backend seal: recompile ('monl update') so that "
                     "app.py and schema.sql are actually verified."]
     errors = []
-    for nom, attendu in sorted(empreintes.items()):
-        chemin = os.path.join(project_dir, nom)
-        if not os.path.exists(chemin):
+    for name, expected in sorted(fingerprints.items()):
+        path = os.path.join(project_dir, name)
+        if not os.path.exists(path):
             errors.append(
-                f"{nom} is recorded in {nomenclature.STATE_FILENAME} but missing "
+                f"{name} is recorded in {nomenclature.STATE_FILENAME} but missing "
                 "from the project — it is generated from the spec: recompile "
                 "('monl update').")
-        elif emplacement._sha256_file(chemin) != attendu:
+        elif location._sha256_file(path) != expected:
             errors.append(
-                f"{nom} was modified manually — the backend is generated "
+                f"{name} was modified manually — the backend is generated "
                 "from the spec. Modify the spec, then run 'monl update'; "
                 "any direct edits will be overwritten.")
     return errors, []
 
 
 def _outdated_artifact_warnings(project_dir, state, spec_path):
-    frais = _empreintes_regenerees(spec_path)
-    if frais is None:
+    fees = _fingerprints_regenerated(spec_path)
+    if fees is None:
         return ["Unable to recompile the spec to compare artifacts with the current "
                 "compiler — check not performed."]
-    perimes = sorted(
-        nom for nom, empreinte in frais.items()
-        if os.path.exists(os.path.join(project_dir, nom))
-        and emplacement._sha256_file(os.path.join(project_dir, nom)) != empreinte
+    stale = sorted(
+        name for name, fingerprint in fees.items()
+        if os.path.exists(os.path.join(project_dir, name))
+        and location._sha256_file(os.path.join(project_dir, name)) != fingerprint
     )
-    if not perimes:
+    if not stale:
         return []
     from .. import __version__
-    construit_avec = state.get("compiler_version")
-    depuis = (f" (built with monl {construit_avec}, current "
-              f"{__version__})" if construit_avec else "")
+    built_with = state.get("compiler_version")
+    from_ = (f" (built with monl {built_with}, current "
+              f"{__version__})" if built_with else "")
     return [
-        f"Artifacts produced by an earlier compiler: {', '.join(perimes)}"
-        f"{depuis}. The spec has not changed, but monl has — run 'monl update' to "
+        f"Artifacts produced by an earlier compiler: {', '.join(stale)}"
+        f"{from_}. The spec has not changed, but monl has — run 'monl update' to "
         f"resynchronize (a security fix reaches a project only after recompilation)."
     ]
 
@@ -167,13 +167,13 @@ def _frontend_references(frontend_dir, known_prefixes):
             if not name.endswith((".html", ".js")):
                 continue
             with open(os.path.join(root, name), encoding="utf-8", errors="ignore") as fh:
-                contenu = fh.read()
-            routes_client |= set(re.findall(r"#/([a-z_]+)", contenu))
-            for match in re.finditer(r"""(['"`])(/[^'"`\n]*)\1""", contenu):
-                chemin = match.group(2)
-                if any(c in chemin for c in "<> "):
+                content = fh.read()
+            routes_client |= set(re.findall(r"#/([a-z_]+)", content))
+            for match in re.finditer(r"""(['"`])(/[^'"`\n]*)\1""", content):
+                path = match.group(2)
+                if any(c in path for c in "<> "):
                     continue
-                segment = re.match(r"/([a-z_]+)(?:[/?#]|$)", chemin)
+                segment = re.match(r"/([a-z_]+)(?:[/?#]|$)", path)
                 if segment:
                     referenced.add(segment.group(1))
     return sorted(referenced - known_prefixes - routes_client)
@@ -204,10 +204,10 @@ def _frontend_coherence(project_dir, spec_path):
     if unknown:
         warnings.append("The frontend references paths missing from the contract: "
                         + ", ".join(f"/{u}" for u in unknown))
-    appels = couverture._frontend_fetch_calls(frontend_dir)
-    errors = couverture._frontend_fetch_contract_errors(contract, appels)
-    couverture_errors, couverture_warnings = couverture._frontend_route_coverage(
-        project_dir, spec_path, contract, appels=appels)
-    errors.extend(couverture_errors)
-    warnings.extend(couverture_warnings)
+    calls = coverage._frontend_fetch_calls(frontend_dir)
+    errors = coverage._frontend_fetch_contract_errors(contract, calls)
+    coverage_errors, coverage_warnings = coverage._frontend_route_coverage(
+        project_dir, spec_path, contract, calls=calls)
+    errors.extend(coverage_errors)
+    warnings.extend(coverage_warnings)
     return errors, warnings

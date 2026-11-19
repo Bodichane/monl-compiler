@@ -1,14 +1,14 @@
-"""Non-régression des correctifs de sécurité de la bêta 0.9.0-beta.3.
+"""Non-regression of the security fixes of beta 0.9.0-beta.3.
 
-Chaque test rejoue une faille réelle constatée sur la bêta 2 :
+Each test replays a real flaw observed on beta 2:
 
-1. auto-attribution d'un rôle privilégié à l'inscription (élévation de
-   privilège complète en deux appels HTTP anonymes) ;
-2. énumération des comptes par le temps de réponse de /login ;
-3. quota de tentatives contournable en parallèle (TOCTOU) ;
-4. secret de signature lisible par tout compte local ;
-5. liste noire de jetons jamais purgée ;
-6. sortie de compilation non reproductible d'une exécution à l'autre.
+1. self-assignment of a privileged role at registration (full privilege
+   escalation in two anonymous HTTP calls);
+2. account enumeration through /login's response time;
+3. attempt quota bypassable in parallel (TOCTOU);
+4. signing secret readable by any local account;
+5. token blacklist never purged;
+6. compilation output not reproducible from one run to the next.
 """
 import json
 import os
@@ -86,40 +86,40 @@ class _Server:
                 return self
             except requests.RequestException:
                 time.sleep(0.2)
-        raise RuntimeError("le serveur éphémère n'a jamais répondu")
+        raise RuntimeError("the ephemeral server never answered")
 
     def __exit__(self, *exc):
         self.proc.terminate()
         self.proc.wait(timeout=10)
 
 
-def _vider_quota(workdir):
-    """Efface le compteur de tentatives de l'application (point 67).
+def _empty_quota(workdir):
+    """Clears the application's attempt counter (point 67).
 
-    Le quota (5 / 60 s / IP) est persisté en base — c'est tout l'objet du
-    point 33. Un test qui veut plus de cinq mesures n'a donc pas à dormir une
-    minute : il lui suffit de vider la table, ce qui n'affaiblit rien du
-    produit et ne concerne que le banc d'essai."""
+    The quota (5 / 60 s / IP) is persisted in the database — that is the whole
+    point of point 33. A test wanting more than five measurements therefore need
+    not sleep a minute: it just empties the table, which weakens nothing in the
+    product and only concerns the test bench."""
     import sqlite3
-    cnx = sqlite3.connect(os.path.join(workdir, "app.db"))
+    conn = sqlite3.connect(os.path.join(workdir, "app.db"))
     try:
-        with cnx:
-            cnx.execute("DELETE FROM _monl_rate_limit")
+        with conn:
+            conn.execute("DELETE FROM _monl_rate_limit")
     finally:
-        # `with sqlite3.connect(...)` valide la transaction mais ne FERME
-        # pas la connexion : sans ce close, la suite fuit un descripteur par
-        # appel et le signale en ResourceWarning.
-        cnx.close()
+        # `with sqlite3.connect(...)` commits the transaction but does not
+        # CLOSE the connection: without this close, the suite leaks one
+        # descriptor per call and reports it as a ResourceWarning.
+        conn.close()
 
 
 def _login(base, username, password="motdepasse123"):
-    """Se connecte en tolérant le quota partagé par les tests de ce module."""
+    """Logs in while tolerating the quota shared by this module's tests."""
     for tentative in range(3):
-        reponse = requests.post(base + "/login", json={"username": username, "password": password})
-        if reponse.status_code != 429:
-            return reponse
+        response = requests.post(base + "/login", json={"username": username, "password": password})
+        if response.status_code != 429:
+            return response
         time.sleep(21)
-    return reponse
+    return response
 
 
 @pytest.fixture(scope="module")
@@ -130,21 +130,21 @@ def app_server():
             yield server
 
 
-# --------------------------------------------------------------------------
-# 1. Élévation de privilège par l'inscription
+# -------------------------------------------------------------------------- 1.
+# Privilege escalation through registration
 # --------------------------------------------------------------------------
 
-def test_role_provisionne_refuse_a_inscription(app_server):
-    """Un client ne peut pas s'attribuer un rôle absent de 'selfRegister'."""
+def test_provisioned_role_refused_at_registration(app_server):
+    """A client cannot assign itself a role absent from 'selfRegister'."""
     r = requests.post(app_server.base + "/register",
                       json={"username": "pirate", "password": "motdepasse123", "actor": "Admin"})
     assert r.status_code == 403, r.text
-    # ...et le compte ne doit pas exister : la connexion échoue aussi.
+    # ...and the account must not exist: login fails too.
     assert _login(app_server.base, "pirate").status_code == 401
 
 
-def test_role_ouvert_accepte_puis_reste_confine(app_server):
-    """Le rôle 'selfRegister' s'inscrit, mais n'obtient pas les droits d'Admin."""
+def test_open_role_accepted_then_stays_confined(app_server):
+    """The 'selfRegister' role registers, but does not get Admin rights."""
     requests.post(app_server.base + "/register",
                   json={"username": "membre", "password": "motdepasse123", "actor": "Member"})
     token = _login(app_server.base, "membre").json()["access_token"]
@@ -155,8 +155,8 @@ def test_role_ouvert_accepte_puis_reste_confine(app_server):
                          json={"label": "interdit"}).status_code == 403
 
 
-def test_role_provisionne_par_manage_py(app_server):
-    """Le chemin légitime : création du compte privilégié sur le serveur."""
+def test_role_provisioned_by_manage_py(app_server):
+    """The legitimate path: creating the privileged account on the server."""
     proc = subprocess.run(
         [sys.executable, "manage.py", "adduser", "patron", "Admin"],
         cwd=app_server.workdir, input="motdepasse123\nmotdepasse123\n",
@@ -168,54 +168,52 @@ def test_role_provisionne_par_manage_py(app_server):
     assert r.status_code == 200, r.text
 
 
+# -------------------------------------------------------------------------- 2.
+# Account enumeration through a timing channel
 # --------------------------------------------------------------------------
-# 2. Énumération de comptes par canal temporel
-# --------------------------------------------------------------------------
 
-def test_login_ne_revele_pas_l_existence_du_compte():
-    """Le temps de réponse ne doit pas trahir l'existence d'un identifiant.
+def test_login_does_not_reveal_whether_the_account_exists():
+    """Response time must not betray whether an identifier exists.
 
-    Le compte 'membre' existe (créé plus haut), 'fantome' non. Sans le
-    hachage factice, /login répondait sans dérouler les 100 000 itérations
-    PBKDF2 quand le compte était inconnu : l'écart (~50-100 ms) suffisait à
-    énumérer les comptes. On compare donc au coût d'un hachage réel, mesuré
-    sur la machine courante — seule référence stable d'une machine à l'autre.
+    The 'membre' account exists (created above), 'fantome' does not. Without the
+    dummy hash, /login answered without running the 100,000 PBKDF2 iterations
+    when the account was unknown: the gap (~50-100 ms) was enough to enumerate
+    accounts. We therefore compare with the cost of a real hash, measured on the
+    current machine — the only stable reference from one machine to another.
 
-    Contrainte : le quota est de 5 tentatives / 60 s / IP. On le vide entre
-    les mesures (voir _vider_quota) plutôt que de s'y limiter, et on retient
-    le MINIMUM de chaque groupe — le plus proche du coût réel du traitement,
-    le bruit ne pouvant qu'ajouter du temps.
+    Constraint: the quota is 5 attempts / 60 s / IP. We empty it between
+    measurements (see _vider_quota) rather than staying within it, and keep each
+    group's MINIMUM — the closest to the real processing cost, noise only being
+    able to add time.
 
-    POINT 67 : ce test échouait par intermittence en CI, jamais en local. Un
-    runner partagé est une machine bruyante ; deux mesures suffisaient à ce
-    qu'une préemption fasse exploser l'écart. Deux corrections, aucune ne
-    touchant à ce qui est prouvé : cinq échantillons par groupe au lieu de
-    deux, et la mesure entière rejouée jusqu'à trois fois. Une vraie fuite
-    temporelle est SYSTÉMATIQUE — elle se reproduit à chaque tour ; le bruit,
-    non. Élargir le seuil aurait au contraire rendu le test aveugle à la
-    fuite qu'il surveille.
+    POINT 67: this test failed intermittently in CI, never locally. A shared
+    runner is a noisy machine; two measurements were enough for a preemption to
+    blow up the gap. Two fixes, neither touching what is proven: five samples per
+    group instead of two, and the whole measurement replayed up to three times. A
+    real timing leak is SYSTEMATIC — it reproduces on every round; noise does
+    not. Widening the threshold would instead have made the test blind to the
+    leak it watches.
     """
 
-    # Serveur dédié : les mesures consomment le quota de tentatives, elles ne
-    # peuvent pas partager l'instance des autres tests.
+    # Dedicated server: the measurements consume the attempt quota, they cannot
+    # share the other tests' instance.
     #
-    # POINT 67 : le serveur était démarré à la main et arrêté par une ligne
-    # placée APRÈS les mesures — un échec d'assertion laissait donc un uvicorn
-    # orphelin et un dossier temporaire derrière lui, sur une machine qui
-    # allait enchaîner d'autres serveurs. Un test instable qui fuit un
-    # processus contamine ceux d'après : l'échec suivant n'a plus rien à voir
-    # avec sa cause.
+    # POINT 67: the server was started by hand and stopped by a line placed
+    # AFTER the measurements — an assertion failure therefore left an orphan
+    # uvicorn and a temporary folder behind, on a machine about to chain other
+    # servers. A flaky test leaking a process contaminates the following ones:
+    # the next failure has nothing to do with its cause any more.
     workdir = tempfile.mkdtemp()
     _compile(workdir)
     server = _Server(workdir).__enter__()
     try:
-        _mesurer_canal_temporel(server, workdir)
+        _measure_canal_timing(server, workdir)
     finally:
         server.__exit__()
         shutil.rmtree(workdir, ignore_errors=True)
 
 
-def _mesurer_canal_temporel(server, workdir):
+def _measure_canal_timing(server, workdir):
     import hashlib
 
     requests.post(server.base + "/register",
@@ -225,38 +223,38 @@ def _mesurer_canal_temporel(server, workdir):
     hashlib.pbkdf2_hmac("sha256", b"x", b"y" * 16, 100_000)
     hash_cost = time.perf_counter() - start
 
-    def mesure(username):
+    def measure(username):
         t0 = time.perf_counter()
-        reponse = requests.post(server.base + "/login",
+        response = requests.post(server.base + "/login",
                                 json={"username": username, "password": "mauvais-mot-de-passe"})
-        assert reponse.status_code == 401, f"quota atteint pendant la mesure ({reponse.status_code})"
+        assert response.status_code == 401, f"quota reached during the measurement ({response.status_code})"
         return time.perf_counter() - t0
 
-    def groupe(username, echantillons=5):
-        _vider_quota(workdir)
-        return min(mesure(username) for _ in range(echantillons))
+    def group(username, samples=5):
+        _empty_quota(workdir)
+        return min(measure(username) for _ in range(samples))
 
-    mesure("echauffement")  # première requête : coûts de démarrage, écartée
+    measure("echauffement")  # first request: startup costs, discarded
 
-    ecarts = []
+    gaps = []
     for _tour in range(3):
-        ecart = abs(groupe("membre") - groupe("fantome"))
-        ecarts.append(ecart)
-        if ecart < hash_cost / 2:
+        gap = abs(group("membre") - group("fantome"))
+        gaps.append(gap)
+        if gap < hash_cost / 2:
             break
 
-    assert min(ecarts) < hash_cost / 2, (
-        f"écart de {min(ecarts) * 1000:.0f} ms entre compte existant et inexistant "
-        f"sur {len(ecarts)} mesures indépendantes (coût d'un hachage : "
-        f"{hash_cost * 1000:.0f} ms) — canal temporel exploitable")
+    assert min(gaps) < hash_cost / 2, (
+        f"{min(gaps) * 1000:.0f} ms gap between existing and nonexistent account "
+        f"over {len(gaps)} independent measurements (cost of a hash: "
+        f"{hash_cost * 1000:.0f} ms) — exploitable timing channel")
 
 
+# -------------------------------------------------------------------------- 3.
+# Attempt quota: atomicity
 # --------------------------------------------------------------------------
-# 3. Quota de tentatives : atomicité
-# --------------------------------------------------------------------------
 
-def test_quota_non_contournable_en_parallele():
-    """20 connexions simultanées ne doivent pas toutes passer le quota de 5."""
+def test_quota_non_bypassable_in_parallel():
+    """20 simultaneous logins must not all pass the quota of 5."""
     with tempfile.TemporaryDirectory() as workdir:
         _compile(workdir)
         with _Server(workdir) as server:
@@ -269,23 +267,23 @@ def test_quota_non_contournable_en_parallele():
 
             acceptees = sum(1 for c in codes if c != 429)
             assert acceptees <= 5, (
-                f"{acceptees} tentatives ont franchi un quota fixé à 5 : le comptage "
-                "et l'enregistrement ne sont pas atomiques")
+                f"{acceptees} attempts got past a quota set to 5: counting "
+                "and recording are not atomic")
 
 
+# -------------------------------------------------------------------------- 4
+# & 5. Secret hygiene and blacklist purge
 # --------------------------------------------------------------------------
-# 4 & 5. Hygiène du secret et purge de la liste noire
-# --------------------------------------------------------------------------
 
-def test_secret_jwt_lisible_par_le_seul_proprietaire():
+def test_jwt_secret_readable_only_by_its_owner():
     with tempfile.TemporaryDirectory() as workdir:
         _compile(workdir)
         mode = os.stat(os.path.join(workdir, ".jwt_secret")).st_mode & 0o777
-        assert mode == 0o600, f"permissions {oct(mode)} : le secret est lisible par d'autres comptes"
+        assert mode == 0o600, f"permissions {oct(mode)}: the secret is readable by other accounts"
 
 
-def test_liste_noire_des_jetons_purgeable():
-    """La table des jetons révoqués porte la date d'expiration nécessaire à sa purge."""
+def test_token_blacklist_is_purgeable():
+    """The revoked token table carries the expiry date its purge needs."""
     with tempfile.TemporaryDirectory() as workdir:
         _compile(workdir)
         with open(os.path.join(workdir, "schema.sql"), encoding="utf-8") as fh:
@@ -296,7 +294,7 @@ def test_liste_noire_des_jetons_purgeable():
         assert "DELETE FROM _monl_revoked_tokens WHERE expires_at" in app
 
 
-def test_logout_revoque_le_jeton(app_server):
+def test_logout_revokes_the_token(app_server):
     requests.post(app_server.base + "/register",
                   json={"username": "sortant", "password": "motdepasse123", "actor": "Member"})
     token = _login(app_server.base, "sortant").json()["access_token"]
@@ -306,17 +304,16 @@ def test_logout_revoque_le_jeton(app_server):
     assert requests.get(app_server.base + "/note", headers=headers).status_code == 401
 
 
-# --------------------------------------------------------------------------
-# 6. Déterminisme de la compilation
+# -------------------------------------------------------------------------- 6.
+# Compilation determinism
 # --------------------------------------------------------------------------
 
-def test_compilation_reproductible_entre_processus():
-    """Deux compilations de la même spec doivent produire les mêmes octets.
+def test_compilation_reproducible_entre_process():
+    """Two compilations of the same spec must produce the same bytes.
 
-    L'ordre d'itération des ensembles Python varie d'un processus à l'autre
-    (PYTHONHASHSEED) : le test compile dans deux sous-processus aux graines
-    de hachage opposées, ce qu'une compilation dans le processus courant ne
-    pourrait pas détecter.
+    Python set iteration order varies from one process to another
+    (PYTHONHASHSEED): the test compiles in two subprocesses with opposite hash
+    seeds, which a compilation in the current process could not detect.
     """
     sources = {}
     for seed in ("0", "1"):
@@ -341,15 +338,15 @@ def test_compilation_reproductible_entre_processus():
             }
     for name in sources["0"]:
         assert sources["0"][name] == sources["1"][name], (
-            f"{name} diffère entre deux compilations de la même spec : "
-            "la sortie dépend de l'ordre d'itération d'un ensemble Python")
+            f"{name} differs between two compilations of the same spec: "
+            "the output depends on a Python set's iteration order")
 
 
+# -------------------------------------------------------------------------- 7.
+# Frontend contract: published registration scope
 # --------------------------------------------------------------------------
-# 7. Contrat frontend : périmètre d'inscription publié
-# --------------------------------------------------------------------------
 
-def test_contrat_publie_le_perimetre_d_inscription():
+def test_contract_publishes_the_registration_scope():
     from monl.frontend_contract import build_contract
     with tempfile.TemporaryDirectory() as workdir:
         spec_path = os.path.join(workdir, "spec.ml")
@@ -361,4 +358,4 @@ def test_contrat_publie_le_perimetre_d_inscription():
     assert contract["self_register_actors"] == ["Member"]
     assert contract["api"]["auth"]["register"]["self_register_actors"] == ["Member"]
     assert "Admin" in contract["actors"]
-    json.dumps(contract)  # le contrat doit rester sérialisable
+    json.dumps(contract)  # the contract must stay serializable

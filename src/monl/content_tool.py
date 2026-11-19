@@ -8,12 +8,12 @@ from . import content_import
 from .assets_tool import (
     DEFAULT_ASSETS_DIR,
     AssetsToolError,
-    _blocs_seed,
+    _blocks_seed,
     _charger,
-    _litteral,
-    _revalider,
-    chemins_declares,
-    resoudre_asset,
+    _literal,
+    _revalidate,
+    paths_declares,
+    resolve_asset,
 )
 from .errors import ToolError
 from .policies import event_counter_fields
@@ -23,72 +23,72 @@ class ContentToolError(ToolError):
     pass
 
 
-NUMERIQUES = {"Integer", "Float", "Money"}
-ENTETE_PARENT = re.compile(
+NUMERIC = {"Integer", "Float", "Money"}
+HEADER_PARENT = re.compile(
     r'^seed\s+(\w+)\s+for\s+(\w+)\.(\w+)\s+"([^"\\]*)"\s*(?:#.*)?$')
-NOMBRE = re.compile(
+NUMBER = re.compile(
     r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
 
 
-def _appeler(fonction, *args):
+def _call(function, *args):
     try:
-        return fonction(*args)
+        return function(*args)
     except AssetsToolError as err:
         raise ContentToolError(str(err)) from None
 
 
-def _exclus(normalized, entite):
+def _excluded(normalized, entity_name):
     security = normalized.get("security", {})
-    exclus = {field for entity, field in event_counter_fields(security)
-              if entity == entite}
-    for cle in ("generated_fields", "derived_fields", "aggregated_fields",
+    excluded = {field for entity, field in event_counter_fields(security)
+              if entity == entity_name}
+    for key in ("generated_fields", "derived_fields", "aggregated_fields",
                 "timestamp_fields", "numbered_fields"):
-        for item in security.get(cle) or []:
-            if item.get("entity") == entite:
-                exclus.add(item.get("field"))
+        for item in security.get(key) or []:
+            if item.get("entity") == entity_name:
+                excluded.add(item.get("field"))
     post = security.get("writable_after_payment") or {}
-    valeur = post.get(entite, {}) if isinstance(post, dict) else {}
-    exclus.update(valeur.get("fields", []) if isinstance(valeur, dict) else [])
-    return exclus
+    valeur = post.get(entity_name, {}) if isinstance(post, dict) else {}
+    excluded.update(valeur.get("fields", []) if isinstance(valeur, dict) else [])
+    return excluded
 
 
-def _infos_parent(lignes, blocs, entite):
+def _infos_parent(lines, blocks, entity_name):
     infos = []
-    curseur = 0
-    for i, ligne in enumerate(lignes):
-        if not ligne.startswith("seed"):
+    cursor = 0
+    for i, line in enumerate(lines):
+        if not line.startswith("seed"):
             continue
-        if curseur >= len(blocs):
+        if cursor >= len(blocks):
             break
-        nom, plages = blocs[curseur]
-        curseur += 1
-        if nom != entite:
+        name, ranges = blocks[cursor]
+        cursor += 1
+        if name != entity_name:
             continue
-        match = ENTETE_PARENT.match(ligne.rstrip("\n"))
-        infos.append((i, plages, match.groups()[1:] if match else None))
+        match = HEADER_PARENT.match(line.rstrip("\n"))
+        infos.append((i, ranges, match.groups()[1:] if match else None))
     parents = [info for _i, _p, info in infos if info]
     if parents and len(parents) != len(infos):
         raise ContentToolError(
-            f"The seed blocks for {entite} mix forms with and without a parent. "
+            f"The seed blocks for {entity_name} mix forms with and without a parent. "
             "Make them consistent by hand before using content.")
     if parents and len({p[:2] for p in parents}) != 1:
         raise ContentToolError(
-            f"The seed blocks for {entite} do not all identify the parent in the "
+            f"The seed blocks for {entity_name} do not all identify the parent in the "
             "same way. Make them consistent by hand first.")
     return infos, (parents[0][:2] if parents else None)
 
 
-def _colonnes(normalized, entite, parent=False):
-    champs = normalized["schema"]["entities"][entite]
-    exclus = _exclus(normalized, entite)
-    colonnes = (["_parent"] if parent else []) + [
-        nom for nom, type_ in champs.items()
-        if nom not in exclus and type_ not in ("Boolean", "Upload")
+def _columns(normalized, entity_name, parent=False):
+    fields = normalized["schema"]["entities"][entity_name]
+    excluded = _excluded(normalized, entity_name)
+    columns = (["_parent"] if parent else []) + [
+        name for name, type_ in fields.items()
+        if name not in excluded and type_ not in ("Boolean", "Upload")
     ]
-    return colonnes
+    return columns
 
 
-def _valeur_csv(valeur, type_):
+def _value_csv(valeur, type_):
     if valeur is None:
         return ""
     if type_ == "Image" and isinstance(valeur, str):
@@ -96,119 +96,119 @@ def _valeur_csv(valeur, type_):
     return str(valeur)
 
 
-def _aide_de_colonne(entite, colonne, champs, choix, contraintes):
+def _help_of_column(entity_name, column, fields, choice, constraints):
     """What LISEZMOI says about a column. Extracted from `_lisez_moi`
     (complexity ceiling); text unchanged."""
-    if colonne == "_parent":
+    if column == "_parent":
         return "the value of a record in the parent entity to which this row should be linked"
     details = []
-    enum = choix.get(entite, {}).get(colonne)
+    enum = choice.get(entity_name, {}).get(column)
     if enum:
         details.append("allowed values: " + ", ".join(enum))
-    regles = contraintes.get((entite, colonne), {})
-    if regles.get("required"):
+    rules = constraints.get((entity_name, column), {})
+    if rules.get("required"):
         details.append("required")
-    for borne in ("min", "max"):
-        if borne in regles:
-            details.append(f"{borne} {regles[borne]['valeur']}")
-    if champs[colonne] == "Image":
+    for bound in ("min", "max"):
+        if bound in rules:
+            details.append(f"{bound} {rules[bound]['valeur']}")
+    if fields[column] == "Image":
         details.append("put the file in `assets/` and enter only its name here")
     return "; ".join(details) if details else "free text"
 
 
-def _lisez_moi(normalized, exports, ignores):
+def _read_moi(normalized, exports, ignores):
     security = normalized.get("security", {})
-    contraintes = security.get("field_constraints") or {}
-    choix = security.get("enumerated_fields") or {}
-    lignes = [
+    constraints = security.get("field_constraints") or {}
+    choice = security.get("enumerated_fields") or {}
+    lines = [
         "EDIT CONTENT\n",
         "\n",
         "Each CSV file represents a type of record. Keep the column names as "
         "they are, then run `monl content import`. An empty cell is intentionally "
         "omitted from the record: required fields will be rejected with an explanation.\n",
     ]
-    for entite, info in exports.items():
-        lignes.extend(["\n", f"{entite}.csv\n"])
-        champs = normalized["schema"]["entities"][entite]
-        for colonne in info["colonnes"]:
-            texte = _aide_de_colonne(entite, colonne, champs, choix, contraintes)
-            lignes.append(f"- {colonne}: {texte}.\n")
-        booleens = [n for n, t in champs.items() if t == "Boolean"]
-        if booleens:
-            lignes.append("  Boolean fields are not offered (the seed has no "
-                          "true/false literal): " + ", ".join(booleens) + ".\n")
+    for entity_name, info in exports.items():
+        lines.extend(["\n", f"{entity_name}.csv\n"])
+        fields = normalized["schema"]["entities"][entity_name]
+        for column in info["colonnes"]:
+            text = _help_of_column(entity_name, column, fields, choice, constraints)
+            lines.append(f"- {column}: {text}.\n")
+        booleans = [n for n, t in fields.items() if t == "Boolean"]
+        if booleans:
+            lines.append("  Boolean fields are not offered (the seed has no "
+                          "true/false literal): " + ", ".join(booleans) + ".\n")
     if ignores:
-        lignes.extend(["\n", "Entities not exported\n"])
-        for entite, raison in ignores.items():
-            lignes.append(f"- {entite}: {raison}\n")
-    return "".join(lignes)
+        lines.extend(["\n", "Entities not exported\n"])
+        for entity_name, reason in ignores.items():
+            lines.append(f"- {entity_name}: {reason}\n")
+    return "".join(lines)
 
 
-def exporter_contenu(spec_path, project_dir):
-    normalized = _appeler(_charger, spec_path)
+def exporter_content(spec_path, project_dir):
+    normalized = _call(_charger, spec_path)
     with open(spec_path, encoding="utf-8") as fh:
-        lignes = fh.readlines()
-    blocs = _blocs_seed(lignes)
-    entites_seedees = {entite for entite, _ in blocs}
+        lines = fh.readlines()
+    blocks = _blocks_seed(lines)
+    entities_seeded = {entity_name for entity_name, _ in blocks}
     exports, ignores = {}, {}
-    dossier = os.path.join(project_dir, "content")
-    os.makedirs(dossier, exist_ok=True)
-    for entite in normalized["schema"]["entities"]:
-        if entite not in entites_seedees:
-            ignores[entite] = ("no seed example defines the content shape yet; "
+    folder = os.path.join(project_dir, "content")
+    os.makedirs(folder, exist_ok=True)
+    for entity_name in normalized["schema"]["entities"]:
+        if entity_name not in entities_seeded:
+            ignores[entity_name] = ("no seed example defines the content shape yet; "
                                 "write an example by hand first")
             continue
-        infos, parent = _infos_parent(lignes, blocs, entite)
-        colonnes = _colonnes(normalized, entite, bool(parent))
-        blocs_ast = [b for b in normalized.get("seeds", []) if b["entity"] == entite]
-        if len(infos) != len(blocs_ast):
+        infos, parent = _infos_parent(lines, blocks, entity_name)
+        columns = _columns(normalized, entity_name, bool(parent))
+        blocks_ast = [b for b in normalized.get("seeds", []) if b["entity"] == entity_name]
+        if len(infos) != len(blocks_ast):
             raise ContentToolError(
-                f"The seed blocks for {entite} do not match the compiled spec.")
-        chemin = os.path.join(dossier, f"{entite}.csv")
+                f"The seed blocks for {entity_name} do not match the compiled spec.")
+        path = os.path.join(folder, f"{entity_name}.csv")
         fiches = 0
-        with open(chemin, "w", encoding="utf-8", newline="") as fh:
-            writer = csv.DictWriter(fh, fieldnames=colonnes)
+        with open(path, "w", encoding="utf-8", newline="") as fh:
+            writer = csv.DictWriter(fh, fieldnames=columns)
             writer.writeheader()
-            for (_i, _plages, parent_info), bloc in zip(infos, blocs_ast, strict=True):
-                for row in bloc["rows"]:
-                    sortie = {}
+            for (_i, _ranges, parent_info), block in zip(infos, blocks_ast, strict=True):
+                for row in block["rows"]:
+                    output = {}
                     if parent:
-                        sortie["_parent"] = parent_info[2]
-                    for nom in colonnes:
-                        if nom != "_parent":
-                            sortie[nom] = _valeur_csv(
-                                row.get(nom), normalized["schema"]["entities"][entite][nom])
-                    writer.writerow(sortie)
+                        output["_parent"] = parent_info[2]
+                    for name in columns:
+                        if name != "_parent":
+                            output[name] = _value_csv(
+                                row.get(name), normalized["schema"]["entities"][entity_name][name])
+                    writer.writerow(output)
                     fiches += 1
-        exports[entite] = {"fichier": chemin, "colonnes": colonnes, "fiches": fiches,
+        exports[entity_name] = {"fichier": path, "colonnes": columns, "fiches": fiches,
                             "parent": parent}
-    readme = os.path.join(dossier, "LISEZMOI.txt")
+    readme = os.path.join(folder, "LISEZMOI.txt")
     with open(readme, "w", encoding="utf-8") as fh:
-        fh.write(_lisez_moi(normalized, exports, ignores))
+        fh.write(_read_moi(normalized, exports, ignores))
     return {"entites": exports, "ignorees": ignores, "lisez_moi": readme}
 
 
-def _lire_csv(chemin, colonnes):
-    with open(chemin, encoding="utf-8", newline="") as fh:
+def _read_csv(path, columns):
+    with open(path, encoding="utf-8", newline="") as fh:
         reader = csv.DictReader(fh)
-        if reader.fieldnames != colonnes:
+        if reader.fieldnames != columns:
             raise ContentToolError(
-                f"{os.path.basename(chemin)}: expected columns: {', '.join(colonnes)}; "
+                f"{os.path.basename(path)}: expected columns: {', '.join(columns)}; "
                 f"received columns: {', '.join(reader.fieldnames or [])}.")
-        return [(numero, dict(row)) for numero, row in enumerate(reader, 2)]
+        return [(number, dict(row)) for number, row in enumerate(reader, 2)]
 
 
-def _texte_fiche(entite, row, numero, types, dossier_assets):
-    morceaux = []
-    for nom, valeur in row.items():
-        if nom == "_parent" or valeur == "":
+def _text_fiche(entity_name, row, number, types, folder_assets):
+    chunks = []
+    for name, valeur in row.items():
+        if name == "_parent" or valeur == "":
             continue
-        type_ = types[nom]
-        if type_ in NUMERIQUES:
-            if not NOMBRE.fullmatch(valeur):
+        type_ = types[name]
+        if type_ in NUMERIC:
+            if not NUMBER.fullmatch(valeur):
                 raise ContentToolError(
-                    f"{entite}.csv row {numero}: '{valeur}' is not a valid number "
-                    f"for column {nom}.")
+                    f"{entity_name}.csv row {number}: '{valeur}' is not a valid number "
+                    f"for column {name}.")
             literal = valeur
         else:
             if type_ == "Image" and (
@@ -217,70 +217,70 @@ def _texte_fiche(entite, row, numero, types, dossier_assets):
                     or "/" in valeur
                     or "\\" in valeur):
                 raise ContentToolError(
-                    f"{entite}.csv row {numero}: column {nom} expects a filename "
+                    f"{entity_name}.csv row {number}: column {name} expects a filename "
                     f"only, not the path '{valeur}'.")
             try:
-                literal = _litteral(
-                    f"{dossier_assets}/{valeur}" if type_ == "Image" else valeur)
+                literal = _literal(
+                    f"{folder_assets}/{valeur}" if type_ == "Image" else valeur)
             except AssetsToolError as err:
                 raise ContentToolError(
-                f"{entite}.csv row {numero}, column {nom}: {err}") from None
-        morceaux.append(f"{nom}: {literal}")
-    return "    " + ", ".join(morceaux) + "\n"
+                f"{entity_name}.csv row {number}, column {name}: {err}") from None
+        chunks.append(f"{name}: {literal}")
+    return "    " + ", ".join(chunks) + "\n"
 
 
-def _plages_blocs(lignes):
-    resultat = []
-    blocs = _blocs_seed(lignes)
-    curseur = 0
-    for i, ligne in enumerate(lignes):
-        if curseur >= len(blocs):
+def _ranges_blocks(lines):
+    result = []
+    blocks = _blocks_seed(lines)
+    cursor = 0
+    for i, line in enumerate(lines):
+        if cursor >= len(blocks):
             break
-        if re.match(r"^seed\s+", ligne):
-            entite, entrees = blocs[curseur]
+        if re.match(r"^seed\s+", line):
+            entity_name, entrees = blocks[cursor]
             fin = entrees[-1][1] if entrees else i
-            resultat.append((entite, i, fin))
-            curseur += 1
-    return resultat
+            result.append((entity_name, i, fin))
+            cursor += 1
+    return result
 
 
-def _seulement_espaces_commentaires(texte):
-    return all(not ligne.strip() or ligne.lstrip().startswith("#")
-               for ligne in texte.splitlines())
+def _only_spaces_comments(text):
+    return all(not line.strip() or line.lstrip().startswith("#")
+               for line in text.splitlines())
 
 
-def _avertissements(project_dir, normalized, spec_changee):
+def _warnings(project_dir, normalized, spec_changed):
     messages = []
-    dossier, declares = chemins_declares(normalized)
-    manquants = [c for c in sorted(declares)
-                 if not resoudre_asset(project_dir, dossier, c)]
-    if manquants:
-        messages.append(f"{len(manquants)} declared asset(s) are still missing: "
-                        + ", ".join(manquants) + ". Run 'monl assets list' for details.")
-    if spec_changee and os.path.exists(os.path.join(project_dir, "app.db")):
+    folder, declares = paths_declares(normalized)
+    missing = [c for c in sorted(declares)
+                 if not resolve_asset(project_dir, folder, c)]
+    if missing:
+        messages.append(f"{len(missing)} declared asset(s) are still missing: "
+                        + ", ".join(missing) + ". Run 'monl assets list' for details.")
+    if spec_changed and os.path.exists(os.path.join(project_dir, "app.db")):
         messages.append("The database already exists: seed data only populates a NEW database.")
-    if spec_changee:
+    if spec_changed:
         messages.append("Spec changed: run 'monl update' to resynchronize the backend and contract.")
     return messages
 
 
-def importer_contenu(spec_path, project_dir):
-    return content_import.importer_contenu(
+def importer_content(spec_path, project_dir):
+    return content_import.importer_content(
         spec_path, project_dir, SimpleNamespace(
-            _appeler=_appeler,
+            _call=_call,
             _charger=_charger,
-            _blocs_seed=_blocs_seed,
+            _blocks_seed=_blocks_seed,
             _infos_parent=_infos_parent,
-            _colonnes=_colonnes,
-            _lire_csv=_lire_csv,
-            _revalider=_revalider,
-            _seulement_espaces_commentaires=_seulement_espaces_commentaires,
-            _plages_blocs=_plages_blocs,
-            _litteral=_litteral,
-            _valeur_csv=_valeur_csv,
-            _texte_fiche=_texte_fiche,
-            _avertissements=_avertissements,
-            resoudre_asset=resoudre_asset,
+            _columns=_columns,
+            _read_csv=_read_csv,
+            _revalidate=_revalidate,
+            _only_spaces_comments=_only_spaces_comments,
+            _ranges_blocks=_ranges_blocks,
+            _literal=_literal,
+            _value_csv=_value_csv,
+            _text_fiche=_text_fiche,
+            _warnings=_warnings,
+            resolve_asset=resolve_asset,
             ContentToolError=ContentToolError,
             AssetsToolError=AssetsToolError,
             DEFAULT_ASSETS_DIR=DEFAULT_ASSETS_DIR,

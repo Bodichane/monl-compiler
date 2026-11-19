@@ -12,7 +12,7 @@ from fastapi.concurrency import run_in_threadpool
 
 from .app_http import _admission_compilation
 from .builder_runtime import _ensure_builder_project, _http_error, _require_user
-from .compilation import ProjectIsolationError, compiler_le_projet
+from .compilation import ProjectIsolationError, compiler_the_project
 from .hosting import SiteHostingError, SiteNotCompiledError
 from .service import PlatformExecutionError, PlatformInputError
 
@@ -26,8 +26,8 @@ def mount_builder_build_routes(application, runtime, compile_slots):
         async with _admission_compilation(request, identities, compile_slots):
             project = _ensure_builder_project(runtime, user, project_id)
             try:
-                resultat = await run_in_threadpool(
-                    compiler_le_projet,
+                result = await run_in_threadpool(
+                    compiler_the_project,
                     project["project_id"],
                     account_id=user["id"],
                     store=runtime.store,
@@ -41,9 +41,9 @@ def mount_builder_build_routes(application, runtime, compile_slots):
             except PlatformExecutionError as exc:
                 _http_error(str(exc), 503)
         return {
-            "project_id": resultat["project_id"],
-            "files": resultat["files"],
-            "routes": len(resultat["contract"].get("routes", [])),
+            "project_id": result["project_id"],
+            "files": result["files"],
+            "routes": len(result["contract"].get("routes", [])),
         }
 
     def start_site(project_id, request):

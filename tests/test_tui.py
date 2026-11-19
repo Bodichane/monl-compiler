@@ -1,11 +1,11 @@
-"""Couche de présentation du dialogue (bêta 3).
+"""Presentation layer of the dialogue (beta 3).
 
-Deux garanties tenues ici :
-  1. le rendu nu reste EXACTEMENT celui d'avant l'habillage — c'est ce qui
-     rend les tests scriptés et les sorties redirigées insensibles à
-     l'esthétique ;
-  2. le rendu stylé dégrade proprement (aucune séquence ANSI ni caractère
-     de dessin quand le terminal ne les gère pas).
+Two guarantees held here:
+  1. plain rendering stays EXACTLY what it was before styling — that is
+     what makes scripted tests and redirected output insensitive to
+     aesthetics;
+  2. styled rendering degrades cleanly (no ANSI sequence nor drawing
+     character when the terminal does not support them).
 """
 import sys
 
@@ -14,67 +14,67 @@ from monl.tui import PlainDialogueUI, StyledDialogueUI, Terminal
 
 
 class _TerminalNu(Terminal):
-    """Terminal sans couleur ni Unicode, largeur fixe (rendu reproductible)."""
+    """Terminal without color or Unicode, fixed width (reproducible rendering)."""
 
     def __init__(self, color=False, unicode=False, width=80):
         self.stream = sys.stdout
         self.color, self.unicode, self.width = color, unicode, width
 
 
-def test_rendu_nu_conserve_les_chaines_historiques():
+def test_plain_rendering_keeps_the_historical_strings():
     ui = PlainDialogueUI()
     assert ui.menu("Type ?", ["A", "B"], allow_none=True) == "Type ?\n  [1] A  [2] B  [0] none\n> "
     assert ui.yes_no("Continue?") == "Continue? (y/n) > "
     assert ui.field("Nom (ex. Studio) > ") == "Nom (ex. Studio) > "
     assert ui.error("Answer y or n.") == "  ✗ Answer y or n."
-    # Les éléments purement visuels n'existent pas en rendu nu.
+    # Purely visual elements do not exist in plain rendering.
     assert ui.banner() is None and ui.plan(["A"]) is None and ui.phase(0) is None
 
 
-def test_moteur_utilise_le_rendu_nu_par_defaut():
-    """Aucun habillage ne doit s'inviter dans un dialogue scripté."""
-    vus = []
-    dialogue = GuidedDialogue(ask=lambda p: (vus.append(p), "1")[1])
+def test_engine_uses_plain_rendering_by_default():
+    """No styling must slip into a scripted dialogue."""
+    seen = []
+    dialogue = GuidedDialogue(ask=lambda p: (seen.append(p), "1")[1])
     assert isinstance(dialogue.ui, PlainDialogueUI)
     dialogue._ask_choice("Type ?", ["A", "B"])
-    assert vus == ["Type ?\n  [1] A  [2] B\n> "]
+    assert seen == ["Type ?\n  [1] A  [2] B\n> "]
 
 
-def test_rendu_style_sans_couleur_ni_unicode_reste_du_texte_pur():
+def test_styled_rendering_without_color_or_unicode_stays_plain_text():
     ui = StyledDialogueUI(_TerminalNu())
     ui.plan(["Un", "Deux"])
     sorties = [ui.banner(), ui.phase(0), ui.menu("Type ?", ["A"], allow_none=True),
                ui.field("  Name (e.g. Studio) > "), ui.yes_no("Continue?"),
                ui.error("Invalid."), ui.note("Created."),
                ui.recap("Titre", [("Clé", "valeur")])]
-    # Les glyphes de dessin ont un équivalent ASCII ; le texte français, lui,
-    # reste accentué — un terminal incapable d'encoder « é » ne pourrait de
-    # toute façon afficher aucune question de ce dialogue.
-    glyphes = "│❯○━✗→…"
-    for sortie in sorties:
-        assert "\033" not in sortie, f"séquence ANSI émise sans couleur : {sortie!r}"
-        for glyphe in glyphes:
-            assert glyphe not in sortie, f"glyphe {glyphe!r} non dégradé : {sortie!r}"
+    # Drawing glyphs have an ASCII equivalent; the text itself is not
+    # transliterated — a terminal unable to encode non-ASCII letters could not
+    # show the user's own accented input either.
+    glyphs = "│❯○━✗→…"
+    for output in sorties:
+        assert "\033" not in output, f"ANSI sequence emitted without color: {output!r}"
+        for glyph in glyphs:
+            assert glyph not in output, f"glyph {glyph!r} not degraded: {output!r}"
 
 
-def test_rendu_style_colore_encadre_sans_casser_le_texte():
+def test_styled_rendering_colors_and_frames_without_breaking_text():
     ui = StyledDialogueUI(_TerminalNu(color=True, unicode=True))
     menu = ui.menu("Type ?", ["Alpha", "Bravo"], hints={"Alpha": "premier"})
     assert "\033[" in menu and "Alpha" in menu and "premier" in menu
-    # L'invite termine la chaîne : l'utilisateur tape juste après.
+    # The prompt ends the string: the user types right after it.
     import re
     visible = re.sub(r"\033\[[0-9;]*m", "", menu).rstrip()
     assert visible.endswith("❯")
 
 
-def test_explication_tronquee_a_la_largeur_du_terminal():
-    """Une ligne qui repasse à la ligne casse l'alignement du menu."""
+def test_explanation_truncated_to_terminal_width():
+    """A line that wraps breaks the menu's alignment."""
     ui = StyledDialogueUI(_TerminalNu(width=60))
     menu = ui.menu("Type ?", ["Court"], hints={"Court": "explication " * 20})
-    assert all(len(ligne) <= 62 for ligne in menu.splitlines()), menu
+    assert all(len(line) <= 62 for line in menu.splitlines()), menu
 
 
-def test_capacites_terminal_respectent_no_color(monkeypatch):
+def test_capabilities_terminal_respect_no_color(monkeypatch):
     monkeypatch.setenv("NO_COLOR", "1")
     monkeypatch.setenv("TERM", "xterm-256color")
     assert Terminal().color is False

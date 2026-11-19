@@ -1,7 +1,7 @@
-# Tests du smoke test comportemental (point 1) et de la boucle IA frontend
-# (point 4). Fidèles à la méthode du projet : serveurs réels éphémères,
-# jamais de simple relecture — seul le FOURNISSEUR d'IA est factice
-# (l'orchestration, elle, s'exécute pour de vrai de bout en bout).
+# Tests of the behavioral smoke test (point 1) and of the frontend AI loop
+# (point 4). Faithful to the project's method: real ephemeral servers, never
+# mere rereading — only the AI PROVIDER is fake (orchestration itself runs for
+# real end to end).
 import json
 import pathlib
 
@@ -10,7 +10,7 @@ import pytest
 from monl.cli import compile_project
 from monl.design_system import activate_asset_manifest
 from monl.frontend_ai import (
-    RETOUCHE_PROMPT_FILENAME,
+    RETOUCH_PROMPT_FILENAME,
     FrontendAIError,
     generate_and_verify,
     parse_files_payload,
@@ -24,8 +24,8 @@ entity Item
     label: String
     price: Money
 
-# Admin est provisionné hors ligne ; le frontend minimal de ces tests ne
-# constitue pas une promesse de back-office public.
+# Admin is provisioned offline; these tests' minimal frontend is not a promise
+# of a public back office.
 actor Admin
 
 rule Item.label required
@@ -70,27 +70,27 @@ def _quiet(*_a, **_k):
     pass
 
 
-def test_smoke_passe_sans_frontend_et_ne_touche_pas_la_base(project):
-    # Sentinelle : une base réelle avec un contenu marqueur.
+def test_smoke_passes_without_frontend_and_does_not_touch_the_database(project):
+    # Sentinel: a real database with marker content.
     sentinel = project / "app.db"
     sentinel.write_bytes(b"donnees-reelles-intouchables")
     ok, errors, _w = run_smoke_test(str(project), say=_quiet)
     assert ok, errors
     assert sentinel.read_bytes() == b"donnees-reelles-intouchables", (
-        "le smoke test a modifié la base réelle du projet")
+        "the smoke test modified the project's real database")
 
 
-def test_smoke_valide_un_frontend_correct(project):
+def test_smoke_validates_a_correct_frontend(project):
     front = project / "frontend"
     front.mkdir()
     (front / "index.html").write_text(GOOD_FRONT, encoding="utf-8")
     ok, errors, warnings = run_smoke_test(str(project), say=_quiet)
     assert ok, errors
-    # le fetch initial a bien été observé (pas un faux positif silencieux)
+    # the initial fetch was indeed observed (not a silent false positive)
     assert not any("the frontend made no API calls" in w for w in warnings)
 
 
-def test_coherence_refuse_une_image_locale_absente(project):
+def test_coherence_refuses_a_missing_local_image(project):
     front = project / "frontend"
     front.mkdir()
     (front / "index.html").write_text(
@@ -102,15 +102,15 @@ def test_coherence_refuse_une_image_locale_absente(project):
     assert any("local resource missing" in error for error in errors)
 
 
-def test_coherence_refuse_chacun_des_trois_svg_locaux_absents(project):
+def test_coherence_refuses_each_of_the_three_missing_local_svgs(project):
     front = project / "frontend"
     front.mkdir()
-    chemins = (
+    paths = (
         "assets/product/vase-rondeur.svg",
         "assets/product/bol-terre.svg",
         "assets/product/plateau-ligne.svg",
     )
-    sources = "".join(f'<img src="{chemin}">' for chemin in chemins)
+    sources = "".join(f'<img src="{path}">' for path in paths)
     (front / "index.html").write_text(
         f"<!doctype html><html><body>{sources}</body></html>",
         encoding="utf-8")
@@ -118,16 +118,16 @@ def test_coherence_refuse_chacun_des_trois_svg_locaux_absents(project):
 
     errors = _frontend_local_reference_errors(str(project))
     missing = [error for error in errors if "local resource missing" in error]
-    assert len(missing) == len(chemins)
-    for chemin in chemins:
-        assert sum(chemin in error for error in missing) == 1
+    assert len(missing) == len(paths)
+    for path in paths:
+        assert sum(path in error for error in missing) == 1
 
 
-def test_un_gabarit_de_rendu_nest_pas_un_chemin_de_fichier(project):
-    # Le corps d'un <script> n'est pas du balisage : `src="${...}"` y désigne
-    # une image que l'API renverra. Lu comme une balise, il faisait refuser la
-    # forme même que le contrat RÉCLAME (rendre les vraies images de l'API) —
-    # c'est la forme de demo/ et de projets/CodexShop.
+def test_a_render_template_is_not_a_file_path(project):
+    # A <script> body is not markup: `src="${...}"` there designates an image
+    # the API will return. Read as a tag, it made the very form the contract
+    # ASKS FOR (rendering the API's real images) be refused — it is the form of
+    # demo/ and projets/CodexShop.
     front = project / "frontend"
     front.mkdir()
     (front / "index.html").write_text(
@@ -140,10 +140,10 @@ def test_un_gabarit_de_rendu_nest_pas_un_chemin_de_fichier(project):
     assert _frontend_local_reference_errors(str(project)) == []
 
 
-def test_le_chemin_absolu_du_montage_site_est_servi_mais_pas_celui_hors_site(project):
-    # serve.py monte frontend/ sur /site : `/site/hero.svg` est exactement ce
-    # que sert le wrapper (forme de projets/StudioNova, vérifiée en 200 contre
-    # un vrai serveur). C'est `/hero.svg`, servi par personne, qui est fautif.
+def test_the_absolute_site_mount_path_is_served_but_not_outside_site(project):
+    # serve.py mounts frontend/ on /site: `/site/hero.svg` is exactly what the
+    # wrapper serves (form of projets/StudioNova, checked as 200 against a real
+    # server). `/hero.svg`, served by nobody, is the faulty one.
     front = project / "frontend"
     front.mkdir()
     (front / "hero.svg").write_text(
@@ -161,12 +161,12 @@ def test_le_chemin_absolu_du_montage_site_est_servi_mais_pas_celui_hors_site(pro
                for error in _frontend_local_reference_errors(str(project)))
 
 
-def test_un_dossier_dassets_declare_mais_absent_retombe_sur_frontend(project):
-    # Le wrapper ne monte le dossier d'assets que s'il EXISTE sur le disque.
-    # Déclaré dans la spec ne veut pas dire présent : quand il manque, la
-    # requête retombe sur /site et `assets/x.svg` est servi depuis
-    # frontend/assets/. Croire le contrat sur parole faisait refuser trois
-    # images de projets/KoraMaison qui répondent 200.
+def test_a_declared_but_missing_assets_folder_falls_back_on_frontend(project):
+    # The wrapper only mounts the assets folder if it EXISTS on disk. Declared
+    # in the spec does not mean present: when it is missing, the request falls
+    # back on /site and `assets/x.svg` is served from frontend/assets/. Taking
+    # the contract at its word made three projets/KoraMaison images that answer
+    # 200 be refused.
     contract_path = project / "frontend_contract.json"
     contract = json.loads(contract_path.read_text(encoding="utf-8"))
     contract["assets"] = {"dir": "assets"}
@@ -182,14 +182,14 @@ def test_un_dossier_dassets_declare_mais_absent_retombe_sur_frontend(project):
     from monl.frontend_ai import _frontend_local_reference_errors
     assert _frontend_local_reference_errors(str(project)) == []
 
-    # Le dossier racine existe : c'est LUI qui est monté, et le fichier
-    # cherché là — un frontend/assets/ homonyme ne le sauve plus.
+    # The root folder exists: IT is what is mounted, and the file is looked up
+    # there — a namesake frontend/assets/ no longer saves it.
     (project / "assets").mkdir()
     assert any("local resource missing" in error
                for error in _frontend_local_reference_errors(str(project)))
 
 
-def test_smoke_bloque_un_frontend_casse(project):
+def test_smoke_blocks_a_broken_frontend(project):
     front = project / "frontend"
     front.mkdir()
     (front / "index.html").write_text(BAD_FRONT, encoding="utf-8")
@@ -199,36 +199,36 @@ def test_smoke_bloque_un_frontend_casse(project):
     assert any("/fantome" in e for e in errors), errors        # hors contrat
 
 
-def test_smoke_nomme_lurl_absolue_au_lieu_de_fetch_failed(project):
-    """Régression (point 51) : le serveur éphémère écoutant sur un port
-    libre, un frontend qui vise 8000 en dur échouait en 'TypeError: fetch
-    failed' — message muet sur la cause, sur lequel la correction
-    automatique tournait en rond deux fois avant d'abandonner. L'échec doit
-    rester un échec (ce port casserait aussi 'monl run --port'), mais nommé."""
+def test_smoke_names_the_absolute_url_instead_of_fetch_failed(project):
+    """Regression (point 51): with the ephemeral server listening on a free port,
+    a frontend hard-targeting 8000 failed with 'TypeError: fetch failed' — a
+    message silent about the cause, on which automatic correction went round in
+    circles twice before giving up. The failure must stay a failure (this port
+    would also break 'monl run --port'), but named."""
     front = project / "frontend"
     front.mkdir()
     (front / "index.html").write_text(ABSOLUTE_FRONT, encoding="utf-8")
     ok, errors, warnings = run_smoke_test(str(project), say=_quiet)
     assert not ok
     assert any("Absolute URL forbidden" in e for e in errors), errors
-    # La tentative compte comme un appel : sans cela le rapport conclurait
-    # « aucun appel API au chargement », ce qui est faux et brouille la piste.
+    # The attempt counts as a call: otherwise the report would conclude "no API
+    # call on load", which is false and muddles the trail.
     assert not any("the frontend made no API calls" in w for w in warnings), warnings
 
 
-def test_parse_files_payload_gardes_fous():
-    with pytest.raises(FrontendAIError):   # traversée de chemin
+def test_parse_files_payload_guards_crazy():
+    with pytest.raises(FrontendAIError):   # path traversal
         parse_files_payload(json.dumps({"files": {"../evil.html": "x", "index.html": "x"}}))
     with pytest.raises(FrontendAIError):   # extension interdite
         parse_files_payload(json.dumps({"files": {"index.html": "x", "run.py": "x"}}))
     with pytest.raises(FrontendAIError):   # index.html manquant
         parse_files_payload(json.dumps({"files": {"app.js": "x"}}))
-    # clôtures Markdown tolérées malgré la consigne
+    # Markdown fences tolerated despite the instruction
     fenced = "```json\n" + json.dumps({"files": {"index.html": "ok"}}) + "\n```"
     assert parse_files_payload(fenced) == {"index.html": "ok"}
 
 
-def test_parse_single_file_payload_accepte_un_css_sans_index():
+def test_parse_single_file_payload_accepts_a_css_without_index():
     payload = json.dumps({"files": {"styles.css": "body { color: #111; }"}})
     assert parse_single_file_payload(payload, "styles.css") == {
         "styles.css": "body { color: #111; }"
@@ -238,7 +238,7 @@ def test_parse_single_file_payload_accepte_un_css_sans_index():
             json.dumps({"files": {"app.js": "ok"}}), "styles.css")
 
 
-def test_svg_standard_est_accepte_mais_une_ressource_distante_est_refusee():
+def test_standard_svg_is_accepted_but_a_remote_resource_is_refused():
     svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3"/></svg>'
     assert parse_single_file_payload(
         json.dumps({"files": {"hero.svg": svg}}), "hero.svg")["hero.svg"] == svg
@@ -248,7 +248,7 @@ def test_svg_standard_est_accepte_mais_une_ressource_distante_est_refusee():
             json.dumps({"files": {"hero.svg": distant}}), "hero.svg")
 
 
-def test_coherence_repere_un_id_dataset_compare_sans_conversion(project):
+def test_coherence_spots_a_dataset_id_compared_without_conversion(project):
     front = project / "frontend"
     front.mkdir()
     (front / "app.js").write_text(
@@ -264,7 +264,7 @@ def test_coherence_repere_un_id_dataset_compare_sans_conversion(project):
     assert _frontend_behavioral_quality_errors(str(project)) == []
 
 
-def test_design_refuse_image_generee_reutilisee_et_texte_editorial_duplique(project):
+def test_design_refuses_reused_generated_image_and_duplicated_editorial_text(project):
     front = project / "frontend"
     front.mkdir()
     (front / "index.html").write_text(
@@ -287,7 +287,7 @@ def test_design_refuse_image_generee_reutilisee_et_texte_editorial_duplique(proj
     assert any("editorial content repeated" in error for error in text_errors)
 
 
-def test_boucle_ia_corrige_puis_reussit(project):
+def test_loop_ia_fixed_puis_succeeds(project):
     calls = []
 
     def provider(prompt):
@@ -298,12 +298,12 @@ def test_boucle_ia_corrige_puis_reussit(project):
     ok, errors = generate_and_verify(str(project), provider, say=_quiet)
     assert ok, errors
     assert len(calls) == 2
-    # la 2e tentative embarque les erreurs réellement constatées
+    # the 2nd attempt carries the errors really observed
     assert "CHECK FAILED" in calls[1]
     assert "casse" in calls[1] or "/fantome" in calls[1]
 
 
-def test_boucle_ia_echoue_apres_une_seule_correction(project):
+def test_ai_loop_fails_after_a_single_correction(project):
     calls = []
 
     def provider(prompt):
@@ -312,85 +312,83 @@ def test_boucle_ia_echoue_apres_une_seule_correction(project):
 
     ok, errors = generate_and_verify(str(project), provider, say=_quiet)
     assert not ok and errors
-    assert len(calls) == 2, "jamais plus d'UNE correction automatique"
-    # les fichiers restent inspectables, mais run refusera (smoke bloquant)
+    assert len(calls) == 2, "never more than ONE automatic correction"
+    # the files stay inspectable, but run will refuse (blocking smoke)
     assert (project / "frontend" / "index.html").exists()
 
 
-#: Deux chemins fantômes au lieu d'un : strictement pire que BAD_FRONT, sur
-#: la même échelle et sans rien changer d'autre.
+#: Two phantom paths instead of one: strictly worse than BAD_FRONT, on the same
+#: scale and without changing anything else.
 PIRE_FRONT = ("<!doctype html><html><body><script>"
               "fetch('/fantome/1'); fetch('/autre-fantome');"
               "</script></body></html>")
 
 
-def test_une_correction_qui_degrade_ne_remplace_pas_la_tentative_precedente(project):
-    """monl gardait la DERNIÈRE tentative ; il garde la MEILLEURE.
+def test_a_degrading_correction_does_not_replace_the_previous_attempt(project):
+    """monl kept the LAST attempt; it keeps the BEST one.
 
-    Mesuré sur une construction réelle payante : à qui on demandait de
-    réparer deux lignes, le modèle a réécrit le site entier et perdu
-    quatorze routes sur quinze — deux parcours utilisateur complets avec.
-    La première tentative, elle, était presque bonne. L'utilisateur payait
-    deux passes et repartait avec la pire des deux.
+    Measured on a real paid build: asked to fix two lines, the model rewrote the
+    whole site and lost fourteen routes out of fifteen — two complete user
+    journeys with them. The first attempt was nearly good. The user paid for two
+    passes and left with the worse of the two.
     """
-    rendus = [BAD_FRONT, PIRE_FRONT]
+    rendered = [BAD_FRONT, PIRE_FRONT]
     dits = []
 
     def provider(_prompt):
-        return json.dumps({"files": {"index.html": rendus.pop(0)}})
+        return json.dumps({"files": {"index.html": rendered.pop(0)}})
 
     ok, errors = generate_and_verify(str(project), provider, say=dits.append)
 
-    assert not ok, "les deux tentatives échouent : le verdict reste un échec"
-    conserve = (project / "frontend" / "index.html").read_text(encoding="utf-8")
-    assert conserve == BAD_FRONT, (
-        "la tentative dégradée a été conservée alors qu'elle est pire")
-    assert any("Attempt 1 restored" in ligne for ligne in dits), dits
-    # Les erreurs RAPPORTÉES doivent décrire les fichiers conservés : rendre
-    # celles de la tentative écartée décrirait un frontend absent du disque.
+    assert not ok, "both attempts fail: the verdict stays a failure"
+    kept = (project / "frontend" / "index.html").read_text(encoding="utf-8")
+    assert kept == BAD_FRONT, (
+        "the degraded attempt was kept although it is worse")
+    assert any("Attempt 1 restored" in line for line in dits), dits
+    # The REPORTED errors must describe the kept files: returning the discarded
+    # attempt's would describe a frontend absent from disk.
     assert not any("/autre-fantome" in e for e in errors), errors
     assert any("/fantome/1" in e for e in errors), errors
 
 
-def test_une_correction_qui_ameliore_est_bien_conservee(project):
-    """Contre-épreuve indispensable : un garde-fou qui figerait toujours la
-    première tentative annulerait la correction automatique entière, et
-    passerait pour bon."""
-    rendus = [PIRE_FRONT, BAD_FRONT]
+def test_an_improving_correction_is_kept(project):
+    """Indispensable counter-proof: a safeguard always freezing the first attempt
+    would cancel automatic correction entirely, and pass for good."""
+    rendered = [PIRE_FRONT, BAD_FRONT]
     dits = []
 
     def provider(_prompt):
-        return json.dumps({"files": {"index.html": rendus.pop(0)}})
+        return json.dumps({"files": {"index.html": rendered.pop(0)}})
 
     ok, errors = generate_and_verify(str(project), provider, say=dits.append)
 
     assert not ok
-    conserve = (project / "frontend" / "index.html").read_text(encoding="utf-8")
-    assert conserve == BAD_FRONT, "la meilleure des deux est la seconde ici"
-    assert not any("restaurée" in ligne for ligne in dits), dits
+    kept = (project / "frontend" / "index.html").read_text(encoding="utf-8")
+    assert kept == BAD_FRONT, "the better of the two is the second here"
+    assert not any("restaurée" in line for line in dits), dits
 
 
-def test_la_restauration_ne_laisse_aucun_fichier_de_la_tentative_ecartee(project):
-    """Un mélange des deux tentatives serait pire que l'une ou l'autre : le
-    fichier restauré appellerait un script que sa version n'a pas écrit."""
-    rendus = [
+def test_restoration_leaves_no_file_from_the_discarded_attempt(project):
+    """A mix of the two attempts would be worse than either: the restored file
+    would call a script its version did not write."""
+    rendered = [
         {"index.html": BAD_FRONT},
         {"index.html": PIRE_FRONT, "extra.js": "console.log('tentative 2');"},
     ]
     dits = []
 
     def provider(_prompt):
-        return json.dumps({"files": rendus.pop(0)})
+        return json.dumps({"files": rendered.pop(0)})
 
     generate_and_verify(str(project), provider, say=dits.append)
 
     assert (project / "frontend" / "index.html").read_text(
         encoding="utf-8") == BAD_FRONT
     assert not (project / "frontend" / "extra.js").exists(), (
-        "un fichier de la tentative écartée survit dans le frontend conservé")
+        "a file from the discarded attempt survives in the kept frontend")
 
 
-# ---- 'monl import' : la voie SANS clé API (abonnement claude.ai) ----
+# ---- 'monl import': the path WITHOUT an API key (claude.ai subscription) ----
 import zipfile
 
 from monl.frontend_ai import import_and_verify, load_frontend_source
@@ -401,10 +399,10 @@ GOOD_SPLIT_JS = ("fetch('/item?limit=5').then(r => r.json()).then(d => {"
                  "document.getElementById('l').textContent = d.total;});")
 
 
-def test_import_zip_realiste_sous_dossier_et_parasite(project, tmp_path):
-    """Un zip 'comme Claude le rend' : sous-dossier, JS séparé, fichier hors
-    liste blanche — installé, filtré, et le fetch de app.js est bien ÉPROUVÉ
-    (les scripts locaux sont inlinés avant jsdom, sinon faux positif)."""
+def test_realistic_zip_import_subfolder_and_stray_file(project, tmp_path):
+    """A zip 'as Claude returns it': subfolder, separate JS, file outside the
+    allowlist — installed, filtered, and app.js's fetch is indeed TESTED (local
+    scripts are inlined before jsdom, otherwise false positive)."""
     zpath = tmp_path / "telechargement.zip"
     with zipfile.ZipFile(zpath, "w") as z:
         z.writestr("mon-app/index.html", GOOD_SPLIT_HTML)
@@ -416,7 +414,7 @@ def test_import_zip_realiste_sous_dossier_et_parasite(project, tmp_path):
     assert not (project / "frontend" / "notes.py").exists()
 
 
-def test_import_refuse_zip_slip_et_cdn(project, tmp_path):
+def test_import_refuses_zip_slip_and_cdn(project, tmp_path):
     evil = tmp_path / "evil.zip"
     with zipfile.ZipFile(evil, "w") as z:
         z.writestr("../evasion.html", "x")
@@ -434,18 +432,18 @@ def test_import_refuse_zip_slip_et_cdn(project, tmp_path):
     assert any("CDN" in e for e in errors), errors
 
 
-def test_import_html_seul_et_sauvegarde_du_precedent(project, tmp_path):
+def test_html_only_import_and_backup_of_the_previous(project, tmp_path):
     single = tmp_path / "telechargement.html"
     single.write_text(GOOD_FRONT, encoding="utf-8")
     ok, _e = import_and_verify(str(project), str(single), say=_quiet)
     assert ok
-    # Réimporter par-dessus : l'ancien frontend est conservé, jamais perdu.
+    # Re-importing on top: the old frontend is kept, never lost.
     ok, _e = import_and_verify(str(project), str(single), say=_quiet)
     assert ok
     assert (project / "frontend.precedent" / "index.html").exists()
 
 
-# ---- Claude Code : le travail directement dans le dossier cible ----
+# ---- Claude Code: working directly in the target folder ----
 import stat
 
 from monl.frontend_ai import generate_with_claude_code
@@ -453,8 +451,8 @@ from monl.frontend_contract import PROJECT_CLAUDE_MD_MARKER
 
 
 def _fake_agent(tmp_path, body):
-    """Un exécutable 'claude' factice — l'orchestration s'exécute pour de
-    vrai, seul l'agent est simulé (même approche que le fournisseur API)."""
+    """A fake 'claude' executable — orchestration runs for real, only the agent
+    is simulated (same approach as the API provider)."""
     script = tmp_path / "fake_claude"
     script.write_text("#!/usr/bin/env python3\nimport os, sys\n" + body,
                       encoding="utf-8")
@@ -486,23 +484,23 @@ open("app.py", "a").write("\\n# intrusion\\n")
 """
 
 
-def test_claude_md_de_projet_genere_et_jamais_ecrase(project):
+def test_project_claude_md_generated_and_never_overwritten(project):
     claude_md = project / "AGENTS.md"
     assert claude_md.exists()
     assert PROJECT_CLAUDE_MD_MARKER in claude_md.read_text(encoding="utf-8")
-    # Repris en main par l'utilisateur (marqueur retiré) -> intouchable.
+    # Taken over by the user (marker removed) -> untouchable.
     claude_md.write_text("# mes propres consignes", encoding="utf-8")
     compile_project(str(project / "spec.ml"), str(project))
     assert claude_md.read_text(encoding="utf-8") == "# mes propres consignes"
 
 
-def test_claude_code_reussit_et_verifie(project, tmp_path):
+def test_claude_code_succeeds_and_checks(project, tmp_path):
     agent = _fake_agent(tmp_path, GOOD_AGENT)
     ok, errors = generate_with_claude_code(str(project), command=agent, say=_quiet)
     assert ok, errors
 
 
-def test_claude_code_recoit_les_erreurs_et_se_corrige(project, tmp_path):
+def test_claude_code_receives_the_errors_and_corrects_itself(project, tmp_path):
     agent = _fake_agent(tmp_path, FIXER_AGENT)
     msgs = []
     ok, errors = generate_with_claude_code(str(project), command=agent, say=msgs.append)
@@ -518,7 +516,7 @@ sys.stderr.write("Error: Reached max turns (40)\\n")
 sys.exit(1)
 """
 
-MAXTURNS_VIDE_AGENT = """sys.stderr.write("Error: Reached max turns (40)\\n")
+MAXTURNS_EMPTY_AGENT = """sys.stderr.write("Error: Reached max turns (40)\\n")
 sys.exit(1)
 """
 
@@ -527,19 +525,19 @@ sys.exit(1)
 """
 
 
-def test_budget_de_tours_epuise_mais_frontend_valide(project, tmp_path):
-    """POINT 62 : l'agent peut finir son travail au dernier tour et dépasser
-    d'un cheveu. Le frontend produit doit être vérifié sur pièces, pas jeté
-    parce que le processus a rendu un code de sortie non nul."""
+def test_turn_budget_exhausted_but_frontend_valid(project, tmp_path):
+    """POINT 62: the agent can finish its work on the last turn and go over by a
+    hair. The produced frontend must be checked on the evidence, not thrown away
+    because the process returned a non-zero exit code."""
     agent = _fake_agent(tmp_path, MAXTURNS_AGENT)
     ok, errors = generate_with_claude_code(str(project), command=agent, say=_quiet)
     assert ok, errors
 
 
-def test_budget_epuise_sans_rien_produire_passe_par_la_correction(project, tmp_path):
-    """Le même dépassement, mais sans frontend : c'est un échec — qui doit
-    emprunter la boucle de correction, pas interrompre la commande."""
-    agent = _fake_agent(tmp_path, MAXTURNS_VIDE_AGENT)
+def test_budget_exhausted_without_output_goes_through_correction(project, tmp_path):
+    """The same overrun, but without a frontend: it is a failure — which must go
+    through the correction loop, not interrupt the command."""
+    agent = _fake_agent(tmp_path, MAXTURNS_EMPTY_AGENT)
     msgs = []
     ok, errors = generate_with_claude_code(str(project), command=agent, say=msgs.append)
     assert not ok
@@ -547,60 +545,59 @@ def test_budget_epuise_sans_rien_produire_passe_par_la_correction(project, tmp_p
     assert any("Automatic correction" in m for m in msgs)
 
 
-def test_une_vraie_erreur_dagent_reste_une_erreur(project, tmp_path):
-    """Le relâchement ne vaut QUE pour le budget de tours : une panne
-    d'authentification doit continuer d'arrêter net."""
+def test_a_real_agent_error_stays_an_error(project, tmp_path):
+    """The relaxation only applies to the turn budget: an authentication failure
+    must keep stopping dead."""
     from monl.frontend_ai import FrontendAIError
     agent = _fake_agent(tmp_path, CRASH_AGENT)
     with pytest.raises(FrontendAIError):
         generate_with_claude_code(str(project), command=agent, say=_quiet)
 
 
-def test_claude_code_ne_peut_pas_toucher_le_backend(project, tmp_path):
+def test_claude_code_cannot_touch_the_backend(project, tmp_path):
     agent = _fake_agent(tmp_path, EVIL_AGENT)
     ok, errors = generate_with_claude_code(str(project), command=agent, say=_quiet)
     assert not ok
     assert any("app.py" in e for e in errors), errors
 
 
-# POINT 134 : l'agent SOURNOIS ne touche PAS à frontend/. C'est tout l'écart
-# avec EVIL_AGENT — et c'est le chemin qui échappait au garde-fou.
+# POINT 134: the SNEAKY agent does NOT touch frontend/. That is the whole
+# difference with EVIL_AGENT — and it is the path that escaped the safeguard.
 SNEAKY_AGENT = """open("manage.py", "a").write("\\n# porte derobee\\n")
 """
 
 
-def test_un_agent_ne_peut_pas_reecrire_manage_py(project, tmp_path):
-    """manage.py CRÉE les comptes administrateurs — c'est la frontière que
-    `selfRegister` tient côté API. Il était scellé dans monl.json mais absent
-    des artefacts dont l'empreinte est comparée avant/après le passage de
-    l'agent.
+def test_an_agent_cannot_rewrite_manage_py(project, tmp_path):
+    """manage.py CREATES administrator accounts — it is the boundary
+    `selfRegister` holds on the API side. It was sealed in monl.json but absent
+    from the artifacts whose fingerprint is compared before/after the agent's
+    pass.
 
-    Le pire cas est reproduit ici : un frontend VALIDE existe déjà et l'agent
-    n'y touche pas. `generate_with_cli_agent` retourne alors un SUCCÈS avant
-    même d'appeler `check_coherence` — donc sans le correctif, monl répondait
-    « rien n'est cassé » sur un manage.py piégé. Le code injecté s'exécutait à
-    la première création de compte privilégié.
+    The worst case is reproduced here: a VALID frontend already exists and the
+    agent does not touch it. `generate_with_cli_agent` then returns a SUCCESS
+    even before calling `check_coherence` — so without the fix, monl answered
+    "nothing is broken" on a booby-trapped manage.py. The injected code ran at
+    the first privileged account creation.
     """
     frontend = project / "frontend"
     frontend.mkdir(exist_ok=True)
     (frontend / "index.html").write_text(
         "<html><body>déjà là</body></html>", encoding="utf-8")
-    avant = (project / "manage.py").read_text(encoding="utf-8")
+    before = (project / "manage.py").read_text(encoding="utf-8")
 
     agent = _fake_agent(tmp_path, SNEAKY_AGENT)
     ok, errors = generate_with_claude_code(str(project), command=agent, say=_quiet)
 
-    assert not ok, "un manage.py réécrit doit faire ÉCHOUER la construction"
+    assert not ok, "a rewritten manage.py must make the build FAIL"
     assert any("manage.py" in e for e in errors), errors
-    # Le fichier reste sur disque — monl dit de le restaurer, il ne le fait
-    # pas à votre place (point 73). Le test le CONSTATE plutôt que de laisser
-    # croire à une remise en état.
-    assert (project / "manage.py").read_text(encoding="utf-8") != avant
+    # The file stays on disk — monl says to restore it, it does not do it for
+    # you (point 73). The test NOTES it rather than suggesting a repair.
+    assert (project / "manage.py").read_text(encoding="utf-8") != before
 
 
-# L'agent fait un VRAI travail de frontend — et en profite au passage. C'est
-# le cas qui passait tous les contrôles : empreintes protégées OK, cohérence
-# OK, smoke test OK (il ne lit pas le Dockerfile), succès annoncé.
+# The agent does REAL frontend work — and takes advantage of it on the way. It
+# is the case that passed every check: protected fingerprints OK, consistency
+# OK, smoke test OK (it does not read the Dockerfile), success announced.
 SABOTEUR_DOCKER = """os.makedirs("frontend", exist_ok=True)
 open("frontend/index.html", "w").write("<html><body>ok</body></html>")
 open("Dockerfile", "w").write(
@@ -613,45 +610,45 @@ open(".dockerignore", "w").write("*.db\\n__pycache__\\n")
 """
 
 
-def test_un_agent_ne_peut_pas_remettre_le_conteneur_en_404(project, tmp_path):
-    """Annuler le point 133 dans le Dockerfile ne casse RIEN de vérifiable :
-    la cohérence passe, le smoke test ne lit pas le Dockerfile, et l'image
-    suivante répond à nouveau 404 sur /site. Seule l'empreinte protégée
-    pouvait le voir — et elle ne regardait pas ce fichier."""
+def test_an_agent_cannot_put_the_container_back_to_404(project, tmp_path):
+    """Undoing point 133 in the Dockerfile breaks NOTHING checkable: consistency
+    passes, the smoke test does not read the Dockerfile, and the next image
+    answers 404 on /site again. Only the protected fingerprint could see it — and
+    it did not look at this file."""
     agent = _fake_agent(tmp_path, SABOTEUR_DOCKER)
     ok, errors = generate_with_claude_code(str(project), command=agent, say=_quiet)
     assert not ok
     assert any("Dockerfile" in e for e in errors), errors
 
 
-def test_un_agent_ne_peut_pas_faire_embarquer_le_secret_jwt(project, tmp_path):
-    """Le pire des deux : `.dockerignore` exclut `.jwt_secret` du `COPY . .`
-    du gabarit. L'en retirer fait entrer le secret de signature des jetons
-    dans l'image — donc dans tout registre où elle est poussée. Aucun autre
-    contrôle de monl ne regarde ce fichier."""
+def test_an_agent_cannot_get_the_jwt_secret_shipped(project, tmp_path):
+    """The worse of the two: `.dockerignore` excludes `.jwt_secret` from the
+    template's `COPY . .`. Removing it brings the token signing secret into the
+    image — hence into every registry it is pushed to. No other monl check looks
+    at this file."""
     agent = _fake_agent(tmp_path, SABOTEUR_SECRET)
     ok, errors = generate_with_claude_code(str(project), command=agent, say=_quiet)
     assert not ok
     assert any(".dockerignore" in e for e in errors), errors
 
 
-def test_tout_ce_qui_sexecute_hors_frontend_est_protege():
-    """L'empreinte protégée est un invariant PENDANT le passage de l'agent,
-    pas une déclaration de propriété : l'auteur adapte son Dockerfile entre
-    deux exécutions sans que ça gêne. C'est cette confusion qui avait laissé
-    dehors des fichiers exécutables au prétexte qu'ils sont éditables."""
-    from monl.frontend_ai import PROTECTED_ARTEFACTS
-    for nom in ("manage.py", "serve.py", "Dockerfile", ".dockerignore"):
-        assert nom in PROTECTED_ARTEFACTS, nom
+def test_everything_executing_outside_frontend_is_protected():
+    """The protected fingerprint is an invariant DURING the agent's pass, not a
+    declaration of ownership: the author adapts their Dockerfile between two runs
+    without trouble. That confusion is what had left executable files outside on
+    the pretext that they are editable."""
+    from monl.frontend_ai import PROTECTED_ARTIFACTS
+    for name in ("manage.py", "serve.py", "Dockerfile", ".dockerignore"):
+        assert name in PROTECTED_ARTIFACTS, name
 
 
-# ─────────────────────────────────────────────────────────────────────
-# POINT 69 : n'importe quelle clé API, n'importe quel agent
+# ───────────────────────────────────────────────────────────────────── POINT
+# 69: any API key, any agent
 #
-# Deux voies ouvertes, deux façons de les éprouver sans réseau ni binaire
-# tiers : la requête HTTP est interceptée (on vérifie ce que monl ENVOIE),
-# et l'agent est un exécutable factice qui enregistre son argv (on vérifie
-# ce que monl LANCE). L'orchestration, elle, s'exécute pour de vrai.
+# Two paths opened, two ways to test them without network or third-party
+# binary: the HTTP request is intercepted (we check what monl SENDS), and the
+# agent is a fake executable recording its argv (we check what monl LAUNCHES).
+# Orchestration itself runs for real.
 # ─────────────────────────────────────────────────────────────────────
 from monl.frontend_ai import (
     CLI_AGENTS,
@@ -662,11 +659,11 @@ from monl.frontend_ai import (
 )
 
 
-def test_fournisseur_openai_compatible_forme_la_requete(monkeypatch):
+def test_openai_compatible_provider_shapes_the_request(monkeypatch):
     monkeypatch.setenv("GROQ_API_KEY", "cle-de-test")
     vu = {}
 
-    class Reponse:
+    class Response:
         status_code = 200
         text = ""
 
@@ -675,7 +672,7 @@ def test_fournisseur_openai_compatible_forme_la_requete(monkeypatch):
 
     def faux_post(url, headers=None, json=None, timeout=None):
         vu.update(url=url, headers=headers, body=json)
-        return Reponse()
+        return Response()
 
     import requests
     monkeypatch.setattr(requests, "post", faux_post)
@@ -688,14 +685,14 @@ def test_fournisseur_openai_compatible_forme_la_requete(monkeypatch):
     assert vu["body"]["messages"][0]["content"] == "le brief"
 
 
-def test_yandex_emploie_son_authentification_et_mesure_les_jetons(monkeypatch):
-    """Yandex parle Chat Completions, mais exige Api-Key et le dossier Cloud."""
+def test_yandex_uses_its_authentication_and_measures_tokens(monkeypatch):
+    """Yandex speaks Chat Completions, but requires Api-Key and the Cloud folder."""
     monkeypatch.setenv("YANDEX_API_KEY", "cle-yandex")
     monkeypatch.setenv("YANDEX_FOLDER_ID", "dossier-yandex")
     monkeypatch.delenv("MONL_AI_CHUNK_MAX_TOKENS", raising=False)
     vu = {}
 
-    class Reponse:
+    class Response:
         status_code = 200
         text = ""
 
@@ -708,7 +705,7 @@ def test_yandex_emploie_son_authentification_et_mesure_les_jetons(monkeypatch):
 
     def faux_post(url, headers=None, json=None, timeout=None):
         vu.update(url=url, headers=headers, body=json)
-        return Reponse()
+        return Response()
 
     import requests
     monkeypatch.setattr(requests, "post", faux_post)
@@ -722,12 +719,12 @@ def test_yandex_emploie_son_authentification_et_mesure_les_jetons(monkeypatch):
     assert vu["body"]["model"] == model
     assert vu["body"]["temperature"] == 0.3
     assert vu["body"]["max_tokens"] == 8000
-    # RENVERSEMENT, mesuré contre le vrai service : Yandex REFUSE
-    # reasoning_effort='none' en HTTP 400 (« Input should be 'low', 'medium'
-    # or 'high' »), donc cette assertion décrivait un corps de requête que le
-    # service n'a jamais accepté — toute construction --provider yandex
-    # mourait au premier appel. Omettre le champ est ce que le commentaire du
-    # préréglage voulait dire, et ce que le service accepte.
+    # REVERSAL, measured against the real service: Yandex REFUSES
+    # reasoning_effort='none' with HTTP 400 ("Input should be 'low', 'medium'
+    # or 'high'"), so this assertion described a request body the service never
+    # accepted — every --provider yandex build died at the first call. Omitting
+    # the field is what the preset's comment meant, and what the service
+    # accepts.
     assert "reasoning_effort" not in vu["body"]
     assert vu["body"]["response_format"]["type"] == "json_schema"
     assert vu["body"]["response_format"]["json_schema"]["strict"] is True
@@ -736,12 +733,12 @@ def test_yandex_emploie_son_authentification_et_mesure_les_jetons(monkeypatch):
     assert call.last_usage["total_tokens"] == 124
 
 
-def test_yandex_frontend_est_genere_fichier_par_fichier(project, monkeypatch):
-    """Le préréglage séquentiel conserve le contrat et vérifie les trois
-    fichiers ensemble après leur assemblage."""
+def test_yandex_frontend_is_generated_file_by_file(project, monkeypatch):
+    """The sequential preset keeps the contract and checks the three files
+    together after assembling them."""
     calls = []
 
-    class Fournisseur:
+    class Provider:
         provider_name = "yandex"
         model = "deepseek-v4-flash/latest"
         chunked_generation = True
@@ -749,10 +746,10 @@ def test_yandex_frontend_est_genere_fichier_par_fichier(project, monkeypatch):
 
         def __call__(self, prompt):
             calls.append(prompt)
-            ligne = next(texte for texte in prompt.splitlines()
-                         if texte.startswith("The target file is exactly: "))
-            cible = ligne.rsplit(": ", 1)[1]
-            contenus = {
+            line = next(text for text in prompt.splitlines()
+                         if text.startswith("The target file is exactly: "))
+            target = line.rsplit(": ", 1)[1]
+            contents = {
                 "index.html": GOOD_SPLIT_HTML,
                 "styles.css": "body { color: #111; }",
                 "app.js": GOOD_SPLIT_JS,
@@ -760,9 +757,9 @@ def test_yandex_frontend_est_genere_fichier_par_fichier(project, monkeypatch):
             self.last_usage = {"duration_seconds": 0.1,
                                "input_tokens": 100, "output_tokens": 200,
                                "total_tokens": 300}
-            return json.dumps({"files": {cible: contenus[cible]}})
+            return json.dumps({"files": {target: contents[target]}})
 
-    provider = Fournisseur()
+    provider = Provider()
     ok, errors = generate_and_verify(str(project), provider, say=_quiet)
     assert ok, errors
     assert len(calls) == 3
@@ -772,20 +769,20 @@ def test_yandex_frontend_est_genere_fichier_par_fichier(project, monkeypatch):
     assert (project / "frontend" / "app.js").exists()
 
 
-def test_yandex_nomme_le_dossier_manquant(monkeypatch):
+def test_yandex_names_the_missing_folder(monkeypatch):
     monkeypatch.setenv("YANDEX_API_KEY", "cle-yandex")
     monkeypatch.delenv("YANDEX_FOLDER_ID", raising=False)
-    with pytest.raises(FrontendAIError) as erreur:
+    with pytest.raises(FrontendAIError) as error:
         PROVIDERS["yandex"](model="gpt://dossier/yandexgpt/latest")
-    assert "YANDEX_FOLDER_ID" in str(erreur.value)
+    assert "YANDEX_FOLDER_ID" in str(error.value)
 
 
-def test_le_plafond_api_est_reglable_par_lenvironnement(monkeypatch):
+def test_the_api_ceiling_is_set_by_the_environment(monkeypatch):
     monkeypatch.setenv("GROQ_API_KEY", "cle-de-test")
     monkeypatch.setenv("MONL_AI_MAX_TOKENS", "8000")
     vu = {}
 
-    class Reponse:
+    class Response:
         status_code = 200
         text = ""
 
@@ -794,16 +791,16 @@ def test_le_plafond_api_est_reglable_par_lenvironnement(monkeypatch):
 
     import requests
     monkeypatch.setattr(requests, "post",
-                        lambda _url, **kw: (vu.update(kw), Reponse())[1])
+                        lambda _url, **kw: (vu.update(kw), Response())[1])
     assert PROVIDERS["groq"](model="un-modele")("brief") == "ok"
     assert vu["json"]["max_tokens"] == 8000
 
 
-def test_la_telemetrie_ne_conserve_ni_prompt_ni_reponse(project, monkeypatch):
-    """Le journal sert au prix produit, pas à recopier le contenu du client."""
+def test_telemetry_keeps_neither_prompt_nor_response(project, monkeypatch):
+    """The log serves the product price, not copying the client's content."""
     from monl.frontend_ai import USAGE_FILENAME
 
-    class Fournisseur:
+    class Provider:
         provider_name = "yandex"
         model = "modele-test"
         last_usage = None
@@ -814,33 +811,33 @@ def test_la_telemetrie_ne_conserve_ni_prompt_ni_reponse(project, monkeypatch):
                                "output_tokens": 20, "total_tokens": 120}
             return json.dumps({"files": {"index.html": GOOD_FRONT}})
 
-    ok, errors = generate_and_verify(str(project), Fournisseur(), say=_quiet)
+    ok, errors = generate_and_verify(str(project), Provider(), say=_quiet)
     assert ok, errors
-    contenu = (project / USAGE_FILENAME).read_text(encoding="utf-8")
-    evenement = json.loads(contenu)
-    assert evenement["provider"] == "yandex"
-    assert evenement["operation"] == "construction"
-    assert evenement["total_tokens"] == 120
-    assert "SmokeApp" not in contenu
-    assert GOOD_FRONT not in contenu
+    content = (project / USAGE_FILENAME).read_text(encoding="utf-8")
+    event = json.loads(content)
+    assert event["provider"] == "yandex"
+    assert event["operation"] == "construction"
+    assert event["total_tokens"] == 120
+    assert "SmokeApp" not in content
+    assert GOOD_FRONT not in content
 
 
-def test_chaque_prereglage_nomme_sa_propre_variable_de_cle(monkeypatch):
-    """Une clé absente doit nommer LA variable attendue : « clé manquante »
-    sans dire laquelle envoie l'utilisateur lire le code."""
+def test_each_preset_names_its_own_key_variable(monkeypatch):
+    """A missing key must name THE expected variable: "missing key" without
+    saying which sends the user to read the code."""
     from monl.frontend_ai import FrontendAIError
-    for nom, (_url, variable) in OPENAI_COMPATIBLE.items():
-        if nom == "ollama":
-            continue                      # serveur local : pas de clé exigée
+    for name, (_url, variable) in OPENAI_COMPATIBLE.items():
+        if name == "ollama":
+            continue                      # local server: no key required
         monkeypatch.delenv(variable, raising=False)
         with pytest.raises(FrontendAIError) as e:
-            PROVIDERS[nom](model="un-modele")
-        assert variable in str(e.value), nom
+            PROVIDERS[name](model="un-modele")
+        assert variable in str(e.value), name
 
 
-def test_aucun_modele_par_defaut_hors_voie_anthropic(monkeypatch):
-    """Le message doit demander --model, pas laisser partir une requête
-    vers un identifiant deviné."""
+def test_no_default_model_outside_the_anthropic_path(monkeypatch):
+    """The message must ask for --model, not let a request go towards a guessed
+    identifier."""
     from monl.frontend_ai import FrontendAIError
     monkeypatch.setenv("GROQ_API_KEY", "cle-de-test")
     with pytest.raises(FrontendAIError) as e:
@@ -848,12 +845,12 @@ def test_aucun_modele_par_defaut_hors_voie_anthropic(monkeypatch):
     assert "--model" in str(e.value)
 
 
-def test_point_de_terminaison_libre_par_lenvironnement(monkeypatch):
+def test_free_endpoint_through_the_environment(monkeypatch):
     monkeypatch.setenv("MONL_AI_BASE_URL", "https://exemple.interne/v1")
     monkeypatch.setenv("MONL_AI_API_KEY", "cle-maison")
     vu = {}
 
-    class Reponse:
+    class Response:
         status_code = 200
         text = ""
 
@@ -862,54 +859,54 @@ def test_point_de_terminaison_libre_par_lenvironnement(monkeypatch):
 
     import requests
     monkeypatch.setattr(requests, "post",
-                        lambda url, **kw: (vu.update(url=url), Reponse())[1])
+                        lambda url, **kw: (vu.update(url=url), Response())[1])
     call = PROVIDERS["openai-compatible"](model="modele-maison")
     assert call("brief") == "ok"
     assert vu["url"] == "https://exemple.interne/v1/chat/completions"
 
 
-def test_chaque_agent_a_sa_propre_ligne_de_commande():
-    """Le point de la généralisation : l'instruction voyage jusqu'à l'agent,
-    quelle que soit la forme de son argv."""
-    for nom in CLI_AGENTS:
-        binaire, args = build_agent_argv(nom, "CONSIGNE", 120)
-        assert binaire == CLI_AGENTS[nom]["binary"]
-        assert "CONSIGNE" in args, nom
+def test_each_agent_has_its_own_command_line():
+    """The point of the generalization: the instruction travels to the agent,
+    whatever the shape of its argv."""
+    for name in CLI_AGENTS:
+        binary, args = build_agent_argv(name, "CONSIGNE", 120)
+        assert binary == CLI_AGENTS[name]["binary"]
+        assert "CONSIGNE" in args, name
     assert build_agent_argv("codex", "CONSIGNE", 120)[1][0] == "exec"
 
 
-def test_gabarit_libre_pour_un_agent_hors_liste():
-    binaire, args = build_agent_argv(None, "CONSIGNE", 120,
+def test_free_template_for_an_unlisted_agent():
+    binary, args = build_agent_argv(None, "CONSIGNE", 120,
                                      agent_command="mon-agent --auto {instruction}")
-    assert (binaire, args) == ("mon-agent", ["--auto", "CONSIGNE"])
+    assert (binary, args) == ("mon-agent", ["--auto", "CONSIGNE"])
 
 
-def test_gabarit_sans_instruction_est_refuse():
+def test_template_without_instruction_is_refused():
     from monl.frontend_ai import FrontendAIError
     with pytest.raises(FrontendAIError) as e:
         build_agent_argv(None, "CONSIGNE", 120, agent_command="mon-agent --auto")
     assert "{instruction}" in str(e.value)
 
 
-def test_agent_inconnu_est_refuse_en_nommant_les_connus():
+def test_unknown_agent_is_refused_naming_the_known_ones():
     from monl.frontend_ai import FrontendAIError
     with pytest.raises(FrontendAIError) as e:
         build_agent_argv("inexistant", "CONSIGNE", 120)
     assert "claude-code" in str(e.value) and "--agent-command" in str(e.value)
 
 
-def test_un_agent_tiers_construit_et_verifie_pour_de_vrai(project, tmp_path):
-    """La boucle complète (exécution → empreintes → cohérence → smoke test)
-    par la voie 'codex', avec un binaire factice."""
+def test_a_third_party_agent_builds_and_checks_for_real(project, tmp_path):
+    """The full loop (run → fingerprints → consistency → smoke test) through the
+    'codex' path, with a fake binary."""
     agent = _fake_agent(tmp_path, GOOD_AGENT)
     ok, errors = generate_with_cli_agent(str(project), command=agent,
                                          agent="codex", say=_quiet)
     assert ok, errors
 
 
-def test_un_agent_tiers_ne_peut_pas_davantage_toucher_le_backend(project, tmp_path):
-    """Le garde-fou ne dépend PAS de qui écrit : c'est tout l'enjeu de la
-    généralisation du point 69."""
+def test_a_third_party_agent_cannot_touch_the_backend_either(project, tmp_path):
+    """The safeguard does NOT depend on who writes: it is the whole stake of
+    point 69's generalization."""
     agent = _fake_agent(tmp_path, EVIL_AGENT)
     ok, errors = generate_with_cli_agent(str(project), command=agent,
                                          agent="codex", say=_quiet)
@@ -917,7 +914,7 @@ def test_un_agent_tiers_ne_peut_pas_davantage_toucher_le_backend(project, tmp_pa
     assert any("app.py" in e for e in errors), errors
 
 
-def test_le_gabarit_libre_traverse_toute_la_boucle(project, tmp_path):
+def test_the_free_template_goes_through_the_whole_loop(project, tmp_path):
     agent = _fake_agent(tmp_path, GOOD_AGENT)
     ok, errors = generate_with_cli_agent(
         str(project), agent_command=f"{agent} {{instruction}}", say=_quiet)
@@ -925,169 +922,167 @@ def test_le_gabarit_libre_traverse_toute_la_boucle(project, tmp_path):
 
 
 # --------------------------------------------------------------------------
-# POINT 93 : la retouche — corriger sans reconstruire
+# POINT 93: the touch-up — fixing without rebuilding
 # --------------------------------------------------------------------------
 
-DEMANDE = "les images de la section Tendances sont mal cadrées"
+REQUEST = "les images de la section Tendances sont mal cadrées"
 
 NOOP_AGENT = "pass  # l'agent ne touche à rien\n"
 
-RETOUCHE_AGENT = """open("frontend/index.html", "a").write(
+RETOUCH_AGENT = """open("frontend/index.html", "a").write(
     "<!-- object-position ajusté -->")
 """
 
 
-def _projet_avec_frontend(project):
+def _project_with_frontend(project):
     front = project / "frontend"
     front.mkdir(exist_ok=True)
     (front / "index.html").write_text(GOOD_FRONT, encoding="utf-8")
     return front
 
 
-def test_la_retouche_ecrit_sa_consigne_et_sauvegarde_lexistant(project):
-    """La sauvegarde n'est pas du zèle : aucune vérification automatique ne peut
-    trancher une question de goût, donc la seule garantie qu'on puisse offrir
-    est de pouvoir revenir en arrière. C'est une COPIE — l'IA doit trouver
-    l'existant en place pour le faire évoluer."""
-    from monl.cli import cmd_retouche
+def test_the_touch_up_writes_its_instruction_and_backs_up_existing(project):
+    """The backup is not overzealousness: no automatic check can settle a matter
+    of taste, so the only guarantee one can offer is being able to go back. It is
+    a COPY — the AI must find the existing work in place to evolve it."""
+    from monl.cli import cmd_retouch
 
-    front = _projet_avec_frontend(project)
-    cmd_retouche(str(project), DEMANDE, say=_quiet)
+    front = _project_with_frontend(project)
+    cmd_retouch(str(project), REQUEST, say=_quiet)
 
-    consigne = (project / RETOUCHE_PROMPT_FILENAME).read_text(encoding="utf-8")
-    assert DEMANDE in consigne
+    consigne = (project / RETOUCH_PROMPT_FILENAME).read_text(encoding="utf-8")
+    assert REQUEST in consigne
     assert (project / "frontend.precedent" / "index.html").read_text(
         encoding="utf-8") == GOOD_FRONT
-    assert front.joinpath("index.html").exists(), "l'existant doit rester en place"
+    assert front.joinpath("index.html").exists(), "the existing work must stay in place"
 
 
-def test_la_retouche_refuse_un_projet_sans_frontend(project):
-    """Retoucher ce qui n'existe pas n'a pas de sens — et le message doit
-    envoyer vers la commande qui construit, pas laisser deviner."""
-    from monl.cli import cmd_retouche
+def test_the_touch_up_refuses_a_project_without_frontend(project):
+    """Touching up what does not exist makes no sense — and the message must
+    point to the command that builds, not leave it to guesswork."""
+    from monl.cli import cmd_retouch
 
     with pytest.raises(SystemExit):
-        cmd_retouche(str(project), DEMANDE, say=_quiet)
+        cmd_retouch(str(project), REQUEST, say=_quiet)
 
 
-def test_la_retouche_refuse_une_demande_vide(project):
-    from monl.cli import cmd_retouche
+def test_the_touch_up_refuses_an_empty_request(project):
+    from monl.cli import cmd_retouch
 
-    _projet_avec_frontend(project)
+    _project_with_frontend(project)
     with pytest.raises(SystemExit):
-        cmd_retouche(str(project), "   ", say=_quiet)
+        cmd_retouch(str(project), "   ", say=_quiet)
 
 
-def test_le_prompt_de_retouche_porte_la_demande_les_fichiers_et_le_contrat(project):
-    """Les trois morceaux sont indispensables ensemble : la demande dit QUOI,
-    les fichiers actuels disent qu'il s'agit d'une évolution et non d'une page
-    neuve, le contrat rappelle ce qui reste non négociable."""
-    from monl.cli import cmd_retouche
+def test_the_touch_up_prompt_carries_request_files_and_contract(project):
+    """The three pieces are indispensable together: the request says WHAT, the
+    current files say it is an evolution and not a new page, the contract recalls
+    what stays non-negotiable."""
+    from monl.cli import cmd_retouch
     from monl.frontend_ai import build_generation_prompt
 
-    _projet_avec_frontend(project)
-    cmd_retouche(str(project), DEMANDE, say=_quiet)
+    _project_with_frontend(project)
+    cmd_retouch(str(project), REQUEST, say=_quiet)
 
-    prompt = build_generation_prompt(str(project), False, retouche_mode=True)
-    assert DEMANDE in prompt
+    prompt = build_generation_prompt(str(project), False, retouch_mode=True)
+    assert REQUEST in prompt
     assert "Current frontend files" in prompt
-    assert "fetch('/item?limit=5')" in prompt, "l'existant doit être joint"
+    assert "fetch('/item?limit=5')" in prompt, "the existing work must be attached"
     assert "Reminder of the original contract" in prompt
 
 
-def test_la_retouche_demande_linterpretation_la_plus_etroite(project):
-    """Sans cette consigne, « les images sont mal cadrées » invite à refaire
-    toute la mise en page — et une retouche trop large ne se distingue plus
-    d'une reconstruction, c'est-à-dire de ce que la commande évite."""
-    from monl.cli import cmd_retouche
+def test_the_touch_up_asks_for_the_narrowest_interpretation(project):
+    """Without this instruction, "the images are badly cropped" invites redoing
+    the whole layout — and a too broad touch-up can no longer be told apart from a
+    rebuild, that is from what the command avoids."""
+    from monl.cli import cmd_retouch
 
-    _projet_avec_frontend(project)
-    chemin = cmd_retouche(str(project), DEMANDE, say=_quiet)
-    consigne = pathlib.Path(chemin).read_text(encoding="utf-8")
+    _project_with_frontend(project)
+    path = cmd_retouch(str(project), REQUEST, say=_quiet)
+    consigne = pathlib.Path(path).read_text(encoding="utf-8")
     assert "NARROWEST" in consigne
     assert "do not redo the overall layout" in consigne.lower()
-    # Et le garde-fou de contenu : ce qui vient de la spec ne se rattrape pas
-    # par une astuce d'affichage (c'est le cas de la FAQ, point 94).
+    # And the content safeguard: what comes from the spec is not fixed by a
+    # display trick (the FAQ case, point 94).
     assert "guessed structure" in consigne
 
 
-def test_lagent_recoit_une_instruction_de_retouche_et_non_de_construction(project, tmp_path):
-    """La voie agent doit changer de gabarit : « construis le frontend demandé »
-    invitait à repartir de zéro."""
-    from monl.cli import cmd_retouche
+def test_the_agent_gets_a_touch_up_instruction_not_a_build_one(project, tmp_path):
+    """The agent path must change template: "build the requested frontend"
+    invited starting from scratch."""
+    from monl.cli import cmd_retouch
     from monl.frontend_ai import generate_with_cli_agent
 
-    _projet_avec_frontend(project)
-    cmd_retouche(str(project), DEMANDE, say=_quiet)
-    mouchard = tmp_path / "argv.json"
-    agent = _fake_agent(tmp_path, RETOUCHE_AGENT + f"""
+    _project_with_frontend(project)
+    cmd_retouch(str(project), REQUEST, say=_quiet)
+    spy = tmp_path / "argv.json"
+    agent = _fake_agent(tmp_path, RETOUCH_AGENT + f"""
 import json
-json.dump(sys.argv, open({str(mouchard)!r}, "w"))
+json.dump(sys.argv, open({str(spy)!r}, "w"))
 """)
     generate_with_cli_agent(str(project), command=agent, say=_quiet,
-                            retouche_mode=True)
+                            retouch_mode=True)
 
-    argv = json.loads(mouchard.read_text(encoding="utf-8"))
+    argv = json.loads(spy.read_text(encoding="utf-8"))
     instruction = " ".join(argv)
-    assert RETOUCHE_PROMPT_FILENAME in instruction
+    assert RETOUCH_PROMPT_FILENAME in instruction
     assert "defect OBSERVED" in instruction
     assert "build the requested frontend" not in instruction
 
 
-def test_une_retouche_qui_ne_change_rien_est_un_echec(project, tmp_path):
-    """POINT 73 poussé d'un cran. Sur une CONSTRUCTION, « l'agent n'a rien
-    écrit » est un avertissement : un frontend valide existait déjà. Sur une
-    RETOUCHE, c'est la demande non traitée — l'humain a signalé un défaut qu'il
-    VOIT, et répondre « tout va bien » serait le contraire d'un rapport
-    honnête."""
-    from monl.cli import cmd_retouche
+def test_a_touch_up_changing_nothing_is_a_failure(project, tmp_path):
+    """POINT 73 pushed one notch further. On a BUILD, "the agent wrote nothing"
+    is a warning: a valid frontend already existed. On a TOUCH-UP, it is the
+    request unhandled — the human reported a defect they SEE, and answering
+    "everything is fine" would be the opposite of an honest report."""
+    from monl.cli import cmd_retouch
     from monl.frontend_ai import generate_with_cli_agent
 
-    _projet_avec_frontend(project)
-    cmd_retouche(str(project), DEMANDE, say=_quiet)
+    _project_with_frontend(project)
+    cmd_retouch(str(project), REQUEST, say=_quiet)
     agent = _fake_agent(tmp_path, NOOP_AGENT)
 
     ok, errors = generate_with_cli_agent(str(project), command=agent, say=_quiet,
-                                         retouche_mode=True)
+                                         retouch_mode=True)
 
     assert not ok
     assert any("touch-up not applied" in e for e in errors), errors
 
 
-def test_la_retouche_ne_peut_pas_davantage_toucher_le_backend(project, tmp_path):
-    """Le garde-fou ne dépend pas de la commande qui l'emprunte — c'est tout
-    l'enjeu d'avoir UNE voie vers l'IA et non deux."""
-    from monl.cli import cmd_retouche
+def test_the_touch_up_cannot_touch_the_backend_either(project, tmp_path):
+    """The safeguard does not depend on the command using it — that is the whole
+    stake of having ONE path to the AI and not two."""
+    from monl.cli import cmd_retouch
     from monl.frontend_ai import generate_with_cli_agent
 
-    _projet_avec_frontend(project)
-    cmd_retouche(str(project), DEMANDE, say=_quiet)
+    _project_with_frontend(project)
+    cmd_retouch(str(project), REQUEST, say=_quiet)
     agent = _fake_agent(tmp_path, EVIL_AGENT)
 
     ok, errors = generate_with_cli_agent(str(project), command=agent, say=_quiet,
-                                         retouche_mode=True)
+                                         retouch_mode=True)
 
     assert not ok
     assert any("app.py" in e for e in errors), errors
 
 
-def test_une_retouche_reussie_evolue_lexistant_et_reverifie(project, tmp_path):
-    """Le bout en bout : l'agent modifie, monl re-vérifie (cohérence + smoke
-    test), et ce que l'agent a écrit est TOUJOURS là après la vérification."""
-    from monl.cli import cmd_retouche
+def test_a_successful_touch_up_evolves_existing_and_rechecks(project, tmp_path):
+    """The end to end: the agent modifies, monl re-checks (consistency + smoke
+    test), and what the agent wrote is STILL there after the check."""
+    from monl.cli import cmd_retouch
     from monl.frontend_ai import generate_with_cli_agent
 
-    _projet_avec_frontend(project)
-    cmd_retouche(str(project), DEMANDE, say=_quiet)
-    agent = _fake_agent(tmp_path, RETOUCHE_AGENT)
+    _project_with_frontend(project)
+    cmd_retouch(str(project), REQUEST, say=_quiet)
+    agent = _fake_agent(tmp_path, RETOUCH_AGENT)
 
     ok, errors = generate_with_cli_agent(str(project), command=agent, say=_quiet,
-                                         retouche_mode=True)
+                                         retouch_mode=True)
 
     assert ok, errors
-    rendu = (project / "frontend" / "index.html").read_text(encoding="utf-8")
-    assert "object-position ajusté" in rendu
-    assert "fetch('/item?limit=5')" in rendu, "l'existant ne doit pas être réécrit"
+    rendered = (project / "frontend" / "index.html").read_text(encoding="utf-8")
+    assert "object-position ajusté" in rendered
+    assert "fetch('/item?limit=5')" in rendered, "the existing work must not be rewritten"
 
 
 DECLINING_AGENT = """print("Je ne peux pas retirer cette rubrique depuis frontend/ :")
@@ -1096,128 +1091,127 @@ print("qu'elle soit lisible au fil de l'accueil. Cela se règle dans la spec.")
 """
 
 
-def test_quand_lagent_decline_sa_raison_est_affichee(project, tmp_path):
-    """POINT 97 : le message d'échec était une HYPOTHÈSE, et elle était fausse.
-    « Reformuler en nommant l'écran et l'élément » s'affichait sur une demande
-    qui les nommait — parce que la vraie raison (« cette rubrique vient de la
-    spec, pas du frontend ») avait été jetée avec la sortie de l'agent.
+def test_when_the_agent_declines_its_reason_is_shown(project, tmp_path):
+    """POINT 97: the failure message was an ASSUMPTION, and it was false.
+    "Rephrase by naming the screen and the element" was displayed on a request
+    that named them — because the real reason ("this section comes from the
+    spec, not the frontend") had been thrown away with the agent's output.
 
-    La consigne de retouche demande explicitement à l'IA de SIGNALER ce cas
-    plutôt que de le contourner ; l'entendre et ne pas le répéter était le
-    défaut le plus coûteux possible — il envoyait l'utilisateur reformuler une
-    demande déjà claire."""
-    from monl.cli import cmd_retouche
+    The touch-up instruction explicitly asks the AI to REPORT this case rather
+    than work around it; hearing it and not repeating it was the costliest
+    possible defect — it sent the user rephrasing an already clear request."""
+    from monl.cli import cmd_retouch
     from monl.frontend_ai import generate_with_cli_agent
 
-    _projet_avec_frontend(project)
-    cmd_retouche(str(project), "retire la rubrique À propos de l'accueil", say=_quiet)
+    _project_with_frontend(project)
+    cmd_retouch(str(project), "retire la rubrique À propos de l'accueil", say=_quiet)
     agent = _fake_agent(tmp_path, DECLINING_AGENT)
     msgs = []
 
     ok, _errors = generate_with_cli_agent(str(project), command=agent,
-                                          say=msgs.append, retouche_mode=True)
+                                          say=msgs.append, retouch_mode=True)
 
-    sortie = "\n".join(msgs)
+    output = "\n".join(msgs)
     assert not ok
-    assert "elle vient du bloc 'landing' de la spec" in sortie, sortie
-    # Et l'ancienne hypothèse ne doit PLUS s'afficher quand l'agent a parlé.
-    assert "Rephrasing the request" not in sortie, sortie
-    # …remplacée par le geste qui convient vraiment.
-    assert "monl update" in sortie, sortie
+    assert "elle vient du bloc 'landing' de la spec" in output, output
+    # And the old assumption must NO LONGER be displayed when the agent spoke.
+    assert "Rephrasing the request" not in output, output
+    # …replaced by the gesture that really fits.
+    assert "monl update" in output, output
 
 
-def test_sans_explication_le_conseil_de_reformulation_reste(project, tmp_path):
-    """Le témoin : un agent muet ne dit rien d'utile, et là le conseil de
-    reformulation garde tout son sens. Le supprimer pour de bon aurait laissé
-    l'utilisateur sans piste."""
-    from monl.cli import cmd_retouche
+def test_without_explanation_the_rephrasing_advice_stays(project, tmp_path):
+    """The witness: a mute agent says nothing useful, and there the rephrasing
+    advice keeps its full meaning. Removing it for good would have left the user
+    without a lead."""
+    from monl.cli import cmd_retouch
     from monl.frontend_ai import generate_with_cli_agent
 
-    _projet_avec_frontend(project)
-    cmd_retouche(str(project), DEMANDE, say=_quiet)
+    _project_with_frontend(project)
+    cmd_retouch(str(project), REQUEST, say=_quiet)
     agent = _fake_agent(tmp_path, NOOP_AGENT)
     msgs = []
 
     generate_with_cli_agent(str(project), command=agent, say=msgs.append,
-                            retouche_mode=True)
+                            retouch_mode=True)
 
     assert "Rephrasing the request" in "\n".join(msgs)
 
 
-# ---- Le filet du bloc clôturé (point 148) ----
+# ---- The fenced block safety net (point 148) ----
 
-def test_un_fichier_rendu_en_bloc_cloture_est_accepte():
-    """Le repli qui a coûté un quart d'une construction réelle.
+def test_a_file_returned_in_a_fenced_block_is_accepted():
+    """The fallback that cost a quarter of a real build.
 
-    Une étape séquentielle doit emballer tout un fichier JavaScript dans une
-    chaîne JSON : chaque saut de ligne échappé, chaque guillemet doublé. Un
-    modèle bon marché y casse, et la boucle de reprise le pousse alors vers
-    ce qui PARSE — mesuré, `app.js` a fini à 834 jetons de sortie.
+    A sequential stage must wrap a whole JavaScript file in a JSON string: every
+    line break escaped, every quote doubled. A cheap model breaks on it, and the
+    retry loop then pushes it towards what PARSES — measured, `app.js` ended at
+    834 output tokens.
     """
-    contenu = 'const a = "guillemet";\nfetch("/item");\n'
-    brut = "Voici le fichier :\n```javascript\n" + contenu + "```\n"
+    content = 'const a = "guillemet";\nfetch("/item");\n'
+    brut = "Voici le fichier :\n```javascript\n" + content + "```\n"
 
-    rendu = parse_single_file_payload(brut, "app.js")
+    rendered = parse_single_file_payload(brut, "app.js")
 
-    assert rendu == {"app.js": contenu}
+    assert rendered == {"app.js": content}
 
 
-def test_le_json_reste_la_voie_normale():
-    """Contre-épreuve : le filet ne doit pas remplacer le contrat."""
+def test_json_stays_the_normal_path():
+    """Counter-proof: the safety net must not replace the contract."""
     brut = json.dumps({"files": {"app.js": "const a = 1;"}})
 
     assert parse_single_file_payload(brut, "app.js") == {"app.js": "const a = 1;"}
 
 
-def test_un_bloc_qui_contient_le_json_n_est_pas_pris_pour_un_fichier():
-    """Sinon on déposerait `{"files": …}` dans app.js : ça parse, et ça ne
-    marche pas — le pire des deux mondes."""
+def test_a_block_containing_the_json_is_not_taken_for_a_file():
+    """Otherwise we would put `{"files": …}` into app.js: it parses, and it does
+    not work — the worst of both worlds."""
     brut = "```json\n{\"files\": {\"app.js\": \"const a = 1;\"}}\n```"
 
     assert parse_single_file_payload(brut, "app.js") == {"app.js": "const a = 1;"}
 
 
-def test_le_filet_passe_par_les_memes_garde_fous():
-    """Aucune voie ne contourne la validation : c'est la règle du dépôt."""
+def test_the_safety_net_goes_through_the_same_safeguards():
+    """No path bypasses validation: it is the repository's rule."""
     with pytest.raises(FrontendAIError, match="extension refused"):
         parse_single_file_payload("```\nrm -rf /\n```", "script.sh")
-    # Un bloc vide n'est pas un fichier : on garde l'erreur JSON d'origine.
+    # An empty block is not a file: we keep the original JSON error.
     with pytest.raises(FrontendAIError, match="unreadable"):
         parse_single_file_payload("pas de json, pas de bloc", "app.js")
 
 
-def test_le_plus_gros_bloc_l_emporte_sur_un_extrait_de_commentaire():
-    """Un modèle bavard illustre sa réponse avant de rendre le fichier."""
-    fichier = "fetch('/item');\n" * 20
+def test_the_largest_block_wins_over_a_comment_excerpt():
+    """A talkative model illustrates its answer before returning the file."""
+    file = "fetch('/item');\n" * 20
     brut = ("Je vais utiliser :\n```js\nfetch()\n```\n"
-            "Voici le fichier complet :\n```js\n" + fichier + "```")
+            "Voici le fichier complet :\n```js\n" + file + "```")
 
-    assert parse_single_file_payload(brut, "app.js") == {"app.js": fichier}
+    assert parse_single_file_payload(brut, "app.js") == {"app.js": file}
 
 
-def test_une_reponse_tronquee_ne_passe_jamais_par_le_filet():
-    """Le risque que le filet lui-même introduisait.
+def test_a_truncated_response_never_goes_through_the_safety_net():
+    """The risk the safety net itself introduced.
 
-    Un modèle qui illustre par un petit extrait FERMÉ puis se fait couper au
-    milieu du vrai fichier laisse un bloc ouvert. Sans garde, le plus gros
-    bloc clos serait l'extrait — et monl écrirait trois lignes dans app.js en
-    croyant tenir le fichier. Pire : l'échelle qui agrandit le plafond de
-    sortie, faite exactement pour ce cas, ne serait plus jamais atteinte.
+    A model illustrating with a small CLOSED excerpt then cut off in the middle of
+    the real file leaves an open block. Without a guard, the largest closed block
+    would be the excerpt — and monl would write three lines into app.js believing
+    it held the file. Worse: the ladder enlarging the output ceiling, made exactly
+    for this case, would never be reached again.
     """
-    tronquee = ("Je commence par :\n```js\nfetch('/item');\n```\n"
+    truncated = ("Je commence par :\n```js\nfetch('/item');\n```\n"
                 "Voici le fichier complet :\n```js\n" + "const x = 1;\n" * 40)
 
     with pytest.raises(FrontendAIError, match="unreadable"):
-        parse_single_file_payload(tronquee, "app.js")
+        parse_single_file_payload(truncated, "app.js")
 
 
-def test_l_echelle_de_reprise_atteint_vraiment_sa_borne():
-    """Une borne qu'aucun chemin n'atteint ne contraint rien.
+def test_the_retry_ladder_really_reaches_its_bound():
+    """A bound no path reaches constrains nothing.
 
-    L'échelle montait 8 000 → 12 000 → 18 000 pendant que le code annonçait
-    un plafond maximal de 32 000 — y compris dans le message d'erreur, qui
-    aurait donc menti s'il s'était déclenché. Ce test lie les TROIS nombres :
-    changer l'un sans les autres le fait tomber.
+    The ladder went 8,000 → 12,000 → 18,000 while the code announced a maximum
+    ceiling of 32,000 — including in the error message, which would therefore have
+    lied had it fired. This test binds the THREE numbers: changing one without the
+    others makes it fail.
     """
     from monl.frontend_ai import (
         CHUNK_MAX_RETRIES,
@@ -1226,16 +1220,16 @@ def test_l_echelle_de_reprise_atteint_vraiment_sa_borne():
         _raise_chunk_output_limit,
     )
 
-    class Etage:
+    class Stage:
         max_output_tokens = DEFAULT_CHUNK_MAX_OUTPUT_TOKENS
 
-    etage = Etage()
-    paliers = [etage.max_output_tokens]
+    stage = Stage()
+    steps = [stage.max_output_tokens]
     for _ in range(CHUNK_MAX_RETRIES):
-        assert _raise_chunk_output_limit(etage), "l'échelle s'arrête trop tôt"
-        paliers.append(etage.max_output_tokens)
+        assert _raise_chunk_output_limit(stage), "the ladder stops too early"
+        steps.append(stage.max_output_tokens)
 
-    assert paliers[-1] == CHUNK_RETRY_MAX_OUTPUT_TOKENS, (
-        f"la dernière reprise plafonne à {paliers[-1]} alors que la borne "
-        f"déclarée est {CHUNK_RETRY_MAX_OUTPUT_TOKENS} : elle ne contraint rien")
-    assert paliers == sorted(set(paliers)), paliers
+    assert steps[-1] == CHUNK_RETRY_MAX_OUTPUT_TOKENS, (
+        f"the last retry caps at {steps[-1]} while the declared bound "
+        f"is {CHUNK_RETRY_MAX_OUTPUT_TOKENS}: it constrains nothing")
+    assert steps == sorted(set(steps)), steps

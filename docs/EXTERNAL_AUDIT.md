@@ -62,7 +62,7 @@ refute each one with a proof of concept, not to rediscover it.
   own database. Never the maintainer's machines, and never real customer data.
 - The maintainer supplies: the frozen archive, a deployed instance reachable
   by the auditor, two test accounts per role, and a fake payment provider
-  (`tests/test_paiement.py` embeds one). The auditor does not need real Stripe
+  (`tests/test_payment.py` embeds one). The auditor does not need real Stripe
   or FedaPay keys.
 - Credentials and tokens used during the test are revoked at the end.
 - Findings go to the maintainer privately first. **No vulnerability detail is

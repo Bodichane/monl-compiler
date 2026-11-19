@@ -14,7 +14,7 @@ from monl.app_templates import TEMPLATES
 
 from .downloads import default_directory
 from .hosting import SiteManager
-from .hosting_control import ControleSites
+from .hosting_control import ControlSites
 from .paths import ProjectPathError, project_directory
 from .session import set_session_cookie
 from .store import PlatformStore
@@ -111,11 +111,11 @@ class BuilderRuntime:
     downloads_dir: str | None
 
     def start(self):
-        self.controle_sites = ControleSites(self.sites)
-        self.controle_sites.start()
+        self.control_sites = ControlSites(self.sites)
+        self.control_sites.start()
 
     def stop(self):
-        self.controle_sites.stop()
+        self.control_sites.stop()
         self.sites.stop_all()
 
     def remove_project(self, user_id, project_id):

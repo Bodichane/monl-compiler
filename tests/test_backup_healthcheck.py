@@ -1,4 +1,4 @@
-"""La sonde de sauvegarde vérifie le contenu, pas seulement le nom du fichier."""
+"""The backup probe checks the content, not only the file name."""
 
 import os
 import pathlib
@@ -7,75 +7,74 @@ import time
 
 import pytest
 
-from monl_platform.backup_healthcheck import _sqlite_valide, sauvegarde_recente
+from monl_platform.backup_healthcheck import _sqlite_valid, backup_recent
 
 
-def _copie_valide(chemin):
-    # Fermeture explicite (point 141) : `with sqlite3.connect(...)` valide la
-    # transaction mais ne ferme pas — sans `.close()`, cette aide de test
-    # laissait elle-même un descripteur ouvert sur le fichier qu'elle vient
-    # de créer, faussant le test ci-dessous qui compte ceux de la SONDE.
-    connexion = sqlite3.connect(chemin)
+def _copie_valid(path):
+    # Explicit close (point 141): `with sqlite3.connect(...)` commits the
+    # transaction but does not close — without `.close()`, this test helper
+    # itself left a descriptor open on the file it had just created, skewing
+    # the test below that counts the PROBE's.
+    login = sqlite3.connect(path)
     try:
-        with connexion:
-            connexion.execute("CREATE TABLE preuve (id INTEGER PRIMARY KEY)")
+        with login:
+            login.execute("CREATE TABLE preuve (id INTEGER PRIMARY KEY)")
     finally:
-        connexion.close()
+        login.close()
 
 
-def test_une_copie_sqlite_recente_et_intègre_est_healthy(tmp_path):
-    chemin = tmp_path / "base-20260914-120000.sqlite3"
-    _copie_valide(chemin)
+def test_a_recent_intact_sqlite_copy_is_healthy(tmp_path):
+    path = tmp_path / "base-20260914-120000.sqlite3"
+    _copie_valid(path)
 
-    assert sauvegarde_recente(tmp_path, maintenant=time.time(), age_maximal=60)
+    assert backup_recent(tmp_path, now=time.time(), age_maximal=60)
 
 
-def test_une_copie_vide_ou_corrompue_est_unhealthy(tmp_path):
+def test_an_empty_or_corrupt_copy_is_unhealthy(tmp_path):
     (tmp_path / "base-vide.sqlite3").write_bytes(b"")
     (tmp_path / "base-corrompue.sqlite3").write_bytes(b"pas une base sqlite")
 
-    assert not sauvegarde_recente(tmp_path, maintenant=time.time(), age_maximal=60)
+    assert not backup_recent(tmp_path, now=time.time(), age_maximal=60)
 
 
-def test_une_copie_trop_ancienne_est_unhealthy(tmp_path):
-    chemin = tmp_path / "base-20260914-120000.sqlite3"
-    _copie_valide(chemin)
+def test_a_too_old_copy_is_unhealthy(tmp_path):
+    path = tmp_path / "base-20260914-120000.sqlite3"
+    _copie_valid(path)
 
-    assert not sauvegarde_recente(tmp_path, maintenant=time.time() + 61, age_maximal=60)
+    assert not backup_recent(tmp_path, now=time.time() + 61, age_maximal=60)
 
 
-def _descripteurs(chemin):
-    """Combien de descripteurs ce processus tient ouverts sur ce fichier."""
-    dossier = pathlib.Path("/proc") / str(os.getpid()) / "fd"
+def _descriptors(path):
+    """How many descriptors this process holds open on this file."""
+    folder = pathlib.Path("/proc") / str(os.getpid()) / "fd"
     total = 0
-    for entree in dossier.iterdir():
+    for entry in folder.iterdir():
         try:
-            if str(chemin) in os.readlink(entree):
+            if str(path) in os.readlink(entry):
                 total += 1
-        except OSError:                       # descripteur refermé entre-temps
+        except OSError:                       # descriptor closed in between
             continue
     return total
 
 
 @pytest.mark.skipif(not os.path.isdir("/proc/self/fd"),
-                    reason="le décompte de descripteurs demande /proc")
-def test_la_sonde_ne_laisse_aucune_connexion_ouverte_derriere_elle(tmp_path):
-    """`with sqlite3.connect(...)` valide la transaction, mais ne FERME pas
-    (point 141, identity_database.py) — un objet `Connection` de CPython
-    prend part à des cycles de références, il n'est rendu qu'au ramasse-
-    miettes cyclique. Cette sonde tourne toutes les 30 s dans le conteneur de
-    sauvegarde : sans fermeture explicite, elle accumule un descripteur par
-    appel jusqu'à heurter la limite du conteneur.
+                    reason="descriptor counting requires /proc")
+def test_the_probe_leaves_no_connection_open_behind_it(tmp_path):
+    """`with sqlite3.connect(...)` commits the transaction, but does NOT CLOSE
+    (point 141, identity_database.py) — a CPython `Connection` object takes
+    part in reference cycles and is only released by the cyclic garbage
+    collector. This probe runs every 30 s in the backup container: without an
+    explicit close, it piles up one descriptor per call until it hits the
+    container's limit.
 
-    Reproduit et mesuré AVANT correction sur ce fichier même : 300 appels
-    laissaient 260 descripteurs ouverts, 193 encore présents après un
-    `gc.collect()` manuel.
+    Reproduced and measured BEFORE the fix on this very file: 300 calls left
+    260 descriptors open, 193 still there after a manual `gc.collect()`.
     """
-    chemin = tmp_path / "base-20260914-120000.sqlite3"
-    _copie_valide(chemin)
+    path = tmp_path / "base-20260914-120000.sqlite3"
+    _copie_valid(path)
 
     for _ in range(200):
-        assert _sqlite_valide(chemin)
+        assert _sqlite_valid(path)
 
-    ouverts = _descripteurs(chemin)
-    assert ouverts == 0, f"{ouverts} descripteurs restent ouverts sur la sauvegarde"
+    open_ = _descriptors(path)
+    assert open_ == 0, f"{open_} descriptors stay open on the backup"

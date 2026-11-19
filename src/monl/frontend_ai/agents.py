@@ -10,7 +10,7 @@ import uuid
 
 from ..design_system import activate_asset_manifest
 from ..frontend_contract import PROMPT_FILENAME
-from . import fondations, fournisseurs, orchestration, redaction
+from . import drafting, foundations, orchestration, providers
 
 # ─────────────────────────────────────────────────────────────────────
 # CLAUDE CODE — the work done DIRECTLY in the target folder (point 43 of the
@@ -60,7 +60,7 @@ from . import fondations, fournisseurs, orchestration, redaction
 # must be added by hand, and three were added after the fact. Reversing it —
 # "nothing outside frontend/ moves" — is the right form, and requires walking
 # the whole project; to be done, not improvised here.
-PROTECTED_ARTEFACTS = ("spec.ml", "app.py", "schema.sql", "sandbox_ai.py",
+PROTECTED_ARTIFACTS = ("spec.ml", "app.py", "schema.sql", "sandbox_ai.py",
                        "manage.py", "serve.py", "Dockerfile", ".dockerignore",
                        "frontend_contract.json", "docs/FRONTEND_PROMPT.md",
                        "docs/DESIGN_SYSTEM.md", "docs/DESIGN_SPEC.md",
@@ -86,7 +86,7 @@ CLAUDE_CODE_INSTRUCTION = (
 # requested frontend") invited starting from scratch, which is exactly what we
 # want to avoid — the site is 95% good, and a rebuild is a draw in which one
 # can lose what one liked.
-RETOUCHE_INSTRUCTION = (
+RETOUCH_INSTRUCTION = (
     "Read {brief}: it describes a defect OBSERVED on the running site. Fix "
     "that defect in the EXISTING frontend (frontend/ folder), and only that "
     "one — do not rewrite what already works, do not redo the overall "
@@ -140,15 +140,15 @@ def build_agent_argv(agent, instruction, max_turns, agent_command=None):
     if agent_command:
         parts = shlex.split(agent_command)
         if not parts:
-            raise fondations.FrontendAIError("--agent-command is empty.")
+            raise foundations.FrontendAIError("--agent-command is empty.")
         if not any("{instruction}" in p for p in parts):
-            raise fondations.FrontendAIError(
+            raise foundations.FrontendAIError(
                 "--agent-command must contain {instruction} — without it, "
                 "the agent would start without knowing what to do.")
         argv = [p.replace("{instruction}", instruction) for p in parts]
         return argv[0], argv[1:]
     if agent not in CLI_AGENTS:
-        raise fondations.FrontendAIError(
+        raise foundations.FrontendAIError(
             f"unknown agent: {agent} — known: {', '.join(sorted(CLI_AGENTS))} "
             "(or --agent-command for any other).")
     entry = CLI_AGENTS[agent]
@@ -156,7 +156,7 @@ def build_agent_argv(agent, instruction, max_turns, agent_command=None):
 
 def _fingerprint_protected(project_dir):
     prints = {}
-    for name in PROTECTED_ARTEFACTS:
+    for name in PROTECTED_ARTIFACTS:
         path = os.path.join(project_dir, name)
         if os.path.exists(path):
             with open(path, "rb") as fh:
@@ -174,11 +174,11 @@ def _fingerprint_frontend(project_dir):
     nothing."""
     prints = {}
     racine = os.path.join(project_dir, "frontend")
-    for dossier, _sous, fichiers in os.walk(racine):
-        for nom in fichiers:
-            chemin = os.path.join(dossier, nom)
-            with open(chemin, "rb") as fh:
-                prints[os.path.relpath(chemin, racine)] = hashlib.sha256(fh.read()).hexdigest()
+    for folder, _sous, files in os.walk(racine):
+        for name in files:
+            path = os.path.join(folder, name)
+            with open(path, "rb") as fh:
+                prints[os.path.relpath(path, racine)] = hashlib.sha256(fh.read()).hexdigest()
     return prints
 
 def run_cli_agent(project_dir, instruction, max_turns=DEFAULT_MAX_TURNS,
@@ -196,7 +196,7 @@ def run_cli_agent(project_dir, instruction, max_turns=DEFAULT_MAX_TURNS,
     binary = command or shutil.which(wanted)
     if not binary:
         auth = CLI_AGENTS.get(agent, {}).get("auth", "")
-        raise fondations.FrontendAIError(
+        raise foundations.FrontendAIError(
             f"the executable '{wanted}' was not found — install it, then "
             "authenticate" + (f" ({auth})" if auth else "")
             + ". Without a command-line agent, two paths remain: "
@@ -205,12 +205,12 @@ def run_cli_agent(project_dir, instruction, max_turns=DEFAULT_MAX_TURNS,
     proc = subprocess.run(
         [binary] + args,
         cwd=project_dir, capture_output=True, text=True, timeout=1800)
-    sortie = (proc.stderr or proc.stdout) or ""
+    output = (proc.stderr or proc.stdout) or ""
     if proc.returncode != 0:
-        if "max turns" in sortie.lower():
-            return sortie          # budget exhausted: verification will decide
-        raise fondations.FrontendAIError(f"agent '{agent}' exited with an error: "
-                              + sortie[-400:])
+        if "max turns" in output.lower():
+            return output          # budget exhausted: verification will decide
+        raise foundations.FrontendAIError(f"agent '{agent}' exited with an error: "
+                              + output[-400:])
     return proc.stdout
 
 def run_claude_code(project_dir, instruction, max_turns=DEFAULT_MAX_TURNS,
@@ -225,7 +225,7 @@ def run_claude_code(project_dir, instruction, max_turns=DEFAULT_MAX_TURNS,
 def generate_with_cli_agent(project_dir, update_mode=False, say=print,
                             command=None, max_turns=DEFAULT_MAX_TURNS,
                             agent="claude-code", agent_command=None,
-                            retouche_mode=False, generate_images=False,
+                            retouch_mode=False, generate_images=False,
                             image_provider=None):
     """The point 4 loop, command line agent version: run the agent in the target
     folder → check the protected artifacts → re-check (consistency + smoke
@@ -234,40 +234,40 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
     POINT 69: the body is strictly the one written for Claude Code. A
     third-party agent loosens NO safeguard — that is the point of the
     generalization: what protects the project does not depend on who writes."""
-    nom = agent_command.split()[0] if agent_command else agent
+    name = agent_command.split()[0] if agent_command else agent
     project_dir = os.path.abspath(project_dir)
     run_id = uuid.uuid4().hex
-    operation = orchestration._nom_de_loperation(update_mode, retouche_mode)
-    orchestration._exiger_fournisseur_dimages(generate_images, image_provider)
-    image_failures = orchestration._generer_les_images(
+    operation = orchestration._name_of_operation(update_mode, retouch_mode)
+    orchestration._require_provider_images(generate_images, image_provider)
+    image_failures = orchestration._generate_the_images(
         project_dir, generate_images, image_provider, operation, run_id, say)
-    brief, gabarit = _brief_et_gabarit(project_dir, update_mode, retouche_mode)
-    instruction = gabarit.format(brief=brief)
+    brief, template = _brief_and_template(project_dir, update_mode, retouch_mode)
+    instruction = template.format(brief=brief)
 
     last_errors = []
     for attempt in (1, 2):
         if attempt == 2:
-            say(f" -> Automatic correction: errors sent back to {nom} (once only)…")
-            instruction = (gabarit.format(brief=brief)
+            say(f" -> Automatic correction: errors sent back to {name} (once only)…")
+            instruction = (template.format(brief=brief)
                            + " Your previous attempt failed the monl check; "
                              "fix the frontend accordingly: "
                            + " ; ".join(last_errors))
-        say(f" -> {nom} is working in {project_dir} (attempt {attempt}/2)…")
+        say(f" -> {name} is working in {project_dir} (attempt {attempt}/2)…")
         before = _fingerprint_protected(project_dir)
-        front_avant = _fingerprint_frontend(project_dir)
+        front_before = _fingerprint_frontend(project_dir)
         # POINT 97: the agent's response is KEPT. It used to be thrown away,
         # and it is precisely what must be read when nothing moved: an agent
         # that declines explains why — the touch-up instruction even asks it to
         # — and monl displayed a false assumption instead ("rephrase by naming
         # the screen"), on a request that named them.
-        reponse_agent = _executer_lagent(
+        response_agent = _run_agent(
             project_dir, instruction, max_turns, command, agent, agent_command,
             operation, attempt, run_id)
 
         # Safeguard: nothing other than frontend/ must have moved.
-        touched = _artefacts_touches(before, _fingerprint_protected(project_dir))
+        touched = _artifacts_touches(before, _fingerprint_protected(project_dir))
         if touched:
-            say(f" ❌ {nom} modified protected artifacts: "
+            say(f" ❌ {name} modified protected artifacts: "
                 + ", ".join(touched))
             say("    Restore them from your version control, then run again — "
                 "the frontend is the ONLY allowed scope.")
@@ -284,15 +284,15 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
         # consistency holds, the smoke test passes — and monl announces a build
         # that did not happen. We say so, rather than congratulating the agent
         # on its predecessor's work.
-        if _fingerprint_frontend(project_dir) == front_avant:
-            return _rien_na_change(nom, retouche_mode, reponse_agent, say)
+        if _fingerprint_frontend(project_dir) == front_before:
+            return _nothing_na_change(name, retouch_mode, response_agent, say)
 
         # The transition is performed by the orchestrator, after the agent's
         # scope check: modifying the manifest therefore cannot serve to hide a
         # write outside frontend/.
         activate_asset_manifest(project_dir)
         say(" -> Automatic recheck (consistency + smoke test)…")
-        ok, errors, warnings = orchestration._reverifier(project_dir, say)
+        ok, errors, warnings = orchestration._recheck(project_dir, say)
         # Same rule as in the API path: check_coherence() is the single
         # collection of completeness errors for this verification.
         for w in warnings:
@@ -304,7 +304,7 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
                 "planned images; run again once the provider is available.")
             return False, errors
         if ok:
-            say(f" ✅ Frontend built by {nom} and verified: 'monl run' is ready.")
+            say(f" ✅ Frontend built by {name} and verified: 'monl run' is ready.")
             return True, []
         last_errors = errors
         for e in errors:
@@ -314,53 +314,53 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
     return False, last_errors
 
 
-def _brief_et_gabarit(project_dir, update_mode, retouche_mode):
+def _brief_and_template(project_dir, update_mode, retouch_mode):
     """The brief to read and the instruction template; refuses a missing brief."""
-    brief = redaction.brief_evolution(update_mode, retouche_mode) or PROMPT_FILENAME
+    brief = drafting.brief_evolution(update_mode, retouch_mode) or PROMPT_FILENAME
     if not os.path.exists(os.path.join(project_dir, brief)):
-        origine = ("'monl retouche' did not write its instruction" if retouche_mode
+        origine = ("'monl retouche' did not write its instruction" if retouch_mode
                    else "run 'monl update' first" if update_mode
                    else "run 'monl compile' first")
-        raise fondations.FrontendAIError(f"{brief} missing from the project — {origine}.")
-    return brief, RETOUCHE_INSTRUCTION if retouche_mode else CLAUDE_CODE_INSTRUCTION
+        raise foundations.FrontendAIError(f"{brief} missing from the project — {origine}.")
+    return brief, RETOUCH_INSTRUCTION if retouch_mode else CLAUDE_CODE_INSTRUCTION
 
 
-def _executer_lagent(project_dir, instruction, max_turns, command, agent,
+def _run_agent(project_dir, instruction, max_turns, command, agent,
                      agent_command, operation, attempt, run_id):
     """Runs the agent once, records its duration, returns its answer."""
     started = time.monotonic()
-    reponse_agent = run_cli_agent(
+    response_agent = run_cli_agent(
         project_dir, instruction, max_turns=max_turns,
         command=command, agent=agent, agent_command=agent_command)
-    modele = agent if agent in CLI_AGENTS else "custom"
-    agent_usage = type("AgentUsage", (), {"provider_name": "agent", "model": modele})()
-    fournisseurs._record_provider_usage(
+    template = agent if agent in CLI_AGENTS else "custom"
+    agent_usage = type("AgentUsage", (), {"provider_name": "agent", "model": template})()
+    providers._record_provider_usage(
         project_dir, agent_usage, operation=operation,
         attempt=attempt, run_id=run_id,
         usage={"duration_seconds": round(time.monotonic() - started, 3),
                "input_tokens": None, "output_tokens": None, "total_tokens": None})
-    return reponse_agent
+    return response_agent
 
 
-def _artefacts_touches(before, after):
+def _artifacts_touches(before, after):
     """Protected artifacts added, removed or changed by the agent."""
     return sorted(set(before) ^ set(after)
                   | {n for n in before if n in after and before[n] != after[n]})
 
 
-def _rien_na_change(nom, retouche_mode, reponse_agent, say):
+def _nothing_na_change(name, retouch_mode, response_agent, say):
     """The agent wrote nothing in frontend/: a failure on a touch-up only."""
     # POINT 93: on a TOUCH-UP, changing nothing is not a neutral state
     # — it is the request left unhandled. The human reported a defect
     # they SEE; answering "all is well" would be the opposite of an
     # honest report, and point 73 already says we do not congratulate
     # an agent on its predecessor's work.
-    if retouche_mode:
-        say(f" ❌ {nom} modified NO file in frontend/ — the "
+    if retouch_mode:
+        say(f" ❌ {name} modified NO file in frontend/ — the "
             "requested touch-up was not made.")
-        _expliquer_le_refus(reponse_agent, say)
+        _explain_the_refusal(response_agent, say)
         return False, ["no frontend change: touch-up not applied"]
-    say(f" ⚠️  {nom} modified NO file in frontend/.")
+    say(f" ⚠️  {name} modified NO file in frontend/.")
     say("    A valid frontend already existed: the agent judged that it")
     say("    met the contract and rewrote nothing. Nothing is broken,")
     say("    but nothing was built either.")
@@ -370,16 +370,16 @@ def _rien_na_change(nom, retouche_mode, reponse_agent, say):
     return True, []
 
 
-def _expliquer_le_refus(reponse_agent, say):
+def _explain_the_refusal(response_agent, say):
     """Shows the agent's own reason, or how to rephrase when it gave none."""
-    explication = (reponse_agent or "").strip()
-    if explication:
+    explanation = (response_agent or "").strip()
+    if explanation:
         # THE point: guessing in the agent's place is what made the
         # message wrong. It has a reason, and here it is.
         say("    What the agent answers:")
-        for ligne in explication.splitlines()[-12:]:
-            if ligne.strip():
-                say(f"      {ligne.rstrip()}")
+        for line in explanation.splitlines()[-12:]:
+            if line.strip():
+                say(f"      {line.rstrip()}")
         say("    If the request concerns CONTENT (a section to "
             "remove, a text to structure),")
         say("    it is settled in the spec, then 'monl update' — "

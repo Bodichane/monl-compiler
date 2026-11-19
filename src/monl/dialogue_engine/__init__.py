@@ -4,7 +4,7 @@ The public surface did not move when it became a package."""
 
 
 from .core import GuidedDialogue
-from .fondations import DialogueError, adresse_de_lien
+from .foundations import DialogueError, address_of_link
 
 
 def run_interactive_dialogue():
@@ -24,6 +24,6 @@ def run_interactive_dialogue():
 __all__ = [
     "DialogueError",
     "GuidedDialogue",
-    "adresse_de_lien",
+    "address_of_link",
     "run_interactive_dialogue",
 ]

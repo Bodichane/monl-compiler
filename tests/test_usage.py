@@ -1,4 +1,4 @@
-"""Preuves du journal de coût et de la commande ``monl usage``."""
+"""Proofs of the cost log and of the ``monl usage`` command."""
 
 import json
 
@@ -26,7 +26,7 @@ def _event(run_id="run-opaque", model="modele-test", **extra):
     return event
 
 
-def _write_journal(project, events):
+def _write_log(project, events):
     path = project / frontend_ai.USAGE_FILENAME
     path.write_text("".join(json.dumps(event) + "\n" for event in events), encoding="utf-8")
     return path
@@ -46,7 +46,7 @@ def _write_prices(path, model="modele-test"):
     }), encoding="utf-8")
 
 
-def test_deux_executions_successives_restent_separees(monkeypatch, tmp_path):
+def test_two_successive_runs_stay_separate(monkeypatch, tmp_path):
     project = tmp_path / "projet"
     project.mkdir()
 
@@ -64,11 +64,11 @@ def test_deux_executions_successives_restent_separees(monkeypatch, tmp_path):
             }
             return '{"files": {"index.html": "<html></html>"}}'
 
-    monkeypatch.setattr(frontend_ai.redaction, "build_generation_prompt",
+    monkeypatch.setattr(frontend_ai.drafting, "build_generation_prompt",
                         lambda *args: "brief")
-    monkeypatch.setattr(frontend_ai.reponse, "parse_files_payload",
+    monkeypatch.setattr(frontend_ai.response, "parse_files_payload",
                         lambda _raw: {"index.html": "<html></html>"})
-    monkeypatch.setattr(frontend_ai.reponse, "_write_files", lambda *_args: None)
+    monkeypatch.setattr(frontend_ai.response, "_write_files", lambda *_args: None)
     monkeypatch.setattr(frontend_ai.orchestration, "activate_asset_manifest", lambda *_args: None)
     monkeypatch.setattr(frontend_ai, "_design_completeness_errors", lambda *_args: [])
     monkeypatch.setattr(cli, "check_coherence", lambda _project: (True, [], []))
@@ -88,10 +88,10 @@ def test_deux_executions_successives_restent_separees(monkeypatch, tmp_path):
     assert all(execution["known"] for execution in report["executions"])
 
 
-def test_modele_sans_prix_rapporte_les_jetons_sans_inventer_un_chiffre(tmp_path):
+def test_model_without_price_reports_tokens_without_inventing_a_figure(tmp_path):
     project = tmp_path / "projet"
     project.mkdir()
-    _write_journal(project, [_event()])
+    _write_log(project, [_event()])
     prices = tmp_path / "prices.json"
     _write_prices(prices, model="autre-modele")
 
@@ -104,10 +104,10 @@ def test_modele_sans_prix_rapporte_les_jetons_sans_inventer_un_chiffre(tmp_path)
     assert report["project_total"]["cost"] is None
 
 
-def test_evenements_sans_run_id_forment_un_lot_inconnu(tmp_path):
+def test_events_without_run_id_form_an_unknown_batch(tmp_path):
     project = tmp_path / "projet"
     project.mkdir()
-    _write_journal(project, [_event(None, stage="index.html"),
+    _write_log(project, [_event(None, stage="index.html"),
                              _event(None, stage="styles.css")])
 
     report = build_usage_report(str(project))
@@ -119,12 +119,12 @@ def test_evenements_sans_run_id_forment_un_lot_inconnu(tmp_path):
     assert execution["stages"] == ["index.html", "styles.css"]
 
 
-def test_json_est_exploitable_et_signale_les_lignes_illisibles(tmp_path, capsys):
+def test_json_is_usable_and_reports_unreadable_lines(tmp_path, capsys):
     project = tmp_path / "projet"
     project.mkdir()
     (project / "monl.json").write_text("{}", encoding="utf-8")
-    journal = _write_journal(project, [_event()])
-    with journal.open("a", encoding="utf-8") as fh:
+    log = _write_log(project, [_event()])
+    with log.open("a", encoding="utf-8") as fh:
         fh.write("pas du json\n")
     prices = tmp_path / "prices.json"
     _write_prices(prices)
@@ -136,7 +136,7 @@ def test_json_est_exploitable_et_signale_les_lignes_illisibles(tmp_path, capsys)
     assert report["malformed_lines"] == [{"line": 2, "error": "invalid JSON"}]
 
 
-def test_journal_n_ajoute_ni_prompt_ni_cle(tmp_path):
+def test_log_adds_neither_prompt_nor_key(tmp_path):
     project = tmp_path / "projet"
     project.mkdir()
     provider = type("Provider", (), {
@@ -154,13 +154,13 @@ def test_journal_n_ajoute_ni_prompt_ni_cle(tmp_path):
     })()
     frontend_ai._record_provider_usage(str(project), provider, "construction", 1,
                                        run_id="opaque")
-    contenu = (project / frontend_ai.USAGE_FILENAME).read_text(encoding="utf-8")
-    assert "prompt-client" not in contenu
-    assert "reponse-client" not in contenu
-    assert "cle-secrete" not in contenu
-    assert '"prompt"' not in contenu
-    assert '"response"' not in contenu
-    assert '"api_key"' not in contenu
+    content = (project / frontend_ai.USAGE_FILENAME).read_text(encoding="utf-8")
+    assert "prompt-client" not in content
+    assert "reponse-client" not in content
+    assert "cle-secrete" not in content
+    assert '"prompt"' not in content
+    assert '"response"' not in content
+    assert '"api_key"' not in content
 
 
 @pytest.mark.parametrize(
@@ -182,7 +182,7 @@ def test_journal_n_ajoute_ni_prompt_ni_cle(tmp_path):
          "incomplete rates for yandex/modele"),
     ],
 )
-def test_table_de_prix_refuse_une_forme_inexploitable(tmp_path, document, message):
+def test_price_table_refuses_an_unusable_shape(tmp_path, document, message):
     prices = tmp_path / "prices.json"
     prices.write_text(json.dumps(document), encoding="utf-8")
 
@@ -190,7 +190,7 @@ def test_table_de_prix_refuse_une_forme_inexploitable(tmp_path, document, messag
         build_usage_report(str(tmp_path / "projet"), str(prices))
 
 
-def test_table_de_prix_absente_ou_json_invalide_est_signalee(tmp_path):
+def test_missing_price_table_or_invalid_json_is_reported(tmp_path):
     with pytest.raises(UsagePriceError, match="price table is unreadable"):
         build_usage_report(str(tmp_path), str(tmp_path / "absente.json"))
 
@@ -200,7 +200,7 @@ def test_table_de_prix_absente_ou_json_invalide_est_signalee(tmp_path):
         build_usage_report(str(tmp_path), str(prices))
 
 
-def test_journal_signale_ligne_vide_et_valeur_json_non_objet(tmp_path):
+def test_log_reports_empty_line_and_non_object_json_value(tmp_path):
     project = tmp_path / "projet"
     project.mkdir()
     (project / frontend_ai.USAGE_FILENAME).write_text("\n[]\n", encoding="utf-8")
@@ -214,10 +214,10 @@ def test_journal_signale_ligne_vide_et_valeur_json_non_objet(tmp_path):
     assert report["executions"] == []
 
 
-def test_un_compteur_invalide_est_nomme_et_ne_donne_pas_de_cout(tmp_path):
+def test_an_invalid_counter_is_named_and_gives_no_cost(tmp_path):
     project = tmp_path / "projet"
     project.mkdir()
-    _write_journal(project, [_event(input_tokens=-1, output_tokens="inconnu")])
+    _write_log(project, [_event(input_tokens=-1, output_tokens="inconnu")])
     prices = tmp_path / "prices.json"
     _write_prices(prices)
 
@@ -229,10 +229,10 @@ def test_un_compteur_invalide_est_nomme_et_ne_donne_pas_de_cout(tmp_path):
     assert execution["missing_counters"] == ["input_tokens", "output_tokens"]
 
 
-def test_les_requetes_image_exigent_un_compteur_et_un_tarif(tmp_path):
+def test_image_requests_require_a_counter_and_a_rate(tmp_path):
     project = tmp_path / "projet"
     project.mkdir()
-    _write_journal(project, [{
+    _write_log(project, [{
         **_event(), "billing_unit": "request", "requests": None,
     }])
     prices = tmp_path / "prices.json"
@@ -248,10 +248,10 @@ def test_les_requetes_image_exigent_un_compteur_et_un_tarif(tmp_path):
     assert execution["price_status"] == "counters_unavailable"
 
 
-def test_une_requete_image_sans_tarif_est_honnetement_non_chiffree(tmp_path):
+def test_an_image_request_without_rate_is_honestly_unpriced(tmp_path):
     project = tmp_path / "projet"
     project.mkdir()
-    _write_journal(project, [{**_event(), "billing_unit": "request", "requests": 1}])
+    _write_log(project, [{**_event(), "billing_unit": "request", "requests": 1}])
     prices = tmp_path / "prices.json"
     _write_prices(prices)
 
@@ -262,7 +262,7 @@ def test_une_requete_image_sans_tarif_est_honnetement_non_chiffree(tmp_path):
     assert execution["unpriced_models"] == ["yandex/modele-test"]
 
 
-def test_un_journal_absent_est_un_usage_nul(tmp_path):
+def test_a_missing_log_is_zero_usage(tmp_path):
     report = build_usage_report(str(tmp_path))
 
     assert report["journal_exists"] is False
@@ -270,7 +270,7 @@ def test_un_journal_absent_est_un_usage_nul(tmp_path):
     assert report["project_total"]["cost"] == 0
 
 
-def test_la_voie_agent_aussi_est_identifiee(monkeypatch, tmp_path):
+def test_the_agent_path_is_identified_too(monkeypatch, tmp_path):
     project = tmp_path / "projet"
     project.mkdir()
     brief = project / frontend_ai.PROMPT_FILENAME

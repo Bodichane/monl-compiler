@@ -83,10 +83,10 @@ def main(argv=None) -> int:
              "sandbox_ai.py, .jwt_secret...).",
     )
     args = parser.parse_args(argv)
-    fichier = args.fichier or os.path.join(
+    file = args.fichier or os.path.join(
         os.path.dirname(__file__), "..", "..", "exemples", "01_portfolio.ml")
     try:
-        compile_monl(fichier, output_dir=args.output)
+        compile_monl(file, output_dir=args.output)
     except MonlError as err:
         print(f"\n ❌ COMPILER FAILED: {err}")
         print("=" * 65 + "\n")

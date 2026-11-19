@@ -1,0 +1,98 @@
+"""Regression of a counter target's attachment (point 92).
+
+With two incoming relations, the relation to the counter's target can be
+declared before or after the one attaching the row to its actor. Both orders
+must produce the same INSERT and the same linked row in the database.
+"""
+
+import sqlite3
+
+import pytest
+import requests
+
+from monl.cli import compile_project
+from tests.support.server import uvicorn_server
+
+PASSWORD = "MotDePasse123!"
+
+
+def _spec(relations):
+    return f"""app Orphelin
+
+entity Post
+    content: Text
+    likes: Integer
+
+entity Like
+    note: String
+
+actor Member selfRegister
+
+{relations}
+
+rule Post.Read public
+rule Like.Create increments Post.likes by 1
+
+workflow Agir for Member
+    Create Post
+    Read Post
+    Create Like
+"""
+
+
+@pytest.mark.parametrize(
+    "relations",
+    [
+        "relation Post hasMany Like\nrelation Member hasMany Like",
+        "relation Member hasMany Like\nrelation Post hasMany Like",
+    ],
+    ids=["cible_du_compteur_en_premier", "acteur_en_premier"],
+)
+def test_the_counter_target_key_is_written_in_both_orders(
+        tmp_path, relations):
+    """A real like must never be created with ``post_id`` NULL."""
+    spec = tmp_path / "spec.ml"
+    spec.write_text(_spec(relations), encoding="utf-8")
+    compile_project(str(spec), str(tmp_path))
+
+    with uvicorn_server(str(tmp_path)) as base_url:
+        inscription = requests.post(
+            f"{base_url}/register", timeout=10,
+            json={"username": "membre@x.co", "password": PASSWORD,
+                  "actor": "Member"},
+        )
+        assert inscription.status_code == 200, inscription.text
+        login = requests.post(
+            f"{base_url}/login", timeout=10,
+            json={"username": "membre@x.co", "password": PASSWORD},
+        )
+        assert login.status_code == 200, login.text
+        in_tete = {"Authorization": "Bearer " + login.json()["access_token"]}
+
+        post = requests.post(
+            f"{base_url}/post", timeout=10, headers=in_tete,
+            json={"content": "Un post"},
+        )
+        assert post.status_code == 200, post.text
+        post_id = post.json()["id"]
+
+        like = requests.post(
+            f"{base_url}/like", timeout=10, headers=in_tete,
+            json={"note": "bravo", "post_id": post_id},
+        )
+        assert like.status_code == 200, like.text
+
+        login_sqlite = sqlite3.connect(tmp_path / "app.db")
+        try:
+            line = login_sqlite.execute(
+                "SELECT post_id, member_id FROM like WHERE id = ?",
+                (like.json()["id"],),
+            ).fetchone()
+            counter = login_sqlite.execute(
+                "SELECT likes FROM post WHERE id = ?", (post_id,)
+            ).fetchone()
+        finally:
+            login_sqlite.close()
+
+    assert line == (post_id, 1), line
+    assert counter == (1,), counter

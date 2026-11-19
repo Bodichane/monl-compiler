@@ -1,9 +1,9 @@
-"""Épreuves d'intégration du backend généré contre un vrai PostgreSQL.
+"""Integration tests of the generated backend against a real PostgreSQL.
 
-La suite est volontairement indépendante de SQLite : elle démarre les
-artefacts générés avec ``MONL_DATABASE_URL`` et utilise un schéma PostgreSQL
-éphémère. Sans ``MONL_TEST_DATABASE_URL``, un poste de contributeur sans
-serveur saute proprement ces tests.
+The suite is deliberately independent of SQLite: it starts the generated
+artifacts with ``MONL_DATABASE_URL`` and uses an ephemeral PostgreSQL schema.
+Without ``MONL_TEST_DATABASE_URL``, a contributor's machine without a server
+skips these tests cleanly.
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ def database_url(request):
 def postgres_dsn():
     base = os.environ.get("MONL_TEST_DATABASE_URL", "").strip()
     if not base:
-        pytest.skip("MONL_TEST_DATABASE_URL absent : PostgreSQL d'intégration non demandé")
+        pytest.skip("MONL_TEST_DATABASE_URL missing: integration PostgreSQL not requested")
     psycopg = _psycopg()
     schema = f"monl_test_{uuid4().hex[:12]}"
     admin = psycopg.connect(base)
@@ -57,13 +57,13 @@ def postgres_dsn():
         admin.commit()
     finally:
         admin.close()
-    morceaux = urlsplit(base)
+    chunks = urlsplit(base)
     options = f"-c search_path={schema}"
-    params = dict(parse_qsl(morceaux.query, keep_blank_values=True))
+    params = dict(parse_qsl(chunks.query, keep_blank_values=True))
     params["options"] = options
-    # libpq ne traite pas '+' comme un espace dans l'option ``options``;
-    # encoder explicitement l'espace est nécessaire pour ``-c search_path``.
-    dsn = urlunsplit(morceaux._replace(query=urlencode(params, quote_via=quote)))
+    # libpq does not treat '+' as a space in the ``options`` option; explicitly
+    # encoding the space is needed for ``-c search_path``.
+    dsn = urlunsplit(chunks._replace(query=urlencode(params, quote_via=quote)))
     try:
         yield dsn
     finally:
@@ -98,7 +98,7 @@ def _server_expected_failure(directory: str, env: dict[str, str]):
     except subprocess.TimeoutExpired:
         process.kill()
         output, _ = process.communicate()
-        raise AssertionError("PostgreSQL : le serveur a démarré malgré le schéma non migré") from None
+        raise AssertionError("PostgreSQL: the server started despite the unmigrated schema") from None
     return process.returncode, output
 
 
@@ -136,7 +136,7 @@ def _register(base: str, username: str) -> dict:
     return {"Authorization": f"Bearer {login.json()['access_token']}"}
 
 
-def test_inscription_creation_et_lecture_restent_filtrees_par_propriete(postgres_dsn):
+def test_registration_creation_and_read_stay_filtered_by_ownership(postgres_dsn):
     spec = """app PgAccess
 
 entity User
@@ -168,7 +168,7 @@ workflow W for User
                             timeout=10).status_code == 404
 
 
-def test_les_trois_409_integrite_sont_distincts_sur_les_deux_moteurs(database_url):
+def test_the_three_integrity_409s_are_distinct_on_both_engines(database_url):
     spec = """app PgErrors
 
 entity User
@@ -211,7 +211,7 @@ seed Entry
         assert foreign.status_code == 409 and "Invalid reference" in foreign.json()["detail"]
 
 
-def test_stock_concurrent_condition_et_ecriture_sont_une_instruction(postgres_dsn):
+def test_concurrent_stock_condition_and_write_are_one_statement(postgres_dsn):
     spec = """app PgStock
 
 entity User
@@ -282,7 +282,7 @@ seed Product
         assert stock == 0 and lines == 1
 
 
-def test_numerotation_concurrent_preserve_une_sequence_unique(postgres_dsn):
+def test_concurrent_numbering_keeps_a_unique_sequence(postgres_dsn):
     spec = """app PgNumber
 
 entity User
@@ -336,7 +336,7 @@ workflow W for User
         assert indexes == [("idx_unique_order_reference",)]
 
 
-def test_migration_additive_sur_base_postgresql_deja_peuplee(postgres_dsn):
+def test_additive_migration_on_a_populated_postgresql_database(postgres_dsn):
     spec_v1 = """app PgMigration
 
 entity User
@@ -392,7 +392,7 @@ workflow W for User
         assert ("body",) in columns
 
 
-def test_migrations_non_additives_postgresql_sont_detectees_et_historisees(postgres_dsn):
+def test_postgresql_non_additive_migrations_are_detected_and_recorded(postgres_dsn):
     spec_v1 = """app PgNonAdditive
 
 entity User
@@ -453,8 +453,8 @@ migration note_fields
         assert "Migration 'note_fields' (up) applied" in applied.stdout
 
         with uvicorn_server(directory, env=env) as base:
-            # L'état est vérifié directement en base ; le serveur prouve que
-            # le lifespan sert bien après migration.
+            # The state is checked directly in the database; the server proves
+            # the lifespan does serve after migration.
             read = requests.get(f"{base}/note/{note_id}", headers=headers, timeout=10)
             assert read.status_code == 200, read.text
             assert read.json()["data"]["heading"] == "avant"
@@ -490,7 +490,7 @@ migration note_fields
         assert "irreversible DROP" in refused_down.stdout
 
 
-def test_migration_postgresql_echec_atomique_ne_sert_pas_une_moitie(postgres_dsn):
+def test_postgresql_migration_atomic_failure_serves_no_half(postgres_dsn):
     spec_v1 = """app PgAtomic
 
 entity User
@@ -557,7 +557,7 @@ migration broken
         assert returncode != 0 and "the database will not be served" in output
 
 
-def test_migration_postgresql_down_retablit_noms_types_et_donnees(postgres_dsn):
+def test_postgresql_down_migration_restores_names_types_and_data(postgres_dsn):
     spec_v1 = """app PgDown
 
 entity Note

@@ -1,21 +1,21 @@
-"""Brique 13, COUCHE 2 — `monl assets add` / `monl assets list` (point 84).
+"""Brick 13, LAYER 2 — `monl assets add` / `monl assets list` (point 84).
 
-Pourquoi ce fichier existe, et ce qu'il garde. La couche 2 est un outil qui
-ÉCRIT DANS LA SPEC : c'est la première fois du projet qu'autre chose que le
-dialogue guidé modifie le fichier source de l'humain. Deux propriétés sont donc
-à protéger, et ni l'une ni l'autre ne se relit :
+Why this file exists, and what it guards. Layer 2 is a tool that WRITES INTO
+THE SPEC: it is the first time in the project that something other than the
+guided dialogue modifies the human's source file. Two properties must
+therefore be protected, and neither can be checked by rereading:
 
-* **il écrit, le compilateur prouve.** Chaque édition est reparsée et revalidée
-  avec `base_dir` avant d'être écrite. Un échec ne doit rien laisser derrière :
-  ni spec à demi modifiée, ni fichier copié. C'est la seule raison pour
-  laquelle la couche 2 ne peut pas produire ce que la couche 1 refuse ;
-* **il ne détruit pas les commentaires.** La spec d'un projet réel est plus
-  qu'à moitié faite de commentaires, et ce sont eux qui expliquent quelle
-  brique fait quoi. Un aller-retour parse → regénère aurait été plus court à
-  écrire et aurait effacé la documentation du projet pour poser une photo.
+* **it writes, the compiler proves.** Every edit is reparsed and revalidated
+  with `base_dir` before being written. A failure must leave nothing behind:
+  neither a half-modified spec nor a copied file. It is the only reason layer 2
+  cannot produce what layer 1 refuses;
+* **it does not destroy comments.** A real project's spec is more than half
+  comments, and they explain which brick does what. A parse → regenerate
+  round trip would have been shorter to write and would have erased the
+  project's documentation to place a photo.
 
-Le reste tient aux refus : une désignation ambiguë écrirait la photo sur la
-mauvaise fiche, et personne ne le verrait avant la mise en ligne.
+The rest is about refusals: an ambiguous designation would write the photo on
+the wrong record, and nobody would see it before going online.
 """
 import json
 import os
@@ -24,17 +24,17 @@ import pytest
 
 from monl.assets_tool import (
     AssetsToolError,
-    ajouter_asset,
+    add_asset,
     lister_assets,
-    sluggify,
+    slugify,
 )
 from monl.ast_validator import MonlAST
 from monl.parser import parse_monl_string
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cases import check_each_case
 
 SPEC = """app BancOutil
 
-# Ce commentaire, et tous les autres, doivent survivre à l'outil.
+# This comment, and all the others, must survive the tool.
 entity Produit
     nom: String
     prix: Money
@@ -54,7 +54,7 @@ workflow Voir for Client
     Read Produit
     Read Maison
 
-# Deux fiches, dont une au nom nordique : le slug doit rester lisible.
+# Two records, one with a Nordic name: the slug must stay readable.
 seed Produit
     nom: "Halo RS", prix: 149.0   # la vedette du catalogue
     nom: "Sørlund Deck", prix: 89.0
@@ -64,68 +64,68 @@ seed Maison
 """
 
 
-def _projet(racine, spec=SPEC):
-    """Une spec sur disque et deux fichiers sources DISTINCTS.
+def _project(racine, spec=SPEC):
+    """A spec on disk and two DISTINCT source files.
 
-    Distincts à dessein : c'est ce qui rend le contrôle d'écrasement
-    observable — deux fichiers identiques passeraient pour idempotence."""
+    Distinct on purpose: that is what makes the overwrite check observable — two
+    identical files would pass for idempotence."""
     (racine / "source").mkdir(exist_ok=True)
     (racine / "source" / "photo une.png").write_bytes(b"\x89PNG\r\n\x1a\nUNE")
     (racine / "source" / "photo deux.png").write_bytes(b"\x89PNG\r\n\x1a\nDEUX")
     (racine / "source" / "logo.svg").write_text('<svg viewBox="0 0 8 8"/>')
-    chemin = racine / "spec.ml"
-    chemin.write_text(spec, encoding="utf-8")
-    return chemin
+    path = racine / "spec.ml"
+    path.write_text(spec, encoding="utf-8")
+    return path
 
 
-def _compile_toujours(spec_path, project_dir):
-    """La spec obtenue passe-t-elle le VRAI validateur, base_dir compris ?"""
+def _always_compiles(spec_path, project_dir):
+    """Does the resulting spec pass the REAL validator, base_dir included?"""
     return MonlAST(parse_monl_string(spec_path.read_text(encoding="utf-8")),
                    base_dir=str(project_dir)).validate_and_audit()
 
 
 # --------------------------------------------------------------------------
-# Le témoin, et les deux propriétés à protéger
+# The witness, and the two properties to protect
 # --------------------------------------------------------------------------
 
-def test_poser_une_photo_la_copie_et_la_declare(tmp_path, capsys):
-    """Le témoin de tous les refus qui suivent : sans lui, un outil qui
-    refuserait TOUT passerait chacun d'eux."""
-    spec = _projet(tmp_path)
-    rapport = ajouter_asset(str(spec), str(tmp_path),
+def test_placing_a_photo_copies_and_declares_it(tmp_path, capsys):
+    """The witness of all the refusals that follow: without it, a tool refusing
+    EVERYTHING would pass each of them."""
+    spec = _project(tmp_path)
+    rapport = add_asset(str(spec), str(tmp_path),
                             str(tmp_path / "source" / "photo une.png"),
                             pour="Halo RS")
     assert rapport["fichier"] == "assets/halo-rs.png"
     assert rapport["ou"] == "Produit.photo"
     assert (tmp_path / "assets" / "halo-rs.png").exists()
-    ast = _compile_toujours(spec, tmp_path)
+    ast = _always_compiles(spec, tmp_path)
     assert ast["seeds"][0]["rows"][0]["photo"] == "assets/halo-rs.png"
     capsys.readouterr()
 
 
-def test_les_commentaires_et_les_autres_champs_survivent(tmp_path, capsys):
-    """La propriété qu'un aller-retour parse → regénère aurait détruite.
+def test_comments_and_other_fields_survive(tmp_path, capsys):
+    """The property a parse → regenerate round trip would have destroyed.
 
-    Le commentaire de FIN DE LIGNE compte autant que les autres : il est le
-    seul que l'édition textuelle risque vraiment de manger, puisqu'il vit sur
-    la ligne même qu'on réécrit."""
-    spec = _projet(tmp_path)
-    avant = spec.read_text(encoding="utf-8")
-    ajouter_asset(str(spec), str(tmp_path),
+    The END-OF-LINE comment counts as much as the others: it is the only one the
+    textual edit really risks eating, since it lives on the very line being
+    rewritten."""
+    spec = _project(tmp_path)
+    before = spec.read_text(encoding="utf-8")
+    add_asset(str(spec), str(tmp_path),
                   str(tmp_path / "source" / "photo une.png"), pour="Halo RS")
     apres = spec.read_text(encoding="utf-8")
 
-    assert avant.count("#") == apres.count("#")
-    assert "# Ce commentaire, et tous les autres" in apres
+    assert before.count("#") == apres.count("#")
+    assert "# This comment, and all the others" in apres
     assert "# la vedette du catalogue" in apres
-    ligne = next(li for li in apres.splitlines() if "Halo RS" in li)
-    assert ligne.endswith("# la vedette du catalogue")
-    assert 'prix: 149.0' in ligne          # les autres champs sont intacts
-    assert ligne.startswith("    ")        # l'indentation aussi
+    line = next(li for li in apres.splitlines() if "Halo RS" in li)
+    assert line.endswith("# la vedette du catalogue")
+    assert 'prix: 149.0' in line          # the other fields are intact
+    assert line.startswith("    ")        # l'indentation aussi
     capsys.readouterr()
 
 
-SPEC_MULTILIGNE = """app BancMulti
+SPEC_MULTILINE = """app BancMulti
 
 entity Produit
     nom: String
@@ -147,257 +147,255 @@ seed Produit
 """
 
 
-def test_une_fiche_sur_deux_lignes_reste_une_fiche(tmp_path, capsys):
-    """`STRING_LITERAL` est compilé avec /s : une valeur de seed PEUT tenir sur
-    plusieurs lignes, et le parseur l'accepte (vérifié contre le vrai parseur,
-    pas supposé). Compter les lignes de contenu au lieu des FICHES décalait donc
-    toutes les suivantes — et une photo écrite sur la mauvaise fiche produit une
-    spec parfaitement compilable. Le repérage travaille en PLAGES pour ça."""
-    spec = _projet(tmp_path, SPEC_MULTILIGNE)
-    r1 = ajouter_asset(str(spec), str(tmp_path),
+def test_a_record_on_two_lines_stays_one_record(tmp_path, capsys):
+    """`STRING_LITERAL` is compiled with /s: a seed value CAN span several lines,
+    and the parser accepts it (checked against the real parser, not assumed).
+    Counting content lines instead of RECORDS therefore shifted all the following
+    ones — and a photo written on the wrong record produces a perfectly compilable
+    spec. Locating works in RANGES for that reason."""
+    spec = _project(tmp_path, SPEC_MULTILINE)
+    r1 = add_asset(str(spec), str(tmp_path),
                        str(tmp_path / "source" / "photo une.png"), pour="Deck")
-    r2 = ajouter_asset(str(spec), str(tmp_path),
+    r2 = add_asset(str(spec), str(tmp_path),
                        str(tmp_path / "source" / "photo deux.png"), pour="Halo RS")
     assert r1["fichier"] == "assets/deck.png"
     assert r2["fichier"] == "assets/halo-rs.png"
 
-    ast = _compile_toujours(spec, tmp_path)
-    lignes = ast["seeds"][0]["rows"]
-    # Chaque photo sur SA fiche : c'est tout l'enjeu.
-    assert lignes[0]["nom"] == "Halo RS" and lignes[0]["photo"] == "assets/halo-rs.png"
-    assert lignes[1]["nom"] == "Deck" and lignes[1]["photo"] == "assets/deck.png"
-    # La valeur multi-lignes et le commentaire terminal sont intacts.
-    assert "\n" in lignes[0]["desc"]
+    ast = _always_compiles(spec, tmp_path)
+    lines = ast["seeds"][0]["rows"]
+    # Each photo on ITS record: that is the whole point.
+    assert lines[0]["nom"] == "Halo RS" and lines[0]["photo"] == "assets/halo-rs.png"
+    assert lines[1]["nom"] == "Deck" and lines[1]["photo"] == "assets/deck.png"
+    # The multi-line value and the trailing comment are intact.
+    assert "\n" in lines[0]["desc"]
     assert "# note terminale" in spec.read_text(encoding="utf-8")
     capsys.readouterr()
 
 
-def test_redeclarer_a_lidentique_ne_touche_pas_la_spec(tmp_path, capsys):
-    """Réécrire un texte identique invaliderait l'empreinte de
-    'monl run --check' — et ferait croire à une évolution qui n'a pas eu lieu."""
-    spec = _projet(tmp_path)
-    ajouter_asset(str(spec), str(tmp_path),
+def test_redeclaring_identically_does_not_touch_the_spec(tmp_path, capsys):
+    """Rewriting an identical text would invalidate 'monl run --check''s
+    fingerprint — and suggest an evolution that did not happen."""
+    spec = _project(tmp_path)
+    add_asset(str(spec), str(tmp_path),
                   str(tmp_path / "source" / "photo une.png"), pour="Halo RS")
-    empreinte = spec.read_text(encoding="utf-8")
-    rapport = ajouter_asset(str(spec), str(tmp_path),
+    fingerprint = spec.read_text(encoding="utf-8")
+    rapport = add_asset(str(spec), str(tmp_path),
                             str(tmp_path / "assets" / "halo-rs.png"),
-                            pour="Halo RS", nom="halo-rs.png")
+                            pour="Halo RS", name="halo-rs.png")
     assert rapport["spec_changee"] is False
     assert rapport["deja_en_place"] is True
-    assert spec.read_text(encoding="utf-8") == empreinte
+    assert spec.read_text(encoding="utf-8") == fingerprint
     capsys.readouterr()
 
 
 # --------------------------------------------------------------------------
-# Le nom du fichier
+# The file name
 # --------------------------------------------------------------------------
 
-def test_le_slug_reste_lisible():
-    """« Sørlund » donnait « srlund » avant la table de translittération : un
-    nom de fichier muet là où le nom était lisible. Le catalogue du projet
-    porte déjà une maison nordique — le cas n'est pas théorique."""
+def test_the_slug_stays_readable():
+    """"Sørlund" gave "srlund" before the transliteration table: a mute file name
+    where the name was readable. The project's catalog already carries a Nordic
+    house — the case is not theoretical."""
     table = [
         ("Halo RS", "halo-rs"),
-        ("Sørlund Deck", "sorlund-deck"),      # NFKD ne décompose pas le « ø »
+        ("Sørlund Deck", "sorlund-deck"),      # NFKD does not decompose "ø"
         ("Café Crème", "cafe-creme"),
         ("Air 95 — édition", "air-95-edition"),
         ("  ", ""),
     ]
 
-    def cas(texte, attendu):
-        assert sluggify(texte) == attendu
+    def cas(text, expected):
+        assert slugify(text) == expected
 
-    verifier_chaque_cas(table, cas)
+    check_each_case(table, cas)
 
 
-def test_une_source_sans_extension_est_refusee(tmp_path):
-    """Servi tel quel, un fichier sans extension arrive en octet-stream : le
-    navigateur ne l'affiche pas, et rien ne le dit."""
-    spec = _projet(tmp_path)
+def test_a_source_without_extension_is_refused(tmp_path):
+    """Served as is, a file without extension arrives as octet-stream: the
+    browser does not display it, and nothing says so."""
+    spec = _project(tmp_path)
     (tmp_path / "source" / "sansext").write_bytes(b"\x89PNG")
-    with pytest.raises(AssetsToolError) as refus:
-        ajouter_asset(str(spec), str(tmp_path),
+    with pytest.raises(AssetsToolError) as refusal:
+        add_asset(str(spec), str(tmp_path),
                       str(tmp_path / "source" / "sansext"), pour="Halo RS")
-    assert "extension" in str(refus.value)
+    assert "extension" in str(refusal.value)
 
 
-def test_as_refuse_un_chemin(tmp_path):
-    """--as nomme un fichier, pas une destination : accepter un chemin
-    rouvrirait la porte que la couche 1 ferme (sortir du projet)."""
-    spec = _projet(tmp_path)
-    with pytest.raises(AssetsToolError) as refus:
-        ajouter_asset(str(spec), str(tmp_path),
+def test_as_refuses_a_path(tmp_path):
+    """--as names a file, not a destination: accepting a path would reopen the
+    door layer 1 closes (leaving the project)."""
+    spec = _project(tmp_path)
+    with pytest.raises(AssetsToolError) as refusal:
+        add_asset(str(spec), str(tmp_path),
                       str(tmp_path / "source" / "photo une.png"),
-                      pour="Halo RS", nom="../evade.png")
-    assert "not a path" in str(refus.value)
+                      pour="Halo RS", name="../evade.png")
+    assert "not a path" in str(refusal.value)
 
 
 # --------------------------------------------------------------------------
-# Les refus de désignation — deviner écrirait sur la mauvaise fiche
+# Designation refusals — guessing would write on the wrong record
 # --------------------------------------------------------------------------
 
-def test_une_valeur_inconnue_est_refusee_avec_une_suggestion(tmp_path):
-    spec = _projet(tmp_path)
-    with pytest.raises(AssetsToolError) as refus:
-        ajouter_asset(str(spec), str(tmp_path),
+def test_an_unknown_value_is_refused_with_a_suggestion(tmp_path):
+    spec = _project(tmp_path)
+    with pytest.raises(AssetsToolError) as refusal:
+        add_asset(str(spec), str(tmp_path),
                       str(tmp_path / "source" / "photo une.png"), pour="Halo")
-    assert "'Halo RS'" in str(refus.value)          # la suggestion, pas seulement le refus
+    assert "'Halo RS'" in str(refusal.value)          # the suggestion, not only the refusal
 
 
-def test_une_valeur_partagee_par_deux_entites_est_refusee(tmp_path):
-    """« Sørlund Deck » nomme un produit ET une maison : écrire la photo sur
-    l'une des deux au hasard ne se verrait qu'en ligne."""
-    spec = _projet(tmp_path)
-    with pytest.raises(AssetsToolError) as refus:
-        ajouter_asset(str(spec), str(tmp_path),
+def test_a_value_shared_by_two_entities_is_refused(tmp_path):
+    """"Sørlund Deck" names a product AND a house: writing the photo on one of the
+    two at random would only show online."""
+    spec = _project(tmp_path)
+    with pytest.raises(AssetsToolError) as refusal:
+        add_asset(str(spec), str(tmp_path),
                       str(tmp_path / "source" / "photo une.png"),
                       pour="Sørlund Deck")
-    message = str(refus.value)
+    message = str(refusal.value)
     assert "2 rows" in message and "--entity" in message
     # Each candidate is named in English ("Produit row 5"); it read
     # "Produit ligne 5" after the migration, unseen by the check above.
     assert " row " in message and "ligne" not in message, message
 
 
-def test_entity_leve_lambiguite(tmp_path, capsys):
-    """Le témoin du refus ci-dessus : l'échappatoire annoncée fonctionne."""
-    spec = _projet(tmp_path)
-    rapport = ajouter_asset(str(spec), str(tmp_path),
+def test_entity_raised_ambiguity(tmp_path, capsys):
+    """The witness of the refusal above: the announced way out works."""
+    spec = _project(tmp_path)
+    rapport = add_asset(str(spec), str(tmp_path),
                             str(tmp_path / "source" / "photo une.png"),
                             pour="Sørlund Deck", entity="Produit")
     assert rapport["fichier"] == "assets/sorlund-deck.png"
-    _compile_toujours(spec, tmp_path)
+    _always_compiles(spec, tmp_path)
     capsys.readouterr()
 
 
-def test_une_entite_sans_champ_image_est_refusee_en_nommant_le_remede(tmp_path):
-    """Maison n'a que des String : un chemin y passerait sans vérification,
-    donc l'outil refuse plutôt que d'écrire là où la couche 1 est aveugle."""
-    spec = _projet(tmp_path)
-    with pytest.raises(AssetsToolError) as refus:
-        ajouter_asset(str(spec), str(tmp_path),
+def test_an_entity_without_image_field_is_refused_naming_the_remedy(tmp_path):
+    """Maison only has Strings: a path would go through unchecked, so the tool
+    refuses rather than writing where layer 1 is blind."""
+    spec = _project(tmp_path)
+    with pytest.raises(AssetsToolError) as refusal:
+        add_asset(str(spec), str(tmp_path),
                       str(tmp_path / "source" / "photo une.png"),
                       pour="Sørlund Deck", entity="Maison")
-    message = str(refus.value)
+    message = str(refusal.value)
     assert "no field of type 'Image'" in message
-    assert "photo: Image" in message          # le remède, pas seulement le refus
+    assert "photo: Image" in message          # the remedy, not only the refusal
 
 
-def test_deux_champs_image_exigent_field(tmp_path, capsys):
-    spec = _projet(tmp_path, SPEC.replace("    photo: Image",
+def test_two_image_fields_require_field(tmp_path, capsys):
+    spec = _project(tmp_path, SPEC.replace("    photo: Image",
                                           "    photo: Image\n    apercu: Image"))
-    with pytest.raises(AssetsToolError) as refus:
-        ajouter_asset(str(spec), str(tmp_path),
+    with pytest.raises(AssetsToolError) as refusal:
+        add_asset(str(spec), str(tmp_path),
                       str(tmp_path / "source" / "photo une.png"), pour="Halo RS")
-    assert "--field" in str(refus.value)
-    rapport = ajouter_asset(str(spec), str(tmp_path),
+    assert "--field" in str(refusal.value)
+    rapport = add_asset(str(spec), str(tmp_path),
                             str(tmp_path / "source" / "photo une.png"),
                             pour="Halo RS", field="apercu")
     assert rapport["ou"] == "Produit.apercu"
-    _compile_toujours(spec, tmp_path)
+    _always_compiles(spec, tmp_path)
     capsys.readouterr()
 
 
-def test_field_sur_un_champ_non_image_est_refuse(tmp_path):
-    spec = _projet(tmp_path)
-    with pytest.raises(AssetsToolError) as refus:
-        ajouter_asset(str(spec), str(tmp_path),
+def test_field_on_a_non_image_field_is_refused(tmp_path):
+    spec = _project(tmp_path)
+    with pytest.raises(AssetsToolError) as refusal:
+        add_asset(str(spec), str(tmp_path),
                       str(tmp_path / "source" / "photo une.png"),
                       pour="Halo RS", field="nom")
-    assert "not 'Image'" in str(refus.value)
+    assert "not 'Image'" in str(refusal.value)
 
 
-def test_ecrire_dans_une_spec_deja_cassee_est_refuse(tmp_path):
-    """Sans ce contrôle, l'échec de la revalidation ferait accuser l'outil
-    d'un défaut qui existait avant lui."""
-    spec = _projet(tmp_path, SPEC.replace('photo: Image', 'photo: Inconnu'))
-    with pytest.raises(AssetsToolError) as refus:
-        ajouter_asset(str(spec), str(tmp_path),
+def test_writing_into_an_already_broken_spec_is_refused(tmp_path):
+    """Without this check, the revalidation failure would blame the tool for a
+    defect that existed before it."""
+    spec = _project(tmp_path, SPEC.replace('photo: Image', 'photo: Inconnu'))
+    with pytest.raises(AssetsToolError) as refusal:
+        add_asset(str(spec), str(tmp_path),
                       str(tmp_path / "source" / "photo une.png"), pour="Halo RS")
-    assert "does not compile as it stands" in str(refus.value)
-    assert not (tmp_path / "assets").exists()      # rien n'a été copié
+    assert "does not compile as it stands" in str(refusal.value)
+    assert not (tmp_path / "assets").exists()      # nothing was copied
 
 
 # --------------------------------------------------------------------------
-# Écrasement et retour en arrière
+# Overwriting and rollback
 # --------------------------------------------------------------------------
 
-def test_un_fichier_different_de_meme_nom_nest_pas_ecrase_sans_force(tmp_path, capsys):
-    spec = _projet(tmp_path)
-    ajouter_asset(str(spec), str(tmp_path),
+def test_a_different_file_with_the_same_name_is_not_overwritten_without_force(tmp_path, capsys):
+    spec = _project(tmp_path)
+    add_asset(str(spec), str(tmp_path),
                   str(tmp_path / "source" / "photo une.png"), pour="Halo RS")
-    with pytest.raises(AssetsToolError) as refus:
-        ajouter_asset(str(spec), str(tmp_path),
+    with pytest.raises(AssetsToolError) as refusal:
+        add_asset(str(spec), str(tmp_path),
                       str(tmp_path / "source" / "photo deux.png"),
-                      pour="Halo RS", nom="halo-rs.png")
-    assert "--force" in str(refus.value)
+                      pour="Halo RS", name="halo-rs.png")
+    assert "--force" in str(refusal.value)
     assert (tmp_path / "assets" / "halo-rs.png").read_bytes().endswith(b"UNE")
-    rapport = ajouter_asset(str(spec), str(tmp_path),
+    rapport = add_asset(str(spec), str(tmp_path),
                             str(tmp_path / "source" / "photo deux.png"),
-                            pour="Halo RS", nom="halo-rs.png", force=True)
+                            pour="Halo RS", name="halo-rs.png", force=True)
     assert rapport["ecrase"] is True
     assert (tmp_path / "assets" / "halo-rs.png").read_bytes().endswith(b"DEUX")
     capsys.readouterr()
 
 
-def test_un_refus_du_compilateur_ne_laisse_rien_derriere(tmp_path, monkeypatch, capsys):
-    """Le filet, éprouvé en le forçant.
+def test_a_compiler_refusal_leaves_nothing_behind(tmp_path, monkeypatch, capsys):
+    """The safety net, tested by forcing it.
 
-    L'outil est construit pour que le CLI ne PUISSE pas produire une spec
-    invalide : tous les chemins fautifs sont interceptés avant l'écriture. Le
-    retour en arrière n'est donc atteignable qu'en provoquant l'échec — et un
-    filet que rien n'éprouve n'est pas un filet, c'est une décoration."""
-    spec = _projet(tmp_path)
-    avant = spec.read_text(encoding="utf-8")
+    The tool is built so that the CLI CANNOT produce an invalid spec: every faulty
+    path is intercepted before writing. Rollback is therefore only reachable by
+    causing the failure — and a safety net nothing tests is not a net, it is a
+    decoration."""
+    spec = _project(tmp_path)
+    before = spec.read_text(encoding="utf-8")
 
-    import monl.assets_tool as outil
+    import monl.assets_tool as tool
 
-    def refus(*_a, **_k):
-        raise AssetsToolError("refus simulé du compilateur")
-    monkeypatch.setattr(outil.commandes, "_revalider", refus)
+    def refusal(*_a, **_k):
+        raise AssetsToolError("simulated compiler refusal")
+    monkeypatch.setattr(tool.commands, "_revalidate", refusal)
 
     with pytest.raises(AssetsToolError):
-        outil.ajouter_asset(str(spec), str(tmp_path),
+        tool.add_asset(str(spec), str(tmp_path),
                             str(tmp_path / "source" / "photo une.png"),
                             pour="Halo RS")
-    assert spec.read_text(encoding="utf-8") == avant
+    assert spec.read_text(encoding="utf-8") == before
     assert not (tmp_path / "assets" / "halo-rs.png").exists()
     capsys.readouterr()
 
 
-def test_un_refus_apres_force_restaure_le_fichier_precedent(tmp_path, monkeypatch, capsys):
-    """Écraser sous --force doit rester réversible le temps de la
-    revalidation : sinon un refus du compilateur détruirait l'ancien fichier
-    pour rien."""
-    spec = _projet(tmp_path)
-    ajouter_asset(str(spec), str(tmp_path),
+def test_a_refusal_after_force_restores_the_previous_file(tmp_path, monkeypatch, capsys):
+    """Overwriting under --force must stay reversible during revalidation:
+    otherwise a compiler refusal would destroy the old file for nothing."""
+    spec = _project(tmp_path)
+    add_asset(str(spec), str(tmp_path),
                   str(tmp_path / "source" / "photo une.png"), pour="Halo RS")
-    avant = spec.read_text(encoding="utf-8")
+    before = spec.read_text(encoding="utf-8")
 
-    import monl.assets_tool as outil
-    monkeypatch.setattr(outil.commandes, "_revalider",
+    import monl.assets_tool as tool
+    monkeypatch.setattr(tool.commands, "_revalidate",
                         lambda *_a, **_k: (_ for _ in ()).throw(
                             AssetsToolError("refus simulé")))
     with pytest.raises(AssetsToolError):
-        outil.ajouter_asset(str(spec), str(tmp_path),
+        tool.add_asset(str(spec), str(tmp_path),
                             str(tmp_path / "source" / "photo deux.png"),
-                            pour="Halo RS", nom="halo-rs.png", force=True)
+                            pour="Halo RS", name="halo-rs.png", force=True)
     assert (tmp_path / "assets" / "halo-rs.png").read_bytes().endswith(b"UNE")
-    assert spec.read_text(encoding="utf-8") == avant
+    assert spec.read_text(encoding="utf-8") == before
     assert not (tmp_path / "assets" / "halo-rs.png.monl-precedent").exists()
     capsys.readouterr()
 
 
-def test_lancien_fichier_est_signale_orphelin_et_conserve(tmp_path, capsys):
-    """Un fichier déposé par l'humain ne s'efface pas sur la déduction d'un
-    outil de déclaration : le frontend de SneakerLab référence en dur des
-    photos que la spec ignore."""
-    spec = _projet(tmp_path)
-    ajouter_asset(str(spec), str(tmp_path),
+def test_the_old_file_is_reported_orphan_and_kept(tmp_path, capsys):
+    """A file placed by the human is not erased on a declaration tool's
+    deduction: SneakerLab's frontend hard-codes photos the spec ignores."""
+    spec = _project(tmp_path)
+    add_asset(str(spec), str(tmp_path),
                   str(tmp_path / "source" / "photo une.png"), pour="Halo RS")
-    rapport = ajouter_asset(str(spec), str(tmp_path),
+    rapport = add_asset(str(spec), str(tmp_path),
                             str(tmp_path / "source" / "photo deux.png"),
-                            pour="Halo RS", nom="vedette.png")
+                            pour="Halo RS", name="vedette.png")
     assert rapport["remplace"] == "assets/halo-rs.png"
     assert rapport["orphelin"] == "assets/halo-rs.png"
     assert (tmp_path / "assets" / "halo-rs.png").exists()
@@ -405,78 +403,79 @@ def test_lancien_fichier_est_signale_orphelin_et_conserve(tmp_path, capsys):
 
 
 # --------------------------------------------------------------------------
-# Le logo : un bloc 'assets' créé de toutes pièces
+# The logo: an 'assets' block created from scratch
 # --------------------------------------------------------------------------
 
-def test_le_logo_cree_le_bloc_assets_absent(tmp_path, capsys):
-    """Renvoyer l'humain écrire quatre lignes à la main avant de pouvoir poser
-    son logo rendrait l'outil inutile là où il sert le plus."""
-    spec = _projet(tmp_path)
+def test_the_logo_creates_the_missing_assets_block(tmp_path, capsys):
+    """Sending the human to write four lines by hand before being able to place
+    their logo would make the tool useless where it serves most."""
+    spec = _project(tmp_path)
     assert "assets\n" not in spec.read_text(encoding="utf-8")
-    rapport = ajouter_asset(str(spec), str(tmp_path),
-                            str(tmp_path / "source" / "logo.svg"), cible="logo")
+    rapport = add_asset(str(spec), str(tmp_path),
+                            str(tmp_path / "source" / "logo.svg"), target="logo")
     assert rapport["ou"] == "assets.logo"
-    ast = _compile_toujours(spec, tmp_path)
-    # Le logo se déclare par son SEUL nom : c'est le contrat qui préfixe par le
-    # dossier. Écrire 'assets/logo.svg' ici donnerait '/site/assets/assets/…'.
+    ast = _always_compiles(spec, tmp_path)
+    # The logo is declared by its name ALONE: the contract prefixes it with the
+    # folder. Writing 'assets/logo.svg' here would give
+    # '/site/assets/assets/…'.
     assert ast["assets"]["logo"] == "logo.svg"
     assert ast["assets"]["dir"] == "assets"
-    texte = spec.read_text(encoding="utf-8")
-    assert texte.index("assets\n") < texte.index("entity Produit")
+    text = spec.read_text(encoding="utf-8")
+    assert text.index("assets\n") < text.index("entity Produit")
     capsys.readouterr()
 
 
-def test_le_favicon_rejoint_le_bloc_existant(tmp_path, capsys):
-    spec = _projet(tmp_path)
-    ajouter_asset(str(spec), str(tmp_path),
-                  str(tmp_path / "source" / "logo.svg"), cible="logo")
-    ajouter_asset(str(spec), str(tmp_path),
-                  str(tmp_path / "source" / "photo une.png"), cible="favicon")
-    ast = _compile_toujours(spec, tmp_path)
+def test_the_favicon_joins_the_existing_block(tmp_path, capsys):
+    spec = _project(tmp_path)
+    add_asset(str(spec), str(tmp_path),
+                  str(tmp_path / "source" / "logo.svg"), target="logo")
+    add_asset(str(spec), str(tmp_path),
+                  str(tmp_path / "source" / "photo une.png"), target="favicon")
+    ast = _always_compiles(spec, tmp_path)
     assert ast["assets"] == {"dir": "assets", "logo": "logo.svg",
                              "favicon": "favicon.png"}
     assert spec.read_text(encoding="utf-8").count("assets\n") == 1
     capsys.readouterr()
 
 
-def test_designer_deux_destinations_a_la_fois_est_refuse(tmp_path):
-    spec = _projet(tmp_path)
-    with pytest.raises(AssetsToolError) as refus:
-        ajouter_asset(str(spec), str(tmp_path),
+def test_designating_two_destinations_at_once_is_refused(tmp_path):
+    spec = _project(tmp_path)
+    with pytest.raises(AssetsToolError) as refusal:
+        add_asset(str(spec), str(tmp_path),
                       str(tmp_path / "source" / "logo.svg"))
-    assert "--logo" in str(refus.value)
+    assert "--logo" in str(refusal.value)
     with pytest.raises(AssetsToolError):
-        ajouter_asset(str(spec), str(tmp_path),
+        add_asset(str(spec), str(tmp_path),
                       str(tmp_path / "source" / "logo.svg"),
-                      pour="Halo RS", cible="logo")
+                      pour="Halo RS", target="logo")
 
 
 # --------------------------------------------------------------------------
-# Ce que la réussite n'implique pas
+# What success does not imply
 # --------------------------------------------------------------------------
 
-def test_une_base_existante_declenche_lavertissement_du_seed(tmp_path, capsys):
-    """Le piège vécu en migrant SneakerLab : le seed ne nourrit qu'une base
-    NEUVE, donc 12 fiches gardaient l'ancien chemin et le site aurait montré
-    12 cadres vides sans un mot."""
-    spec = _projet(tmp_path)
+def test_an_existing_database_triggers_the_seed_warning(tmp_path, capsys):
+    """The trap met while migrating SneakerLab: the seed only feeds a NEW
+    database, so 12 records kept the old path and the site would have shown 12
+    empty frames without a word."""
+    spec = _project(tmp_path)
     (tmp_path / "app.db").write_bytes(b"SQLite format 3\x00")
-    rapport = ajouter_asset(str(spec), str(tmp_path),
+    rapport = add_asset(str(spec), str(tmp_path),
                             str(tmp_path / "source" / "photo une.png"),
                             pour="Halo RS")
     assert any("NEW database" in m for m in rapport["avertissements"])
     capsys.readouterr()
 
 
-def test_un_fichier_de_credits_incomplet_est_signale_sans_etre_ecrit(tmp_path, capsys):
-    """« monl vérifie la complétude, jamais la véracité » (point 83) : l'outil
-    constate l'absence, il n'invente aucune attribution — et n'écrit pas dans
-    un fichier qui reste une convention de projet."""
-    spec = _projet(tmp_path)
+def test_an_incomplete_credits_file_is_reported_without_being_written(tmp_path, capsys):
+    """"monl checks completeness, never truthfulness" (point 83): the tool notes
+    the absence, it invents no attribution — and does not write into a file that
+    remains a project convention."""
+    spec = _project(tmp_path)
     (tmp_path / "assets").mkdir(exist_ok=True)
     credits = tmp_path / "assets" / "CREDITS.json"
     credits.write_text(json.dumps({"photos": []}), encoding="utf-8")
-    rapport = ajouter_asset(str(spec), str(tmp_path),
+    rapport = add_asset(str(spec), str(tmp_path),
                             str(tmp_path / "source" / "photo une.png"),
                             pour="Halo RS")
     assert any("halo-rs.png" in m and "attribution" in m
@@ -486,56 +485,55 @@ def test_un_fichier_de_credits_incomplet_est_signale_sans_etre_ecrit(tmp_path, c
 
 
 # --------------------------------------------------------------------------
-# Le rapport de complétude
+# The completeness report
 # --------------------------------------------------------------------------
 
-def test_list_distingue_declare_present_et_non_declare(tmp_path, capsys):
-    spec = _projet(tmp_path)
-    ajouter_asset(str(spec), str(tmp_path),
+def test_list_tells_declared_present_and_undeclared_apart(tmp_path, capsys):
+    spec = _project(tmp_path)
+    add_asset(str(spec), str(tmp_path),
                   str(tmp_path / "source" / "photo une.png"), pour="Halo RS")
-    ajouter_asset(str(spec), str(tmp_path),
-                  str(tmp_path / "source" / "logo.svg"), cible="logo")
+    add_asset(str(spec), str(tmp_path),
+                  str(tmp_path / "source" / "logo.svg"), target="logo")
     (tmp_path / "assets" / "traine.jpg").write_bytes(b"\xff\xd8\xffJPEG")
 
     rapport = lister_assets(str(spec), str(tmp_path))
-    par_chemin = {li["chemin"]: li for li in rapport["declares"]}
-    assert par_chemin["assets/halo-rs.png"]["present"] is True
-    assert par_chemin["assets/halo-rs.png"]["origines"] == ["Produit[1].photo"]
-    assert par_chemin["logo.svg"]["origines"] == ["assets.logo"]
-    assert par_chemin["logo.svg"]["resolu"] == os.path.join("assets", "logo.svg")
+    by_path = {li["chemin"]: li for li in rapport["declares"]}
+    assert by_path["assets/halo-rs.png"]["present"] is True
+    assert by_path["assets/halo-rs.png"]["origines"] == ["Produit[1].photo"]
+    assert by_path["logo.svg"]["origines"] == ["assets.logo"]
+    assert by_path["logo.svg"]["resolu"] == os.path.join("assets", "logo.svg")
     assert rapport["orphelins"] == [os.path.join("assets", "traine.jpg")]
     capsys.readouterr()
 
 
-def test_list_montre_un_asset_declare_mais_absent(tmp_path, capsys):
-    """LE défaut que ce test a trouvé, et qu'il garde fermé.
+def test_list_shows_a_declared_but_missing_asset(tmp_path, capsys):
+    """THE defect this test found, and keeps closed.
 
-    Le rapport chargeait d'abord la spec avec `base_dir` — donc la validation
-    échouait sur l'asset manquant lui-même, et `monl assets list` refusait de
-    tourner dans le seul cas où il servait. L'outil valide désormais la FORME
-    sans l'existence, et calcule la présence lui-même : c'est la coupure de la
-    couche 1 qui rend ça possible."""
-    spec = _projet(tmp_path)
-    ajouter_asset(str(spec), str(tmp_path),
+    The report first loaded the spec with `base_dir` — so validation failed on
+    the missing asset itself, and `monl assets list` refused to run in the only
+    case where it was useful. The tool now validates FORM without existence, and
+    computes presence itself: layer 1's split is what makes it possible."""
+    spec = _project(tmp_path)
+    add_asset(str(spec), str(tmp_path),
                   str(tmp_path / "source" / "photo une.png"), pour="Halo RS")
     os.remove(tmp_path / "assets" / "halo-rs.png")
     rapport = lister_assets(str(spec), str(tmp_path))
-    manquants = [li for li in rapport["declares"] if not li["present"]]
-    assert [li["chemin"] for li in manquants] == ["assets/halo-rs.png"]
+    missing = [li for li in rapport["declares"] if not li["present"]]
+    assert [li["chemin"] for li in missing] == ["assets/halo-rs.png"]
     capsys.readouterr()
 
 
-def test_add_reste_utilisable_quand_un_autre_asset_manque(tmp_path, capsys):
-    """L'autre moitié du même défaut : revalider TOUTE la spec avec base_dir
-    rendait l'outil inutilisable sur une spec déclarant deux photos absentes —
-    impossible d'en poser une, l'autre faisant échouer la revalidation. La
-    garantie porte sur ce que l'outil ÉCRIT, et les autres manques sont dits."""
-    spec = _projet(tmp_path)
+def test_add_stays_usable_when_another_asset_is_missing(tmp_path, capsys):
+    """The other half of the same defect: revalidating the WHOLE spec with
+    base_dir made the tool unusable on a spec declaring two missing photos —
+    impossible to place one, the other making revalidation fail. The guarantee is
+    about what the tool WRITES, and the other gaps are stated."""
+    spec = _project(tmp_path)
     spec.write_text(spec.read_text(encoding="utf-8").replace(
         'nom: "Sørlund Deck", prix: 89.0',
         'nom: "Sørlund Deck", prix: 89.0, photo: "assets/jamais-fournie.png"'),
         encoding="utf-8")
-    rapport = ajouter_asset(str(spec), str(tmp_path),
+    rapport = add_asset(str(spec), str(tmp_path),
                             str(tmp_path / "source" / "photo une.png"),
                             pour="Halo RS")
     assert rapport["fichier"] == "assets/halo-rs.png"
@@ -544,68 +542,68 @@ def test_add_reste_utilisable_quand_un_autre_asset_manque(tmp_path, capsys):
     capsys.readouterr()
 
 
-def test_un_chemin_qui_ne_resout_pas_est_refuse_et_annule(tmp_path, monkeypatch, capsys):
-    """La dernière ligne de la garantie, éprouvée en empêchant la copie.
+def test_a_path_that_does_not_resolve_is_refused_and_rolled_back(tmp_path, monkeypatch, capsys):
+    """The guarantee's last line, tested by preventing the copy.
 
-    Sans cette vérification, l'outil pourrait écrire une déclaration que le
-    compilateur refusera — exactement le défaut que la couche 1 ferme. Le
-    contrôle emploie le résolveur DU COMPILATEUR, pas une seconde
-    implémentation : c'est ce qui garantit le même verdict des deux côtés."""
-    spec = _projet(tmp_path)
-    avant = spec.read_text(encoding="utf-8")
+    Without this check, the tool could write a declaration the compiler will
+    refuse — exactly the defect layer 1 closes. The check uses the COMPILER's
+    resolver, not a second implementation: that is what guarantees the same
+    verdict on both sides."""
+    spec = _project(tmp_path)
+    before = spec.read_text(encoding="utf-8")
 
-    import monl.assets_tool as outil
-    monkeypatch.setattr(outil.commandes.shutil, "copy2", lambda *_a, **_k: None)
+    import monl.assets_tool as tool
+    monkeypatch.setattr(tool.commands.shutil, "copy2", lambda *_a, **_k: None)
 
-    with pytest.raises(AssetsToolError) as refus:
-        outil.ajouter_asset(str(spec), str(tmp_path),
+    with pytest.raises(AssetsToolError) as refusal:
+        tool.add_asset(str(spec), str(tmp_path),
                             str(tmp_path / "source" / "photo une.png"),
                             pour="Halo RS")
-    assert "does not resolve to a file" in str(refus.value)
-    assert spec.read_text(encoding="utf-8") == avant
+    assert "does not resolve to a file" in str(refusal.value)
+    assert spec.read_text(encoding="utf-8") == before
     capsys.readouterr()
 
 
 # --------------------------------------------------------------------------
-# Le parcours réel, par la ligne de commande
+# The real journey, through the command line
 # --------------------------------------------------------------------------
 
-def test_le_parcours_complet_par_la_ligne_de_commande(tmp_path, capsys):
-    """Tout ce qui précède appelle la fonction ; ici c'est argparse, monl.json
-    et l'affichage qui sont éprouvés — le chemin que l'humain emprunte."""
+def test_the_full_journey_through_the_command_line(tmp_path, capsys):
+    """Everything above calls the function; here argparse, monl.json and the
+    display are tested — the path the human takes."""
     from monl.cli import compile_project, main
 
-    spec = _projet(tmp_path)
+    spec = _project(tmp_path)
     compile_project(str(spec), str(tmp_path))
     capsys.readouterr()
 
     main(["assets", "add", str(tmp_path / "source" / "photo une.png"),
           "--for", "Halo RS", "--dir", str(tmp_path)])
-    sortie = capsys.readouterr().out
-    assert "assets/halo-rs.png" in sortie
-    assert "Produit.photo" in sortie
-    assert "monl update" in sortie
+    output = capsys.readouterr().out
+    assert "assets/halo-rs.png" in output
+    assert "Produit.photo" in output
+    assert "monl update" in output
 
     main(["assets", "list", str(tmp_path)])
-    sortie = capsys.readouterr().out
-    assert "assets/halo-rs.png" in sortie and "Produit[1].photo" in sortie
+    output = capsys.readouterr().out
+    assert "assets/halo-rs.png" in output and "Produit[1].photo" in output
 
-    # La spec a bougé : 'monl run --check' doit le dire, et 'monl update' le
-    # résoudre. C'est le cycle annoncé par l'avertissement de l'outil.
+    # The spec moved: 'monl run --check' must say so, and 'monl update' resolve
+    # it. It is the cycle the tool's warning announces.
     from monl.cli import check_coherence
-    ok, erreurs, _ = check_coherence(str(tmp_path))
-    assert not ok and any("monl update" in e for e in erreurs)
+    ok, errors, _ = check_coherence(str(tmp_path))
+    assert not ok and any("monl update" in e for e in errors)
     capsys.readouterr()
 
 
-def test_la_ligne_de_commande_sort_en_erreur_sur_un_refus(tmp_path, capsys):
+def test_the_command_line_exits_with_error_on_a_refusal(tmp_path, capsys):
     from monl.cli import compile_project, main
 
-    spec = _projet(tmp_path)
+    spec = _project(tmp_path)
     compile_project(str(spec), str(tmp_path))
     capsys.readouterr()
-    with pytest.raises(SystemExit) as sortie:
+    with pytest.raises(SystemExit) as output:
         main(["assets", "add", str(tmp_path / "source" / "photo une.png"),
               "--for", "Inexistant", "--dir", str(tmp_path)])
-    assert sortie.value.code == 1
+    assert output.value.code == 1
     assert "No seed row has the value" in capsys.readouterr().out

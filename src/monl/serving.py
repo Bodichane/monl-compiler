@@ -48,7 +48,7 @@ else:
 '''
 
 
-def rendre_wrapper(assets_dir=None):
+def render_wrapper(assets_dir=None):
     """The text of the serve.py to write into a project.
 
     'assets_dir' is the folder declared by the spec, or None: in that case the

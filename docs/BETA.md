@@ -133,7 +133,7 @@ All blocking flaws identified in the audit have been fixed:
       the list below, and leaving it among the remaining tasks would make work
       already delivered look outstanding.
 - [x] **Generalized offensive audit, passing** —
-      `tests/test_audit_offensif_exemples.py` replays the three attacks against
+      `tests/test_offensive_audit_examples.py` replays the three attacks against
       every example (role spoofing, forged JWT, privilege escalation): none
       succeeds. The two signals studied in depth are false positives (public
       route, role not self-assigned), and the static `CRITICAL_WARNING`s are
@@ -154,15 +154,15 @@ In priority order:
    support down migrations, while a down migration containing an irreversible
    drop is refused and requires backup recovery (see [MIGRATIONS.md](MIGRATIONS.md)).
 2. **Template/AST-based generator**, first four steps delivered (point 207,
-   issue #119): `src/monl/generator/sandbox.py`, `src/monl/generator/runtime_annexes.py`,
+   issue #119): `src/monl/generator/sandbox.py`, `src/monl/generator/runtime_extras.py`,
    `src/monl/generator/runtime_preparation.py`, `src/monl/generator/runtime_migrations.py`,
-   `src/monl/generator/admin_cli.py`, `src/monl/generator/runtime_fonctions_auth.py`,
-   `src/monl/generator/runtime_montage.py`, `src/monl/generator/runtime_socle.py`,
+   `src/monl/generator/admin_cli.py`, `src/monl/generator/runtime_auth_functions.py`,
+   `src/monl/generator/runtime_mounting.py`, `src/monl/generator/runtime_base.py`,
    `src/monl/generator/routes_uploads.py`, `src/monl/generator/runtime_pool.py`,
-   `src/monl/generator/paiement.py`, `src/monl/generator/prealables.py`,
-   `src/monl/generator/calculs.py`, `src/monl/generator/schemas.py`,
-   `src/monl/generator/routes_acces.py`, `src/monl/generator/runtime_jetons.py`
-   and `src/monl/generator/runtime_connexion.py`
+   `src/monl/generator/payment.py`, `src/monl/generator/prerequisites.py`,
+   `src/monl/generator/calculations.py`, `src/monl/generator/schemas.py`,
+   `src/monl/generator/routes_access.py`, `src/monl/generator/runtime_tokens.py`
+   and `src/monl/generator/runtime_login.py`
    use `string.Template`, preserving bytes. Other runtime and routes emitters remain
    to migrate, along with their assembly; see
    [the measured inventory and migration order](GENERATOR_EMISSION_INVENTORY.md).
@@ -176,7 +176,7 @@ In priority order:
    not Python directly; their mutation changes downstream access-control bytes.
    Real-server behavioral tests and per-module red mutation proofs complement bytes.
    Parser fuzzing is done (point 204): mutated specs compile or get a named
-   monl error, checked by `tests/test_fuzzing_parseur.py`.
+   monl error, checked by `tests/test_parser_fuzzing.py`.
 3. ~~**Deployment-ready**~~ — **DONE (point 118)**: CORS opt-in through
    `MONL_CORS_ORIGINS` (`*` refused at startup), JSON logs with request ID via
    `MONL_LOG_FORMAT=json`, health checks `/health` and `/health/ready`,
@@ -192,7 +192,7 @@ In priority order:
    same response, within 1.28 ms. **Email confirmation DONE (point 209,
    issue #122)**: declared link validity and resend quota, no login before
    confirmation, single-use hash-only tokens and POST confirmation. Proven by
-   `tests/test_verification_email.py` against real uvicorn and fake SMTP.
+   `tests/test_email_verification.py` against real uvicorn and fake SMTP.
    Historical/offline accounts remain confirmed; no automatic purge or delivery
    guarantee.
 5. ~~**DSL governance**~~ — **DONE (point 200)**: language version,

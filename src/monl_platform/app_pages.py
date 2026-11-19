@@ -18,10 +18,10 @@ from .docs_page import DOCS_HTML
 from .guide import guide_html
 from .identity import IdentityStore
 from .landing import LANDING_HTML
-from .legal import CONDITIONS_HTML, CONFIDENTIALITE_HTML, MENTIONS_HTML
+from .legal import CONDITIONS_HTML, MENTIONS_HTML, PRIVACY_HTML
 from .mcp_page import MCP_HTML
 from .security import SECURITY_HTML
-from .theme import FAVICON, ICONE_ICO, LOGO_SVG, VERSION_ICO, VERSION_SVG, cache_icone
+from .theme import FAVICON, ICON_ICO, LOGO_SVG, VERSION_ICO, VERSION_SVG, cache_icon
 
 WORDMARK = Path(__file__).with_name("static") / "monl-wordmark.png"
 SOCIAL = Path(__file__).with_name("static") / "monl-social.png"
@@ -30,7 +30,7 @@ GUIDE_HTML = guide_html()
 
 def mount_page_routes(application: FastAPI, identities: IdentityStore, service):
     @application.get("/", response_class=HTMLResponse, include_in_schema=False)
-    def accueil():
+    def home():
         return LANDING_HTML
 
     @application.get("/console", response_class=HTMLResponse, include_in_schema=False)
@@ -68,7 +68,7 @@ def mount_page_routes(application: FastAPI, identities: IdentityStore, service):
 
     @application.get("/mentions-legales", response_class=HTMLResponse,
                      include_in_schema=False)
-    def mentions_legales():
+    def mentions_legal():
         return MENTIONS_HTML
 
     @application.get("/conditions", response_class=HTMLResponse, include_in_schema=False)
@@ -76,8 +76,8 @@ def mount_page_routes(application: FastAPI, identities: IdentityStore, service):
         return CONDITIONS_HTML
 
     @application.get("/confidentialite", response_class=HTMLResponse, include_in_schema=False)
-    def confidentialite():
-        return CONFIDENTIALITE_HTML
+    def privacy():
+        return PRIVACY_HTML
 
     @application.get("/security", response_class=HTMLResponse, include_in_schema=False)
     def security():
@@ -89,7 +89,7 @@ def mount_page_routes(application: FastAPI, identities: IdentityStore, service):
         # that contains normal noise stops being read.
         return Response(
             FAVICON, media_type="image/svg+xml",
-            headers=cache_icone(v, VERSION_SVG),
+            headers=cache_icon(v, VERSION_SVG),
         )
 
     @application.get("/favicon.ico", include_in_schema=False)
@@ -101,8 +101,8 @@ def mount_page_routes(application: FastAPI, identities: IdentityStore, service):
         # anything other than /favicon.svg. The received fingerprint decides
         # the caching: see cache_icone (theme.py).
         return FileResponse(
-            ICONE_ICO, media_type="image/x-icon",
-            headers=cache_icone(v, VERSION_ICO),
+            ICON_ICO, media_type="image/x-icon",
+            headers=cache_icon(v, VERSION_ICO),
         )
 
     @application.get("/logo.svg", include_in_schema=False)
@@ -151,11 +151,11 @@ def mount_page_routes(application: FastAPI, identities: IdentityStore, service):
         return {"templates": service.list_templates()}
 
     @application.get("/api/examples")
-    def liste_exemples():
+    def list_examples():
         return {"examples": examples.catalogue()}
 
     @application.get("/api/examples/{example_id}")
-    def exemple(example_id: str):
+    def example(example_id: str):
         try:
             return {"id": example_id, "spec": examples.spec_of(example_id)}
         except KeyError:

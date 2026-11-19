@@ -7,7 +7,7 @@ import re
 
 from ..design_system import plan_generated_images
 from ..image_ai import ImageProviderError, optimize_image_bytes, record_image_usage
-from . import fondations
+from . import foundations
 
 
 def _clean_image_text(value):
@@ -111,7 +111,7 @@ def _fit_image_prompt(parts, max_chars):
             if required:
                 # This case should only concern an unrealistic provider limit;
                 # the message stays an actionable monl error.
-                raise fondations.FrontendAIError(
+                raise foundations.FrontendAIError(
                     f"image prompt cannot be composed under {max_chars} characters")
             parts.pop(index)
             continue
@@ -119,7 +119,7 @@ def _fit_image_prompt(parts, max_chars):
 
     prompt = render()
     if len(prompt) > max_chars:
-        raise fondations.FrontendAIError(
+        raise foundations.FrontendAIError(
             f"image prompt too long after composition ({len(prompt)} characters, "
             f"maximum {max_chars})")
     return prompt
@@ -131,7 +131,7 @@ def _image_prompt(project_dir, item, max_chars=None):
         with open(contract_path, encoding="utf-8") as fh:
             contract = json.load(fh)
     except (OSError, json.JSONDecodeError) as exc:
-        raise fondations.FrontendAIError(
+        raise foundations.FrontendAIError(
             f"frontend contract unreadable before image generation: {exc}"
         ) from exc
 
@@ -176,7 +176,7 @@ def _call_image_provider(provider, prompt, aspect_ratio):
     # provider, however, explicitly accepts the optional report.
     limit = _image_provider_prompt_limit(provider)
     if limit is not None and len(prompt) > limit:
-        raise fondations.FrontendAIError(
+        raise foundations.FrontendAIError(
             f"monl: image prompt too long for the provider "
             f"({len(prompt)} characters, maximum {limit})")
     if aspect_ratio is None or not _image_provider_accepts_aspect_ratio(provider):
@@ -189,14 +189,14 @@ def _generate_planned_images(project_dir, image_provider, operation, attempt, ru
     AI."""
     generated = plan_generated_images(project_dir)
     if not generated:
-        raise fondations.FrontendAIError(
+        raise foundations.FrontendAIError(
             "image generation is enabled but the manifest cannot be "
             "planned")
     failures = []
     for item in generated:
         path = item.get("path")
         if not isinstance(path, str) or path.startswith("/") or ".." in path.split("/"):
-            raise fondations.FrontendAIError(f"generated image path refused: {path}")
+            raise foundations.FrontendAIError(f"generated image path refused: {path}")
         destination = os.path.join(project_dir, path)
         if os.path.isfile(destination):
             continue

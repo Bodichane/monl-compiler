@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from .coloration import coloriser
+from .coloration import colorize
 
 # Read from `guide_data`, the SOURCE, and not through `guide`: that detour made
 # `guide` a mere pipe, and ruff reported its imports as dead while they carried
 # this very page.
 from .guide_data import (
-    REGLES_ACCES,
-    REGLES_CHAMPS,
-    REGLES_COMMERCE,
-    REGLES_SERVEUR,
+    RULES_ACCESS,
+    RULES_COMMERCE,
+    RULES_FIELDS,
+    RULES_SERVER,
     TYPES,
 )
 from .theme import icon, page
@@ -44,7 +44,7 @@ EXTRA_CSS = """
 # Written as PLAIN TEXT: highlighting is done by the highlighter, whose
 # keywords come from the grammar. Marked by hand, they dated from the day they
 # were written.
-EXAMPLE = coloriser("""app LocalShop
+EXAMPLE = colorize("""app LocalShop
 
 entity Product
     name: String
@@ -103,8 +103,8 @@ BODY = f"""
 
 <section id="acces"><h2>Access and security.</h2>
 <p class="lede">These rules apply in the API: hiding a button is never an authorization.</p>
-<div class="keyword-grid">{_rules(REGLES_ACCES)}</div><h2 style="margin-top:var(--space-7)">Validation and server calculation.</h2>
-<div class="keyword-grid">{_rules(REGLES_CHAMPS + REGLES_SERVEUR + REGLES_COMMERCE)}</div></section>
+<div class="keyword-grid">{_rules(RULES_ACCESS)}</div><h2 style="margin-top:var(--space-7)">Validation and server calculation.</h2>
+<div class="keyword-grid">{_rules(RULES_FIELDS + RULES_SERVER + RULES_COMMERCE)}</div></section>
 
 <section id="validation"><h2>Validate the spec.</h2>
 <div class="tip"><span class="feature-icon">{icon('check')}</span><p>Paste the file into the <a href="/console">console</a>, then choose <b>Check the spec</b>.

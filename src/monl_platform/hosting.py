@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .hosting_admission import eviction_candidate, hosting_limits
-from .hosting_control import arreter_distant
+from .hosting_control import stop_distant
 from .paths import ProjectPathError, project_directory
 
 
@@ -102,11 +102,11 @@ class SiteManager:
 
     def _require_site(self, project):
         directory = self._project_directory(project)
-        for fichier in ("app.py", "serve.py"):
-            if not (directory / fichier).is_file():
+        for file in ("app.py", "serve.py"):
+            if not (directory / file).is_file():
                 raise SiteNotCompiledError(
                     f"the backend of project {project['project_id']} is not "
-                    f"compiled: {fichier} missing"
+                    f"compiled: {file} missing"
                 )
         return directory
 
@@ -138,15 +138,15 @@ class SiteManager:
         both cases; that is why one must measure what is KEPT, not what is thrown
         away."""
         try:
-            with log_path.open("a+b") as journal:
-                lire = getattr(stream, "read1", stream.read)
-                journal.seek(0, 2)
-                taille = journal.tell()
-                if taille > SITE_LOG_COMPACT_BYTES:
-                    taille = SiteManager._compacter_journal(journal)
+            with log_path.open("a+b") as log:
+                read = getattr(stream, "read1", stream.read)
+                log.seek(0, 2)
+                size = log.tell()
+                if size > SITE_LOG_COMPACT_BYTES:
+                    size = SiteManager._compact_log(log)
                 while True:
-                    bloc = lire(8192)
-                    if not bloc:
+                    block = read(8192)
+                    if not block:
                         break
                     # Compact BEFORE writing, never after. Compacting after
                     # lets the file EXCEED the bound for the whole duration of
@@ -156,30 +156,30 @@ class SiteManager:
                     # instant CI captured. A disk bound is a promise about what
                     # is OCCUPIED: it must hold at every instant, not only when
                     # the thread has finished its work.
-                    if taille + len(bloc) > SITE_LOG_COMPACT_BYTES:
-                        taille = SiteManager._compacter_journal(journal)
-                    journal.write(bloc)
-                    journal.flush()
-                    taille += len(bloc)
+                    if size + len(block) > SITE_LOG_COMPACT_BYTES:
+                        size = SiteManager._compact_log(log)
+                    log.write(block)
+                    log.flush()
+                    size += len(block)
         finally:
             stream.close()
 
     @staticmethod
-    def _compacter_journal(journal):
+    def _compact_log(log):
         """Keep only the end, cut on a whole line."""
-        journal.seek(0)
-        garde = journal.read()[-SITE_LOG_MAX_BYTES:]
+        log.seek(0)
+        guard = log.read()[-SITE_LOG_MAX_BYTES:]
         # The cut falls in the middle of a line: dropping it avoids an
         # unreadable fragment at the top of the log, which would be taken for a
         # message truncated by the site itself.
-        coupe = garde.find(b"\n")
-        if 0 <= coupe < len(garde) - 1:
-            garde = garde[coupe + 1:]
-        journal.truncate(0)
-        journal.seek(0)
-        journal.write(garde)
-        journal.flush()
-        return len(garde)
+        coupe = guard.find(b"\n")
+        if 0 <= coupe < len(guard) - 1:
+            guard = guard[coupe + 1:]
+        log.truncate(0)
+        log.seek(0)
+        log.write(guard)
+        log.flush()
+        return len(guard)
 
     @staticmethod
     def _join_output(output_thread):
@@ -264,9 +264,9 @@ class SiteManager:
         with self._lock:
             running = self._running.pop(project_id, None)
             if running is None:
-                if getattr(self, "controle_local", False):
+                if getattr(self, "control_local", False):
                     return False
-                return arreter_distant(self.workspace_root, project_id)
+                return stop_distant(self.workspace_root, project_id)
             self._stop_running(running)
             return True
 

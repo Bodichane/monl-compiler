@@ -6,7 +6,8 @@ from fastapi import HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, Response
 
-from .account_deletion import verifier_suppression
+from . import deletion
+from .account_deletion import check_deletion
 from .app_http import (
     _admission_compilation,
     _client_ip,
@@ -15,13 +16,12 @@ from .app_http import (
     _rate_limit,
     _require_project,
     _require_user,
-    _require_user_ou_cle,
+    _require_user_ou_key,
     _session_response,
 )
-from .deletion import supprimer_compte, supprimer_projet
-from .dialogue import DialogueInputError, bounded_answer, bounded_answers, soumettre
+from .dialogue import DialogueInputError, bounded_answer, bounded_answers, submit
 from .identity import IdentityError, IdentityStore
-from .journal import anomalie, court, evenement
+from .log import anomaly, event, short
 from .mcp_server import MCPDispatcher
 from .service import PlatformExecutionError, PlatformInputError, PlatformNotFoundError
 
@@ -37,10 +37,10 @@ def mount_api_routes(
         try:
             user = identities.register(payload.get("email"), payload.get("password"))
         except IdentityError as exc:
-            anomalie("inscription_refusee", cause=str(exc))
+            anomaly("inscription_refusee", cause=str(exc))
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         codes = identities.create_recovery_codes(user["id"])
-        evenement("compte_cree", compte=court(user["id"]))
+        event("compte_cree", compte=short(user["id"]))
         # The codes come out ONLY here and on regeneration. Like an API key,
         # they cannot be read back: only their fingerprint is kept.
         return _session_response(identities, user, status_code=201,
@@ -54,9 +54,9 @@ def mount_api_routes(
         if not user:
             # The address tried is not logged: it would be personal data in a
             # file the whole hosting can read.
-            anomalie("connexion_refusee", ip=_client_ip(request))
+            anomaly("connexion_refusee", ip=_client_ip(request))
             raise HTTPException(status_code=401, detail="Incorrect email or password.")
-        evenement("connexion", compte=court(user["id"]))
+        event("connexion", compte=short(user["id"]))
         return _session_response(identities, user)
 
     @application.get("/api/auth/recovery-codes")
@@ -65,7 +65,7 @@ def mount_api_routes(
         return {"remaining": identities.count_recovery_codes(user["id"])}
 
     @application.post("/api/auth/recovery-codes", status_code=201)
-    async def regenerer_codes(request: Request):
+    async def regenerate_codes(request: Request):
         user = _require_user(request, identities)
         _rate_limit(request, identities, "regenerer_codes", user["id"], 5, 60)
         payload = await _json_body(request)
@@ -74,11 +74,11 @@ def mount_api_routes(
                                 detail="Incorrect password: the codes were not regenerated. OAuth accounts cannot regenerate codes.")
         codes = identities.create_recovery_codes(
             user["id"], session=request.cookies.get("monl_session"))
-        evenement("codes_regeneres", compte=court(user["id"]))
+        event("codes_regeneres", compte=short(user["id"]))
         return {"recovery_codes": codes}
 
     @application.post("/api/auth/recover", status_code=204)
-    async def recuperer(request: Request):
+    async def recover(request: Request):
         """Taking back control of an account whose password is lost.
 
         BOUNDED BY IP ADDRESS, like login. A code is 16 random characters, but
@@ -93,10 +93,10 @@ def mount_api_routes(
         user = identities.consume_recovery_code(
             payload.get("email"), payload.get("code"), payload.get("password"))
         if not user:
-            anomalie("recuperation_refusee", ip=_client_ip(request))
+            anomaly("recuperation_refusee", ip=_client_ip(request))
             raise HTTPException(status_code=401,
                                 detail="Invalid or already used recovery code.")
-        evenement("compte_recupere", compte=court(user["id"]),
+        event("compte_recupere", compte=short(user["id"]),
                   restants=identities.count_recovery_codes(user["id"]))
         return Response(status_code=204)
 
@@ -111,9 +111,9 @@ def mount_api_routes(
     async def delete_account(request: Request):
         user = _require_user(request, identities)
         payload = await _json_body(request)
-        verifier_suppression(identities, user, request.cookies.get("monl_session"), payload)
-        projets = supprimer_compte(builder_runtime, user["id"])
-        evenement("compte_supprime", compte=court(user["id"]), projets=len(projets))
+        check_deletion(identities, user, request.cookies.get("monl_session"), payload)
+        projects = deletion.delete_account(builder_runtime, user["id"])
+        event("compte_supprime", compte=short(user["id"]), projets=len(projects))
         response = Response(status_code=204)
         response.delete_cookie("monl_session", path="/", httponly=True, samesite="strict")
         return response
@@ -121,8 +121,8 @@ def mount_api_routes(
     @application.get("/api/auth/me")
     def me(request: Request):
         user = _require_user(request, identities)
-        preuve = identities.session_proof(request.cookies.get("monl_session"))
-        return {**user, "auth_provider": preuve["auth_provider"] if preuve else None}
+        proof = identities.session_proof(request.cookies.get("monl_session"))
+        return {**user, "auth_provider": proof["auth_provider"] if proof else None}
 
     @application.get("/api/projects")
     def list_projects(request: Request):
@@ -133,7 +133,7 @@ def mount_api_routes(
     def delete_project(project_id: str, request: Request):
         user = _require_user(request, identities)
         _require_project(identities, user["id"], project_id)
-        supprimer_projet(builder_runtime, user["id"], project_id)
+        deletion.delete_project(builder_runtime, user["id"], project_id)
         return Response(status_code=204)
 
     @application.get("/api/keys")
@@ -146,11 +146,11 @@ def mount_api_routes(
         user = _require_user(request, identities)
         payload = await _json_body(request)
         try:
-            cle = await run_in_threadpool(
+            key = await run_in_threadpool(
                 identities.create_api_key, user["id"], payload.get("name"),
                 session=request.cookies.get("monl_session"))
-            evenement("cle_creee", compte=court(user["id"]), cle=court(cle["id"]))
-            return cle
+            event("cle_creee", compte=short(user["id"]), cle=short(key["id"]))
+            return key
         except IdentityError as exc:
             _require_user(request, identities)
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -160,7 +160,7 @@ def mount_api_routes(
         user = _require_user(request, identities)
         if not identities.revoke_api_key(user["id"], key_id):
             raise HTTPException(status_code=404, detail="Key not found.")
-        evenement("cle_revoquee", compte=court(user["id"]), cle=court(key_id))
+        event("cle_revoquee", compte=short(user["id"]), cle=short(key_id))
         return Response(status_code=204)
 
     @application.post("/api/validate")
@@ -193,7 +193,7 @@ def mount_api_routes(
         try:
             answers = bounded_answers(payload.get("answers"))
             candidate = bounded_answer(payload.get("answer"))
-            return await run_in_threadpool(soumettre, answers, candidate)
+            return await run_in_threadpool(submit, answers, candidate)
         except DialogueInputError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -208,11 +208,11 @@ def mount_api_routes(
                     service.compile, payload.get("spec"), account_id=user["id"]
                 )
                 identities.add_project(user["id"], manifest["id"], manifest["summary"]["app"])
-                evenement("compilation", compte=court(user["id"]), projet=court(manifest["id"]),
+                event("compilation", compte=short(user["id"]), projet=short(manifest["id"]),
                           routes=len(manifest["summary"].get("routes", [])))
                 return manifest
             except PlatformInputError as exc:
-                anomalie("compilation_refusee", compte=court(user["id"]), cause=str(exc)[:120])
+                anomaly("compilation_refusee", compte=short(user["id"]), cause=str(exc)[:120])
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @application.get("/api/projects/{project_id}")
@@ -235,7 +235,7 @@ def mount_api_routes(
 
     @application.get("/api/projects/{project_id}/download")
     def download(project_id: str, request: Request):
-        user = _require_user_ou_cle(request, identities)
+        user = _require_user_ou_key(request, identities)
         _rate_limit(request, identities, "download", user["id"], 30, 60)
         _require_project(identities, user["id"], project_id)
         try:

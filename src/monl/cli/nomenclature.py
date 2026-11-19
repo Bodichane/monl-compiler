@@ -20,17 +20,17 @@ STATE_FILENAME = "monl.json"
 
 # What the spec produces and nobody must touch up by hand (manage.py and
 # sandbox_ai.py included: they carry permissions).
-SCELLE_ARTEFACTS = ("app.py", "schema.sql", "sandbox_ai.py", "manage.py",
+SEALED_ARTIFACTS = ("app.py", "schema.sql", "sandbox_ai.py", "manage.py",
                     "serve.py")
 
 # Deployment artifacts the author can edit. They are published with the
 # compilation, but are neither sealed nor included in the backend fingerprints:
 # a local adaptation of the container must survive `monl compile`.
-CONTAINER_ARTEFACTS = ("Dockerfile", ".dockerignore", "requirements.txt")
+CONTAINER_ARTIFACTS = ("Dockerfile", ".dockerignore", "requirements.txt")
 
-PROJECT_ARTEFACTS = (
-    *SCELLE_ARTEFACTS,
-    *CONTAINER_ARTEFACTS,
+PROJECT_ARTIFACTS = (
+    *SEALED_ARTIFACTS,
+    *CONTAINER_ARTIFACTS,
     ".jwt_secret",
     CONTRACT_FILENAME,
     PROMPT_FILENAME,
@@ -101,7 +101,7 @@ REQUIREMENTS_UPLOAD = DEFAULT_REQUIREMENTS + "python-multipart>=0.0.9,<1.0\n"
 # project saw its Dockerfile treated as customized and frozen forever.
 # Silently. "Inherited" describes the PAST: it cannot be deduced from the
 # present.
-_HERITE_ENTETE = """FROM python:3.12-slim
+_INHERITED_HEADER = """FROM python:3.12-slim
 
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \\
@@ -114,10 +114,10 @@ RUN pip install --no-cache-dir \\
     'uvicorn>=0.29,<1.0' \\
     'PyJWT>=2.8,<3.0'"""
 
-_HERITE_ENTETE_UPLOAD = _HERITE_ENTETE + """ \\
+_INHERITED_HEADER_UPLOAD = _INHERITED_HEADER + """ \\
     'python-multipart>=0.0.9,<1.0'"""
 
-_HERITE_PIED = """
+_INHERITED_FOOTER = """
 
 EXPOSE 8000
 CMD ["uvicorn", "{cible}", "--host", "0.0.0.0", "--port", "8000"]
@@ -125,7 +125,7 @@ CMD ["uvicorn", "{cible}", "--host", "0.0.0.0", "--port", "8000"]
 
 # The fifth form: `-r requirements.txt` with the secret instructions still in
 # French, emitted until the English migration of the generated comments.
-_HERITE_REQUIREMENTS_FR = """FROM python:3.12-slim
+_INHERITED_REQUIREMENTS_FR = """FROM python:3.12-slim
 
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \\
@@ -146,8 +146,8 @@ CMD ["uvicorn", "serve:app", "--host", "0.0.0.0", "--port", "8000"]
 # Five forms really emitted: `app:app` before point 133, `serve:app` since —
 # each with and without the Upload dependency — then the requirements.txt form
 # with French comments.
-DOCKERFILES_HERITES = tuple(
-    entete + _HERITE_PIED.format(cible=cible)
-    for entete in (_HERITE_ENTETE, _HERITE_ENTETE_UPLOAD)
-    for cible in ("app:app", "serve:app")
-) + (_HERITE_REQUIREMENTS_FR,)
+DOCKERFILES_INHERITED = tuple(
+    header + _INHERITED_FOOTER.format(cible=target)
+    for header in (_INHERITED_HEADER, _INHERITED_HEADER_UPLOAD)
+    for target in ("app:app", "serve:app")
+) + (_INHERITED_REQUIREMENTS_FR,)

@@ -30,8 +30,8 @@ from .agents import (
     CLAUDE_CODE_INSTRUCTION,
     CLI_AGENTS,
     DEFAULT_MAX_TURNS,
-    PROTECTED_ARTEFACTS,
-    RETOUCHE_INSTRUCTION,
+    PROTECTED_ARTIFACTS,
+    RETOUCH_INSTRUCTION,
     _fingerprint_frontend,
     _fingerprint_protected,
     build_agent_argv,
@@ -40,36 +40,27 @@ from .agents import (
     run_claude_code,
     run_cli_agent,
 )
-from .controles_design import (
+from .design_checks import (
     _design_completeness_errors,
     _editorial_content_errors,
     _generated_asset_reuse_errors,
 )
-from .controles_fichiers import (
+from .drafting import brief_evolution, build_generation_prompt, extent_of_contract
+from .file_checks import (
     _declared_link_errors,
     _frontend_behavioral_quality_errors,
     _frontend_local_reference_errors,
 )
-from .etages import (
-    CHUNKED_FRONTEND_FILES,
-    _budget,
-    _build_chunk_prompt,
-    _chunk_context,
-    _generate_chunked_files,
-    _parse_model_routing,
-    _planned_generated_asset_paths,
-    _provider_for_chunk,
-    _raise_chunk_output_limit,
-    _validate_model_routing,
-)
-from .fondations import (
+from .foundations import (
     ALLOWED_EXTENSIONS,
     MAX_TOTAL_BYTES,
-    RETOUCHE_PROMPT_FILENAME,
+    RETOUCH_PROMPT_FILENAME,
     UPDATE_PROMPT_FILENAME,
     FrontendAIError,
 )
-from .fournisseurs import (
+from .images import _generate_planned_images, _image_prompt
+from .orchestration import generate_and_verify, import_and_verify, load_frontend_source
+from .providers import (
     CHUNK_MAX_RETRIES,
     CHUNK_RETRY_MAX_OUTPUT_TOKENS,
     CHUNK_RETRY_OUTPUT_TOKEN_FACTOR,
@@ -87,19 +78,28 @@ from .fournisseurs import (
     claude_provider,
     openai_provider,
 )
-from .images import _generate_planned_images, _image_prompt
-from .orchestration import generate_and_verify, import_and_verify, load_frontend_source
-from .redaction import ampleur_du_contrat, brief_evolution, build_generation_prompt
-from .reponse import (
-    _fichier_depuis_un_bloc,
+from .response import (
+    _file_from_a_block,
     _json_payload,
     _project_guidance,
     _read_existing_frontend,
-    _restaurer_frontend,
+    _restore_frontend,
     _validate_files,
     _write_files,
     parse_files_payload,
     parse_single_file_payload,
+)
+from .stages import (
+    CHUNKED_FRONTEND_FILES,
+    _budget,
+    _build_chunk_prompt,
+    _chunk_context,
+    _generate_chunked_files,
+    _parse_model_routing,
+    _planned_generated_asset_paths,
+    _provider_for_chunk,
+    _raise_chunk_output_limit,
+    _validate_model_routing,
 )
 
 __all__ = [
@@ -117,11 +117,11 @@ __all__ = [
     "MAX_TOTAL_BYTES",
     "OPENAI_COMPATIBLE",
     "PROMPT_FILENAME",
-    "PROTECTED_ARTEFACTS",
+    "PROTECTED_ARTIFACTS",
     "PROVIDERS",
     "RESPONSE_FORMAT_INSTRUCTIONS",
-    "RETOUCHE_INSTRUCTION",
-    "RETOUCHE_PROMPT_FILENAME",
+    "RETOUCH_INSTRUCTION",
+    "RETOUCH_PROMPT_FILENAME",
     "UPDATE_PROMPT_FILENAME",
     "USAGE_FILENAME",
     "FrontendAIError",
@@ -132,7 +132,7 @@ __all__ = [
     "_declared_link_errors",
     "_design_completeness_errors",
     "_editorial_content_errors",
-    "_fichier_depuis_un_bloc",
+    "_file_from_a_block",
     "_fingerprint_frontend",
     "_fingerprint_protected",
     "_frontend_behavioral_quality_errors",
@@ -151,16 +151,16 @@ __all__ = [
     "_raise_chunk_output_limit",
     "_read_existing_frontend",
     "_record_provider_usage",
-    "_restaurer_frontend",
+    "_restore_frontend",
     "_validate_files",
     "_validate_model_routing",
     "_write_files",
     "activate_asset_manifest",
-    "ampleur_du_contrat",
     "brief_evolution",
     "build_agent_argv",
     "build_generation_prompt",
     "claude_provider",
+    "extent_of_contract",
     "generate_and_verify",
     "generate_with_claude_code",
     "generate_with_cli_agent",

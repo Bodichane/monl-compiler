@@ -43,7 +43,7 @@ from pathlib import Path
 RACINE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RACINE / "src"))
 
-from monl.cli import couverture  # noqa: E402
+from monl.cli import coverage  # noqa: E402
 
 PLUGIN = Path(os.environ.get("MONL_PLUGIN_MESURE", RACINE / "plugin"))
 REGLAGES = json.dumps({"enabledPlugins": {
@@ -133,8 +133,8 @@ def noter(dossier):
     dossier = Path(dossier)
     contrat = json.loads((dossier / "frontend_contract.json").read_text(encoding="utf-8"))
     routes = [r for r in contrat.get("routes", []) if r["path"] != "/paiement/webhook"]
-    appels = couverture._frontend_fetch_calls(str(dossier / "frontend"))
-    couvertes = sum(1 for route in routes if couverture._route_est_appelee(route, appels))
+    appels = coverage._frontend_fetch_calls(str(dossier / "frontend"))
+    couvertes = sum(1 for route in routes if coverage._route_is_called(route, appels))
     verif = subprocess.run(MONL + ["run", str(dossier), "--check"], capture_output=True,
                            text=True, timeout=600, stdin=subprocess.DEVNULL)
     sortie = verif.stdout + verif.stderr

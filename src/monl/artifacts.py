@@ -59,14 +59,14 @@ def _replace(source: Path, destination: Path) -> None:
 SANDBOX_FILENAME = "sandbox_ai.py"
 
 
-def sans_sandbox(noms):
+def sans_sandbox(names):
     """Removes the `custom` module from a list of artifacts.
 
     A project without a `custom` block gets none: the file only contained a
     comment, `app.py` imported it without ever calling it, and deleting it
     made startup fail. A file that does nothing and cannot be removed has no
     place in a delivered archive."""
-    return tuple(nom for nom in noms if nom != SANDBOX_FILENAME)
+    return tuple(name for name in names if name != SANDBOX_FILENAME)
 
 
 def publish_files(staging_dir: str | os.PathLike[str],
@@ -132,18 +132,18 @@ def publish_files(staging_dir: str | os.PathLike[str],
 DOCS_DIR = "docs"
 
 
-def chemin_pret(base, nom):
+def path_pret(base, name):
     """The path of an artifact, its folder created if needed.
 
     An artifact can live in `docs/`: opening it for writing without having
     created the folder raises `FileNotFoundError`, and the staging is always
     fresh, so the folder never exists there the first time."""
-    cible = Path(base) / nom
-    cible.parent.mkdir(parents=True, exist_ok=True)
-    return cible
+    target = Path(base) / name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    return target
 
 
-def deplacer_vers_docs(project_dir, chemins):
+def move_vers_docs(project_dir, paths):
     """Tidies up, only once, the documents left at the root.
 
     Projects compiled BEFORE this tidy-up carry these files at the root.
@@ -156,13 +156,13 @@ def deplacer_vers_docs(project_dir, chemins):
     file already present at the new location wins: it is the one the
     compilation just produced or the author keeps up to date."""
     racine = Path(project_dir)
-    deplaces = []
-    for chemin in chemins:
-        cible = racine / chemin
-        ancien = racine / Path(chemin).name
-        if cible.exists() or not ancien.is_file() or ancien == cible:
+    moved = []
+    for path in paths:
+        target = racine / path
+        old = racine / Path(path).name
+        if target.exists() or not old.is_file() or old == target:
             continue
-        cible.parent.mkdir(parents=True, exist_ok=True)
-        _replace(ancien, cible)
-        deplaces.append(chemin)
-    return deplaces
+        target.parent.mkdir(parents=True, exist_ok=True)
+        _replace(old, target)
+        moved.append(path)
+    return moved

@@ -23,11 +23,11 @@ from ..frontend_contract import (
     PROMPT_FILENAME,
     generate_frontend_contract,
 )
-from ..frontend_contract.projet import (
+from ..frontend_contract.project import (
     LEGACY_AGENTS_FILENAME,
     PROJECT_CLAUDE_MD_MARKER,
 )
-from . import conteneur, emplacement, nomenclature
+from . import container, location, nomenclature
 
 #: What moved. Written out here in full and never derived from the current
 #: constants: an "old location" describes the PAST, it cannot be deduced from
@@ -48,20 +48,20 @@ def _ranger_les_documents(project_dir):
     replaces it. Writing to the new location without moving the old one would
     produce two truths, one of them false — and it is the false one an agent
     would read, since it is at the root."""
-    deplaces = list(artifacts.deplacer_vers_docs(project_dir, _DOCUMENTS_RANGES))
-    ancien = os.path.join(project_dir, LEGACY_AGENTS_FILENAME)
-    nouveau = os.path.join(project_dir, nomenclature.AGENTS_FILENAME)
+    moved = list(artifacts.move_vers_docs(project_dir, _DOCUMENTS_RANGES))
+    old = os.path.join(project_dir, LEGACY_AGENTS_FILENAME)
+    new = os.path.join(project_dir, nomenclature.AGENTS_FILENAME)
     # A CLAUDE.md WITHOUT our marker belongs to the user: it stays where it is,
     # intact. Renaming it would move their work under a name monl overwrites on
     # the next compilation.
-    if os.path.isfile(ancien) and not os.path.exists(nouveau):
-        with open(ancien, encoding="utf-8") as fh:
+    if os.path.isfile(old) and not os.path.exists(new):
+        with open(old, encoding="utf-8") as fh:
             if PROJECT_CLAUDE_MD_MARKER in fh.read():
-                os.replace(ancien, nouveau)
-                deplaces.append(nomenclature.AGENTS_FILENAME)
-    if deplaces:
-        print(" -> Documents moved       : " + ", ".join(deplaces))
-    return deplaces
+                os.replace(old, new)
+                moved.append(nomenclature.AGENTS_FILENAME)
+    if moved:
+        print(" -> Documents moved       : " + ", ".join(moved))
+    return moved
 
 
 # ---------------------------------------------------------------- compile --
@@ -97,23 +97,23 @@ def compile_project(spec_path, project_dir, base_dir=None, save_state=True):
             (".jwt_secret", nomenclature.AGENTS_FILENAME,
              nomenclature.README_FILENAME, DESIGN_SYSTEM_FILENAME,
              DESIGN_SPEC_FILENAME, ASSET_MANIFEST_FILENAME,
-             *nomenclature.CONTAINER_ARTEFACTS),
+             *nomenclature.CONTAINER_ARTIFACTS),
         )
         compilation = compile_monl(
             spec_path, output_dir=temporary, base_dir=reference_dir)
         contract = generate_frontend_contract(
             compilation.ir, compilation.plans, temporary, spec_rel)
         direction = ensure_design_artifacts(proj_abs, temporary, contract)
-        conteneur._ensure_container_artifacts(
+        container._ensure_container_artifacts(
             temporary, uploads=bool(compilation.ir["security"].get("upload_fields")))
-        conteneur._emettre_wrapper(temporary, contract)
+        container._emit_wrapper(temporary, contract)
         if save_state:
-            emplacement._save_state(temporary, spec_rel, spec_source_path=spec_abs)
-        artefacts = nomenclature.PROJECT_ARTEFACTS if save_state else tuple(
-            name for name in nomenclature.PROJECT_ARTEFACTS if name != nomenclature.STATE_FILENAME)
+            location._save_state(temporary, spec_rel, spec_source_path=spec_abs)
+        artifacts = nomenclature.PROJECT_ARTIFACTS if save_state else tuple(
+            name for name in nomenclature.PROJECT_ARTIFACTS if name != nomenclature.STATE_FILENAME)
         if not compilation.ir.get("sandbox_ai", {}).get("custom_functions"):
-            artefacts = sans_sandbox(artefacts)
-        publish_files(temporary, proj_abs, artefacts)
+            artifacts = sans_sandbox(artifacts)
+        publish_files(temporary, proj_abs, artifacts)
 
     print(f" -> Frontend contract     : {CONTRACT_FILENAME} + {PROMPT_FILENAME}")
     generated_direction = [name for name, written in direction.items() if written]
@@ -157,12 +157,12 @@ def cmd_init(project_dir=None):
 
 def cmd_migrate(project_dir, name=None, down=False, list_only=False):
     """Explicitly applies a migration to the already compiled backend."""
-    project_dir, _spec_path = emplacement._situer_projet(project_dir, "migrate")
+    project_dir, _spec_path = location._locate_project(project_dir, "migrate")
     app_path = os.path.join(project_dir, "app.py")
     if not os.path.exists(app_path):
         print(f" ❌ Missing artifact: {app_path} — run 'monl update'.")
         raise SystemExit(1)
-    courant = os.getcwd()
+    current = os.getcwd()
     module = None
     try:
         os.chdir(project_dir)
@@ -198,6 +198,6 @@ def cmd_migrate(project_dir, name=None, down=False, list_only=False):
         print(f" ❌ Migration failed: {error}")
         raise SystemExit(1) from error
     finally:
-        os.chdir(courant)
+        os.chdir(current)
         if module is not None:
             sys.modules.pop(module.__name__, None)

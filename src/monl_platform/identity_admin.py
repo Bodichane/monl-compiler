@@ -12,7 +12,7 @@ from .identity_primitives import IdentityError
 
 
 class IdentityAdminMixin:
-    def comptes_sans_codes(self) -> int:
+    def accounts_without_codes(self) -> int:
         """How many accounts have no recovery code.
 
         EARLIER accounts have none: the additive migration catches up a table,
@@ -25,7 +25,7 @@ class IdentityAdminMixin:
                 "SELECT COUNT(*) FROM users WHERE id NOT IN "
                 "(SELECT DISTINCT user_id FROM recovery_codes)").fetchone()[0]
 
-    def comptes_herites(self) -> int:
+    def accounts_inherited(self) -> int:
         """Counts the old ``accounts`` rows without converting them.
 
         The old registry used another hash and integer identifiers. No password
@@ -33,14 +33,14 @@ class IdentityAdminMixin:
         table therefore stays intact and startup only names the number of
         accounts not carried over."""
         with self._connect() as db:
-            existe = db.execute(
+            exists = db.execute(
                 "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'accounts'"
             ).fetchone()
-            if existe is None:
+            if exists is None:
                 return 0
             return db.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]
 
-    count_legacy_accounts = comptes_herites
+    count_legacy_accounts = accounts_inherited
 
     # ------------------------------------------------------------------
     # Reads and operational actions
@@ -57,10 +57,10 @@ class IdentityAdminMixin:
     # already owns the database: the command line therefore adds NO attack
     # surface, it only makes safe and traceable actions that were already done.
 
-    def comptes(self) -> list[dict[str, Any]]:
+    def accounts(self) -> list[dict[str, Any]]:
         """All accounts, with enough to decide without another query."""
         with self._connect() as db:
-            lignes = db.execute("""
+            lines = db.execute("""
                 SELECT users.id, users.email, users.created_at,
                        (SELECT COUNT(*) FROM projects WHERE user_id = users.id) AS projets,
                        (SELECT COUNT(*) FROM api_keys
@@ -69,9 +69,9 @@ class IdentityAdminMixin:
                         WHERE user_id = users.id) AS codes
                 FROM users ORDER BY users.created_at DESC
             """).fetchall()
-        return [dict(ligne) for ligne in lignes]
+        return [dict(line) for line in lines]
 
-    def compte_par_adresse(self, email: Any) -> dict[str, str] | None:
+    def account_by_address(self, email: Any) -> dict[str, str] | None:
         """Finds an account by its address, without a password.
 
         The address is NORMALIZED as at registration: otherwise, the operator
@@ -82,56 +82,56 @@ class IdentityAdminMixin:
         except IdentityError:
             return None
         with self._connect() as db:
-            ligne = db.execute("SELECT id, email FROM users WHERE email = ?",
+            line = db.execute("SELECT id, email FROM users WHERE email = ?",
                                (normalise,)).fetchone()
-        return {"id": ligne["id"], "email": ligne["email"]} if ligne else None
+        return {"id": line["id"], "email": line["email"]} if line else None
 
-    def tous_les_projets(self, user_id: str | None = None) -> list[dict[str, Any]]:
-        requete = ("SELECT projects.*, users.email FROM projects "
+    def all_the_projects(self, user_id: str | None = None) -> list[dict[str, Any]]:
+        query = ("SELECT projects.*, users.email FROM projects "
                    "JOIN users ON users.id = projects.user_id ")
-        parametres: tuple = ()
+        parameters: tuple = ()
         if user_id:
-            requete += "WHERE projects.user_id = ? "
-            parametres = (user_id,)
+            query += "WHERE projects.user_id = ? "
+            parameters = (user_id,)
         with self._connect() as db:
-            lignes = db.execute(requete + "ORDER BY projects.created_at DESC",
-                                parametres).fetchall()
-        return [dict(ligne) for ligne in lignes]
+            lines = db.execute(query + "ORDER BY projects.created_at DESC",
+                                parameters).fetchall()
+        return [dict(line) for line in lines]
 
-    def deplacer_echeance(self, project_id: str, secondes: int | None) -> bool:
+    def move_deadline(self, project_id: str, secondes: int | None) -> bool:
         """Pushes back (or brings forward) a project's expiry. `None` = never.
 
         Counted from NOW and not from the current due date: "keep it thirty more
         days" is said after the fact, often on an already expired project, and
         restarting from the old date would extend nothing."""
-        echeance = None if secondes is None else int(time.time()) + secondes
+        deadline = None if secondes is None else int(time.time()) + secondes
         with self._connect() as db:
-            curseur = db.execute("UPDATE projects SET expires_at = ? WHERE project_id = ?",
-                                 (echeance, project_id))
-        return curseur.rowcount == 1
+            cursor = db.execute("UPDATE projects SET expires_at = ? WHERE project_id = ?",
+                                 (deadline, project_id))
+        return cursor.rowcount == 1
 
-    def revoquer_cle_par_id(self, key_id: str) -> dict[str, str] | None:
+    def revoke_key_by_id(self, key_id: str) -> dict[str, str] | None:
         """Revokes a key without knowing its owner.
 
         `revoke_api_key` requires the account identifier, because an HTTP route
         must only touch the caller's keys. The operator, however, has in front of
         them a key prefix read in a log and not much else."""
         with self._connect() as db:
-            ligne = db.execute(
+            line = db.execute(
                 "SELECT api_keys.id, api_keys.name, users.email FROM api_keys "
                 "JOIN users ON users.id = api_keys.user_id "
                 "WHERE api_keys.id = ? AND api_keys.revoked_at IS NULL",
                 (key_id,)).fetchone()
-            if not ligne:
+            if not line:
                 return None
             db.execute("UPDATE api_keys SET revoked_at = ? WHERE id = ?",
                        (int(time.time()), key_id))
-        return dict(ligne)
+        return dict(line)
 
-    def cles_du_compte(self, user_id: str) -> list[dict[str, Any]]:
+    def keys_of_account(self, user_id: str) -> list[dict[str, Any]]:
         return self.api_keys(user_id)
 
-    def sauvegarder(self, destination: str | os.PathLike[str]) -> Path:
+    def back_up(self, destination: str | os.PathLike[str]) -> Path:
         """Copies the database through SQLite's online backup API.
 
         A `cp` on an open database can yield a TORN file: the platform writes in
@@ -152,17 +152,17 @@ class IdentityAdminMixin:
         the copy back to DELETE before closing it forces a full checkpoint and
         makes both files disappear: a backup must be a single portable file, never
         a pair that only makes sense together."""
-        cible = Path(destination).resolve()
-        cible.parent.mkdir(parents=True, exist_ok=True)
+        target = Path(destination).resolve()
+        target.parent.mkdir(parents=True, exist_ok=True)
         source = sqlite3.connect(self.path, timeout=30)
-        copie = sqlite3.connect(cible)
+        copy = sqlite3.connect(target)
         try:
-            source.backup(copie)
-            copie.execute("PRAGMA journal_mode = DELETE")
+            source.backup(copy)
+            copy.execute("PRAGMA journal_mode = DELETE")
         finally:
-            copie.close()
+            copy.close()
             source.close()
-        return cible
+        return target
 
     def expired_projects(self) -> list[str]:
         now = int(time.time())

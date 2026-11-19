@@ -1,4 +1,4 @@
-"""Contrats de l'analyse utilisable sans instancier le générateur."""
+"""Contracts of the analysis, usable without instantiating the generator."""
 
 from copy import deepcopy
 from dataclasses import FrozenInstanceError
@@ -22,10 +22,10 @@ from monl.planning import (
     plan_relations,
     plan_routes,
 )
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cases import check_each_case
 
 
-def test_routes_qualifiees_fusionnent_sans_confondre_actions_et_fonctions():
+def test_qualified_routes_merge_without_confusing_actions_and_functions():
     workflows: list[WorkflowIR] = [
         {"name": "Consulter", "actor": "Lecteur", "actions": [
             {"type": "Read", "target": "Note.titre"},
@@ -57,14 +57,14 @@ def test_routes_qualifiees_fusionnent_sans_confondre_actions_et_fonctions():
     assert routes[("Execute", "Archiver")].actors == {"Admin"}
     assert workflows == original
 
-    # Un consommateur qui modifie son plan ne contamine pas une autre analyse.
+    # A consumer changing its plan does not contaminate another analysis.
     read.allow("Intrus", "AjoutLocal")
     fresh = plan_routes(workflows)[("Read", "Note")]
     assert fresh.actors == {"Lecteur", "Admin"}
     assert fresh.tags == ["Consulter", "Moderer"]
 
 
-def test_plusieurs_relations_vers_la_meme_entite_conservent_leur_orientation():
+def test_several_relations_to_one_entity_keep_their_orientation():
     relations: list[RelationIR] = [
         {"source": "Commande", "type": "hasMany", "target": "Ligne"},
         {"source": "Ligne", "type": "belongsTo", "target": "Produit"},
@@ -87,7 +87,7 @@ def test_plusieurs_relations_vers_la_meme_entite_conservent_leur_orientation():
     assert plan_foreign_keys(models)["Ligne"][0]["owner_entity"] == "Commande"
 
 
-def test_une_analyse_vide_ne_cree_aucune_route_ni_relation():
+def test_an_empty_analysis_creates_no_route_or_relation():
     assert plan_routes([]) == {}
     assert plan_relations([]) == []
     assert plan_foreign_keys([]) == {}
@@ -97,7 +97,7 @@ def test_une_analyse_vide_ne_cree_aucune_route_ni_relation():
     assert plan_counters([], [], {}) == {}
 
 
-def test_derivation_choisit_la_source_et_non_le_parent_proprietaire():
+def test_derivation_chooses_the_source_not_the_owning_parent():
     table = [
         RelationModel("Produit", "hasMany", "Ligne"),
         RelationModel("Produit", "hasOne", "Ligne"),
@@ -123,10 +123,10 @@ def test_derivation_choisit_la_source_et_non_le_parent_proprietaire():
         copy["factor"] = "autreQuantite"
         assert plan.factor == "quantite"
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
-def test_derivations_conservent_plusieurs_sources_et_lordre_des_champs():
+def test_derivations_keep_several_sources_and_field_order():
     rules: list[DerivedFieldIR] = [
         {"entity": "Ligne", "field": "livraison", "source_entity": "Transport",
          "source_field": "tarif", "factor": "colis"},
@@ -149,7 +149,7 @@ def test_derivations_conservent_plusieurs_sources_et_lordre_des_champs():
     assert plans["AutreLigne"][0].source_fk == "produit_id"
 
 
-def test_derivation_refuse_une_relation_absente_ou_dans_le_mauvais_sens():
+def test_derivation_refuses_a_missing_or_wrong_way_relation():
     table = [[], [RelationModel("Ligne", "hasMany", "Produit")]]
 
     def cas(relations):
@@ -160,10 +160,10 @@ def test_derivation_refuse_une_relation_absente_ou_dans_le_mauvais_sens():
         with pytest.raises(ValueError, match=r"no foreign-key column.*'Ligne'.*'Produit'.*derivedFrom"):
             plan_derivations([rule], relations)
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
-def test_aggregation_partage_un_plan_immuable_et_selectionne_le_bon_parent():
+def test_aggregation_shares_an_immutable_plan_and_selects_the_right_parent():
     table = [
         RelationModel("Commande", "hasMany", "Ligne"),
         RelationModel("Commande", "hasOne", "Ligne"),
@@ -189,10 +189,10 @@ def test_aggregation_partage_un_plan_immuable_et_selectionne_le_bon_parent():
         with pytest.raises(TypeError):
             plans.by_source["Ligne"] = ()
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
-def test_aggregation_indexe_plusieurs_sommes_sans_perdre_le_declencheur():
+def test_aggregation_indexes_several_sums_without_losing_the_trigger():
     rules: list[AggregatedFieldIR] = [
         {"entity": "Commande", "field": "total", "source_entity": "Ligne", "source_field": "prix"},
         {"entity": "Commande", "field": "poids", "source_entity": "Colis", "source_field": "poids"},
@@ -207,7 +207,7 @@ def test_aggregation_indexe_plusieurs_sommes_sans_perdre_le_declencheur():
     assert plans.by_source["Colis"][0] is plans.by_entity["Commande"][1]
 
 
-def test_aggregation_refuse_un_parent_sans_cle_etrangere_sur_lenfant():
+def test_aggregation_refuses_a_parent_without_foreign_key_on_the_child():
     table = [[], [RelationModel("Ligne", "hasMany", "Commande")]]
 
     def cas(relations):
@@ -218,10 +218,10 @@ def test_aggregation_refuse_un_parent_sans_cle_etrangere_sur_lenfant():
         with pytest.raises(ValueError, match=r"no foreign-key column.*'Ligne'.*'Commande'.*sumOf"):
             plan_aggregations([rule], relations)
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
-def test_compteur_resout_la_cible_et_conserve_le_plancher_zero():
+def test_counter_resolves_the_target_and_keeps_the_zero_floor():
     table = [
         RelationModel("Produit", "hasMany", "Ligne"),
         RelationModel("Produit", "hasOne", "Ligne"),
@@ -252,10 +252,10 @@ def test_compteur_resout_la_cible_et_conserve_le_plancher_zero():
         with pytest.raises(TypeError):
             plans["Ligne"] = ()
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
-def test_compteurs_constants_et_variables_ne_se_confondent_pas():
+def test_constant_and_variable_counters_are_not_confused():
     rules: list[CounterRuleIR] = [
         {"trigger_entity": "Vote", "target_entity": "Publication", "target_field": "score",
          "direction": "increments", "amount": 2, "amount_field": None},
@@ -273,7 +273,7 @@ def test_compteurs_constants_et_variables_ne_se_confondent_pas():
     assert all(plan.minimum is None for plan in plans)
 
 
-def test_compteur_refuse_une_relation_absente_ou_inversee():
+def test_counter_refuses_a_missing_or_reversed_relation():
     table = [[], [RelationModel("Ligne", "hasMany", "Produit")]]
 
     def cas(relations):
@@ -284,4 +284,4 @@ def test_compteur_refuse_une_relation_absente_ou_inversee():
         with pytest.raises(ValueError, match=r"no foreign key.*'Ligne'.*'Produit'"):
             plan_counters([rule], relations, {})
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)

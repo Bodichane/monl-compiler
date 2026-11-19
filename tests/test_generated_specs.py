@@ -1,11 +1,11 @@
-"""Banc #121 : pytest tests/test_generated_specs.py -q -s (< 60 s).
+"""Benchmark #121: pytest tests/test_generated_specs.py -q -s (< 60 s).
 
-MONL_LONG_BENCH=1 python3 -m pytest tests/test_generated_specs.py -q -s
-ajoute hors suite ordinaire N=160,320,640. Graine fixe, graphe de degré borné,
-3 répétitions entrelacées, médiane du temps mural du pipeline complet (lecture,
-parse, validation, backend, contrat, empreintes et publication). Une chauffe
-précède la mesure ; les sources sont préparées hors chronomètre.
-La borne porte sur cette famille, pas sur tous les graphes DSL possibles.
+MONL_LONG_BENCH=1 python3 -m pytest tests/test_generated_specs.py -q -s adds,
+outside the ordinary suite, N=160,320,640. Fixed seed, bounded-degree graph,
+3 interleaved repetitions, median wall time of the full pipeline (read,
+parse, validation, backend, contract, fingerprints and publishing). A warm-up
+precedes the measurement; sources are prepared outside the stopwatch. The
+bound covers this family, not every possible DSL graph.
 """
 
 import contextlib
@@ -24,9 +24,9 @@ from tests.support.server import uvicorn_server
 
 
 def generated_spec(n):
-    """Exactement N entités ; paires parent/enfant et propriétaire acteur."""
+    """Exactly N entities; parent/child pairs and an actor owner."""
     if n < 2:
-        raise ValueError("N doit être au moins 2")
+        raise ValueError("N must be at least 2")
     rng = random.Random(121)
     blocks = ["app GeneratedBench", "actor Member selfRegister",
               "actor Reader selfRegister"]
@@ -102,7 +102,7 @@ def test_every_contract_route(tmp_path):
     ids, bodies, visited = {}, {}, set()
     with uvicorn_server(tmp_path) as base, requests.Session() as session:
         auth = contract["api"]["auth"]
-        # Décale réellement les ids de compte ; aucun id n'est supposé égal à 1.
+        # Really shifts the account ids; no id is assumed equal to 1.
         checked(session, base, auth["register"], json={
             "username": "reader", "password": "password121", "actor": "Reader"})
         checked(session, base, auth["register"], json={
@@ -111,8 +111,8 @@ def test_every_contract_route(tmp_path):
             "username": "member", "password": "password121"})
         session.headers["Authorization"] = "Bearer " + login["access_token"]
         routes = contract["routes"]
-        assert len(routes) == 5 * 20, "chaque entité doit exposer ses cinq routes"
-        # Créations dans l'ordre topologique réel, suppressions en ordre inverse.
+        assert len(routes) == 5 * 20, "each entity must expose its five routes"
+        # Creations in the real topological order, deletions in reverse order.
         for route in routes:
             if route["action"] != "Create":
                 continue

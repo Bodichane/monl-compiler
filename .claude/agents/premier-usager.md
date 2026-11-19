@@ -46,9 +46,9 @@ one GitHub issue per distinct defect.
 
 ## Request formats
 Do not guess them: read them in the tests that already exercise them —
-`tests/test_platform_web.py`, `tests/test_platform_comptes.py`,
-`tests/test_codes_de_secours.py`, `tests/test_platform_mcp_boucle.py`,
-`tests/test_platform_hebergement.py`, `tests/test_archive_rangee.py`.
+`tests/test_platform_web.py`, `tests/test_platform_accounts.py`,
+`tests/test_recovery_codes.py`, `tests/test_platform_mcp_loop.py`,
+`tests/test_platform_hosting.py`, `tests/test_tidy_archive.py`.
 You may READ the repository to learn; you only EXECUTE the installed package.
 
 ## The journey — each step: command, expected, observed
@@ -57,7 +57,7 @@ You may READ the repository to learn; you only EXECUTE the installed package.
 Help that omits a command is a defect: it is the only way the user has to
 discover their tools (issue #84 — `admin` and `sauvegarde` missing from
 `monl-platform --help`). Compare each top-level help with the verbs
-actually served (`monl <verb> --help` that responds, `VERBES` table in
+actually served (`monl <verb> --help` that responds, `VERBS` table in
 `monl_platform/__main__.py` read from the repository).
 
 **B. Compile.** For each `exemples/*.ml` from the same version (read from the

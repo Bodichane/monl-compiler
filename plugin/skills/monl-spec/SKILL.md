@@ -38,7 +38,7 @@ suite on every change, so they cannot lie. The plugin carries an exact copy.
    (`${CLAUDE_PLUGIN_ROOT}/reference/exemples/*.ml`). Each example explains in
    comments **why** each rule is there.
 3. If syntax is unclear, the grammar is authoritative:
-   `${CLAUDE_PLUGIN_ROOT}/reference/grammaire.py`. Do not invent keywords that
+   `${CLAUDE_PLUGIN_ROOT}/reference/grammar.py`. Do not invent keywords that
    are not in it.
 
 ## 3. Write the spec in the user's project

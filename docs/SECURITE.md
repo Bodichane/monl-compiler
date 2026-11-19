@@ -94,7 +94,7 @@ legacy JWTs without this claim remain valid for untouched accounts.
 
 These are all the variables the generated backend reads. A variable that
 belongs to a brick is only read when the spec uses that brick.
-`tests/test_securite_variables.py` compares this list with the compiled code,
+`tests/test_security_variables.py` compares this list with the compiled code,
 in both directions.
 
 **Secrets and environment**
@@ -158,7 +158,7 @@ whole database, under that author's responsibility.
 
 **Decision: no dedicated isolation now.** The web platform accepts no Python
 from users: it writes specifications only; the compiler produces the empty
-`sandbox_ai.py` shells. `tests/test_custom_hors_plateforme.py` compiles hostile
+`sandbox_ai.py` shells. `tests/test_custom_outside_platform.py` compiles hostile
 looking descriptions through the platform service and guards platform file
 writes with an AST check, which must never pass with an empty file list.
 
@@ -170,7 +170,7 @@ execution isolation must be implemented.
 
 ## Validation through offensive audit
 
-`tests/test_audit_offensif_exemples.py` compiles and serves each example in
+`tests/test_offensive_audit_examples.py` compiles and serves each example in
 `exemples/` and replays three attacks against it (role spoofing via raw header,
 forged JWT, privilege escalation), with the exact expected status codes — `401`, `401`,
 `403` — after a counter-proof using a legitimate token. Result across the five
@@ -242,7 +242,7 @@ What it guarantees to account holders:
   missing account gets the same generic 401. Opaque tokens are stored as hashes,
   bound to the account, expiring and consumed in the confirmation transaction;
   resend invalidates the old token. Proven with two accounts, real HTTP and fake
-  SMTP by `tests/test_verification_email.py`. Historical and offline service
+  SMTP by `tests/test_email_verification.py`. Historical and offline service
   accounts remain confirmed; this does not claim proof of their inbox ownership.
   Unconfirmed accounts are not automatically purged.
   Re-registering an unconfirmed address replaces its password and permitted role,

@@ -19,38 +19,38 @@ from ..policies import (
     plan_entity_models,
 )
 from .admin_cli import AdminCliMixin
-from .calculs import CalculsMixin
+from .calculations import CalculationsMixin
 from .emitters import BackendEmitter
-from .modele import ModeleMixin
-from .paiement import PaiementMixin
+from .model import TemplateMixin
+from .ownership import OwnerMixin
+from .payment import PaymentMixin
 from .pipeline import PipelineMixin
-from .prealables import PrealablesMixin
-from .proprietaire import ProprietaireMixin
+from .prerequisites import PrerequisitesMixin
 from .routes import RoutesMixin
 from .runtime import RuntimeMixin
 from .sandbox import SandboxMixin
 from .schemas import SchemasMixin
-from .sql_colonnes import SqlColonnesMixin
+from .sql_columns import SqlColumnsMixin
 from .sql_schema import SqlSchemaMixin
 
 
-def _grouper_par_entite(elements, cle=lambda e: e["entity"], valeur=lambda e: e):
+def _group_by_entity(elements, key=lambda e: e["entity"], valeur=lambda e: e):
     """{entity: [values]} in declaration order — the shape every family of
     marked fields takes. Extracted from `__init__` (complexity ceiling): five
     identical loops, same dictionaries, same insertion order."""
-    groupes = {}
+    groups = {}
     for element in elements:
-        groupes.setdefault(cle(element), []).append(valeur(element))
-    return groupes
+        groups.setdefault(key(element), []).append(valeur(element))
+    return groups
 
 class MonlSecureGenerator(
     PipelineMixin,
-    ModeleMixin,
-    ProprietaireMixin,
-    CalculsMixin,
-    PaiementMixin,
-    SqlColonnesMixin,
-    PrealablesMixin,
+    TemplateMixin,
+    OwnerMixin,
+    CalculationsMixin,
+    PaymentMixin,
+    SqlColumnsMixin,
+    PrerequisitesMixin,
     AdminCliMixin,
     SqlSchemaMixin,
     RuntimeMixin,
@@ -80,8 +80,8 @@ class MonlSecureGenerator(
         self.relations = normalized_ast["schema"]["relations"]
         self.relation_models = plan_relations(self.relations)
         # Two analyses the emitters query from their loops: computed on first
-        # request, then reread. See the methods that fill them (`modele.py`,
-        # `proprietaire.py`) for the measurement that made these caches
+        # request, then reread. See the methods that fill them (`model.py`,
+        # `ownership.py`) for the measurement that made these caches
         # necessary.
         self._fk_placements_caches = None
         self._identity_fk_caches = None
@@ -154,10 +154,10 @@ class MonlSecureGenerator(
         # detail), whoever calls the route. Grouped by entity (rather than a
         # set of tuples like public_actions) because that is the form directly
         # useful to generation: "which fields to remove for THIS entity".
-        self.hidden_fields_by_entity = _grouper_par_entite(
+        self.hidden_fields_by_entity = _group_by_entity(
             map(lambda ref: ref.split(".", 1),
                 normalized_ast["security"].get("hidden_fields", [])),
-            cle=lambda paire: paire[0], valeur=lambda paire: paire[1])
+            key=lambda pair: pair[0], valeur=lambda pair: pair[1])
         # ADDED (roadmap, capability ecosystem -- brick 3, generalized into
         # brick 4): 'decrements'/'increments' rules grouped by triggering
         # entity — see _generate_secure_fastapi, where that entity's Create
@@ -171,14 +171,14 @@ class MonlSecureGenerator(
         # grouped by entity — see _generate_secure_fastapi, where that entity's
         # Read routes (list + detail) replace the targeted numeric field with
         # its category label before returning the response.
-        self.categorized_fields_by_entity = _grouper_par_entite(
+        self.categorized_fields_by_entity = _group_by_entity(
             normalized_ast["security"].get("categorized_fields", []))
         # ADDED (roadmap, capability ecosystem -- follow-up to brick 1):
         # 'generated' fields grouped by entity -- removed from the Create
         # route's Pydantic schema (the client cannot even try to supply them)
         # and filled from the current account's anonymous pseudonym rather than
         # from the request body.
-        self.generated_fields_by_entity = _grouper_par_entite(
+        self.generated_fields_by_entity = _group_by_entity(
             normalized_ast["security"].get("generated_fields", []),
             valeur=lambda gf: gf["field"])
         # ADDED (brick 17, point 90): {Entity: RequiredEntity} — the caller
@@ -189,13 +189,13 @@ class MonlSecureGenerator(
         # [field]} — the validator guarantees at most ONE per entity, but the
         # list form keeps the same handling as the other families of
         # server-filled fields.
-        self.timestamp_fields_by_entity = _grouper_par_entite(
+        self.timestamp_fields_by_entity = _group_by_entity(
             normalized_ast["security"].get("timestamp_fields", []),
             valeur=lambda tf: tf["field"])
         # BRICK 22 (point 102): {Entity: [{field, format, period}]}. Same
         # family as the timestamp above — filled by the server at creation,
         # absent from request bodies, never rewritten.
-        self.numbered_fields_by_entity = _grouper_par_entite(
+        self.numbered_fields_by_entity = _group_by_entity(
             normalized_ast["security"].get("numbered_fields", []))
         # ADDED (payment brick, point 74): chargeable entity and the field
         # carrying the amount. {Entity: field} — the validator guarantees at
@@ -225,9 +225,9 @@ class MonlSecureGenerator(
         # the bounds go into the Pydantic schema (schemas.py), 'unique' becomes
         # a unique index (sql_schema.py).
         self.field_constraints = {}
-        for (entite, champ), contraintes in normalized_ast["security"].get(
+        for (entity, field), constraints in normalized_ast["security"].get(
                 "field_constraints", {}).items():
-            self.field_constraints.setdefault(entite, {})[champ] = contraintes
+            self.field_constraints.setdefault(entity, {})[field] = constraints
         # ADDED (roadmap, visual rendering control): explicit per-entity
         # overrides of theme/order/main field, from the 'ui' blocks.
         self.ui_overrides = normalized_ast.get("ui", {})
@@ -279,8 +279,8 @@ class MonlSecureGenerator(
         # what the children counted down. Indexed by the entity CARRYING the
         # field, which is the one whose Update route triggers the release.
         self.release_rules_by_entity = {}
-        for regle in (normalized_ast.get("security", {}).get("release_rules") or []):
-            self.release_rules_by_entity.setdefault(regle["entity"], []).append(regle)
+        for rule_entry in (normalized_ast.get("security", {}).get("release_rules") or []):
+            self.release_rules_by_entity.setdefault(rule_entry["entity"], []).append(rule_entry)
         # ADDED (frontend roadmap, 'seed' block): demo data to insert at
         # startup if the tables are empty (see init_db).
         self.seeds = normalized_ast.get("seeds", [])

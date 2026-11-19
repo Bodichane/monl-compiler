@@ -1,4 +1,4 @@
-"""Identité des octets, exécution et garde structurelle du premier gabarit."""
+"""Byte identity, execution and structural guard of the first template."""
 
 import ast
 import importlib.util
@@ -8,41 +8,41 @@ import pytest
 
 from monl.generator import (
     admin_cli,
-    calculs,
-    paiement,
-    prealables,
-    routes_acces,
+    calculations,
+    payment,
+    prerequisites,
+    routes_access,
     routes_uploads,
-    runtime_annexes,
-    runtime_connexion,
-    runtime_fonctions_auth,
-    runtime_jetons,
+    runtime_auth_functions,
+    runtime_base,
+    runtime_extras,
+    runtime_login,
     runtime_migrations,
-    runtime_montage,
+    runtime_mounting,
     runtime_pool,
     runtime_preparation,
-    runtime_socle,
+    runtime_tokens,
     sandbox,
     schemas,
 )
-from tests.support.cas import verifier_chaque_cas
-from tests.test_bloc_custom_absent import AVEC_CUSTOM, _compiler
+from tests.support.cases import check_each_case
+from tests.test_missing_custom_block import WITH_CUSTOM, _compiler
 
 MIGRATED_MODULES = (
-    sandbox, runtime_annexes, runtime_preparation, runtime_migrations,
-    admin_cli, runtime_fonctions_auth, runtime_montage, runtime_socle,
-    routes_uploads, runtime_pool, paiement, prealables, calculs, schemas,
-    routes_acces, runtime_jetons, runtime_connexion,
+    sandbox, runtime_extras, runtime_preparation, runtime_migrations,
+    admin_cli, runtime_auth_functions, runtime_mounting, runtime_base,
+    routes_uploads, runtime_pool, payment, prerequisites, calculations, schemas,
+    routes_access, runtime_tokens, runtime_login,
 )
 
-DATABASE_MONTAGE_MODULES = (runtime_montage,)
+DATABASE_MONTAGE_MODULES = (runtime_mounting,)
 
 
-def test_liste_modules_montage_non_vide():
+def test_mount_modules_list_not_empty():
     assert DATABASE_MONTAGE_MODULES
 
 
-def test_montage_sans_decoupage_legacy():
+def test_mounting_without_legacy_splitting():
     table = DATABASE_MONTAGE_MODULES
 
     def cas(module):
@@ -62,14 +62,14 @@ def test_montage_sans_decoupage_legacy():
             for node in ast.walk(tree)
         )
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
-def test_liste_modules_migres_non_vide():
+def test_migrated_modules_list_not_empty():
     assert MIGRATED_MODULES
 
 
-def test_sandbox_emission_sans_f_string_ni_addition():
+def test_sandbox_emission_without_f_string_or_concatenation():
     table = MIGRATED_MODULES
 
     def cas(module):
@@ -78,11 +78,11 @@ def test_sandbox_emission_sans_f_string_ni_addition():
         assert not any(isinstance(node, (ast.BinOp, ast.AugAssign))
                        and isinstance(node.op, ast.Add) for node in ast.walk(tree))
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+    check_each_case([(valeur,) for valeur in table], cas)
 
 
-def test_sandbox_custom_octets_et_execution(tmp_path):
-    source = AVEC_CUSTOM.replace('Publie une note', 'Publie ${name} {note} $5 \\n')
+def test_custom_sandbox_bytes_and_execution(tmp_path):
+    source = WITH_CUSTOM.replace('Publie une note', 'Publie ${name} {note} $5 \\n')
     folder = _compiler(source, tmp_path / 'custom')
     generated = (folder / 'sandbox_ai.py').read_bytes()
     expected = b"# 'custom' BLOCKS \xe2\x80\x94 business logic to complete by hand (deterministic)\n\ndef Publier(context: dict) -> dict:\n    \"\"\"\n    Purpose: Publie ${name} {note} $5 \\\\n\n    \"\"\"\n    # TODO:\n    return {'message': 'Deterministic empty shell for Publier'}\n"
@@ -94,8 +94,8 @@ def test_sandbox_custom_octets_et_execution(tmp_path):
     }
 
 
-def test_schema_champs_serveur_ne_masquent_pas_les_sous_chaines(tmp_path):
-    source = AVEC_CUSTOM.replace(
+def test_schema_server_fields_do_not_mask_substrings(tmp_path):
+    source = WITH_CUSTOM.replace(
         "    titre: String", "    titre: String\n    a: String\n    created_at: DateTime"
     ) + "\nrule Note.created_at timestamp\n"
     folder = _compiler(source, tmp_path / "schema")
@@ -115,8 +115,8 @@ def test_schema_champs_serveur_ne_masquent_pas_les_sous_chaines(tmp_path):
     r'Etude \"\"\" x',
     "Etude " + "\\" * 2,
 ])
-def test_sandbox_description_antislash_litteral(tmp_path, description):
-    source = AVEC_CUSTOM.replace("Publie une note", description)
+def test_sandbox_description_backslash_literal(tmp_path, description):
+    source = WITH_CUSTOM.replace("Publie une note", description)
     folder = _compiler(source, tmp_path / "custom")
     path = folder / "sandbox_ai.py"
     ast.parse(path.read_text(encoding="utf-8"))
@@ -126,5 +126,5 @@ def test_sandbox_description_antislash_litteral(tmp_path, description):
     assert module.Publier({}) == {
         "message": "Deterministic empty shell for Publier",
     }
-    # Python 3.13+ désindente __doc__ : on compare la ligne, pas l'indentation.
+    # Python 3.13+ dedents __doc__: compare the line, not the indentation.
     assert module.Publier.__doc__.strip() == f"Purpose: {description}"

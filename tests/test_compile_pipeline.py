@@ -1,4 +1,4 @@
-"""Non-régressions de l'orchestration du pipeline de compilation."""
+"""Non-regressions of the compilation pipeline's orchestration."""
 
 import monl.main as compiler_main
 from monl.cli import compile_project
@@ -20,30 +20,30 @@ workflow Ecrire for Auteur
 """
 
 
-def test_compile_project_ne_parse_et_ne_valide_quune_fois(tmp_path, monkeypatch):
-    """Backend et contrat doivent partager une seule compilation validée.
+def test_compile_project_parses_and_validates_only_once(tmp_path, monkeypatch):
+    """Backend and contract must share a single validated compilation.
 
-    Le compteur est posé à la frontière du parseur appelée par ``compile_monl``.
-    Avant l'unification, ``compile_project`` appelait cette frontière une fois
-    via ``compile_monl``, puis une seconde fois directement.
+    The counter sits at the parser boundary called by ``compile_monl``. Before
+    the unification, ``compile_project`` called that boundary once through
+    ``compile_monl``, then a second time directly.
     """
     spec = tmp_path / "spec.ml"
     spec.write_text(SPEC, encoding="utf-8")
-    appels = 0
-    vrai_parse = compiler_main.parse_monl_file
+    calls = 0
+    true_parse = compiler_main.parse_monl_file
 
-    def compter_parse(chemin):
-        nonlocal appels
-        appels += 1
-        return vrai_parse(chemin)
+    def count_parse(path):
+        nonlocal calls
+        calls += 1
+        return true_parse(path)
 
-    monkeypatch.setattr(compiler_main, "parse_monl_file", compter_parse)
+    monkeypatch.setattr(compiler_main, "parse_monl_file", count_parse)
 
-    contrat = compile_project(str(spec), str(tmp_path))
+    contract = compile_project(str(spec), str(tmp_path))
 
-    assert appels == 1
-    assert contrat["app"] == "PipelineUnique"
-    for artefact in (
+    assert calls == 1
+    assert contract["app"] == "PipelineUnique"
+    for artifact in (
         "app.py",
         "schema.sql",
         "manage.py",
@@ -51,15 +51,15 @@ def test_compile_project_ne_parse_et_ne_valide_quune_fois(tmp_path, monkeypatch)
         "docs/FRONTEND_PROMPT.md",
         "monl.json",
     ):
-        assert (tmp_path / artefact).is_file()
-    # `sandbox_ai.py` a quitté cette liste : SPEC n'a aucun bloc `custom`, donc
-    # le module n'est plus émis (voir tests/test_bloc_custom_absent.py). On
-    # affirme son ABSENCE plutôt que de cesser de le regarder — une liste dont
-    # on retire un nom ne dit plus rien de ce nom.
+        assert (tmp_path / artifact).is_file()
+    # `sandbox_ai.py` left this list: SPEC has no `custom` block, so the module
+    # is no longer emitted (see tests/test_missing_custom_block.py). We assert
+    # its ABSENCE rather than stop looking at it — a list from which a name is
+    # removed no longer says anything about that name.
     assert not (tmp_path / "sandbox_ai.py").exists()
 
 
-def test_compile_monl_retourne_le_modele_utilise_pour_generer(tmp_path):
+def test_compile_monl_returns_the_model_used_to_generate(tmp_path):
     spec = tmp_path / "spec.ml"
     spec.write_text(SPEC, encoding="utf-8")
 

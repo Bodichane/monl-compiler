@@ -1,8 +1,8 @@
-"""AJOUT (roadmap, erreurs lisibles) : vérifie que le parseur remonte des
-erreurs de syntaxe localisées (MonlSyntaxError avec fichier, ligne,
-colonne, extrait) au lieu des exceptions Lark brutes, et que la numérotation
-des lignes reste celle du FICHIER ORIGINAL même quand la spec contient des
-lignes de commentaire (retirées avant Lark — voir parser.py)."""
+"""ADDED (roadmap, readable errors): checks that the parser reports
+located syntax errors (MonlSyntaxError with file, line, column, excerpt)
+instead of raw Lark exceptions, and that line numbering stays the ORIGINAL
+FILE's even when the spec contains comment lines (removed before Lark —
+see parser.py)."""
 
 import pytest
 
@@ -16,13 +16,13 @@ def test_syntax_error_is_localized():
     err = exc.value
     assert err.line == 4
     assert "demo.ml:4" in str(err)
-    assert "name String" in str(err)  # extrait de la ligne fautive
-    assert "^" in str(err)            # curseur sous la colonne
+    assert "name String" in str(err)  # excerpt of the faulty line
+    assert "^" in str(err)            # caret under the column
 
 
 def test_line_numbers_survive_comment_stripping():
-    # La ligne 2 est un commentaire seul : elle est retirée avant Lark,
-    # mais l'erreur (ligne 5 du fichier original) doit rester à la ligne 5.
+    # Line 2 is a comment alone: it is removed before Lark, but the error (line
+    # 5 of the original file) must stay at line 5.
     spec = "app Demo\n# commentaire seul\n\nentity User\n    name String\n"
     with pytest.raises(MonlSyntaxError) as exc:
         parse_monl_string(spec)

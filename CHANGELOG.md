@@ -63,7 +63,7 @@
 
 - Close files and HTTP error responses the compiler and platform used to leave
   to the garbage collector: five `open(...).read()` in the frontend checks
-  (`frontend_ai/etages.py`, `controles_fichiers.py` twice, `controles_design.py`
+  (`frontend_ai/stages.py`, `file_checks.py` twice, `design_checks.py`
   twice) and the provider error responses in `monl_platform/oauth.py`. Found by
   turning every `ResourceWarning` into a test error.
 
@@ -72,7 +72,7 @@
 - 155 fewer collected tests (1,808 → 1,653) with every case still checked.
   Forty parametrized functions with no per-case state (no `tmp_path`,
   `monkeypatch` or function-scoped server) now walk their table inside one
-  test through `tests.support.cas.verifier_chaque_cas`, which runs EVERY case,
+  test through `tests.support.cases.verifier_chaque_cas`, which runs EVERY case,
   names each failing one, and refuses an empty table. Function names are kept
   (documents cite them). The conversion was scripted from the AST and proven:
   for each function, the case body, the table and the case names are
@@ -85,7 +85,7 @@
   that stopped their `uvicorn` without closing its `stdout` pipe, eight
   start-up probes reading `urlopen(...)` without closing it, eight unclosed
   `HTTPError` responses and eight `open(...).read()` in tests. Stopping goes
-  through `tests.support.processus.arreter_processus` (terminate, bounded wait,
+  through `tests.support.process.arreter_processus` (terminate, bounded wait,
   kill and wait, close pipes). An AST guard refuses `open(...)` and
   `urlopen(...)` outside a `with` in `src/` and `tests/`, even on paths no test
   runs; it has a counter-proof and was seen failing on the original leak.
@@ -160,7 +160,7 @@
   issue #120). A line dedented to a column no block opened, an integer of
   thousands of digits, and an exponent such as `1e999900` used to crash the
   parser; each now names the line. `1e3` in a `seed` reads as `1000.0`.
-  `tests/test_fuzzing_parseur.py` mutates the repository's specs on every run.
+  `tests/test_parser_fuzzing.py` mutates the repository's specs on every run.
 
 ### Tests
 
@@ -516,11 +516,11 @@ ask for it.
 - **`monl update` sees both rules.** They lived in `business_rules`, which the
   contract signature did not read: the delta returned «no interface changes».
   Contract version 9.
-- **The suite passes on a fresh clone.** `tests/test_projets_metier.py` read
+- **The suite passes on a fresh clone.** `tests/test_business_projects.py` read
   `projets/`, which git ignores: six tests failed in CI. The specs are now in
   the test file.
 - Both bricks are tested against a real server
-  (`tests/test_publication_conditionnelle.py`, `tests/test_unicite_composite.py`)
+  (`tests/test_conditional_publication.py`, `tests/test_composite_uniqueness.py`)
   and compiled from `exemples/03_reseau_social.ml`.
 
 ### The counter column no longer depends on relation order (point 117)
@@ -699,7 +699,7 @@ ask for it.
   if missing, preserved thereafter, and excluded from the fingerprints of
   protected artifacts: adapting the image is the normal case for a real
   deployment.
-- Proven by `tests/test_deploiement.py` (9 tests) and an actual image build:
+- Proven by `tests/test_deployment.py` (9 tests) and an actual image build:
   container refusing to start without a secret, then serving registration,
   login, creation and reading, secret absent from the image.
 

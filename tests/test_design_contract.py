@@ -1,19 +1,19 @@
-"""Le compilateur ne décide RIEN du visuel (point 72).
+"""The compiler decides NOTHING about visuals (point 72).
 
-monl calculait une palette et des piles typographiques, les posait dans le
-contrat, et les décrivait longuement dans le brief. C'était présenté comme une
-suggestion — mais une suggestion écrite dans le document qui fait foi n'est pas
-neutre : elle oriente, et le compilateur oriente mal, faute de savoir à quoi ce
-projet-là doit ressembler.
+monl computed a palette and typographic stacks, put them in the contract, and
+described them at length in the brief. It was presented as a suggestion — but
+a suggestion written in the authoritative document is not neutral: it steers,
+and the compiler steers badly, not knowing what this particular project
+should look like.
 
-La règle est désormais nette : **la direction de design vient du dialogue**,
-formulée par l'auteur, et voyage par le brief. Le compilateur transmet ce qu'il
-sait — structure, rôles, routes, contenu, intention déclarée — et se tait sur
-le reste.
+The rule is now clear: **design direction comes from the dialogue**,
+formulated by the author, and travels through the brief. The compiler passes
+on what it knows — structure, roles, routes, content, declared intent — and
+stays silent on the rest.
 
-Prouver qu'un compilateur INTERDIT quelque chose est facile. Prouver qu'il se
-TAIT l'est beaucoup moins, et c'est précisément ce que ce fichier vérifie : un
-silence que rien ne mesure finit par se remplir à nouveau.
+Proving that a compiler FORBIDS something is easy. Proving that it STAYS
+SILENT is much less so, and that is precisely what this file checks: a
+silence nothing measures ends up filling again.
 """
 import os
 import re
@@ -38,211 +38,205 @@ workflow Catalogue for Client
     Read Piece
 """
 
-AVEC_UI = BASE + """
+WITH_UI = BASE + """
 ui Piece
     theme: atelier
     primary: label
 """
 
-AVEC_BRIEF = BASE + """
+WITH_BRIEF = BASE + """
 landing
     brief: "Un atelier de réparation qui veut un registre sobre et technique."
 """
 
-# Une couleur écrite en dur, sous n'importe quelle forme.
+# A hard-coded color, in any form.
 HEX = re.compile(r"#[0-9a-fA-F]{3,8}\b")
-# Les familles que le compilateur proposait dans ses piles système.
+# The families the compiler proposed in its system stacks.
 POLICES = ("Helvetica", "Arial", "Georgia", "Palatino", "Verdana", "Trebuchet",
            "Times New Roman", "Menlo", "Consolas", "SFMono", "ui-monospace")
 
 
-def _contrat(spec_source, workdir):
-    chemin = os.path.join(workdir, "spec.ml")
-    with open(chemin, "w", encoding="utf-8") as fh:
+def _contract(spec_source, workdir):
+    path = os.path.join(workdir, "spec.ml")
+    with open(path, "w", encoding="utf-8") as fh:
         fh.write(spec_source)
-    ast = MonlAST(parse_monl_file(chemin)).validate_and_audit()
-    generateur = MonlSecureGenerator(ast, output_dir=workdir)
-    return build_contract(ast, generateur)
+    ast = MonlAST(parse_monl_file(path)).validate_and_audit()
+    generator = MonlSecureGenerator(ast, output_dir=workdir)
+    return build_contract(ast, generator)
 
 
 def _brief(spec_source, workdir):
-    """Le brief RÉELLEMENT ENVOYÉ à l'IA, annexes comprises.
+    """The brief REALLY SENT to the AI, appendices included.
 
-    POINT 139 : ce harnais n'appelait que `_render_prompt()`. Il prouvait donc
-    que le CONTRAT et le prompt de base se taisent — pas que le prompt final se
-    tait. La palette du système de design a franchi le contrôle en empruntant
-    l'autre tuyau : `build_generation_prompt()` annexe `DESIGN_SYSTEM.md`,
-    `DESIGN_SPEC.md` et `ASSET_MANIFEST.json` via `_project_guidance()`, et les
-    présente à l'IA comme « source de vérité ». Même destination, autre tuyau —
-    la forme exacte de l'angle mort du delta, treize fois rencontrée.
+    POINT 139: this harness only called `_render_prompt()`. It therefore proved
+    that the CONTRACT and the base prompt stay silent — not that the final prompt
+    does. The design system's palette got past the check through the other pipe:
+    `build_generation_prompt()` appends `DESIGN_SYSTEM.md`, `DESIGN_SPEC.md` and
+    `ASSET_MANIFEST.json` through `_project_guidance()`, and presents them to the
+    AI as "source of truth". Same destination, another pipe — the exact shape of
+    the delta blind spot, met thirteen times.
 
-    Mesurer le prompt final est le seul contrôle qui vaille : c'est lui que
-    l'IA lit. Le fichier le disait déjà en tête — « un silence que rien ne
-    mesure finit par se remplir à nouveau ».
+    Measuring the final prompt is the only check worth anything: it is what the
+    AI reads. The file already said so at the top — "a silence nothing measures
+    ends up filling again".
     """
-    chemin = os.path.join(workdir, "spec.ml")
-    with open(chemin, "w", encoding="utf-8") as fh:
+    path = os.path.join(workdir, "spec.ml")
+    with open(path, "w", encoding="utf-8") as fh:
         fh.write(spec_source)
-    # Compilation RÉELLE : `build_generation_prompt` lit des fichiers du
-    # projet (FRONTEND_PROMPT.md, et tout ce que `_project_guidance` annexe).
-    # Un contrat construit en mémoire ne les aurait pas, et le contrôle
-    # retomberait dans le trou qu'il vient de fermer.
-    compile_project(chemin, workdir)
-    contrat = _contrat(spec_source, workdir)
-    return contrat, build_generation_prompt(workdir, update_mode=False)
+    # REAL compilation: `build_generation_prompt` reads project files
+    # (FRONTEND_PROMPT.md, and everything `_project_guidance` appends). A
+    # contract built in memory would not have them, and the check would fall
+    # back into the hole it just closed.
+    compile_project(path, workdir)
+    contract = _contract(spec_source, workdir)
+    return contract, build_generation_prompt(workdir, update_mode=False)
 
 
-# ------------------------------------------------- ce que le contrat ne dit plus --
-def test_le_contrat_ne_porte_plus_aucun_bloc_design():
-    """Le bloc 'design' portait palette, typographies, rayon et style de
-    carte. Il n'existe plus : le contrat décrit ce que monl sait, pas ce
-    qu'il devinait."""
+# ----------------------------------------- what the contract no longer says --
+def test_the_contract_no_longer_carries_a_design_block():
+    """The 'design' block carried palette, typefaces, radius and card style. It
+    no longer exists: the contract describes what monl knows, not what it
+    guessed."""
     with tempfile.TemporaryDirectory() as workdir:
-        contrat = _contrat(BASE, workdir)
-    assert "design" not in contrat, sorted(contrat)
+        contract = _contract(BASE, workdir)
+    assert "design" not in contract, sorted(contract)
 
 
-def test_le_contrat_porte_des_competences_de_finition_sans_theme_visuel():
-    """Les skills imposent une profondeur, pas une palette calculée."""
+def test_the_contract_carries_finishing_skills_without_visual_theme():
+    """Skills impose depth, not a computed palette."""
     with tempfile.TemporaryDirectory() as workdir:
-        contrat, brief = _brief(BASE, workdir)
-    assert contrat["design_skills"][0] == "monl-showcase"
+        contract, brief = _brief(BASE, workdir)
+    assert contract["design_skills"][0] == "monl-showcase"
     assert "$monl-showcase" in brief
     assert "level of depth and finish" in brief
 
 
-def test_le_contrat_ne_contient_aucune_couleur_ecrite_en_dur():
-    """Retirer la clé ne suffirait pas si les couleurs ressortaient
-    ailleurs — dans une note, un exemple, un champ voisin."""
+def test_the_contract_contains_no_hard_coded_color():
+    """Removing the key would not be enough if the colors came out elsewhere —
+    in a note, an example, a neighboring field."""
     with tempfile.TemporaryDirectory() as workdir:
-        contrat = _contrat(BASE, workdir)
-    trouvees = HEX.findall(str(contrat))
-    assert not trouvees, f"couleurs imposées par le compilateur : {trouvees}"
+        contract = _contract(BASE, workdir)
+    found = HEX.findall(str(contract))
+    assert not found, f"colors imposed by the compiler: {found}"
 
 
-def test_le_brief_ne_prescrit_ni_couleur_ni_police():
-    """Le brief est le document que l'IA d'interface lit vraiment. C'est là
-    que la prescription se réinstallerait le plus naturellement."""
+def test_the_brief_prescribes_neither_color_nor_font():
+    """The brief is the document the interface AI really reads. That is where
+    prescription would most naturally settle back in."""
     with tempfile.TemporaryDirectory() as workdir:
-        _contrat_, brief = _brief(BASE, workdir)
+        _contract_, brief = _brief(BASE, workdir)
 
-    couleurs = HEX.findall(brief)
-    assert not couleurs, f"le brief impose des couleurs : {couleurs}"
+    colors = HEX.findall(brief)
+    assert not colors, f"the brief imposes colors: {colors}"
 
-    citees = [p for p in POLICES if p.lower() in brief.lower()]
-    assert not citees, f"le brief impose des familles typographiques : {citees}"
+    cited = [p for p in POLICES if p.lower() in brief.lower()]
+    assert not cited, f"the brief imposes typeface families: {cited}"
 
 
-# ------------------------------------------ ce que le brief doit continuer à dire --
-def test_le_brief_transmet_l_intention_venue_du_dialogue():
-    """Se taire sur le goût ne veut pas dire se taire tout court : ce que
-    l'AUTEUR a formulé doit arriver intact à l'IA d'interface. C'est la
-    seule direction légitime."""
+# ------------------------------------------ what the brief must keep saying --
+def test_the_brief_passes_on_the_intent_from_the_dialogue():
+    """Staying silent on taste does not mean staying silent altogether: what the
+    AUTHOR formulated must reach the interface AI intact. It is the only
+    legitimate direction."""
     with tempfile.TemporaryDirectory() as workdir:
-        contrat, brief = _brief(AVEC_BRIEF, workdir)
-    assert "registre sobre et technique" in contrat["brief"]
+        contract, brief = _brief(WITH_BRIEF, workdir)
+    assert "registre sobre et technique" in contract["brief"]
     assert "registre sobre et technique" in brief
 
 
-def test_le_brief_garde_les_deux_exigences_qui_ne_sont_pas_du_gout():
-    """Contraste et autonomie ne sont pas des partis pris : l'un rend
-    l'interface lisible, l'autre la rend vérifiable par le smoke test.
-    Les confondre avec de la prescription esthétique les ferait tomber
-    avec elle."""
+def test_the_brief_keeps_the_two_requirements_that_are_not_taste():
+    """Contrast and autonomy are not stylistic choices: one makes the interface
+    readable, the other makes it checkable by the smoke test. Confusing them with
+    aesthetic prescription would make them fall with it."""
     with tempfile.TemporaryDirectory() as workdir:
-        _contrat_, brief = _brief(BASE, workdir)
+        _contract_, brief = _brief(BASE, workdir)
     assert "4.5:1" in brief and "WCAG" in brief
     assert "no remote resource" in brief
 
 
-def test_le_brief_dit_par_quel_moyen_une_icone_est_possible():
-    """POINT 104 : constat du mainteneur — aucun site produit n'employait
-    d'icône. Ce n'était pas un défaut de l'IA : le brief interdit les CDN et ne
-    disait NULLE PART que le SVG en ligne fonctionne. Lue seule, la règle
-    d'autonomie se lit « pas d'icônes possibles ».
+def test_the_brief_says_by_what_means_an_icon_is_possible():
+    """POINT 104: the maintainer's finding — no produced site used an icon. It
+    was not an AI defect: the brief forbids CDNs and said NOWHERE that inline SVG
+    works. Read alone, the autonomy rule reads "no icons possible".
 
-    Énoncer un MOYEN n'est pas prescrire un goût — même frontière qu'au
-    point 72 pour le contraste WCAG et l'autonomie."""
+    Stating a MEANS is not prescribing a taste — same boundary as at point 72 for
+    WCAG contrast and autonomy."""
     with tempfile.TemporaryDirectory() as workdir:
-        _contrat_, brief = _brief(BASE, workdir)
+        _contract_, brief = _brief(BASE, workdir)
     assert "SVG" in brief
     assert "allowlist" in brief or ".svg" in brief
 
 
-def test_le_brief_ne_recommande_aucune_icone_ni_aucun_style_dicone():
-    """La contre-épreuve du test précédent, et la garantie du point 72 : monl
-    dit par quel MOYEN, jamais s'il en faut ni lesquelles. Sans ce test, la
-    ligne ajoutée au point 104 pourrait dériver vers de la prescription à la
-    première réécriture."""
+def test_the_brief_recommends_no_icon_nor_icon_style():
+    """The previous test's counter-proof, and point 72's guarantee: monl says by
+    what MEANS, never whether some are needed nor which ones. Without this test,
+    the line added at point 104 could drift into prescription at the first
+    rewrite."""
     with tempfile.TemporaryDirectory() as workdir:
-        _contrat_, brief = _brief(BASE, workdir)
+        _contract_, brief = _brief(BASE, workdir)
     bas = brief.lower()
-    # Les librairies ne sont nommées que pour dire qu'elles sont HORS D'ATTEINTE.
-    for interdit in ("icon style", "rounded icons", "filled icons",
+    # Libraries are only named to say they are OUT OF REACH.
+    for forbidden in ("icon style", "rounded icons", "filled icons",
                      "recommended icon set", "use icons for",
                      "add an icon"):
-        assert interdit not in bas, interdit
+        assert forbidden not in bas, forbidden
     assert "is reachable" in bas or "reachable" in bas
 
 
-def test_le_brief_dit_explicitement_que_le_visuel_ne_vient_pas_du_compilateur():
-    """Un brief muet laisserait croire à un oubli. Il doit énoncer la règle,
-    sinon l'IA d'interface cherchera la direction qu'elle croit manquante."""
+def test_the_brief_says_explicitly_visuals_do_not_come_from_the_compiler():
+    """A silent brief would suggest an oversight. It must state the rule,
+    otherwise the interface AI will look for the direction it believes missing."""
     with tempfile.TemporaryDirectory() as workdir:
-        _contrat_, brief = _brief(BASE, workdir)
+        _contract_, brief = _brief(BASE, workdir)
     assert "does NOT come from monl" in brief
 
 
-# ------------------------------------------------------ le bloc 'ui' est inerte --
-def test_un_bloc_ui_reste_accepte_mais_sans_effet():
-    """Même politique qu'au point 41 pour 'landing mode/template' : la
-    grammaire continue d'accepter la clé pour ne casser aucune spec
-    existante, mais plus rien ne s'en sert. Le contrat doit être
-    RIGOUREUSEMENT identique avec et sans le bloc."""
+# ---------------------------------------------------- the ui block is inert --
+def test_a_ui_block_stays_accepted_but_without_effect():
+    """Same policy as at point 41 for 'landing mode/template': the grammar keeps
+    accepting the key so as to break no existing spec, but nothing uses it any
+    more. The contract must be STRICTLY identical with and without the block."""
     with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
-        sans = _contrat(BASE, a)
-        avec = _contrat(AVEC_UI, b)
-    assert sans == avec, "le bloc 'ui' influence encore le contrat"
+        sans = _contract(BASE, a)
+        with_ = _contract(WITH_UI, b)
+    assert sans == with_, "the 'ui' block still influences the contract"
 
 
-def test_deux_projets_de_domaines_opposes_recoivent_le_meme_silence():
-    """Le compilateur choisissait autrefois son système visuel d'après le
-    vocabulaire (boutique -> 'market', blog -> 'editorial'). Cette déduction
-    a disparu : deux domaines opposés ne doivent plus différer que par ce
-    qu'ils déclarent réellement."""
+def test_two_projects_of_opposite_domains_get_the_same_silence():
+    """The compiler used to choose its visual system from vocabulary (shop ->
+    'market', blog -> 'editorial'). That deduction is gone: two opposite domains
+    must now differ only by what they really declare."""
     boutique = BASE.replace("Piece", "Product").replace("Reparation", "Boutique")
-    journal = BASE.replace("Piece", "Article").replace("Reparation", "Journal")
+    log = BASE.replace("Piece", "Article").replace("Reparation", "Journal")
     with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
         c1, b1 = _brief(boutique, a)
-        c2, b2 = _brief(journal, b)
+        c2, b2 = _brief(log, b)
 
     assert "design" not in c1 and "design" not in c2
-    # Le paragraphe de direction de design est le MÊME mot pour mot : il ne
-    # dépend plus d'aucune déduction sur le domaine.
-    extrait = "## Design direction — it does NOT come from monl"
-    bloc1 = b1[b1.index(extrait):b1.index("## Non-negotiable rules")]
-    bloc2 = b2[b2.index(extrait):b2.index("## Non-negotiable rules")]
-    assert bloc1 == bloc2, "la direction de design dépend encore du domaine"
+    # The design direction paragraph is the SAME word for word: it no longer
+    # depends on any deduction about the domain.
+    excerpt = "## Design direction — it does NOT come from monl"
+    bloc1 = b1[b1.index(excerpt):b1.index("## Non-negotiable rules")]
+    bloc2 = b2[b2.index(excerpt):b2.index("## Non-negotiable rules")]
+    assert bloc1 == bloc2, "the design direction still depends on the domain"
 
 
-def test_la_consigne_de_retouche_rappelle_le_moyen_des_icones():
-    """POINT 104, seconde moitié — trouvée en LANÇANT une retouche, pas en
-    relisant le code. La ligne du point 104 n'était posée que sur le brief de
-    CONSTRUCTION ; la consigne de retouche, elle, disait « même autonomie
-    (aucun CDN) » et rien d'autre. Une retouche du type « rends cette section
-    plus lisible » se serait donc heurtée au même mur.
+def test_the_touch_up_instruction_recalls_the_icon_means():
+    """POINT 104, second half — found by RUNNING a touch-up, not by rereading the
+    code. Point 104's line was only set on the BUILD brief; the touch-up
+    instruction said "same autonomy (no CDN)" and nothing else. A touch-up like
+    "make this section more readable" would therefore have hit the same wall.
 
-    C'est la leçon du point 93 sur un autre objet : il n'y a qu'une voie vers
-    l'IA, mais DEUX briefs — et ce qu'on écrit dans l'un ne se propage pas à
-    l'autre."""
-    from monl.cli import _write_retouche_brief
+    It is point 93's lesson on another object: there is only one path to the AI,
+    but TWO briefs — and what is written in one does not propagate to the other."""
+    from monl.cli import _write_retouch_brief
     with tempfile.TemporaryDirectory() as workdir:
-        chemin = _write_retouche_brief(workdir, "la section retours est terne")
-        with open(chemin, encoding="utf-8") as fh:
-            texte = fh.read()
-    # Le brief est mis en forme sur 79 colonnes : chercher une phrase telle
-    # quelle échouerait au premier retour à la ligne inséré au milieu.
-    continu = " ".join(texte.split())
-    assert "SVG" in continu
-    assert "not an instruction" in continu, \
-        "le rappel doit dire que c'est un MOYEN, jamais une prescription"
+        path = _write_retouch_brief(workdir, "la section retours est terne")
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+    # The brief is formatted at 79 columns: looking for a sentence as is would
+    # fail at the first line break inserted in the middle.
+    continuous = " ".join(text.split())
+    assert "SVG" in continuous
+    assert "not an instruction" in continuous, \
+        "the reminder must say it is a MEANS, never a prescription"

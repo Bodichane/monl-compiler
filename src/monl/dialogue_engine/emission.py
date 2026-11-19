@@ -4,7 +4,7 @@ The tool writes, the compiler proves: the produced spec is reread by the
 real parser before being written to disk."""
 
 from . import emission_parts
-from .fondations import DialogueError
+from .foundations import DialogueError
 
 
 class EmissionMixin:
@@ -13,26 +13,26 @@ class EmissionMixin:
     def _recap(self, app_name, entities, actors, self_register, public_read, owned,
                payable=None):
         """A last look at what is about to be written, before compilation."""
-        lignes = [
+        lines = [
             ("Application", app_name),
             ("Entities", ", ".join(entities) or "none"),
             ("Roles", ", ".join(actors) or "none"),
             ("Online registration", self_register or "closed (manage.py)"),
             ("Readable without an account", ", ".join(public_read) or "none"),
         ]
-        prives = [e for e in owned if e not in public_read]
-        if prives:
-            lignes.append(("Owner-only reading", ", ".join(prives)))
+        private = [e for e in owned if e not in public_read]
+        if private:
+            lines.append(("Owner-only reading", ", ".join(private)))
         if owned:
-            lignes.append(("Creator ownership",
+            lines.append(("Creator ownership",
                            ", ".join(f"{e} ({a})" for e, a in owned.items())))
         if payable:
-            lignes.append((
+            lines.append((
                 "Amount charged",
                 f"{payable['entity']}.{payable['field']} — calculated by the server "
                 f"({payable['source_entity']}.{payable['source_field']} × "
                 f"{payable['factor']}), Stripe key required"))
-        self._show(self.ui.recap("What the spec will declare", lignes))
+        self._show(self.ui.recap("What the spec will declare", lines))
 
     # ---------- deterministic emission of the spec ----------
     def _emit_spec(self, app_name, description, entities, relations, actors,
@@ -52,10 +52,10 @@ class EmissionMixin:
         if payable:
             entity = payable["entity"]
             timestamped = any(
-                field == self.CHAMP_DATE
+                field == self.FIELD_DATE
                 for field, _type in entities.get(entity, ()))
             if timestamped:
-                sort_rule = f"rule {entity}.Read sort {self.CHAMP_DATE}"
+                sort_rule = f"rule {entity}.Read sort {self.FIELD_DATE}"
                 # The payable timestamp is emitted by `emit_payable`, not in
                 # `extra_rules`; its sort must nevertheless follow the same
                 # derivation without copying the timestamp rule itself.

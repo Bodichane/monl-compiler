@@ -1,4 +1,4 @@
-"""Preuves de la forme de modèle Yandex sans appel réseau."""
+"""Proofs of the Yandex model form without a network call."""
 
 import json
 
@@ -23,7 +23,7 @@ def _configure_yandex(monkeypatch):
     monkeypatch.setenv("YANDEX_FOLDER_ID", "folder-de-test")
 
 
-def test_un_nom_nu_devient_uri_sur_le_fil_et_reste_lisible(monkeypatch):
+def test_a_bare_name_becomes_a_uri_on_the_wire_and_stays_readable(monkeypatch):
     _configure_yandex(monkeypatch)
     sent = {}
 
@@ -48,7 +48,7 @@ def test_un_nom_nu_devient_uri_sur_le_fil_et_reste_lisible(monkeypatch):
     "art://folder/yandex-art/latest",
     "custom+scheme://modele",
 ])
-def test_une_uri_existante_passe_inchangee(monkeypatch, model):
+def test_an_existing_uri_passes_unchanged(monkeypatch, model):
     _configure_yandex(monkeypatch)
     sent = {}
 
@@ -67,7 +67,7 @@ def test_une_uri_existante_passe_inchangee(monkeypatch, model):
     assert provider.model == model
 
 
-def test_la_telemetrie_regroupe_sur_le_nom_lisible(monkeypatch, tmp_path):
+def test_telemetry_groups_on_the_readable_name(monkeypatch, tmp_path):
     _configure_yandex(monkeypatch)
     import requests
 
@@ -85,14 +85,14 @@ def test_la_telemetrie_regroupe_sur_le_nom_lisible(monkeypatch, tmp_path):
     assert "gpt://folder-de-test/" not in (tmp_path / frontend_ai.USAGE_FILENAME).read_text()
 
 
-def test_model_absent_reste_refuse(monkeypatch):
+def test_missing_model_stays_refused(monkeypatch):
     _configure_yandex(monkeypatch)
 
     with pytest.raises(frontend_ai.FrontendAIError, match="model missing"):
         frontend_ai.PROVIDERS["yandex"](model=None)
 
 
-def test_dossier_yandex_absent_est_nomme(monkeypatch):
+def test_missing_yandex_folder_is_named(monkeypatch):
     monkeypatch.setenv("YANDEX_API_KEY", "cle-de-test")
     monkeypatch.delenv("YANDEX_FOLDER_ID", raising=False)
 
@@ -100,7 +100,7 @@ def test_dossier_yandex_absent_est_nomme(monkeypatch):
         frontend_ai.PROVIDERS["yandex"](model="qwen3/latest")
 
 
-def test_leffort_de_raisonnement_est_absent_par_defaut(monkeypatch):
+def test_reasoning_effort_is_missing_by_default(monkeypatch):
     _configure_yandex(monkeypatch)
     sent = {}
 
@@ -120,7 +120,7 @@ def test_leffort_de_raisonnement_est_absent_par_defaut(monkeypatch):
 
 
 @pytest.mark.parametrize("effort", ["low", "medium", "high"])
-def test_un_effort_permis_est_transmis_tel_quel(monkeypatch, effort):
+def test_an_allowed_effort_is_passed_as_is(monkeypatch, effort):
     _configure_yandex(monkeypatch)
     sent = {}
 
@@ -139,7 +139,7 @@ def test_un_effort_permis_est_transmis_tel_quel(monkeypatch, effort):
     assert sent["body"]["reasoning_effort"] == effort
 
 
-def test_none_reste_un_alias_pour_omettre_leffort(monkeypatch):
+def test_none_stays_an_alias_to_omit_the_effort(monkeypatch):
     _configure_yandex(monkeypatch)
     sent = {}
 
@@ -158,19 +158,19 @@ def test_none_reste_un_alias_pour_omettre_leffort(monkeypatch):
     assert "reasoning_effort" not in sent["body"]
 
 
-def test_un_effort_interdit_est_refuse_avant_tout_appel_http(monkeypatch):
+def test_a_forbidden_effort_is_refused_before_any_http_call(monkeypatch):
     _configure_yandex(monkeypatch)
     monkeypatch.setenv("MONL_YANDEX_REASONING_EFFORT", "none-ish")
 
     import requests
 
     def fail_post(*args, **kwargs):
-        pytest.fail("aucun appel HTTP ne doit partir pour une valeur interdite")
+        pytest.fail("no HTTP call must go out for a forbidden value")
 
     monkeypatch.setattr(requests, "post", fail_post)
-    with pytest.raises(frontend_ai.FrontendAIError) as erreur:
+    with pytest.raises(frontend_ai.FrontendAIError) as error:
         frontend_ai.PROVIDERS["yandex"](model="qwen3/latest")
 
-    message = str(erreur.value)
+    message = str(error.value)
     assert "MONL_YANDEX_REASONING_EFFORT" in message
     assert "low, medium, high" in message

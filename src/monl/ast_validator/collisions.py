@@ -4,13 +4,13 @@
 since point 112), message rules, and the collision matrix between two
 actors targeting the same action."""
 
-from .socle import ASTValidationError
+from .base import ASTValidationError
 
 
 class CollisionsMixin:
     """What competes for the same route, and per-field restriction."""
 
-    def _valider_regle_restrictedTo(self):
+    def _validate_rule_restrictedto(self):
         """Validates the 'restrictedTo' rule (point 112). Unlike
         'public'/'ownedBy'/'requiresOwn', nothing checked that a field or actor
         referenced by 'restrictedTo' really exists. A typo in the field or actor
@@ -46,7 +46,7 @@ class CollisionsMixin:
                 )
 
     @staticmethod
-    def _valider_texte_du_message(reference, subject, body):
+    def _validate_text_of_message(reference, subject, body):
         """Non-empty subject and body, with no raw line break — the subject in
         particular, otherwise SMTP header injection. Extracted from
         `_valider_regles_message` (complexity ceiling); refusals unchanged."""
@@ -65,7 +65,7 @@ class CollisionsMixin:
                 f"Structure: the body of '{reference}' contains a raw line break. "
                 "Use the '¶' separator between paragraphs.")
 
-    def _valider_regles_message(self):
+    def _validate_rules_message(self):
         """Validates the email notifications triggered by a creation.
 
         B2 deliberately picks a single transition: Create. The target is the
@@ -117,7 +117,7 @@ class CollisionsMixin:
 
             subject = rule.get("subject", "")
             body = rule.get("body", "")
-            self._valider_texte_du_message(reference, subject, body)
+            self._validate_text_of_message(reference, subject, body)
             self.message_rules.append({
                 "trigger_entity": entity,
                 "trigger_action": action,
@@ -125,16 +125,16 @@ class CollisionsMixin:
                 "body": body,
             })
 
-    def _valider_workflows_et_collisions(self):
+    def _validate_workflows_and_collisions(self):
         """Validates workflows and detects authority collisions."""
         shared_permissions = {
             rule["reference"]: set(rule["value"])
             for rule in self.rules if rule["type"] == "sharedBy"
         }
-        access_matrix = self._matrice_d_acces()
-        self._verifier_collisions(access_matrix, shared_permissions)
+        access_matrix = self._matrix_d_access()
+        self._check_collisions(access_matrix, shared_permissions)
 
-    def _matrice_d_acces(self):
+    def _matrix_d_access(self):
         """{entity: {action: {actors}}} declared by the workflows, public actions
         excluded — with the structure refusals along the way. Extracted from
         `_valider_workflows_et_collisions` (complexity ceiling)."""
@@ -164,7 +164,7 @@ class CollisionsMixin:
                 access_matrix.setdefault(entity, {}).setdefault(action_type, set()).add(actor)
         return access_matrix
 
-    def _verifier_collisions(self, access_matrix, shared_permissions):
+    def _check_collisions(self, access_matrix, shared_permissions):
         """Several actors on the same write: declared sharing, ownership or parties,
         otherwise CRITICAL_COLLISION. Extracted from
         `_valider_workflows_et_collisions`; messages and order unchanged."""

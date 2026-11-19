@@ -1,0 +1,199 @@
+"""The home page's business case explorer.
+
+Extracted from `landing.py` when that file crossed point 155's 400-line
+ceiling — one more file, not one more exception: this module is CODE, not
+a data literal like the only two written exceptions.
+
+The whole holds together: the stylesheet, the data of the four cases, the
+markup and the script of the sliding marker. Separating them would have
+put the `glisse` class in one file and the rule that reads it in another."""
+
+from __future__ import annotations
+
+from . import examples
+from .coloration import colorize
+from .theme import icon, page  # noqa: F401  (page reste importable d'ici)
+
+EXTRA_CSS = """
+.case-explorer { display:grid; grid-template-columns:minmax(230px,.7fr) minmax(0,1.55fr); border:1px solid var(--line);
+  border-radius:var(--radius-lg); overflow:hidden; min-height:560px; }
+.case-tabs { position:relative; background:var(--surface-2); border-right:1px solid var(--line); padding:12px; }
+.case-tab { position:relative; z-index:1; width:100%; border:0; border-radius:10px; padding:16px; background:transparent; color:var(--muted); text-align:left;
+  cursor:pointer; display:block; transition:background .18s,color .18s; }
+.case-tab:hover { color:var(--ink); }.case-tab[aria-selected="true"] { background:var(--surface); color:var(--ink); }
+/* The active tab's background becomes a single marker that SLIDES from one
+   tab to another. It is only handed over if the script really placed the
+   marker (class `glisse`): without JavaScript, the `[aria-selected]` rule
+   stays alone and the tab keeps its background. Its specificity is higher
+   (0,3,1 against 0,2,1), so rule order does not need defending. */
+.case-tabs.glisse .case-tab[aria-selected="true"] { background:transparent; }
+/* And the tab's background stops being animated as soon as the marker takes
+   over: without that, the tab left behind fades out in .18s while the marker
+   takes .34s to arrive, and the two movements contradict each other. */
+.case-tabs.glisse .case-tab { transition:color .18s; }
+.case-repere {
+  position:absolute; top:0; left:0; z-index:0; pointer-events:none;
+  width:var(--repere-w,0); height:var(--repere-h,0);
+  transform:translate(var(--repere-x,0), var(--repere-y,0));
+  background:var(--surface); border-radius:10px;
+  transition:transform .34s cubic-bezier(.4,0,.2,1), width .34s cubic-bezier(.4,0,.2,1),
+             height .34s cubic-bezier(.4,0,.2,1);
+}
+.case-tab b { display:block; margin-bottom:4px; font-size:15px; }.case-tab span { font-size:12px; line-height:1.4; display:block; }
+.case-panels { min-width:0; background:var(--surface); }
+.case-panel { display:none; min-height:100%; padding:clamp(28px,5vw,58px); }
+.case-panel.active { display:grid; grid-template-columns:1fr 1fr; gap:clamp(24px,5vw,56px); animation:case-in .25s ease-out; }
+.case-panel h3 { font-size:clamp(27px,4vw,42px); margin:8px 0 16px; }.case-panel p { color:var(--muted); }
+.case-spec { min-width:0; display:flex; flex-direction:column; }
+.case-spec .codeblock { flex:1; min-height:0; white-space:pre-wrap; overflow:visible; overflow-wrap:anywhere; }
+.case-rules { display:flex; flex-wrap:wrap; gap:6px; }
+.case-rules span { border:1px solid var(--line); border-radius:999px; padding:3px 8px; color:var(--muted); font:10px var(--mono); }
+.case-result { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+.case-result b { display:block; color:var(--ink); font:700 18px var(--mono); }
+.case-result span { color:var(--muted); font-size:10px; }
+.case-open { display:inline-flex; align-items:center; gap:6px; margin-top:24px; color:var(--ink); font-size:13px; font-weight:650; text-decoration-thickness:1px; text-underline-offset:4px; }
+.case-open .icon{transition:transform .16s cubic-bezier(.2,.8,.2,1)}
+@media (hover:hover){.case-open:hover .icon{transform:translateX(3px)}.case-tab:hover{background:color-mix(in srgb,var(--surface) 72%,transparent)}}
+@keyframes case-in { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:none; } }
+@media(max-width:760px){
+  .case-tabs { border-right:0; border-bottom:1px solid var(--line); display:flex; overflow-x:auto; }
+  .case-tab { width:190px; flex:none; }.case-tab span { display:none; }
+  .case-panel.active { grid-template-columns:1fr; }
+  /* A single column below 760px. This rule MUST live here and not in
+     landing.py: an @media adds NO specificity, and `extra_css` concatenates
+     landing.EXTRA_CSS BEFORE this one — so the bare rule above
+     (`.case-explorer { grid-template-columns:minmax(230px,.7fr) … }`, same
+     weight 0,1,0) overrode the responsive version written there. Measured
+     at 375px: columns `230px 103px`, i.e. a business-case panel 103 pixels
+     wide, clipped by the card's `overflow:hidden`. */
+  .case-explorer { grid-template-columns:1fr; min-height:0; }
+}
+@media(prefers-reduced-motion:reduce){.case-repere,.case-open .icon{transition:none}.case-panel.active{animation:none}}
+"""
+
+
+CASE_OUTCOMES = {
+    "vitrine": "Public read, private administration and a catalog seeded on first start.",
+    "rendez-vous": "Each client stays isolated; the practitioner finds every request and controls their statuses.",
+    "boutique": "Server-calculated prices, stock that never goes negative, numbered orders and a locked payment.",
+    "communaute": "Generated pseudonyms, one reaction per account, reporting and moderation with no way around them.",
+}
+
+CASE_SNIPPETS = {
+    "vitrine": """rule Project.Read public
+
+workflow Manage for Admin
+    Create Project
+    Update Project
+    Delete Project""",
+    "rendez-vous": """rule Request.Read ownedBy Visitor
+rule Request.Read sharedBy Practitioner
+rule Request.Create requiresOwn Client
+rule Request.status oneOf "submitted", "confirmed", "honored", "cancelled\"""",
+    "boutique": """rule OrderLine.subtotal derivedFrom Product.price by quantity
+rule Order.total sumOf OrderLine.subtotal
+rule OrderLine.Create decrements Product.stock by quantity
+rule Order.total payable""",
+    "communaute": """rule Post.author generated
+rule Upvote.Create oncePer Member, Post
+rule Upvote.Create increments Post.upvotes by 1
+rule Post.Read publicWhen status "published\"""",
+}
+
+def case_tab(item: dict, index: int) -> str:
+    selected = ' aria-selected="true"' if index == 0 else ' aria-selected="false"'
+    return (f'<button class="case-tab" id="tab-{item["id"]}" role="tab" '
+            f'aria-controls="case-{item["id"]}"{selected} data-case="{item["id"]}">'
+            f'<b>{item["name"]}</b><span>{item["summary"]}</span></button>')
+
+
+def case_panel(item: dict, index: int) -> str:
+    result = item["result"]
+    rules = "".join(f"<span>{rule}</span>" for rule in item["teaches"])
+    active = " active" if index == 0 else ""
+    hidden = "" if index == 0 else " hidden"
+    # Highlighted HERE and not in the table: the table stays plain text,
+    # rereadable and comparable to a real spec.
+    snippet = colorize(CASE_SNIPPETS[item["id"]])
+    return f"""<section class="case-panel{active}" id="case-{item['id']}" role="tabpanel"
+aria-labelledby="tab-{item['id']}"{hidden}><div><h3>{item['name']}</h3><p>{CASE_OUTCOMES[item['id']]}</p>
+<div class="case-rules" aria-label="Rules demonstrated">{rules}</div>
+<div class="case-result" style="margin-top:28px"><span><b>{result['entities']}</b>entities</span>
+<span><b>{result['routes']}</b>routes</span><span><b>{result['files']}</b>files</span></div>
+<a class="case-open" href="/console?example={item['id']}">Open in the console {icon('arrow')}</a></div>
+<div class="case-spec"><pre class="codeblock"><code>{snippet}</code></pre></div></section>"""
+
+CATALOGUE = examples.catalogue()
+CASE_TABS = "".join(case_tab(item, index) for index, item in enumerate(CATALOGUE))
+CASE_PANELS = "".join(case_panel(item, index) for index, item in enumerate(CATALOGUE))
+
+
+EXPLORER = f"""<div class="case-explorer" data-reveal>\
+<div class="case-tabs" role="tablist" aria-label="Business cases">{CASE_TABS}</div>
+<div class="case-panels">{CASE_PANELS}</div></div>"""
+
+
+CASE_SCRIPT = """<script>
+(function () {
+  var tabs = Array.from(document.querySelectorAll('.case-tab'));
+  var panels = Array.from(document.querySelectorAll('.case-panel'));
+  var liste = document.querySelector('.case-tabs');
+  var repere = null;
+  if (liste && tabs.length) {
+    repere = document.createElement('span');
+    repere.className = 'case-repere';
+    repere.setAttribute('aria-hidden', 'true');
+    liste.insertBefore(repere, liste.firstChild);
+    liste.classList.add('glisse');
+  }
+  /* offsetTop/offsetLeft are measured from the PADDING edge of the positioned
+     parent, exactly where `top:0; left:0` places an absolute element. The tab
+     sits in the CONTENT box, so offsetLeft equals the padding (12px measured)
+     and the translate brings the marker right onto the tab: a gap of 0.0
+     measured in the browser. A single measurement covers the desktop's
+     vertical column and the mobile's horizontal row. */
+  function placer(tab, anime) {
+    if (!repere) return;
+    if (!anime) repere.style.transition = 'none';
+    repere.style.setProperty('--repere-x', tab.offsetLeft + 'px');
+    repere.style.setProperty('--repere-y', tab.offsetTop + 'px');
+    repere.style.setProperty('--repere-w', tab.offsetWidth + 'px');
+    repere.style.setProperty('--repere-h', tab.offsetHeight + 'px');
+    if (!anime) { void repere.offsetWidth; repere.style.transition = ''; }
+  }
+  function select(tab, focus) {
+    tabs.forEach(function (item) {
+      var active = item === tab;
+      item.setAttribute('aria-selected', active ? 'true' : 'false');
+      item.tabIndex = active ? 0 : -1;
+    });
+    panels.forEach(function (panel) {
+      var active = panel.id === 'case-' + tab.dataset.case;
+      panel.classList.toggle('active', active);
+      panel.hidden = !active;
+    });
+    placer(tab, true);
+    if (focus) tab.focus();
+  }
+  tabs.forEach(function (tab, index) {
+    tab.tabIndex = index === 0 ? 0 : -1;
+    tab.addEventListener('click', function () { select(tab, false); });
+    tab.addEventListener('keydown', function (event) {
+      if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft' &&
+          event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+      event.preventDefault();
+      var direction = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : -1;
+      select(tabs[(index + direction + tabs.length) % tabs.length], true);
+    });
+  });
+  /* First placement WITHOUT animation: otherwise the marker crosses the list
+     from the corner on load. And re-placement on resize, the grid switching
+     from column to row below 900px. */
+  var actif = tabs.filter(function (t) { return t.getAttribute('aria-selected') === 'true'; })[0] || tabs[0];
+  if (actif) placer(actif, false);
+  window.addEventListener('resize', function () {
+    var courant = tabs.filter(function (t) { return t.getAttribute('aria-selected') === 'true'; })[0];
+    if (courant) placer(courant, false);
+  });
+})();
+</script>"""

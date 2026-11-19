@@ -4,17 +4,17 @@ import math
 
 from lark import Transformer, v_args
 
-from .erreurs import NombreHorsLimites
+from .errors import NumberOutsideLimites
 
 
-def _tous(blocs, cle):
+def _all(blocks, key):
     """Every top-level block of one kind, in declaration order."""
-    return [b[cle] for b in blocs if cle in b]
+    return [b[key] for b in blocks if key in b]
 
 
-def _premier(blocs, cle):
+def _first(blocks, key):
     """The first top-level block of a kind that appears at most once."""
-    return next((b[cle] for b in blocs if cle in b), None)
+    return next((b[key] for b in blocks if key in b), None)
 
 
 @v_args(inline=True)
@@ -43,20 +43,20 @@ class StructureMixin(Transformer):
         valid_blocks = [b for b in blocks if isinstance(b, dict)]
         return {
             "app": str(name),
-            "entities": _tous(valid_blocks, "entity"),
-            "relations": _tous(valid_blocks, "relation"),
-            "actors": _tous(valid_blocks, "actor"),
+            "entities": _all(valid_blocks, "entity"),
+            "relations": _all(valid_blocks, "relation"),
+            "actors": _all(valid_blocks, "actor"),
             "self_register_actors": [b["actor"] for b in valid_blocks
                                      if "actor" in b and b.get("self_register")],
-            "rules": _tous(valid_blocks, "rule"),
-            "workflows": _tous(valid_blocks, "workflow"),
-            "custom_logic": _tous(valid_blocks, "custom"),
-            "ui_overrides": _tous(valid_blocks, "ui"),
-            "landing": _premier(valid_blocks, "landing"),
-            "capabilities": _tous(valid_blocks, "capability"),
-            "seeds": _tous(valid_blocks, "seed"),
-            "assets": _premier(valid_blocks, "assets"),
-            "migrations": _tous(valid_blocks, "migration"),
+            "rules": _all(valid_blocks, "rule"),
+            "workflows": _all(valid_blocks, "workflow"),
+            "custom_logic": _all(valid_blocks, "custom"),
+            "ui_overrides": _all(valid_blocks, "ui"),
+            "landing": _first(valid_blocks, "landing"),
+            "capabilities": _all(valid_blocks, "capability"),
+            "seeds": _all(valid_blocks, "seed"),
+            "assets": _first(valid_blocks, "assets"),
+            "migrations": _all(valid_blocks, "migration"),
         }
 
     def entity(self, name, *attributes):
@@ -143,7 +143,7 @@ class StructureMixin(Transformer):
             if any(c in token for c in ".eE"):
                 parsed = float(token)
                 if not math.isfinite(parsed):
-                    raise NombreHorsLimites(token)
+                    raise NumberOutsideLimites(token)
             else:
                 parsed = int(token)
         return {str(name): parsed}

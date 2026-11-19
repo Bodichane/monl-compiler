@@ -1,8 +1,8 @@
-"""La racine porte la page de présentation, la console vit sur /console.
+"""The root carries the presentation page, the console lives on /console.
 
-La console est un OUTIL : elle suppose qu'on sait déjà ce que monl fait. Une
-personne qui l'ignore avait la console en pleine figure, sans un mot sur le
-produit ni le moindre moyen de l'installer.
+The console is a TOOL: it assumes one already knows what monl does. Someone
+who did not got the console in their face, without a word about the product
+nor any way to install it.
 """
 
 import json
@@ -16,11 +16,11 @@ import pytest
 import requests
 import uvicorn
 
-from monl_platform import brand, landing_vitrine
+from monl_platform import brand, landing_showcase
 from monl_platform.app import create_app
 from monl_platform.landing import LANDING_HTML
 
-RESSOURCE_EXTERNE = re.compile(
+RESOURCE_EXTERNAL = re.compile(
     r"<(?:link|script|img|iframe)\b[^>]*(?:src|href)\s*=\s*['\"]https?://",
     re.IGNORECASE,
 )
@@ -30,8 +30,8 @@ class FakeProvider:
     provider_name = "test"
     model = "test-model"
 
-    def __call__(self, _prompt):  # pragma: no cover - jamais appelé ici
-        raise AssertionError("la page de présentation n'appelle aucune IA")
+    def __call__(self, _prompt):  # pragma: no cover - never called here
+        raise AssertionError("the presentation page calls no AI")
 
 
 def _free_port():
@@ -61,80 +61,80 @@ def platform(tmp_path):
             except requests.RequestException:
                 time.sleep(0.02)
         else:
-            pytest.fail("le serveur n'a pas démarré")
+            pytest.fail("the server did not start")
         yield base
     finally:
         server.should_exit = True
         thread.join(timeout=10)
 
 
-def test_la_racine_presente_le_produit(platform):
-    reponse = requests.get(platform, timeout=10)
+def test_the_root_presents_the_product(platform):
+    response = requests.get(platform, timeout=10)
 
-    assert reponse.status_code == 200
-    assert "text/html" in reponse.headers["content-type"]
-    assert '<html lang="en">' in reponse.text
-    # Ce qu'une page produit doit dire : ce que c'est, et comment l'obtenir.
-    assert "compiler" in reponse.text.lower()
-    assert "Try it in the console" in reponse.text
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert '<html lang="en">' in response.text
+    # What a product page must say: what it is, and how to get it.
+    assert "compiler" in response.text.lower()
+    assert "Try it in the console" in response.text
 
 
-def test_la_page_conduit_a_la_console(platform):
-    reponse = requests.get(platform, timeout=10)
+def test_the_page_leads_to_the_console(platform):
+    response = requests.get(platform, timeout=10)
 
-    assert 'href="/console"' in reponse.text
+    assert 'href="/console"' in response.text
     console = requests.get(f"{platform}/console", timeout=10, allow_redirects=False)
     assert console.status_code == 303
     assert console.headers["location"].startswith("/login")
 
 
-def test_la_page_ne_charge_aucune_ressource_distante(platform):
-    """Servie en local, elle doit fonctionner sans le moindre réseau."""
-    reponse = requests.get(platform, timeout=10)
+def test_the_page_loads_no_remote_resource(platform):
+    """Served locally, it must work without any network."""
+    response = requests.get(platform, timeout=10)
 
-    faute = RESSOURCE_EXTERNE.search(reponse.text)
-    assert faute is None, f"ressource distante dans la page : {faute.group(0)}"
+    fault = RESOURCE_EXTERNAL.search(response.text)
+    assert fault is None, f"remote resource in the page: {fault.group(0)}"
 
 
-def test_toute_url_sortante_est_un_lien_et_rien_d_autre(platform):
-    """Le garde-fou d'au-dessus s'est élargi : celui-ci le referme.
+def test_every_outgoing_url_is_a_link_and_nothing_else(platform):
+    """The safeguard above was widened: this one closes it again.
 
-    Autoriser les liens sortants ne doit pas autoriser une URL n'importe où.
-    Chaque `https://` de la page doit être la cible d'un `<a href>` — pas
-    d'un `<img>`, pas d'un `fetch`, pas d'une police.
+    Allowing outgoing links must not allow a URL anywhere. Every `https://` of the
+    page must be the target of an `<a href>` — not of an `<img>`, a `fetch`, or a
+    font.
     """
     page = requests.get(platform, timeout=10).text
-    sans_commentaires = re.sub(r"/\*.*?\*/", "", page, flags=re.DOTALL)
-    sans_commentaires = re.sub(r"<!--.*?-->", "", sans_commentaires, flags=re.DOTALL)
+    without_comments = re.sub(r"/\*.*?\*/", "", page, flags=re.DOTALL)
+    without_comments = re.sub(r"<!--.*?-->", "", without_comments, flags=re.DOTALL)
 
-    for position in (m.start() for m in re.finditer(r"https?://", sans_commentaires)):
-        debut = sans_commentaires.rfind("<", 0, position)
-        balise = sans_commentaires[debut:position]
-        # UNE exemption, et elle est étroite : `xmlns` d'un SVG en ligne est un
-        # espace de NOMS, pas une adresse — aucun navigateur ne va la chercher.
-        # L'exemption porte sur l'attribut, jamais sur le domaine : écrire
-        # « sauf w3.org » laisserait passer une vraie requête vers w3.org.
-        if re.search(r"\bxmlns(:\w+)?\s*=\s*['\"]$", balise):
+    for position in (m.start() for m in re.finditer(r"https?://", without_comments)):
+        debut = without_comments.rfind("<", 0, position)
+        tag = without_comments[debut:position]
+        # ONE exemption, and a narrow one: an inline SVG's `xmlns` is a
+        # NAMESPACE, not an address — no browser fetches it. The exemption is
+        # about the attribute, never the domain: writing "except w3.org" would
+        # let a real request to w3.org through.
+        if re.search(r"\bxmlns(:\w+)?\s*=\s*['\"]$", tag):
             continue
-        assert re.match(r"<a\b[^>]*\bhref\s*=\s*['\"]$", balise), (
+        assert re.match(r"<a\b[^>]*\bhref\s*=\s*['\"]$", tag), (
             "URL sortante hors d'un lien : "
-            + sans_commentaires[position:position + 60]
+            + without_comments[position:position + 60]
         )
 
 
-def test_la_page_respecte_le_mouvement_reduit():
-    """Le terminal du héros s'anime : il doit pouvoir s'arrêter."""
+def test_the_page_respects_reduced_motion():
+    """The hero terminal is animated: it must be able to stop."""
     assert "prefers-reduced-motion" in LANDING_HTML
 
 
-def test_la_console_n_est_plus_a_la_racine(platform):
-    """La racine et la console sont deux pages distinctes, pas la même."""
+def test_the_console_is_no_longer_at_the_root(platform):
+    """The root and the console are two distinct pages, not the same one."""
     racine = requests.get(platform, timeout=10).text
     session = requests.Session()
-    inscrit = session.post(f"{platform}/api/auth/register", json={
+    registered = session.post(f"{platform}/api/auth/register", json={
         "email": "landing-console@example.test", "password": "MotDePasse-123"
     }, timeout=10)
-    assert inscrit.status_code == 201, inscrit.text
+    assert registered.status_code == 201, registered.text
     console = session.get(f"{platform}/console", timeout=10).text
 
     assert racine != console
@@ -142,134 +142,128 @@ def test_la_console_n_est_plus_a_la_racine(platform):
     assert "Compilation console" not in racine
 
 
-def test_la_pastille_de_marque_garde_sa_couleur_d_encre():
-    """Deux fois le même défaut : une règle LARGE écrase une règle précise.
+def test_the_brand_badge_keeps_its_ink_color():
+    """The same defect twice: a BROAD rule overrides a precise one.
 
-    `.logo span` (0,1,1) l'emporte sur `.logo-mark` (0,1,0) et repeignait le
-    « m » en gris sourd sur argile — 1,35:1, c'est-à-dire invisible. Le même
-    piège avait déjà mangé le bouton d'appel à l'action à l'autre bout de la
-    barre. Ce qu'on corrige n'est pas la règle précise qu'il faudrait
-    renforcer, c'est la règle large qu'il faut restreindre : on interdit donc
-    le sélecteur fourre-tout, pas une couleur particulière.
+    `.logo span` (0,1,1) beats `.logo-mark` (0,1,0) and repainted the "m" in
+    muted gray on clay — 1.35:1, that is invisible. The same trap had already
+    eaten the call-to-action button at the other end of the bar. What is fixed is
+    not the precise rule that would need strengthening, it is the broad rule that
+    must be narrowed: we therefore forbid the catch-all selector, not a
+    particular color.
     """
     assert ".logo span {" not in LANDING_HTML
     assert "brand-wordmark" in LANDING_HTML
 
 
-def _bande_verticale(trace):
-    """Le haut et le bas réellement dessinés par un tracé.
+def _bande_vertical(trace):
+    """The top and bottom really drawn by a path.
 
-    Un tracé sur DEUX lignes descend jusqu'en bas de sa vue ; un tracé sur une
-    seule ligne, centré, laisse du vide au-dessus et au-dessous. C'est la seule
-    façon de vérifier la présence d'un second mot sans lire le dessin à l'œil.
+    A path on TWO lines goes down to the bottom of its view; a single-line path,
+    centered, leaves space above and below. It is the only way to check the
+    presence of a second word without reading the drawing by eye.
     """
-    nombres = [float(n) for n in re.findall(r"-?\d+\.?\d*", trace)]
-    ordonnees = nombres[1::2]
-    assert ordonnees, "tracé illisible : la mesure porterait sur du vide"
-    return min(ordonnees), max(ordonnees)
+    numbers = [float(n) for n in re.findall(r"-?\d+\.?\d*", trace)]
+    ordered = numbers[1::2]
+    assert ordered, "unreadable path: the measurement would be about nothing"
+    return min(ordered), max(ordered)
 
 
-def test_la_barre_porte_la_forme_courte_et_son_intitule_le_dit(platform):
-    """L'intitulé lu à voix haute doit être ce qui est DESSINÉ.
+def test_the_bar_carries_the_short_form_and_its_label_says_so(platform):
+    """The label read aloud must be what is DRAWN.
 
-    Ce témoin s'appelait `test_la_marque_se_lit_monl_compiler` et vérifiait
-    `aria-label="MONL"` : son NOM promettait le lockup complet, son assertion
-    portait sur la forme courte. Point 167bis — un témoin dont le nom annonce
-    une garantie qu'il ne tient pas la fait croire gardée. Mesuré en rendant
-    les deux signes : la barre dessine « MONL » seul, l'intitulé est donc JUSTE
-    et c'est le nom qui mentait.
+    This witness was called `test_la_marque_se_lit_monl_compiler` and checked
+    `aria-label="MONL"`: its NAME promised the full lockup, its assertion was
+    about the short form. Point 167bis — a witness whose name announces a
+    guarantee it does not hold makes it look guarded. Measured by rendering both
+    marks: the bar draws "MONL" alone, so the label is RIGHT and it was the name
+    that lied.
 
-    Le lockup complet — celui qui porte COMPILER — reste employé ailleurs
-    (l'image de partage, les fichiers de marque). Le garder ICI serait faux ;
-    ne le garder NULLE PART le laisserait disparaître en silence, d'où la
-    seconde moitié du témoin.
+    The full lockup — the one carrying COMPILER — stays used elsewhere (the share
+    image, the brand files). Keeping it HERE would be wrong; keeping it NOWHERE
+    would let it disappear silently, hence the witness's second half.
     """
-    reponse = requests.get(platform, timeout=10)
-    assert 'aria-label="MONL"' in reponse.text
-    # On ne cherche PAS « COMPILER » dans la page pour prouver que la barre ne
-    # l'annonce pas : le mot y figure légitimement en toutes lettres (« un
-    # réseau pour compiler »), et le témoin mesurait alors la PROSE au lieu de
-    # l'intitulé. L'intitulé, c'est l'`aria-label` ci-dessus — rien d'autre
-    # n'est lu à sa place. Vérifié en le mesurant : l'assertion large rougissait
-    # sur une page correcte.
+    response = requests.get(platform, timeout=10)
+    assert 'aria-label="MONL"' in response.text
+    # We do NOT look for "COMPILER" in the page to prove the bar does not
+    # announce it: the word legitimately appears there in full ("un réseau pour
+    # compiler"), and the witness then measured the PROSE instead of the label.
+    # The label is the `aria-label` above — nothing else is read in its place.
+    # Checked by measuring it: the broad assertion turned red on a correct
+    # page.
 
-    haut_court, bas_court = _bande_verticale(brand.NAV_TEXT_PATH)
-    haut_long, bas_long = _bande_verticale(brand.WORDMARK_PATH)
-    hauteur = brand.VUE[1]
+    haut_court, bas_court = _bande_vertical(brand.NAV_TEXT_PATH)
+    haut_long, bas_long = _bande_vertical(brand.WORDMARK_PATH)
+    hauteur = brand.VIEW[1]
 
     assert (bas_court - haut_court) < 0.5 * hauteur, (
-        "le texte de la barre occupe deux lignes : ce n'est plus la forme "
-        "courte que son intitulé annonce")
+        "the bar text takes two lines: it is no longer the short "
+        "form its label announces")
     assert (bas_long - haut_long) > 0.9 * hauteur, (
-        "le lockup a perdu sa seconde ligne — le logo choisi ne porte plus "
-        "COMPILER, et rien d'autre ne le garde")
+        "the lockup lost its second line — the chosen logo no longer carries "
+        "COMPILER, and nothing else guards it")
 
 
-def test_aucune_couleur_n_est_ecrite_hors_du_theme():
-    """Une couleur en dur échappe au thème, et le thème seul se déplace.
+def test_no_color_is_written_outside_the_theme():
+    """A hard-coded color escapes the theme, and only the theme moves.
 
-    La barre de la console portait `rgba(16, 14, 12, .9)` : quand la palette
-    est passée du sombre au papier, tout a suivi les variables SAUF elle — la
-    barre est restée noire pendant que son texte, lui, devenait noir aussi.
-    Sombre sur sombre, illisible, et invisible à une recherche de couleurs
-    hexadécimales. Les ombres portées restent permises : une ombre n'est pas
-    une couleur de surface, elle assombrit ce qu'il y a dessous quel qu'il
-    soit.
+    The console bar carried `rgba(16, 14, 12, .9)`: when the palette went from
+    dark to paper, everything followed the variables EXCEPT it — the bar stayed
+    black while its text became black too. Dark on dark, unreadable, and
+    invisible to a search for hexadecimal colors. Drop shadows stay allowed: a
+    shadow is not a surface color, it darkens whatever is beneath it.
     """
     from monl_platform import theme
 
-    assert "rgba(" in LANDING_HTML  # les ombres et séparateurs restent locaux
+    assert "rgba(" in LANDING_HTML  # shadows and separators stay local
     assert "--brand" in theme.CSS and "--on-brand" in theme.CSS
 
 
-def test_la_demonstration_montre_de_vraies_sorties_de_compilation(platform):
-    """Ce qui est montré doit venir du compilateur, pas d'une main.
+def test_the_demo_shows_real_compilation_outputs(platform):
+    """What is shown must come from the compiler, not from a hand.
 
-    Une page produit qui invente ses propres chiffres serait exactement ce que
-    monl interdit aux sites qu'il produit — et ce que la barrière de substance
-    refuse depuis le point 143.
+    A product page inventing its own figures would be exactly what monl forbids
+    the sites it produces — and what the substance barrier refuses since point
+    143.
     """
     page = requests.get(platform, timeout=10).text
 
     assert "verified specification" in page
-    # Les quatre exemples réellement compilés par les tests de la plateforme.
-    for modele in ("Public showcase", "Appointment book",
+    # The four examples really compiled by the platform tests.
+    for template in ("Public showcase", "Appointment book",
                    "Shop and payment", "Community feed"):
-        assert modele in page
+        assert template in page
     assert "frontend_contract.json" in page
 
 
-def test_une_apparition_ne_se_cache_jamais_par_un_style_en_ligne():
-    """Un style EN LIGNE ne se défait pas avec une classe.
+def test_a_reveal_is_never_hidden_by_an_inline_style():
+    """An INLINE style is not undone by a class.
 
-    La page posait `element.style.opacity = "0"` sur chaque bloc à révéler,
-    puis comptait sur `.rise.seen { opacity: 1 }` pour le rendre. Or un style
-    en ligne l'emporte sur n'importe quel sélecteur de classe : les sections
-    ne réapparaissaient JAMAIS. Mesuré sur la page servie, hors mouvement
-    réduit : 43,3 % de blanc, dont une bande de 993 px — les refus, les
-    chiffres et l'appel final entièrement invisibles.
+    The page set `element.style.opacity = "0"` on each block to reveal, then
+    relied on `.rise.seen { opacity: 1 }` to show it. But an inline style beats
+    any class selector: the sections NEVER reappeared. Measured on the served page,
+    outside reduced motion: 43.3 % blank, including a 993 px band — the refusals,
+    the figures and the final call entirely invisible.
 
-    L'état caché doit donc vivre dans une RÈGLE. Les commentaires sont
-    retirés avant la recherche : ils parlent du défaut, ils ne le commettent
-    pas.
+    The hidden state must therefore live in a RULE. Comments are removed before
+    the search: they talk about the defect, they do not commit it.
     """
     from monl_platform.console import CONSOLE_HTML
 
-    sans_commentaires = re.compile(r"/\*.*?\*/", re.DOTALL)
-    for nom, page in (("accueil", LANDING_HTML), ("console", CONSOLE_HTML)):
-        propre = sans_commentaires.sub("", page)
-        assert not re.search(r"\.style\.opacity\s*=", propre), (
-            f"la page {nom} cache un bloc par un style en ligne : une classe "
-            "ne pourra pas le défaire"
+    without_comments = re.compile(r"/\*.*?\*/", re.DOTALL)
+    for name, page in (("accueil", LANDING_HTML), ("console", CONSOLE_HTML)):
+        own = without_comments.sub("", page)
+        assert not re.search(r"\.style\.opacity\s*=", own), (
+            f"the {name} page hides a block with an inline style: a class "
+            "will not be able to undo it"
         )
 
 
-def test_un_contenu_anime_reste_montrable_si_l_observateur_se_tait():
-    """Un contenu invisible est pire qu'un contenu non animé.
+def test_animated_content_stays_showable_if_the_observer_stays_silent():
+    """Invisible content is worse than non-animated content.
 
-    Écran très haut, navigateur exotique, erreur en amont : si
-    l'IntersectionObserver ne se déclenche jamais, la page ne doit pas rester
-    blanche pour autant.
+    Very tall screen, exotic browser, upstream error: if the IntersectionObserver
+    never fires, the page must not stay blank anyway.
     """
     assert "data-reveal" in LANDING_HTML
     assert "IntersectionObserver" in LANDING_HTML
@@ -280,601 +274,591 @@ def test_un_contenu_anime_reste_montrable_si_l_observateur_se_tait():
 # Les trois sections de positionnement (« pourquoi », « vs », « ensemble »)
 # ---------------------------------------------------------------------------
 
-def test_les_trois_questions_du_visiteur_ont_leur_section():
-    """Le site disait CE QUE monl fait sans jamais dire pourquoi celui-ci,
-    en quoi il diffère de ce qu'on connaît, ni s'il faut choisir."""
-    for ancre in ("pourquoi-title", "compare-title", "ensemble-title"):
-        assert f'id="{ancre}"' in LANDING_HTML, f"section absente : {ancre}"
+def test_the_visitors_three_questions_have_their_section():
+    """The site said WHAT monl does without ever saying why this one, how it
+    differs from what one knows, nor whether one must choose."""
+    for anchor in ("pourquoi-title", "compare-title", "ensemble-title"):
+        assert f'id="{anchor}"' in LANDING_HTML, f"section absente : {anchor}"
 
 
-def test_la_comparaison_dit_aussi_ce_que_monl_napporte_pas():
-    """Une comparaison qui n'énumère que ses victoires est une comparaison
-    qu'on cesse de croire à la première vérification. La ligne des limites
-    n'est pas une politesse : c'est ce qui rend le reste lisible."""
-    from monl_platform.landing_pourquoi import COMPARAISON
-    axes = [axe for axe, _eux, _nous in COMPARAISON]
+def test_the_comparison_also_says_what_monl_does_not_bring():
+    """A comparison listing only its victories is a comparison one stops
+    believing at the first check. The limits line is not politeness: it is what
+    makes the rest readable."""
+    from monl_platform.landing_why import COMPARISON
+    axes = [axe for axe, _eux, _nous in COMPARISON]
     assert "What it does not provide" in axes, axes
-    limites = next(nous for axe, _e, nous in COMPARAISON
+    limites = next(nous for axe, _e, nous in COMPARISON
                    if axe == "What it does not provide")
-    for absent in ("hosting", "real-time", "storage"):
-        assert absent in limites, f"limite non énoncée : {absent}"
-    assert limites in LANDING_HTML, "la ligne des limites n'est pas servie"
+    for missing in ("hosting", "real-time", "storage"):
+        assert missing in limites, f"limit not stated: {missing}"
+    assert limites in LANDING_HTML, "the limits line is not served"
 
 
-def test_aucun_jugement_de_valeur_dans_la_comparaison():
-    """Chaque ligne doit être un FAIT vérifiable des deux côtés. « Plus
-    simple », « plus moderne », « plus sûr » ne se vérifient pas et ne
-    survivent pas à un lecteur qui connaît l'autre produit."""
-    from monl_platform.landing_pourquoi import COMPARAISON
-    interdits = ("simpler", "more modern", "safer", "more secure", "faster",
+def test_no_value_judgment_in_the_comparison():
+    """Each line must be a FACT checkable on both sides. "Simpler", "more
+    modern", "safer" cannot be checked and do not survive a reader who knows the
+    other product."""
+    from monl_platform.landing_why import COMPARISON
+    forbidden = ("simpler", "more modern", "safer", "more secure", "faster",
                  "better", "superior", "obsolete")
-    texte = " ".join(f"{a} {b} {c}".lower() for a, b, c in COMPARAISON)
-    fautifs = [mot for mot in interdits if mot in texte]
-    assert not fautifs, f"jugement de valeur dans la comparaison : {fautifs}"
+    text = " ".join(f"{a} {b} {c}".lower() for a, b, c in COMPARISON)
+    offenders = [word for word in forbidden if word in text]
+    assert not offenders, f"value judgment in the comparison: {offenders}"
 
 
-def test_la_promesse_postgresql_du_site_est_couverte_par_un_test():
-    """Le site affirme qu'un backend généré tourne sur le Postgres d'un
-    fournisseur managé. Un document se garde comme du code (point 141) : la
-    promesse doit pointer sur une épreuve qui existe, sinon elle vieillit en
-    silence jusqu'à devenir fausse."""
-    from monl_platform.landing_pourquoi import MONTAGES
+def test_the_sites_postgresql_promise_is_covered_by_a_test():
+    """The site claims a generated backend runs on a managed provider's Postgres.
+    A document is maintained like code (point 141): the promise must point to a
+    test that exists, otherwise it ages silently until it becomes false."""
+    from monl_platform.landing_why import MONTAGES
     montage = next(m for m in MONTAGES if m["etat"] == "verifie"
                    and "MONL_DATABASE_URL" in m["texte"])
     assert "postgresql://" in "\n".join(montage["code"])
 
-    epreuve = pathlib.Path(__file__).with_name("test_postgresql.py")
-    assert epreuve.exists(), "la promesse ne pointe sur aucune épreuve"
-    source = epreuve.read_text(encoding="utf-8")
+    test = pathlib.Path(__file__).with_name("test_postgresql.py")
+    assert test.exists(), "the promise points to no test"
+    source = test.read_text(encoding="utf-8")
     assert "MONL_DATABASE_URL" in source, (
-        "l'épreuve ne démarre pas les artefacts avec la variable annoncée")
+        "the test does not start the artifacts with the announced variable")
 
 
-def test_chaque_exploit_cite_le_point_qui_le_documente():
-    """Les trois refus affichés sont des défauts RÉELS. Chacun renvoie à son
-    point du journal : une page qui raconte des attaques sans source est une
-    page de marketing, pas une preuve."""
+def test_each_exploit_cites_the_point_documenting_it():
+    """The three displayed refusals are REAL defects. Each points to its journal
+    entry: a page telling of attacks without a source is a marketing page, not a
+    proof."""
     import re as _re
 
-    from monl_platform.landing_pourquoi import REFUS
-    journal = (pathlib.Path(__file__).parents[1]
+    from monl_platform.landing_why import REFUSAL
+    log = (pathlib.Path(__file__).parents[1]
                / "docs" / "design_decisions.md").read_text(encoding="utf-8")
-    for refus in REFUS:
-        numeros = _re.findall(r"\d+", refus["point"])
-        assert numeros, refus["point"]
-        for numero in numeros:
-            assert f"\n## {numero}." in journal, (
-                f"point {numero} cité par « {refus['titre']} » absent du journal")
-        assert refus["titre"] in LANDING_HTML
+    for refusal in REFUSAL:
+        numbers = _re.findall(r"\d+", refusal["point"])
+        assert numbers, refusal["point"]
+        for number in numbers:
+            assert f"\n## {number}." in log, (
+                f"point {number} cited by \"{refusal['titre']}\" missing from the journal")
+        assert refusal["titre"] in LANDING_HTML
 
 
-def _specificite(selecteur: str) -> tuple:
-    """Rend (id, classe/attribut/pseudo-classe, type) d'un sélecteur.
+def _specificity(selector: str) -> tuple:
+    """Returns (id, class/attribute/pseudo-class, type) of a selector.
 
-    Volontairement modeste : elle ne sait compter que des suites de classes,
-    d'attributs et de types. `:is()`, `:not()` et `:where()` délèguent leur
-    poids à leur contenu, donc leur présence ferait mal compter — l'assertion
-    de forme les refuse plutôt que de rendre un chiffre faux.
+    Deliberately modest: it can only count sequences of classes, attributes and
+    types. `:is()`, `:not()` and `:where()` delegate their weight to their
+    content, so their presence would miscount — the shape assertion refuses them
+    rather than returning a wrong figure.
     """
-    for delegue in (":is(", ":not(", ":where(", ":has("):
-        assert delegue not in selecteur, f"poids délégué non calculé : {delegue}"
-    reste, attributs = re.subn(r"\[[^\]]*\]", " ", selecteur)
-    identifiants = len(re.findall(r"#[-\w]+", reste))
+    for delegated in (":is(", ":not(", ":where(", ":has("):
+        assert delegated not in selector, f"delegated weight not computed: {delegated}"
+    reste, attributes = re.subn(r"\[[^\]]*\]", " ", selector)
+    identifiers = len(re.findall(r"#[-\w]+", reste))
     classes = len(re.findall(r"\.[-\w]+", reste))
     pseudo_classes = len(re.findall(r"(?<!:):[-\w]+", reste))
     types = len(re.findall(r"(?:^|[\s>+~])([a-zA-Z][-\w]*)", reste))
-    return (identifiants, classes + attributs + pseudo_classes, types)
+    return (identifiers, classes + attributes + pseudo_classes, types)
 
 
-def test_le_repere_qui_glisse_emporte_le_fond_de_l_onglet():
-    """Le fond de l'onglet actif est CÉDÉ au repère mobile.
+def test_the_sliding_marker_takes_the_tab_background():
+    """The active tab's background is HANDED to the moving marker.
 
-    Cette cascade n'a pas pu être mesurée au navigateur — le volet masqué ne
-    recalcule pas le style, et lit la même valeur avec et sans la classe. Elle
-    est donc calculée : le sélecteur qui cède le fond doit être plus FORT et
-    écrit APRÈS celui qui le pose. Sans les deux, l'onglet quitté s'éteint en
-    .18s pendant que le repère met .34s à arriver, et les deux mouvements se
-    contredisent à l'œil.
+    This cascade could not be measured in the browser — the hidden pane does not
+    recalculate style, and reads the same value with and without the class. It is
+    therefore computed: the selector handing over the background must be STRONGER
+    and written AFTER the one setting it. Without both, the tab left fades in .18s
+    while the marker takes .34s to arrive, and the two motions contradict each
+    other to the eye.
     """
     pose = '.case-tab[aria-selected="true"]'
     cede = '.case-tabs.glisse .case-tab[aria-selected="true"]'
 
-    assert LANDING_HTML.count(cede) == 1, "la règle qui cède le fond a disparu"
-    assert _specificite(cede) > _specificite(pose), (
-        f"{cede} ne l'emporte plus sur {pose}")
+    assert LANDING_HTML.count(cede) == 1, "the rule handing over the background disappeared"
+    assert _specificity(cede) > _specificity(pose), (
+        f"{cede} no longer beats {pose}")
     assert LANDING_HTML.index(cede) > LANDING_HTML.index(pose), (
-        "la règle qui cède le fond est passée AVANT celle qui le pose")
+        "the rule handing over the background moved BEFORE the one setting it")
 
 
-def test_le_repere_n_est_jamais_servi_dans_le_html(platform):
-    """Le repère est POSÉ par le script, jamais livré dans le balisage.
+def test_the_marker_is_never_served_in_the_html(platform):
+    """The marker is SET by the script, never delivered in the markup.
 
-    Livré d'avance, il s'afficherait dans l'angle de la liste chez qui
-    n'exécute pas le script — un rectangle posé sur rien — et l'onglet actif
-    aurait cédé son fond sans que rien ne le remplace.
+    Delivered in advance, it would show in the list's corner for whoever does not
+    run the script — a rectangle placed on nothing — and the active tab would have
+    handed over its background with nothing replacing it.
     """
     page = requests.get(platform, timeout=10).text
-    # Retirer TOUS les scripts et TOUTES les feuilles, pas s'arrêter au premier
-    # script : celui du thème vit dans le <head>, donc découper là laissait le
-    # balisage des onglets entièrement hors de portée — le test restait vert en
-    # servant le repère.
-    balisage = re.sub(r"<(script|style)\b.*?</\1>", " ", page, flags=re.S | re.I)
+    # Remove ALL scripts and ALL stylesheets, not stop at the first script: the
+    # theme one lives in the <head>, so cutting there left the tab markup
+    # entirely out of reach — the test stayed green while serving the marker.
+    markup = re.sub(r"<(script|style)\b.*?</\1>", " ", page, flags=re.S | re.I)
 
-    assert "case-explorer" in balisage, "le découpage a emporté les onglets"
-    assert "case-repere" not in balisage, "le repère est servi dans le balisage"
-    assert "glisse" not in balisage, "la classe qui cède le fond est servie"
-    assert "case-repere" in page, "plus personne ne pose le repère"
+    assert "case-explorer" in markup, "the cutting took the tabs with it"
+    assert "case-repere" not in markup, "the marker is served in the markup"
+    assert "glisse" not in markup, "the class handing over the background is served"
+    assert "case-repere" in page, "nobody sets the marker any more"
 
 
-def test_la_bascule_de_theme_n_anime_pas_qui_refuse_le_mouvement():
-    """Le refus du mouvement est tenu en JavaScript, faute de pouvoir l'être
-    en CSS : le bloc @media porte sur `*`, qui n'atteint aucun
-    `::view-transition-*`. La bascule doit aussi rester fonctionnelle là où
-    l'API n'existe pas — sinon le thème cesse de basculer.
+def test_the_theme_toggle_does_not_animate_for_reduced_motion():
+    """Motion refusal is held in JavaScript, since it cannot be in CSS: the
+    @media block applies to `*`, which reaches no `::view-transition-*`. The
+    toggle must also stay functional where the API does not exist — otherwise the
+    theme stops toggling.
     """
-    garde = re.search(
+    guard = re.search(
         r"if\s*\(\s*!document\.startViewTransition\s*\|\|\s*(\w+)\.matches\s*\)"
         r"\s*\{\s*basculer\(\)\s*;\s*return\s*;\s*\}",
         LANDING_HTML,
     )
-    assert garde, "la bascule s'anime sans vérifier l'API ni le mouvement réduit"
+    assert guard, "the toggle animates without checking the API or reduced motion"
 
-    nom = garde.group(1)
+    name = guard.group(1)
     assert re.search(
-        rf"var\s+{nom}\s*=\s*window\.matchMedia\(\s*'\(prefers-reduced-motion: reduce\)'\s*\)",
+        rf"var\s+{name}\s*=\s*window\.matchMedia\(\s*'\(prefers-reduced-motion: reduce\)'\s*\)",
         LANDING_HTML,
-    ), f"« {nom} » n'interroge pas le mouvement réduit"
+    ), f"\"{name}\" does not query reduced motion"
 
 
-def _feuille(html: str) -> str:
-    """Rend le CSS inliné de la page, feuilles concaténées."""
+def _sheet(html: str) -> str:
+    """Returns the page's inlined CSS, stylesheets concatenated."""
     return "\n".join(re.findall(r"<style[^>]*>(.*?)</style>", html, re.S | re.I))
 
 
-def _declarations(css: str, selecteur: str) -> list:
-    """Rend les blocs écrits pour ce sélecteur seul, en tête de règle.
+def _declarations(css: str, selector: str) -> list:
+    """Returns the blocks written for this selector alone, at rule start.
 
-    Ne sait pas lire un sélecteur groupé (« .a, .band { … } ») : l'assertion
-    d'existence ci-après refuse le silence plutôt que de laisser le test vert
-    sur une règle qu'il n'a pas su trouver.
+    Cannot read a grouped selector (".a, .band { … }"): the existence assertion
+    below refuses silence rather than leaving the test green on a rule it could
+    not find.
     """
-    motif = re.compile(r"(?:^|[};])\s*" + re.escape(selecteur) + r"\s*\{([^}]*)\}", re.M)
+    motif = re.compile(r"(?:^|[};])\s*" + re.escape(selector) + r"\s*\{([^}]*)\}", re.M)
     return [m.group(1) for m in motif.finditer(css)]
 
 
-def test_le_site_tient_sur_un_seul_fond():
-    """Une seule couleur de fond du haut de la page jusqu'au pied.
+def test_the_site_holds_on_a_single_background():
+    """A single background color from the top of the page to the footer.
 
-    Les bandes portaient --surface-2, le rail --surface et le pied --surface :
-    trois fonds en plus du --bg de la page, donc un changement de couleur
-    presque à chaque section. Le filet marque désormais la même césure sans
-    repeindre. Les CARTES gardent leur fond propre — une carte qui ne se
-    détache pas du fond cesse d'être une carte — et le bloc final en est une,
-    arrondie et détachée, pas une bande.
+    The bands carried --surface-2, the rail --surface and the footer --surface:
+    three backgrounds on top of the page's --bg, hence a color change at almost
+    every section. The rule line now marks the same break without repainting.
+    CARDS keep their own background — a card that does not stand out from the
+    background stops being a card — and the final block is one, rounded and
+    detached, not a band.
     """
-    css = _feuille(LANDING_HTML)
-    assert css, "la feuille n'est plus inlinée dans la page"
+    css = _sheet(LANDING_HTML)
+    assert css, "the stylesheet is no longer inlined in the page"
 
     for bande in (".band", ".proof-rail", ".footer-wrap"):
-        blocs = _declarations(css, bande)
-        assert blocs, f"la règle {bande} est introuvable : le test ne garde plus rien"
-        for bloc in blocs:
-            assert "background" not in bloc, (
-                f"{bande} repeint le fond — l'alternance de couleurs est revenue")
+        blocks = _declarations(css, bande)
+        assert blocks, f"the {bande} rule cannot be found: the test no longer guards anything"
+        for block in blocks:
+            assert "background" not in block, (
+                f"{bande} repaints the background — the color alternation is back")
 
 
-def test_le_favicon_ico_repond_vraiment(platform):
-    """Le fichier peut exister sans que la route le serve.
+def test_favicon_ico_really_answers(platform):
+    """The file can exist without the route serving it.
 
-    Les tests de `test_platform_marque.py` gardent le CONTENU de l'icône ;
-    celui-ci garde le fait qu'on puisse l'obtenir. Sans lui, retirer la route
-    laisserait la suite entièrement verte pendant que les navigateurs
-    reçoivent de nouveau un 404 — et gardent l'ancienne icône.
+    The tests of `test_platform_brand.py` guard the icon's CONTENT; this one
+    guards the fact that it can be obtained. Without it, removing the route would
+    leave the suite entirely green while browsers again receive a 404 — and keep
+    the old icon.
     """
-    reponse = requests.get(platform + "/favicon.ico", timeout=10)
+    response = requests.get(platform + "/favicon.ico", timeout=10)
 
-    assert reponse.status_code == 200, "/favicon.ico ne répond plus"
-    assert reponse.content[:4] == b"\x00\x00\x01\x00", "ce n'est pas un vrai ICO"
-    assert reponse.headers["content-type"] == "image/x-icon"
+    assert response.status_code == 200, "/favicon.ico no longer answers"
+    assert response.content[:4] == b"\x00\x00\x01\x00", "it is not a real ICO"
+    assert response.headers["content-type"] == "image/x-icon"
 
-    # Et la ROUTE lit bien l'empreinte : sans le paramètre `v`, la politique de
-    # cache de theme.py resterait juste sans jamais être appliquée.
+    # And the ROUTE does read the fingerprint: without the `v` parameter,
+    # theme.py's cache policy would stay right without ever being applied.
     from monl_platform.theme import VERSION_ICO
 
-    versionnee = requests.get(
+    versioned = requests.get(
         f"{platform}/favicon.ico?v={VERSION_ICO}", timeout=10)
-    assert "immutable" in versionnee.headers["cache-control"]
-    assert "immutable" not in reponse.headers["cache-control"], (
-        "l'adresse nue se garde comme une adresse versionnée")
-    assert versionnee.content == reponse.content, "deux icônes différentes"
+    assert "immutable" in versioned.headers["cache-control"]
+    assert "immutable" not in response.headers["cache-control"], (
+        "the bare address is cached like a versioned address")
+    assert versioned.content == response.content, "two different icons"
 
 
-def test_aucune_commande_ne_deborde_de_sa_carte():
-    """Une commande tassée sort du cadre et se fait couper — en silence.
+def test_no_command_overflows_its_card():
+    """A crammed command leaves the frame and gets cut — silently.
 
-    Mesuré : « MONL_DATABASE_URL=postgresql://…  python3 -m uvicorn app:app »
-    tenait sur UNE ligne dans une carte de 309 px utiles, on lisait le début et
-    rien de la fin, et deux commandes séparées par un point médian ne se
-    copiaient pas. La limite n'est pas choisie : elle est MESURÉE contre un
-    vrai serveur — 309 px utiles à 7,5 px par caractère de la fonte mono du
-    bloc, à la largeur de bureau où les trois cartes tiennent côte à côte,
-    c'est-à-dire la plus étroite des dispositions.
+    Measured: "MONL_DATABASE_URL=postgresql://…  python3 -m uvicorn app:app" fit
+    on ONE line in a card with 309 usable px, one read the start and nothing of
+    the end, and two commands separated by a middle dot could not be copied. The
+    limit is not chosen: it is MEASURED against a real server — 309 usable px at
+    7.5 px per character of the block's mono font, at the desktop width where the
+    three cards fit side by side, that is the narrowest of the layouts.
 
-    La longueur est un PROXY d'un débordement, et elle le dit : c'est la seule
-    mesure qu'un test statique puisse faire. Le repli CSS (`pre-wrap`) est
-    vérifié séparément ci-dessous — sans lui, une ligne trop longue serait
-    coupée au lieu d'être repliée, et la carte mentirait sur son contenu.
+    Length is a PROXY for overflow, and it says so: it is the only measurement a
+    static test can make. The CSS fallback (`pre-wrap`) is checked separately
+    below — without it, a too long line would be cut instead of wrapped, and the
+    card would lie about its content.
     """
-    from monl_platform.landing_pourquoi import SECTIONS
+    from monl_platform.landing_why import SECTIONS
 
-    blocs = re.findall(r"<pre><code>(.*?)</code></pre>", SECTIONS, re.S)
-    assert blocs, "plus aucun bloc de commande : le test ne garde plus rien"
+    blocks = re.findall(r"<pre><code>(.*?)</code></pre>", SECTIONS, re.S)
+    assert blocks, "no command block any more: the test no longer guards anything"
 
-    for bloc in blocs:
-        for ligne in bloc.split("\n"):
-            assert len(ligne) <= 41, (
-                f"{len(ligne)} caractères — la carte en tient 41 :\n  {ligne}")
-            assert " · " not in ligne, (
-                "deux commandes sur une ligne, séparées par un point médian : "
-                "elles ne se copient pas")
+    for block in blocks:
+        for line in block.split("\n"):
+            assert len(line) <= 41, (
+                f"{len(line)} characters — the card holds 41:\n  {line}")
+            assert " · " not in line, (
+                "two commands on one line, separated by a middle dot: "
+                "they cannot be copied")
 
 
-def test_un_bloc_de_commande_se_replie_au_lieu_d_etre_coupe():
-    """Le filet sous la limite ci-dessus.
+def test_a_command_block_wraps_instead_of_being_cut():
+    """The safety net under the limit above.
 
-    `overflow-x: auto` seul laisse la ligne défiler HORS du cadre : sur une
-    carte, personne ne va la chercher. `pre-wrap` la replie.
+    `overflow-x: auto` alone lets the line scroll OUTSIDE the frame: on a card,
+    nobody goes looking for it. `pre-wrap` wraps it.
     """
-    from monl_platform.landing_pourquoi import EXTRA_CSS
+    from monl_platform.landing_why import EXTRA_CSS
 
-    regle = _declarations(EXTRA_CSS, ".montage pre")
-    assert regle, "la règle .montage pre est introuvable"
-    assert "pre-wrap" in regle[0], (
-        "une commande trop longue serait coupée au lieu d'être repliée")
+    rule = _declarations(EXTRA_CSS, ".montage pre")
+    assert rule, "the .montage pre rule cannot be found"
+    assert "pre-wrap" in rule[0], (
+        "a too long command would be cut instead of wrapped")
 
 
-def test_les_trois_cartes_de_position_alignent_leurs_titres():
-    """Le surtitre masquait un désalignement, et son retrait l'a révélé.
+def test_the_three_position_cards_align_their_titles():
+    """The overline hid a misalignment, and removing it revealed it.
 
-    `margin-top: auto` sur le titre le poussait d'un espace libre qui dépend de
-    la LONGUEUR du paragraphe : les trois titres se posaient donc à trois
-    hauteurs différentes (mesuré 282, 301 et 321 px). Tant que le surtitre, lui
-    aligné, occupait le haut de chaque carte, l'œil s'accrochait à lui.
+    `margin-top: auto` on the title pushed it by a free space depending on the
+    paragraph's LENGTH: the three titles therefore sat at three different heights
+    (measured 282, 301 and 321 px). As long as the overline, itself aligned,
+    occupied the top of each card, the eye hooked onto it.
 
-    Le contrôle est CSS et pas géométrique — un test statique ne peut pas
-    mesurer une mise en page. C'est un proxy, et il le dit : la vérification
-    par la géométrie a été faite contre un vrai navigateur (écart 0 px sur les
-    titres comme sur le bas des étiquettes).
+    The check is CSS and not geometric — a static test cannot measure a layout.
+    It is a proxy, and it says so: the geometric check was done against a real
+    browser (0 px gap on the titles as on the bottom of the labels).
     """
     from monl_platform.landing import EXTRA_CSS
 
-    titre = _declarations(EXTRA_CSS, ".flow-stage h3")
+    title = _declarations(EXTRA_CSS, ".flow-stage h3")
     tags = _declarations(EXTRA_CSS, ".flow-stage .stage-tags")
-    assert titre and tags, "les règles des cartes sont introuvables"
+    assert title and tags, "the card rules cannot be found"
 
-    assert "auto" not in titre[0], (
-        "le titre repousse encore : les trois cartes se désalignent")
+    assert "auto" not in title[0], (
+        "the title still pushes: the three cards misalign")
     assert "margin-top:auto" in tags[0].replace(" ", ""), (
-        "rien ne pousse les étiquettes en bas : elles suivent le paragraphe")
+        "nothing pushes the labels down: they follow the paragraph")
 
 
-def _regles_css(css: str) -> list:
-    """Rend [(rang, media, selecteur, {propriétés})] pour tout le CSS servi.
+def _css_rules(css: str) -> list:
+    """Returns [(rank, media, selector, {properties})] for all the served CSS.
 
-    Les blocs `@keyframes` sont SAUTÉS en entier : leurs « 0% » et « to » ne
-    sont pas des sélecteurs, et les compter ferait comparer des étapes
-    d'animation à des règles de mise en page.
+    `@keyframes` blocks are SKIPPED entirely: their "0%" and "to" are not
+    selectors, and counting them would compare animation steps with layout
+    rules.
 
-    Les COMMENTAIRES sont retirés d'abord : ceux de ce dépôt citent volontiers
-    la règle qu'ils expliquent, accolades comprises (point 156 — un commentaire
-    CSS est du contenu de page), et un extracteur naïf les lirait comme de
-    vraies règles.
+    COMMENTS are removed first: those of this repository readily quote the rule
+    they explain, braces included (point 156 — a CSS comment is page content), and
+    a naive extractor would read them as real rules.
     """
     css = re.sub(r"/\*.*?\*/", " ", css, flags=re.S)
-    regles, i, rang = [], 0, 0
-    fins_de_media = []
+    rules, i, rang = [], 0, 0
+    fins_of_media = []
     while i < len(css):
-        while fins_de_media and i >= fins_de_media[-1]:
-            fins_de_media.pop()
-        saut = re.compile(r"@(keyframes|font-face|supports)[^{]*\{").match(css, i)
-        if saut:
-            profondeur, j = 1, saut.end()
-            while j < len(css) and profondeur:
-                profondeur += (css[j] == "{") - (css[j] == "}")
+        while fins_of_media and i >= fins_of_media[-1]:
+            fins_of_media.pop()
+        skip = re.compile(r"@(keyframes|font-face|supports)[^{]*\{").match(css, i)
+        if skip:
+            depth, j = 1, skip.end()
+            while j < len(css) and depth:
+                depth += (css[j] == "{") - (css[j] == "}")
                 j += 1
             i = j
             continue
-        ouverture = re.compile(r"@media([^{]*)\{").match(css, i)
-        if ouverture:
-            profondeur, j = 1, ouverture.end()
-            while j < len(css) and profondeur:
-                profondeur += (css[j] == "{") - (css[j] == "}")
+        opening = re.compile(r"@media([^{]*)\{").match(css, i)
+        if opening:
+            depth, j = 1, opening.end()
+            while j < len(css) and depth:
+                depth += (css[j] == "{") - (css[j] == "}")
                 j += 1
-            fins_de_media.append(j - 1)
-            i = ouverture.end()
+            fins_of_media.append(j - 1)
+            i = opening.end()
             continue
-        regle = re.compile(r"([^{}@]+)\{([^{}]*)\}").match(css, i)
-        if regle:
-            proprietes = {
+        rule = re.compile(r"([^{}@]+)\{([^{}]*)\}").match(css, i)
+        if rule:
+            properties = {
                 declaration.split(":", 1)[0].strip()
-                for declaration in regle.group(2).split(";")
+                for declaration in rule.group(2).split(";")
                 if ":" in declaration
             }
-            for selecteur in regle.group(1).split(","):
-                regles.append(
-                    (rang, bool(fins_de_media), selecteur.strip(), proprietes))
+            for selector in rule.group(1).split(","):
+                rules.append(
+                    (rang, bool(fins_of_media), selector.strip(), properties))
                 rang += 1
-            i = regle.end()
+            i = rule.end()
             continue
         i += 1
-    return regles
+    return rules
 
 
-def test_aucune_regle_responsive_n_est_ecrasee_par_une_regle_nue(platform):
-    """Une `@media` n'ajoute AUCUNE spécificité : seul l'ORDRE la défend.
+def test_no_responsive_rule_is_overridden_by_a_bare_rule(platform):
+    """A `@media` adds NO specificity: only ORDER defends it.
 
-    `extra_css` concatène plusieurs modules, donc une règle nue écrite dans un
-    module PLUS TARDIF écrase la version responsive d'un module antérieur, à
-    poids égal, sans que rien ne le dise. C'est arrivé sur `.case-explorer` :
-    `landing.py` posait `grid-template-columns:1fr` sous 760px, et la règle nue
-    de `landing_cas.py` reprenait deux colonnes. Mesuré à 375px avant
-    correction : `230px 103px`, soit un panneau de cas métier large de 103
-    pixels, coupé par l'`overflow:hidden` de la carte — la vitrine du site,
-    illisible sur téléphone.
+    `extra_css` concatenates several modules, so a bare rule written in a LATER
+    module overrides an earlier module's responsive version, at equal weight,
+    without anything saying so. It happened on `.case-explorer`: `landing.py` set
+    `grid-template-columns:1fr` under 760px, and `landing_cases.py`'s bare rule
+    went back to two columns. Measured at 375px before the fix: `230px 103px`, a
+    business case panel 103 pixels wide, cut by the card's `overflow:hidden` —
+    the site's showcase, unreadable on a phone.
 
-    Le témoin porte sur la page RÉELLEMENT SERVIE, jamais sur un module : c'est
-    entre les deux que la concaténation se joue.
+    The witness is about the REALLY SERVED page, never a module: the
+    concatenation plays out between the two.
     """
     page = requests.get(platform, timeout=10).text
-    feuilles = re.findall(r"<style[^>]*>(.*?)</style>", page, re.S)
-    assert feuilles, "aucune feuille de style dans la page servie"
-    regles = _regles_css("\n".join(feuilles))
-    assert len(regles) > 100, f"extracteur muet : {len(regles)} règles lues"
-    assert any(media for _, media, _, _ in regles), "aucune @media reconnue"
+    sheets = re.findall(r"<style[^>]*>(.*?)</style>", page, re.S)
+    assert sheets, "no stylesheet in the served page"
+    rules = _css_rules("\n".join(sheets))
+    assert len(rules) > 100, f"mute extractor: {len(rules)} rules read"
+    assert any(media for _, media, _, _ in rules), "no @media recognized"
 
-    ecrasees = []
-    for rang, media, selecteur, proprietes in regles:
+    overridden = []
+    for rang, media, selector, properties in rules:
         if not media:
             continue
-        for rang2, media2, selecteur2, proprietes2 in regles:
-            if media2 or rang2 <= rang or selecteur2 != selecteur:
+        for rang2, media2, selecteur2, proprietes2 in rules:
+            if media2 or rang2 <= rang or selecteur2 != selector:
                 continue
-            communes = proprietes & proprietes2
-            if communes and _specificite(selecteur2) >= _specificite(selecteur):
-                ecrasees.append(f"{selecteur} → {sorted(communes)}")
+            communes = properties & proprietes2
+            if communes and _specificity(selecteur2) >= _specificity(selector):
+                overridden.append(f"{selector} → {sorted(communes)}")
 
-    assert not ecrasees, (
-        "règle(s) responsive écrasée(s) par une règle nue écrite plus tard, "
-        "à poids égal ou supérieur : " + " ; ".join(sorted(set(ecrasees))))
+    assert not overridden, (
+        "responsive rule(s) overridden by a bare rule written later, "
+        "at equal or higher weight: " + " ; ".join(sorted(set(overridden))))
 
 
-def test_chaque_page_du_site_porte_un_titre_qui_la_nomme():
-    """Deux pages ne peuvent pas porter le même `<title>`.
+def test_each_site_page_carries_a_title_naming_it():
+    """Two pages cannot carry the same `<title>`.
 
-    La console portait mot pour mot celui de l'ACCUEIL — « monl compiler, le
-    métier est compilé ». Toutes ses voisines se nomment (« MCP — … », « Votre
-    compte — … ») : avec plusieurs onglets ouverts, celui de la console était
-    indiscernable de la page d'accueil, et un signet ne disait pas où il
-    menait. Trouvé en mesurant le site à 375px, pas en le relisant : la sonde
-    rapportait le titre de chaque page, et deux lignes étaient identiques.
+    The console carried word for word the HOME page's — "monl compiler, le métier
+    est compilé". All its neighbors name themselves ("MCP — …", "Votre compte —
+    …"): with several tabs open, the console's was indistinguishable from the home
+    page, and a bookmark did not say where it led. Found by measuring the site at
+    375px, not by rereading it: the probe reported each page's title, and two
+    lines were identical.
 
-    Le témoin lit les constantes de PAGE et non les routes : une page peut
-    exister sans être encore montée, et c'est son titre qui est en cause.
+    The witness reads the PAGE constants and not the routes: a page can exist
+    without being mounted yet, and its title is what is at stake.
     """
     import importlib
     import pkgutil
 
     import monl_platform
 
-    titres = {}
+    titles = {}
     for module in pkgutil.iter_modules(monl_platform.__path__):
         charge = importlib.import_module(f"monl_platform.{module.name}")
-        for nom in dir(charge):
-            valeur = getattr(charge, nom)
-            if not (isinstance(valeur, str) and nom.endswith("_HTML")):
+        for name in dir(charge):
+            valeur = getattr(charge, name)
+            if not (isinstance(valeur, str) and name.endswith("_HTML")):
                 continue
-            trouve = re.search(r"<title>(.*?)</title>", valeur, re.S)
-            if not trouve:
+            found = re.search(r"<title>(.*?)</title>", valeur, re.S)
+            if not found:
                 continue
-            titre = trouve.group(1).strip()
-            # Un même HTML ré-exporté par deux modules (app_pages) n'est pas un
-            # doublon : c'est la MÊME page. On indexe donc par contenu.
-            titres.setdefault(titre, set()).add(valeur)
+            title = found.group(1).strip()
+            # The same HTML re-exported by two modules (app_pages) is not a
+            # duplicate: it is the SAME page. We therefore index by content.
+            titles.setdefault(title, set()).add(valeur)
 
-    assert len(titres) > 5, f"extracteur muet : {len(titres)} titre(s) lu(s)"
-    partages = {titre: len(pages) for titre, pages in titres.items() if len(pages) > 1}
-    assert not partages, (
-        "des pages DIFFÉRENTES partagent un titre — un onglet ne dit plus "
-        f"laquelle est ouverte : {partages}")
+    assert len(titles) > 5, f"extracteur muet : {len(titles)} titre(s) lu(s)"
+    shared = {title: len(pages) for title, pages in titles.items() if len(pages) > 1}
+    assert not shared, (
+        "DIFFERENT pages share a title — a tab no longer says "
+        f"which one is open: {shared}")
 
 
-def test_la_barre_du_haut_est_opaque(platform):
-    """Une barre collante translucide COUPE le texte qui défile dessous.
+def test_the_top_bar_is_opaque(platform):
+    """A translucent sticky bar CUTS the text scrolling beneath it.
 
-    Mesuré sur /console : `background: color-mix(in srgb, var(--bg) 92%,
-    transparent)` laissait transparaître 8 % du contenu, et la ligne qui
-    passait sous la barre se lisait comme coupée en deux. Un défaut qui ne
-    casse rien et qu'aucun test ne pouvait voir — il n'existe que dans ce que
-    l'usager REÇOIT (point 164).
+    Measured on /console: `background: color-mix(in srgb, var(--bg) 92%,
+    transparent)` let 8 % of the content show through, and the line passing
+    under the bar read as cut in two. A defect breaking nothing and no test could
+    see — it only exists in what the user RECEIVES (point 164).
 
-    Le témoin porte sur la page SERVIE, et sur la propriété plutôt que sur une
-    valeur : `backdrop-filter` derrière un fond opaque ne floute plus rien, sa
-    présence signalerait que la translucidité est revenue avec.
+    The witness is about the SERVED page, and about the property rather than a
+    value: `backdrop-filter` behind an opaque background blurs nothing any more,
+    its presence would signal that translucency came back with it.
     """
     page = requests.get(platform, timeout=10).text
-    feuilles = re.findall(r"<style[^>]*>(.*?)</style>", page, re.S)
-    assert feuilles, "aucune feuille de style dans la page servie"
-    regles = _regles_css("\n".join(feuilles))
-    topbars = [(sel, props) for _, _, sel, props in regles
+    sheets = re.findall(r"<style[^>]*>(.*?)</style>", page, re.S)
+    assert sheets, "no stylesheet in the served page"
+    rules = _css_rules("\n".join(sheets))
+    topbars = [(sel, props) for _, _, sel, props in rules
                if sel.strip() == ".topbar"]
-    assert topbars, "règle .topbar introuvable : l'extracteur ne regarde rien"
-    css = "\n".join(feuilles)
-    bloc = re.search(r"\.topbar\s*\{([^}]*)\}", css, re.S)
-    assert bloc, "corps de .topbar illisible"
-    # Un commentaire CSS est du CONTENU (point 156) : laissé en place, le mot
-    # « backdrop-filter » écrit dans une explication ferait rougir ce témoin.
-    corps = re.sub(r"/\*.*?\*/", "", bloc.group(1), flags=re.S)
-    assert "transparent" not in corps, corps
-    assert "backdrop-filter" not in corps, corps
-    assert re.search(r"background:\s*var\(--bg\)", corps), corps
+    assert topbars, ".topbar rule not found: the extractor looks at nothing"
+    css = "\n".join(sheets)
+    block = re.search(r"\.topbar\s*\{([^}]*)\}", css, re.S)
+    assert block, "corps de .topbar illisible"
+    # A CSS comment is CONTENT (point 156): left in place, the word
+    # "backdrop-filter" written in an explanation would turn this witness red.
+    body = re.sub(r"/\*.*?\*/", "", block.group(1), flags=re.S)
+    assert "transparent" not in body, body
+    assert "backdrop-filter" not in body, body
+    assert re.search(r"background:\s*var\(--bg\)", body), body
 
 
 # ---------------------------------------------------------------------------
-# La carte « PetiteBoutique » : ce qu'elle annonce, confronté à une VRAIE
-# compilation. La page écrit « les métriques ci-dessous sont vérifiées en
-# recompilant la spec dans les tests » — c'était faux : aucun test ne
-# compilait cette spec, `PetiteBoutique` n'existait nulle part dans le code,
-# le fragment affiché ne pouvait même pas compiler (ni `app`, ni `actor`, ni
-# `workflow`), et sur les trois chiffres DEUX étaient faux (17 routes
-# annoncées pour 14, 12 fichiers pour 15). L'arborescence promettait en outre
-# un `README.md` que le compilateur ne produisait pas.
+# The "PetiteBoutique" card: what it announces, confronted with a REAL
+# compilation. The page writes "the metrics below are checked by recompiling
+# the spec in the tests" — it was false: no test compiled this spec,
+# `PetiteBoutique` existed nowhere in the code, the displayed fragment could
+# not even compile (neither `app`, nor `actor`, nor `workflow`), and of the
+# three figures TWO were wrong (17 routes announced for 14, 12 files for 15).
+# The tree also promised a `README.md` the compiler did not produce.
 #
-# Défaut du point 164 — la page `/mcp` annonçait quatre outils inexistants
-# parce que la liste était écrite à la main — en pire : ici la page
-# revendiquait explicitement une vérification qui n'existait pas.
+# Point 164's defect — the `/mcp` page announced four nonexistent tools because
+# the list was hand-written — but worse: here the page explicitly claimed a
+# check that did not exist.
 # ---------------------------------------------------------------------------
 
-#: Ce qu'on ne compte pas comme « fichier livré » : la spec est l'ENTRÉE, le
-#: secret est fabriqué au premier démarrage, la base n'existe qu'à l'exécution.
-#: La règle est écrite ici plutôt que devinée — sans elle, le chiffre annoncé
-#: dépendrait de l'ordre dans lequel on a lancé le test.
-_HORS_ARCHIVE = {"spec.ml", ".jwt_secret"}
+#: What we do not count as a "delivered file": the spec is the INPUT, the
+#: secret is made at first startup, the database only exists at runtime. The
+#: rule is written here rather than guessed — without it, the announced figure
+#: would depend on the order in which the test was run.
+_OUTSIDE_ARCHIVE = {"spec.ml", ".jwt_secret"}
 
 
-def _archive_de_la_vitrine(dossier):
-    """Compile la spec de l'accueil et rend ce qu'un usager reçoit."""
+def _showcase_archive(folder):
+    """Compiles the home page's spec and returns what a user receives."""
     from monl.cli import compile_project
 
-    spec = dossier / "spec.ml"
-    spec.write_text(landing_vitrine.SPEC_VITRINE, encoding="utf-8")
-    compile_project(str(spec), str(dossier))
-    fichiers = {
-        chemin.relative_to(dossier).as_posix()
-        for chemin in dossier.rglob("*")
-        if chemin.is_file() and chemin.name not in _HORS_ARCHIVE
-        and not chemin.name.endswith(".db")
+    spec = folder / "spec.ml"
+    spec.write_text(landing_showcase.SPEC_VITRINE, encoding="utf-8")
+    compile_project(str(spec), str(folder))
+    files = {
+        path.relative_to(folder).as_posix()
+        for path in folder.rglob("*")
+        if path.is_file() and path.name not in _OUTSIDE_ARCHIVE
+        and not path.name.endswith(".db")
     }
     routes = len(re.findall(r"^@app\.(?:get|post|put|delete|patch)\(",
-                            (dossier / "app.py").read_text(encoding="utf-8"), re.M))
-    contrat = json.loads((dossier / "frontend_contract.json").read_text(encoding="utf-8"))
-    return fichiers, routes, len(contrat["entities"])
+                            (folder / "app.py").read_text(encoding="utf-8"), re.M))
+    contract = json.loads((folder / "frontend_contract.json").read_text(encoding="utf-8"))
+    return files, routes, len(contract["entities"])
 
 
-def test_la_spec_de_l_accueil_compile_vraiment(tmp_path):
-    """Le préalable : la spec MONTRÉE doit être une spec qui passe.
+def test_the_home_spec_really_compiles(tmp_path):
+    """The prerequisite: the SHOWN spec must be a spec that passes.
 
-    Celle d'avant était un fragment. Montrer sur la page d'accueil d'un
-    compilateur une spec qui ne compile pas est le pire endroit possible pour
-    ce défaut — c'est précisément ce que le produit promet de refuser.
+    The previous one was a fragment. Showing on a compiler's home page a spec that
+    does not compile is the worst possible place for this defect — it is precisely
+    what the product promises to refuse.
     """
-    fichiers, routes, entites = _archive_de_la_vitrine(tmp_path)
+    files, routes, entities = _showcase_archive(tmp_path)
 
-    assert "app.py" in fichiers and "schema.sql" in fichiers
-    assert routes > 0 and entites > 0
+    assert "app.py" in files and "schema.sql" in files
+    assert routes > 0 and entities > 0
 
 
-def test_les_chiffres_annonces_sont_ceux_de_la_compilation(tmp_path):
-    """Les trois nombres de la carte, confrontés au résultat réel."""
-    fichiers, routes, entites = _archive_de_la_vitrine(tmp_path)
+def test_the_announced_figures_are_the_compilations(tmp_path):
+    """The card's three numbers, confronted with the real result."""
+    files, routes, entities = _showcase_archive(tmp_path)
 
-    assert entites == landing_vitrine.ENTITES, (
-        f"la carte annonce {landing_vitrine.ENTITES} entités, la compilation en "
-        f"produit {entites}")
-    assert routes == landing_vitrine.ROUTES, (
-        f"la carte annonce {landing_vitrine.ROUTES} routes, app.py en déclare "
+    assert entities == landing_showcase.ENTITIES, (
+        f"the card announces {landing_showcase.ENTITIES} entities, compilation "
+        f"produces {entities}")
+    assert routes == landing_showcase.ROUTES, (
+        f"the card announces {landing_showcase.ROUTES} routes, app.py declares "
         f"{routes}")
-    assert len(fichiers) == landing_vitrine.FICHIERS, (
-        f"la carte annonce {landing_vitrine.FICHIERS} fichiers, l'archive en "
-        f"contient {len(fichiers)} : {sorted(fichiers)}")
+    assert len(files) == landing_showcase.FILES, (
+        f"the card announces {landing_showcase.FILES} files, the archive "
+        f"contains {len(files)}: {sorted(files)}")
 
 
-def test_l_arborescence_ne_nomme_aucun_fichier_absent(tmp_path):
-    """LE DÉFAUT D'ORIGINE : la carte promettait un `README.md` inexistant.
+def test_the_tree_names_no_missing_file(tmp_path):
+    """THE ORIGINAL DEFECT: the card promised a nonexistent `README.md`.
 
-    On vérifie aussi que l'arborescence reste un EXTRAIT. Sans cela, la lister
-    en entier ferait passer le témoin sans rien garantir de la lisibilité, et
-    surtout la carte cesserait d'être une carte.
+    We also check that the tree stays an EXCERPT. Otherwise, listing it in full
+    would make the witness pass without guaranteeing anything about readability,
+    and above all the card would stop being a card.
     """
-    fichiers, _routes, _entites = _archive_de_la_vitrine(tmp_path)
-    annonces = [nom for nom, _role in landing_vitrine.ARBRE]
+    files, _routes, _entities = _showcase_archive(tmp_path)
+    announced = [name for name, _role in landing_showcase.TREE]
 
-    absents = [nom for nom in annonces if nom not in fichiers]
-    assert not absents, (
-        f"la carte nomme des fichiers que le compilateur ne produit pas : "
-        f"{absents}")
-    assert 0 < len(annonces) < len(fichiers), (
-        "l'arborescence doit rester un extrait lisible, pas l'archive entière")
+    missing = [name for name in announced if name not in files]
+    assert not missing, (
+        f"the card names files the compiler does not produce: "
+        f"{missing}")
+    assert 0 < len(announced) < len(files), (
+        "the tree must stay a readable excerpt, not the whole archive")
 
 
-def test_l_extrait_affiche_est_pris_dans_la_spec_qui_compile():
-    """Deux textes à tenir d'accord divergent toujours.
+def test_the_displayed_excerpt_is_taken_from_the_compiling_spec():
+    """Two texts to keep in agreement always diverge.
 
-    L'extrait montré n'est pas recopié à côté de la spec : il en est découpé.
-    Le témoin le prouve en exigeant que chacune de ses lignes figure dans la
-    spec — et qu'il porte au moins une règle, sinon le découpage aurait pu
-    rendre le seul bloc d'entité sans que personne ne le voie.
+    The shown excerpt is not copied next to the spec: it is cut out of it. The
+    witness proves it by requiring each of its lines to appear in the spec — and
+    that it carries at least one rule, otherwise the cutting could have returned
+    the sole entity block without anyone seeing it.
     """
-    extrait = landing_vitrine.extrait_affiche()
-    lignes = [ligne for ligne in extrait.splitlines() if ligne.strip()]
+    excerpt = landing_showcase.excerpt_displayed()
+    lines = [line for line in excerpt.splitlines() if line.strip()]
 
-    assert lignes, "l'extrait est vide"
-    for ligne in lignes:
-        assert ligne in landing_vitrine.SPEC_VITRINE, (
-            f"l'extrait affiché contient une ligne absente de la spec : {ligne!r}")
-    assert any(ligne.startswith("rule ") for ligne in lignes), (
-        "l'extrait ne montre aucune règle : la page ne montrerait que des champs")
+    assert lines, "the excerpt is empty"
+    for line in lines:
+        assert line in landing_showcase.SPEC_VITRINE, (
+            f"the displayed excerpt contains a line absent from the spec: {line!r}")
+    assert any(line.startswith("rule ") for line in lines), (
+        "the excerpt shows no rule: the page would only show fields")
 
 
-def test_la_page_servie_ne_nomme_que_des_fichiers_reels(platform, tmp_path):
-    """Le dernier maillon : la règle porte sur la PAGE SERVIE, pas sur les
-    constantes.
+def test_the_served_page_names_only_real_files(platform, tmp_path):
+    """The last link: the rule is about the SERVED PAGE, not the constants.
 
-    Sans lui, on saurait que les constantes sont justes, jamais qu'elles sont
-    celles qu'un visiteur lit — distinction du point 163 entre ce qui est
-    vérifié et ce qui est servi.
+    Without it, we would know the constants are right, never that they are the
+    ones a visitor reads — point 163's distinction between what is checked and
+    what is served.
 
-    La première version de ce témoin interdisait `README.md` EN DUR. C'était
-    figer un défaut passé au lieu de garder l'invariant : le fichier n'existait
-    pas, il existe depuis le point 176, et l'assertion est devenue fausse le
-    jour où la page a eu raison. On lit donc l'arborescence RÉELLEMENT servie
-    et on la confronte à l'archive — une règle, pas une liste de noms
-    interdits.
+    The first version of this witness forbade `README.md` HARD-CODED. That froze a
+    past defect instead of guarding the invariant: the file did not exist, it has
+    existed since point 176, and the assertion became false the day the page was
+    right. We therefore read the REALLY served tree and confront it with the
+    archive — a rule, not a list of forbidden names.
     """
-    texte = requests.get(platform, timeout=10).text
-    fichiers, _routes, _entites = _archive_de_la_vitrine(tmp_path)
+    text = requests.get(platform, timeout=10).text
+    files, _routes, _entities = _showcase_archive(tmp_path)
 
-    assert f"<b>{landing_vitrine.ROUTES}</b><span>API routes</span>" in texte
-    assert f"<b>{landing_vitrine.FICHIERS}</b><span>files</span>" in texte
+    assert f"<b>{landing_showcase.ROUTES}</b><span>API routes</span>" in text
+    assert f"<b>{landing_showcase.FILES}</b><span>files</span>" in text
 
-    arbre = texte.split('class="tree"')[1].split("</div>")[0]
-    noms = re.findall(r"[├└]──\s*([^\s<]+)", arbre)
-    assert noms, "l'arborescence servie est vide ou a changé de forme"
-    absents = [nom for nom in noms if nom not in fichiers]
-    assert not absents, (
-        f"la page servie nomme des fichiers que l'archive ne contient pas : "
-        f"{absents}")
-
-
-def _lignes(texte):
-    return {ligne.strip() for ligne in texte.splitlines() if ligne.strip()}
+    tree = text.split('class="tree"')[1].split("</div>")[0]
+    names = re.findall(r"[├└]──\s*([^\s<]+)", tree)
+    assert names, "the served tree is empty or changed shape"
+    missing = [name for name in names if name not in files]
+    assert not missing, (
+        f"the served page names files the archive does not contain: "
+        f"{missing}")
 
 
-def test_chaque_extrait_de_cas_figure_dans_la_spec_de_son_exemple():
-    """L'extrait « communaute » affichait `rule Membre.pseudo generated
-    "MBR-{NNNN}"` : absente de la spec, et invalide (`generated` ne prend pas
-    de gabarit). Recopié à la main, rien ne le confrontait à la spec servie."""
-    from monl_platform import examples, landing_cas
-
-    assert set(landing_cas.CASE_SNIPPETS) == set(examples.BY_ID)
-    for ident, extrait in landing_cas.CASE_SNIPPETS.items():
-        absentes = _lignes(extrait) - _lignes(examples.spec_of(ident))
-        assert _lignes(extrait), ident
-        assert not absentes, (ident, absentes)
+def _lines(text):
+    return {line.strip() for line in text.splitlines() if line.strip()}
 
 
-def test_la_demo_du_hero_est_prise_dans_la_spec_qui_compile():
+def test_each_case_excerpt_appears_in_its_examples_spec():
+    """The "communaute" excerpt displayed `rule Membre.pseudo generated
+    "MBR-{NNNN}"`: absent from the spec, and invalid (`generated` takes no
+    template). Copied by hand, nothing confronted it with the served spec."""
+    from monl_platform import examples, landing_cases
+
+    assert set(landing_cases.CASE_SNIPPETS) == set(examples.BY_ID)
+    for ident, excerpt in landing_cases.CASE_SNIPPETS.items():
+        missing = _lines(excerpt) - _lines(examples.spec_of(ident))
+        assert _lines(excerpt), ident
+        assert not missing, (ident, missing)
+
+
+def test_the_hero_demo_is_taken_from_the_compiling_spec():
     from monl_platform import landing
 
-    absentes = _lignes(landing.DEMO_HERO_SOURCE) - _lignes(landing_vitrine.SPEC_VITRINE)
-    assert _lignes(landing.DEMO_HERO_SOURCE)
-    assert not absentes, absentes
+    missing = _lines(landing.DEMO_HERO_SOURCE) - _lines(landing_showcase.SPEC_VITRINE)
+    assert _lines(landing.DEMO_HERO_SOURCE)
+    assert not missing, missing

@@ -4,16 +4,16 @@ STRICT and entirely deterministic input: no AI, no network call. Rendering
 is not here — the engine knows `tui` only through the `PlainDialogueUI`
 interface."""
 
-from .fondations import IDENT_RE, PARAGRAPH_SEP, DialogueError
+from .foundations import IDENT_RE, PARAGRAPH_SEP, DialogueError
 
 
 class QuestionsMixin:
     """Ask a question, and accept only a valid answer."""
 
-    def _show(self, rendu):
+    def _show(self, rendered):
         """Displays only what the presentation layer produced."""
-        if rendu:
-            self._say(rendu)
+        if rendered:
+            self._say(rendered)
 
     # ---------- question primitives (each one validates and asks again) ----------
     def _ask(self, prompt, validate, error_msg, kind="free_text", options=None,
@@ -28,7 +28,7 @@ class QuestionsMixin:
         # The state is overwritten at each question and is NEVER read by the
         # engine: it cannot change a dialogue decision, which stays entirely
         # deterministic.
-        self.derniere_question = {
+        self.last_question = {
             "kind": kind,
             # The title ALONE, as the engine received it. Rebuilding it by
             # splitting the terminal text would force the presentation layer to
@@ -85,12 +85,12 @@ class QuestionsMixin:
         # is answered with 0 and not with its rank. Letting a presentation
         # layer rediscover this rule would mean two implementations of the same
         # rule — they always diverge (point 146).
-        choix = [{"label": libelle, "value": str(rang)}
-                 for rang, libelle in enumerate(options, start=1)]
+        choice = [{"label": label, "value": str(rang)}
+                 for rang, label in enumerate(options, start=1)]
         if allow_none:
-            choix.append({"label": "none", "value": "0"})
+            choice.append({"label": "none", "value": "0"})
         return self._ask(full, validate, "Choose a menu number.",
-                         kind="choice", options=choix, hints=hints,
+                         kind="choice", options=choice, hints=hints,
                          title=prompt)
 
     def _ask_yes_no(self, prompt):
@@ -140,13 +140,13 @@ class QuestionsMixin:
         real paragraph breaks.
 
         Returns None if the first paragraph is empty (section skipped)."""
-        premier = self._ask_optional_free_text(prompt)
-        if not premier:
+        first = self._ask_optional_free_text(prompt)
+        if not first:
             return None
-        paragraphes = [premier]
+        paragraphs = [first]
         while True:
             suite = self._ask_optional_free_text(
                 "    … next paragraph (leave blank to finish) > ")
             if not suite:
-                return PARAGRAPH_SEP.join(paragraphes)
-            paragraphes.append(suite)
+                return PARAGRAPH_SEP.join(paragraphs)
+            paragraphs.append(suite)

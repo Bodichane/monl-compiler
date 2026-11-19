@@ -118,11 +118,11 @@ def configured_providers(environ=None):
 
     A button that leads to a 503 is worse than no button: only what is
     configured is offered."""
-    prets = []
-    for nom, spec in PROVIDERS.items():
+    ready = []
+    for name, spec in PROVIDERS.items():
         if _env(spec["client_id_env"], environ) and _env(spec["secret_env"], environ):
-            prets.append({"name": nom, "label": spec["label"]})
-    return prets
+            ready.append({"name": name, "label": spec["label"]})
+    return ready
 
 
 def _spec(provider):
@@ -143,14 +143,14 @@ def _credentials(provider, environ=None):
     return client_id, secret
 
 
-def _base_url(provider, cle, environ=None):
+def _base_url(provider, key, environ=None):
     """Address of a provider endpoint, overridable for tests."""
     spec = _spec(provider)
-    remplacement = _env(spec["base_env"], environ)
-    if not remplacement:
-        return spec[cle]
-    chemin = urllib.parse.urlsplit(spec[cle]).path
-    return remplacement.rstrip("/") + chemin
+    replacement = _env(spec["base_env"], environ)
+    if not replacement:
+        return spec[key]
+    path = urllib.parse.urlsplit(spec[key]).path
+    return replacement.rstrip("/") + path
 
 
 def redirect_uri(provider, environ=None):
@@ -183,36 +183,36 @@ def _browser_digest(secret, browser_secret):
     ).hexdigest()
 
 
-def make_state(provider, secret, browser_secret, *, maintenant=None):
+def make_state(provider, secret, browser_secret, *, now=None):
     """An outbound token, signed, dated and bound to the initiating browser."""
-    horodatage = int(maintenant if maintenant is not None else time.time())
-    empreinte = _browser_digest(secret, browser_secret)
-    charge = f"{provider}.{horodatage}.{secrets.token_urlsafe(16)}.{empreinte}"
+    timestamp = int(now if now is not None else time.time())
+    fingerprint = _browser_digest(secret, browser_secret)
+    charge = f"{provider}.{timestamp}.{secrets.token_urlsafe(16)}.{fingerprint}"
     return f"{charge}.{_signer(secret, charge)}"
 
 
-def check_state(state, provider, secret, browser_secret, *, maintenant=None):
+def check_state(state, provider, secret, browser_secret, *, now=None):
     """Refuses a forged, replayed state or one from another provider."""
-    morceaux = str(state or "").split(".")
-    if len(morceaux) != 5:
+    chunks = str(state or "").split(".")
+    if len(chunks) != 5:
         raise OAuthError("unreadable sign-in state", status_code=400)
-    nom, horodatage, _alea, empreinte, signature = morceaux
-    charge = ".".join(morceaux[:4])
+    name, timestamp, _random, fingerprint, signature = chunks
+    charge = ".".join(chunks[:4])
     if not hmac.compare_digest(signature, _signer(secret, charge)):
         raise OAuthError("sign-in state not signed by this server",
                          status_code=400)
-    if nom != provider:
+    if name != provider:
         raise OAuthError("sign-in state issued for another provider",
                          status_code=400)
     try:
-        age = int(maintenant if maintenant is not None else time.time()) - int(horodatage)
+        age = int(now if now is not None else time.time()) - int(timestamp)
     except ValueError:
         raise OAuthError("unreadable sign-in state", status_code=400) from None
     if age < -STATE_TTL or age > STATE_TTL:
         raise OAuthError("sign-in expired: start again from the console",
                          status_code=400)
-    attendue = _browser_digest(secret, browser_secret or "")
-    if not browser_secret or not hmac.compare_digest(empreinte, attendue):
+    expected = _browser_digest(secret, browser_secret or "")
+    if not browser_secret or not hmac.compare_digest(fingerprint, expected):
         raise OAuthError(
             "sign-in state missing from this browser or already used",
             status_code=400,
@@ -223,7 +223,7 @@ def check_state(state, provider, secret, browser_secret, *, maintenant=None):
 def authorize_url(provider, state, environ=None):
     client_id, _secret = _credentials(provider, environ)
     spec = _spec(provider)
-    parametres = {
+    parameters = {
         "client_id": client_id,
         "redirect_uri": redirect_uri(provider, environ),
         "scope": spec["scope"],
@@ -231,20 +231,20 @@ def authorize_url(provider, state, environ=None):
         "response_type": "code",
     }
     return (_base_url(provider, "authorize", environ) + "?"
-            + urllib.parse.urlencode(parametres))
+            + urllib.parse.urlencode(parameters))
 
 
 # ──────────────────────────────────────────────── exchange and identity ──
-def _post_json(url, donnees, entetes=None, timeout=15):
-    corps = urllib.parse.urlencode(donnees).encode("utf-8")
-    requete = urllib.request.Request(url, data=corps, method="POST")
-    requete.add_header("Accept", "application/json")
-    requete.add_header("Content-Type", "application/x-www-form-urlencoded")
-    for cle, valeur in (entetes or {}).items():
-        requete.add_header(cle, valeur)
+def _post_json(url, donnees, headers=None, timeout=15):
+    body = urllib.parse.urlencode(donnees).encode("utf-8")
+    query = urllib.request.Request(url, data=body, method="POST")
+    query.add_header("Accept", "application/json")
+    query.add_header("Content-Type", "application/x-www-form-urlencoded")
+    for key, valeur in (headers or {}).items():
+        query.add_header(key, valeur)
     try:
-        with urllib.request.urlopen(requete, timeout=timeout) as reponse:
-            return json.loads(reponse.read().decode("utf-8"))
+        with urllib.request.urlopen(query, timeout=timeout) as response:
+            return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         with exc:
             raise OAuthError(
@@ -253,14 +253,14 @@ def _post_json(url, donnees, entetes=None, timeout=15):
         raise OAuthError(f"provider unreachable: {exc}") from exc
 
 
-def _get_json(url, jeton, timeout=15):
-    requete = urllib.request.Request(url, method="GET")
-    requete.add_header("Accept", "application/json")
-    requete.add_header("Authorization", f"Bearer {jeton}")
-    requete.add_header("User-Agent", "monl-platform")
+def _get_json(url, token, timeout=15):
+    query = urllib.request.Request(url, method="GET")
+    query.add_header("Accept", "application/json")
+    query.add_header("Authorization", f"Bearer {token}")
+    query.add_header("User-Agent", "monl-platform")
     try:
-        with urllib.request.urlopen(requete, timeout=timeout) as reponse:
-            return json.loads(reponse.read().decode("utf-8"))
+        with urllib.request.urlopen(query, timeout=timeout) as response:
+            return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         with exc:
             raise OAuthError(f"the provider refused the read ({exc.code})") from exc
@@ -270,50 +270,50 @@ def _get_json(url, jeton, timeout=15):
 
 def exchange_code(provider, code, environ=None):
     client_id, secret = _credentials(provider, environ)
-    reponse = _post_json(_base_url(provider, "token", environ), {
+    response = _post_json(_base_url(provider, "token", environ), {
         "client_id": client_id,
         "client_secret": secret,
         "code": code,
         "redirect_uri": redirect_uri(provider, environ),
         "grant_type": "authorization_code",
     })
-    jeton = reponse.get("access_token")
-    if not jeton:
+    token = response.get("access_token")
+    if not token:
         raise OAuthError("the provider issued no access token")
-    return jeton
+    return token
 
 
-def fetch_identity(provider, jeton, environ=None):
+def fetch_identity(provider, token, environ=None):
     """Returns ``(identifier, label)`` — or refuses an unverified address.
 
     Without the verification check, the brick would verify nothing: it would
     move the arbitrary string from one form to another."""
     api = _base_url(provider, "api", environ)
     if provider == "github":
-        compte = _get_json(f"{api}/user", jeton)
-        sujet = compte.get("id")
-        if not sujet:
+        account = _get_json(f"{api}/user", token)
+        subject = account.get("id")
+        if not subject:
             raise OAuthError("the provider did not identify the account")
-        adresses = _get_json(f"{api}/user/emails", jeton)
-        verifiee = next(
-            (a.get("email") for a in adresses
+        addresses = _get_json(f"{api}/user/emails", token)
+        checked = next(
+            (a.get("email") for a in addresses
              if isinstance(a, dict) and a.get("verified") and a.get("primary")),
             None,
         )
-        if not verifiee:
+        if not checked:
             raise OAuthError(
                 "this GitHub account has no verified primary address: "
                 "verify it on GitHub, then start again",
                 status_code=403,
             )
-        return f"github:{sujet}", verifiee
-    compte = _get_json(f"{api}/v1/userinfo", jeton)
-    sujet = compte.get("sub")
-    if not sujet:
+        return f"github:{subject}", checked
+    account = _get_json(f"{api}/v1/userinfo", token)
+    subject = account.get("sub")
+    if not subject:
         raise OAuthError("the provider did not identify the account")
-    if not compte.get("email_verified"):
+    if not account.get("email_verified"):
         raise OAuthError(
             "this Google account has no verified address",
             status_code=403,
         )
-    return f"google:{sujet}", compte.get("email") or f"google:{sujet}"
+    return f"google:{subject}", account.get("email") or f"google:{subject}"

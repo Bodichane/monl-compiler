@@ -67,14 +67,14 @@ including intentionally public actions, rather than universal authentication.
 
 | Threat (STRIDE) | Existing mitigation | Test evidence |
 | --- | --- | --- |
-| Forged/unsigned JWT or self-assigned privileged role (S, E) | Explicit HS256 verification; registration limited to `selfRegister` actors. | tests/test_temoins_securite.py::test_le_serveur_refuse_les_jetons_non_signes_ou_signes_autrement; tests/test_beta3_regressions.py::test_role_provisionne_refuse_a_inscription |
+| Forged/unsigned JWT or self-assigned privileged role (S, E) | Explicit HS256 verification; registration limited to `selfRegister` actors. | tests/test_security_witnesses.py::test_the_server_refuses_unsigned_or_differently_signed_tokens; tests/test_beta3_regressions.py::test_provisioned_role_refused_at_registration |
 | Cross-record private messaging access (I, T, E) | Party filtering and route authorization; supervisor access is separately declared. | tests/test_access_parties.py::test_private_messaging_end_to_end; tests/test_access_parties.py::test_supervisor_moderates_private_messages_end_to_end |
-| Injection of SQL values (T, I, E) | Parameterized values; grammar-constrained identifiers. This witness checks emitted SQL, not arbitrary handwritten code. | tests/test_invariants_securite.py::test_aucun_exemple_ne_colle_de_valeur_dans_le_sql |
-| Account enumeration/brute force (I, D) | Dummy password hash for unknown identifiers; atomic database-backed authentication quota. | tests/test_beta3_regressions.py::test_login_ne_revele_pas_l_existence_du_compte; tests/test_beta3_regressions.py::test_quota_non_contournable_en_parallele |
-| Stolen logged-out token remains usable (S) | JWT `jti` blacklist and logout revocation. | tests/test_beta3_regressions.py::test_logout_revoque_le_jeton |
-| Local disclosure of fallback JWT key (I) | Secret file created owner-only (0600); production environment injection is documented separately. | tests/test_beta3_regressions.py::test_secret_jwt_lisible_par_le_seul_proprietaire |
-| Malicious file/path, oversized upload, unauthorized file access (T, I, D) | Upload ACL, byte/type limits, generated names, storage outside served frontend. | tests/test_uploads.py::test_upload_reel_acl_octets_limite_type_nom_et_suppression |
-| Clickjacking/content sniffing and browser transport exposure (S, I) | Global headers and CSP; HSTS only on HTTPS/forwarded HTTPS. CSP still permits inline site scripts. | tests/test_security_headers.py::test_api_site_erreurs_et_hsts |
+| Injection of SQL values (T, I, E) | Parameterized values; grammar-constrained identifiers. This witness checks emitted SQL, not arbitrary handwritten code. | tests/test_security_invariants.py::test_no_example_pastes_a_value_into_sql |
+| Account enumeration/brute force (I, D) | Dummy password hash for unknown identifiers; atomic database-backed authentication quota. | tests/test_beta3_regressions.py::test_login_does_not_reveal_whether_the_account_exists; tests/test_beta3_regressions.py::test_quota_non_bypassable_in_parallel |
+| Stolen logged-out token remains usable (S) | JWT `jti` blacklist and logout revocation. | tests/test_beta3_regressions.py::test_logout_revokes_the_token |
+| Local disclosure of fallback JWT key (I) | Secret file created owner-only (0600); production environment injection is documented separately. | tests/test_beta3_regressions.py::test_jwt_secret_readable_only_by_its_owner |
+| Malicious file/path, oversized upload, unauthorized file access (T, I, D) | Upload ACL, byte/type limits, generated names, storage outside served frontend. | tests/test_uploads.py::test_real_upload_acl_bytes_limit_type_name_and_deletion |
+| Clickjacking/content sniffing and browser transport exposure (S, I) | Global headers and CSP; HSTS only on HTTPS/forwarded HTTPS. CSP still permits inline site scripts. | tests/test_security_headers.py::test_api_site_errors_and_hsts |
 | Denial of a business write by its author (R) | Authentication attributes requests to accounts, but no tamper-resistant business audit trail is established. | No dedicated proof: see Known gaps. |
 
 ### TB2 — Payment webhook ↔ backend
@@ -82,16 +82,16 @@ including intentionally public actions, rather than universal authentication.
 The payment route rereads the amount from the database and sends it with the
 server's provider key. The public webhook is the exceptional unauthenticated
 write path: the provider signature, not a browser JWT, authorizes it.
-`src/monl/generator/routes_paiement.py` verifies the raw body signature and
+`src/monl/generator/routes_payment.py` verifies the raw body signature and
 bounded timestamp age before processing the event; references qualify entity IDs.
 
 | Threat (STRIDE) | Existing mitigation | Test evidence |
 | --- | --- | --- |
-| Client changes payable amount or pays another account's record (T, E) | Database amount and owner check, not a request-body price. | tests/test_paiement.py::test_le_montant_encaisse_vient_de_la_base_jamais_du_client; tests/test_paiement.py::test_payer_l_enregistrement_d_un_autre_compte_est_refuse |
-| Forged/rebound Stripe event (S, T) | HMAC verification binds signature to raw body and configured secret. | tests/test_paiement.py::test_un_webhook_mal_signe_ne_paie_rien; tests/test_paiement.py::test_une_signature_valide_pour_un_autre_corps_est_refusee |
-| Forged FedaPay event or future timestamp (S, T) | Provider signature and timestamp tolerance. | tests/test_fedapay.py::test_un_webhook_mal_signe_ne_paie_rien; tests/test_fedapay.py::test_une_signature_datee_du_futur_est_refusee |
-| Browser declares its own paid state (T, E) | Payment tracking columns excluded from client input. | tests/test_paiement.py::test_le_client_ne_peut_pas_se_declarer_paye_a_la_creation |
-| Oversized webhook exhausts resources (D) | Bounded raw body even without Content-Length. | tests/test_paiement.py::test_un_webhook_trop_volumineux_est_refuse_avec_ou_sans_content_length |
+| Client changes payable amount or pays another account's record (T, E) | Database amount and owner check, not a request-body price. | tests/test_payment.py::test_the_charged_amount_comes_from_the_database_never_the_client; tests/test_payment.py::test_paying_another_accounts_record_is_refused |
+| Forged/rebound Stripe event (S, T) | HMAC verification binds signature to raw body and configured secret. | tests/test_payment.py::test_a_badly_signed_webhook_pays_nothing; tests/test_payment.py::test_a_signature_valid_for_another_body_is_refused |
+| Forged FedaPay event or future timestamp (S, T) | Provider signature and timestamp tolerance. | tests/test_fedapay.py::test_a_badly_signed_webhook_pays_nothing; tests/test_fedapay.py::test_a_signature_dated_in_the_future_is_refused |
+| Browser declares its own paid state (T, E) | Payment tracking columns excluded from client input. | tests/test_payment.py::test_the_client_cannot_declare_itself_paid_on_creation |
+| Oversized webhook exhausts resources (D) | Bounded raw body even without Content-Length. | tests/test_payment.py::test_an_oversized_webhook_is_refused_with_or_without_content_length |
 | Provider denies settlement or signed event is duplicated (R, T) | Signed events authenticate origin, not financial settlement or durable nonrepudiation. | No end-to-end reconciliation/nonrepudiation proof: see Known gaps. |
 
 ### TB3 — Platform ↔ hosted sites (`serve.py` processes)
@@ -105,9 +105,9 @@ environment. Browser account isolation and process isolation are distinct.
 
 | Threat (STRIDE) | Existing mitigation | Test evidence |
 | --- | --- | --- |
-| Another tenant obtains private project records (S, I, E) | Identity store checks project ownership. Witness covers store authorization, not hostile process reads. | tests/test_platform_identity.py::test_projets_appartiennent_a_un_seul_compte |
-| One tenant exhausts site slots / oversized relay body (D) | Global/per-account admission and relay byte limit. | tests/test_platform_hebergement.py::test_plafond_par_compte_nempeche_pas_un_autre_compte; tests/test_platform_hebergement.py::test_relais_borne_le_corps_et_transmet_un_corps_legitime_intact |
-| Deleted tenant leaves a live site or private database (I, T) | Shared deletion path stops sites and removes owned directories and rows. | tests/test_platform_exploitation.py::test_supprimer_son_compte_efface_tout_y_compris_sur_le_disque |
+| Another tenant obtains private project records (S, I, E) | Identity store checks project ownership. Witness covers store authorization, not hostile process reads. | tests/test_platform_identity.py::test_projects_belong_to_a_single_account |
+| One tenant exhausts site slots / oversized relay body (D) | Global/per-account admission and relay byte limit. | tests/test_platform_hosting.py::test_per_account_cap_does_not_block_another_account; tests/test_platform_hosting.py::test_relay_bounds_the_body_and_forwards_a_legitimate_body_intact |
+| Deleted tenant leaves a live site or private database (I, T) | Shared deletion path stops sites and removes owned directories and rows. | tests/test_platform_operations.py::test_deleting_ones_account_erases_everything_including_disk |
 | Hosted code reads platform/provider secrets or modifies another tenant (I, T, E) | No dedicated OS/environment sandbox in the inspected launcher. | No containment test: see Known gaps. |
 | Tenant disputes hosted activity (R) | Operational logs exist; no tamper-resistant site activity ledger established. | No nonrepudiation test: see Known gaps. |
 
@@ -119,31 +119,31 @@ admin web endpoint. The shell operator is intentionally trusted.
 
 | Threat (STRIDE) | Existing mitigation | Test evidence |
 | --- | --- | --- |
-| Visitor obtains provisioned role or web administration (S, E) | Offline provisioning; platform admin creates no HTTP administration routes. | tests/test_beta3_regressions.py::test_role_provisionne_par_manage_py; tests/test_administration.py::test_ladministration_nouvre_aucune_route |
-| Accidental destructive administration (T, D) | Platform deletion requires its explicit CLI confirmation flag. | tests/test_administration.py::test_supprimer_sans_confirmer_ne_touche_a_rien |
-| Operator denies changes / logs disclose identities (R, I) | Platform mutations are journaled, identifiers are redacted. This is traceability, not protection against a malicious shell operator. | tests/test_administration.py::test_tout_geste_qui_ecrit_laisse_une_trace; tests/test_administration.py::test_le_journal_de_ladministration_ne_livre_aucun_identifiant_nu |
+| Visitor obtains provisioned role or web administration (S, E) | Offline provisioning; platform admin creates no HTTP administration routes. | tests/test_beta3_regressions.py::test_role_provisioned_by_manage_py; tests/test_administration.py::test_administration_opens_no_route |
+| Accidental destructive administration (T, D) | Platform deletion requires its explicit CLI confirmation flag. | tests/test_administration.py::test_deleting_without_confirm_touches_nothing |
+| Operator denies changes / logs disclose identities (R, I) | Platform mutations are journaled, identifiers are redacted. This is traceability, not protection against a malicious shell operator. | tests/test_administration.py::test_every_writing_gesture_leaves_a_trace; tests/test_administration.py::test_the_administration_log_gives_no_bare_identifier |
 
 ### TB5 — Compiler ↔ third-party specification (compilation isolation)
 
 DSL text enters parser/validation/generation; it is not an authorization to run
-Python. `compiler_dans` in `src/monl_platform/service.py` defaults to a separate
+Python. `compiler_in` in `src/monl_platform/service.py` defaults to a separate
 worker (`MONL_ISOLATE_COMPILES=1`), with a wall timeout and POSIX CPU, address-space,
 file-size and descriptor limits. Disabling that option compiles in-process.
 These resource limits do not revoke filesystem/network access or inherited secrets.
 
 | Threat (STRIDE) | Existing mitigation | Test evidence |
 | --- | --- | --- |
-| Oversized spec or path traversal through project ID (T, I, D) | Spec input bound and opaque validated IDs. | tests/test_platform_service.py::test_entrees_bornees_et_identifiants_opaques |
-| Stuck worker publishes incomplete output (T, D) | Timeout failure cleans unpublished project. Witness simulates timeout; it does not measure OS resource limits. | tests/test_platform_service.py::test_worker_interrompu_ne_publie_aucun_projet |
-| Recompilation bypasses admission quotas (D) | Compile/recompile share quota and semaphore. | tests/test_admission_compilation.py::test_compilation_et_recompilation_partagent_le_quota; tests/test_admission_compilation.py::test_compilation_et_recompilation_partagent_le_semaphore |
-| Export leaks runtime JWT secret (I) | Compiled archives exclude the secret. | tests/test_platform_service.py::test_validation_compile_inspection_et_archive_partagent_le_pipeline |
+| Oversized spec or path traversal through project ID (T, I, D) | Spec input bound and opaque validated IDs. | tests/test_platform_service.py::test_bounded_inputs_and_opaque_identifiers |
+| Stuck worker publishes incomplete output (T, D) | Timeout failure cleans unpublished project. Witness simulates timeout; it does not measure OS resource limits. | tests/test_platform_service.py::test_interrupted_worker_publishes_no_project |
+| Recompilation bypasses admission quotas (D) | Compile/recompile share quota and semaphore. | tests/test_admission_compilation.py::test_compilation_and_recompilation_share_the_quota; tests/test_admission_compilation.py::test_compilation_and_recompilation_share_the_semaphore |
+| Export leaks runtime JWT secret (I) | Compiled archives exclude the secret. | tests/test_platform_service.py::test_validation_compile_inspection_and_archive_share_the_pipeline |
 | Compiler compromise escalates to host authority (E, I, T); author disputes submissions (R) | Parser/validator and worker separation reduce exposure; no lower-privilege sandbox or tamper-resistant submission ledger is established. | No containment/nonrepudiation test: see Known gaps. |
 
 ### TB6 — `custom` code (`sandbox_ai.py`, NOT isolated; issue #123)
 
 The generator emits empty Python shells (`src/monl/generator/sandbox.py`).
 Handwritten implementations are imported by the generated backend and called
-in-process (`src/monl/generator/routes_suppression.py`). The filename is not a
+in-process (`src/monl/generator/routes_deletion.py`). The filename is not a
 security boundary. An implementation receives backend process authority.
 
 | Threat (STRIDE) | Existing mitigation | Test evidence |
@@ -177,14 +177,14 @@ security boundary. An implementation receives backend process authority.
 
 | Threat | Control | Execution evidence |
 | --- | --- | --- |
-| Online account uses an unconfirmed address (S) | Correct password returns 403 `email_not_verified` until confirmation; incorrect password and absent account share generic 401. | tests/test_verification_email.py::test_inscription_confirmation_et_rejeu |
-| Captured confirmation token is replayed or applied to another account (S, T) | Hash-only storage, account binding and single-use consumption in the confirmation transaction. POST only, no consuming GET. | tests/test_verification_email.py::test_jeton_autre_compte; tests/test_verification_email.py::test_inscription_confirmation_et_rejeu |
-| Expired confirmation link (S) | Expiration checked in the atomic consumption statement. | tests/test_verification_email.py::test_jeton_expire |
-| Enumeration or message flooding through resend (I, D) | Same generic response and duration floor for absent, known and limited addresses; declared persistent resend quota, old token invalidated on issuance. | tests/test_verification_email.py::test_renvoi_generique_limite_et_invalidation |
-| Healthy guard is mistakenly reported as broken (D) | Smoke expects the unconfirmed 403 and checks both POST routes; names untested authenticated flows. | tests/test_verification_email.py::test_monl_run_check |
-| Guard silently stops protecting | Each disabled 403, consumption, expiry and resend quota makes the same execution witness fail. | tests/test_verification_email.py::test_contre_epreuves |
+| Online account uses an unconfirmed address (S) | Correct password returns 403 `email_not_verified` until confirmation; incorrect password and absent account share generic 401. | tests/test_email_verification.py::test_registration_confirmation_and_replay |
+| Captured confirmation token is replayed or applied to another account (S, T) | Hash-only storage, account binding and single-use consumption in the confirmation transaction. POST only, no consuming GET. | tests/test_email_verification.py::test_token_of_another_account; tests/test_email_verification.py::test_registration_confirmation_and_replay |
+| Expired confirmation link (S) | Expiration checked in the atomic consumption statement. | tests/test_email_verification.py::test_expired_token |
+| Enumeration or message flooding through resend (I, D) | Same generic response and duration floor for absent, known and limited addresses; declared persistent resend quota, old token invalidated on issuance. | tests/test_email_verification.py::test_generic_resend_limit_and_invalidation |
+| Healthy guard is mistakenly reported as broken (D) | Smoke expects the unconfirmed 403 and checks both POST routes; names untested authenticated flows. | tests/test_email_verification.py::test_monl_run_check |
+| Guard silently stops protecting | Each disabled 403, consumption, expiry and resend quota makes the same execution witness fail. | tests/test_email_verification.py::test_counter_tests |
 
-| Pre-registration password takeover or blocking (S, D) | Unconfirmed replacement with shared quota; confirmed-account guard; same pending response. Last registrant can still win before confirmation. | tests/test_verification_email.py::test_preinscription |
+| Pre-registration password takeover or blocking (S, D) | Unconfirmed replacement with shared quota; confirmed-account guard; same pending response. Last registrant can still win before confirmation. | tests/test_email_verification.py::test_preregistration |
 
 ## Known gaps
 

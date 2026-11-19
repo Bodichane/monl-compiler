@@ -1,9 +1,9 @@
-"""Le catalogue local sélectionne des structures adaptables au contrat."""
+"""The local catalog selects structures adaptable to the contract."""
 
 from monl.ui_patterns import render_pattern_block, select_ui_patterns
 
 
-def test_boutique_recoit_des_patterns_de_page_et_de_media():
+def test_shop_gets_page_and_media_patterns():
     contract = {
         "brief": "Une boutique de mobilier local.",
         "design_skills": ["monl-showcase", "monl-commerce"],
@@ -23,7 +23,7 @@ def test_boutique_recoit_des_patterns_de_page_et_de_media():
     assert "invents data" in rendered
 
 
-def test_operations_prefere_une_liste_dense():
+def test_operations_prefers_a_dense_list():
     contract = {
         "brief": "Un espace de travail pour une équipe.",
         "entities": {"Task": {"archetype": "list", "fields": []}},
@@ -34,7 +34,7 @@ def test_operations_prefere_une_liste_dense():
     assert "catalogue" not in [pattern["name"] for pattern in patterns]
 
 
-def test_service_de_reservation_recoit_un_parcours_reel_sans_contact_fictif():
+def test_booking_service_gets_a_real_journey_without_a_fake_contact():
     contract = {
         "brief": "Un studio qui permet de réserver un rendez-vous.",
         "entities": {"Booking": {"archetype": "list", "fields": []}},
@@ -45,7 +45,7 @@ def test_service_de_reservation_recoit_un_parcours_reel_sans_contact_fictif():
     assert "contact" not in names
 
 
-def test_service_tarife_ne_devient_pas_un_catalogue_par_effet_de_larchetype():
+def test_priced_service_does_not_become_a_catalog_through_the_archetype():
     contract = {
         "brief": "Un atelier qui permet de réserver une prestation.",
         "entities": {"Service": {"archetype": "shop", "fields": []}},
@@ -55,7 +55,7 @@ def test_service_tarife_ne_devient_pas_un_catalogue_par_effet_de_larchetype():
     assert "catalogue" not in names
 
 
-def test_boutique_kora_maison_recoit_un_catalogue_sans_parcours_de_reservation():
+def test_kora_home_shop_gets_a_catalog_without_a_booking_journey():
     contract = {
         "brief": "Une boutique de décoration et d'art de vivre.",
         "entities": {
@@ -74,7 +74,7 @@ def test_boutique_kora_maison_recoit_un_catalogue_sans_parcours_de_reservation()
     assert "booking" not in names
 
 
-def test_entite_message_recoit_un_formulaire_de_contact():
+def test_message_entity_gets_a_contact_form():
     contract = {
         "brief": "Un portfolio de photographe.",
         "entities": {

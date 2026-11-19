@@ -31,42 +31,41 @@ import uvicorn
 
 from monl_platform.app import create_app
 
-#: Les pages qui embarquent du script. Une page ajoutée sans entrer ici ne
-#: serait pas vérifiée — le témoin ci-dessous exige donc qu'elles portent
-#: toutes du JavaScript, faute de quoi le nom est périmé.
-PAGES_AVEC_SCRIPT = ("/console", "/", "/guide", "/mcp", "/login", "/account")
+#: The pages that carry a script. A page added without entering here would not
+#: be checked — the witness below therefore requires them all to carry
+#: JavaScript, otherwise the name is stale.
+PAGES_WITH_SCRIPT = ("/console", "/", "/guide", "/mcp", "/login", "/account")
 
-BLOC_SCRIPT = re.compile(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", re.S | re.I)
+BLOCK_SCRIPT = re.compile(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", re.S | re.I)
 
 
 def _node():
-    chemin = shutil.which("node")
-    if chemin is None:
-        # Pas de `skip` : un saut dirait « rien à vérifier ici », alors qu'il
-        # dirait « je n'ai pas vérifié » (point 140). Node est déclaré dans
-        # .github/workflows/ci.yml pour cette raison.
-        pytest.fail("node est requis pour analyser le JavaScript servi")
-    return chemin
+    path = shutil.which("node")
+    if path is None:
+        # No `skip`: a skip would say "nothing to check here", while it would
+        # mean "I did not check" (point 140). Node is declared in
+        # .github/workflows/ci.yml for that reason.
+        pytest.fail("node is required to analyze the served JavaScript")
+    return path
 
 
 @pytest.fixture(scope="module")
 def client(tmp_path_factory):
-    """Un VRAI serveur, comme le reste de la suite.
+    """A REAL server, like the rest of the suite.
 
-    ``fastapi.testclient`` est la voie écartée : il exige ``httpx2`` sur les
-    versions récentes de Starlette — vert en local avec un simple
-    avertissement de dépréciation, ROUGE en CI. Et il vaut mieux ici : ce
-    qu'on veut analyser est ce qui sort par HTTP, pas ce qu'un client
-    en-mémoire reconstitue.
+    ``fastapi.testclient`` is the rejected path: it requires ``httpx2`` on recent
+    Starlette versions — green locally with a mere deprecation warning, RED in
+    CI. And it is better here: what we want to analyze is what comes out over
+    HTTP, not what an in-memory client reconstructs.
     """
     application = create_app(workspace=tmp_path_factory.mktemp("js"))
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
-    serveur = uvicorn.Server(
+    server = uvicorn.Server(
         uvicorn.Config(application, host="127.0.0.1", port=port, log_level="error")
     )
-    fil = threading.Thread(target=serveur.run, daemon=True)
+    fil = threading.Thread(target=server.run, daemon=True)
     fil.start()
     base = f"http://127.0.0.1:{port}"
     session = requests.Session()
@@ -78,7 +77,7 @@ def client(tmp_path_factory):
             except requests.RequestException:
                 time.sleep(0.02)
         else:
-            pytest.fail("le serveur n'a pas démarré")
+            pytest.fail("the server did not start")
         inscription = session.post(
             f"{base}/api/auth/register",
             json={"email": "js@example.test", "password": "MotDePasse-123"},
@@ -87,44 +86,44 @@ def client(tmp_path_factory):
         assert inscription.status_code == 201, inscription.text
         yield base, session
     finally:
-        serveur.should_exit = True
+        server.should_exit = True
         fil.join(timeout=10)
 
 
-def _scripts_de(client, chemin):
+def _scripts_of(client, path):
     base, session = client
-    reponse = session.get(f"{base}{chemin}", timeout=10)
-    assert reponse.status_code == 200, f"{chemin} : {reponse.status_code}"
-    return BLOC_SCRIPT.findall(reponse.text)
+    response = session.get(f"{base}{path}", timeout=10)
+    assert response.status_code == 200, f"{path} : {response.status_code}"
+    return BLOCK_SCRIPT.findall(response.text)
 
 
-@pytest.mark.parametrize("chemin", PAGES_AVEC_SCRIPT)
-def test_le_javascript_servi_s_analyse_sans_erreur(client, chemin, tmp_path):
+@pytest.mark.parametrize("path", PAGES_WITH_SCRIPT)
+def test_the_served_javascript_parses_without_error(client, path, tmp_path):
     node = _node()
-    blocs = _scripts_de(client, chemin)
-    assert blocs, f"{chemin} ne sert aucun script : cette entrée est périmée"
-    for index, bloc in enumerate(blocs):
-        fichier = tmp_path / f"{chemin.strip('/') or 'racine'}-{index}.js"
-        fichier.write_text(bloc, encoding="utf-8")
-        resultat = subprocess.run(
-            [node, "--check", str(fichier)],
+    blocks = _scripts_of(client, path)
+    assert blocks, f"{path} serves no script: this entry is stale"
+    for index, block in enumerate(blocks):
+        file = tmp_path / f"{path.strip('/') or 'racine'}-{index}.js"
+        file.write_text(block, encoding="utf-8")
+        result = subprocess.run(
+            [node, "--check", str(file)],
             capture_output=True, text=True, check=False,
         )
-        assert resultat.returncode == 0, (
-            f"{chemin}, script #{index} : JavaScript invalide — la page est "
-            f"morte dans un navigateur.\n{resultat.stderr}"
+        assert result.returncode == 0, (
+            f"{path}, script #{index}: invalid JavaScript — the page is "
+            f"dead in a browser.\n{result.stderr}"
         )
 
 
-def test_la_console_sert_le_bouton_de_demarrage_avec_son_apostrophe(client):
-    """La contre-épreuve nommée : c'est CETTE chaîne qui avait cassé la page."""
+def test_the_console_serves_the_start_button_with_its_apostrophe(client):
+    """The named counter-proof: THIS string had broken the page."""
     node = _node()
-    blocs = _scripts_de(client, "/console")
-    entier = "\n".join(blocs)
-    assert "Start the project" in entier, "le bouton a disparu du script servi"
-    # L'apostrophe doit être ÉCHAPPÉE dans le littéral, pas nue.
-    assert "Start the project\\'s API" in entier, (
-        "l'apostrophe est nue dans le littéral JavaScript servi : "
-        "une couche de templating Python a mangé l'antislash"
+    blocks = _scripts_of(client, "/console")
+    whole = "\n".join(blocks)
+    assert "Start the project" in whole, "the button disappeared from the served script"
+    # The apostrophe must be ESCAPED in the literal, not bare.
+    assert "Start the project\\'s API" in whole, (
+        "the apostrophe is bare in the served JavaScript literal: "
+        "a Python templating layer ate the backslash"
     )
     assert node

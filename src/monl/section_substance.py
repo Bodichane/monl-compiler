@@ -72,13 +72,13 @@ def rule_for(slug: str, declared_body_length: int | None = None) -> dict:
     spec: we then never require more than what the author declared."""
     if slug in SUBSTANCE_RULES:
         return dict(SUBSTANCE_RULES[slug])
-    seuil = DEFAULT_TEXT
+    threshold = DEFAULT_TEXT
     if declared_body_length is not None:
-        seuil = max(20, min(DEFAULT_TEXT, declared_body_length))
-    return {"heading": True, "text": seuil}
+        threshold = max(20, min(DEFAULT_TEXT, declared_body_length))
+    return {"heading": True, "text": threshold}
 
 
-class _Sonde(HTMLParser):
+class _Probe(HTMLParser):
     """Records the substance carried by each marked element.
 
     Sections can nest (a declared section lives inside the editorial block),
@@ -87,11 +87,11 @@ class _Sonde(HTMLParser):
 
     def __init__(self, markers):
         super().__init__(convert_charrefs=True)
-        self._attendus = {}
+        self._expected = {}
         for marker in markers:
-            nom, _, valeur = marker.partition("=")
-            self._attendus.setdefault(nom.strip(), set()).add(valeur.strip().strip('"'))
-        self.releves: dict[str, dict] = {}
+            name, _, valeur = marker.partition("=")
+            self._expected.setdefault(name.strip(), set()).add(valeur.strip().strip('"'))
+        self.raised: dict[str, dict] = {}
         self._pile: list[tuple[str, dict | None]] = []
         self._opaque = 0
 
@@ -104,19 +104,19 @@ class _Sonde(HTMLParser):
     def handle_starttag(self, tag, attrs):
         if tag in OPAQUE:
             self._opaque += 1
-        releve = None
-        aplat = dict(attrs)
-        for nom, valeurs in self._attendus.items():
-            valeur = aplat.get(nom)
-            if valeur is not None and valeur in valeurs:
-                cle = f'{nom}="{valeur}"'
-                releve = self.releves.setdefault(
-                    cle, {"text": "", "heading": False, "action": False, "form": False}
+        raised = None
+        flat = dict(attrs)
+        for name, values in self._expected.items():
+            valeur = flat.get(name)
+            if valeur is not None and valeur in values:
+                key = f'{name}="{valeur}"'
+                raised = self.raised.setdefault(
+                    key, {"text": "", "heading": False, "action": False, "form": False}
                 )
                 break
         if tag not in VOID_ELEMENTS:
-            self._pile.append((tag, releve))
-        self._noter(tag)
+            self._pile.append((tag, raised))
+        self._note(tag)
 
     def handle_startendtag(self, tag, attrs):
         self.handle_starttag(tag, attrs)
@@ -140,26 +140,26 @@ class _Sonde(HTMLParser):
     def handle_data(self, data):
         if self._opaque:
             return
-        texte = " ".join(data.split())
-        if not texte:
+        text = " ".join(data.split())
+        if not text:
             return
-        for _tag, releve in self._pile:
-            if releve is not None:
-                releve["text"] = (releve["text"] + " " + texte).strip()
+        for _tag, raised in self._pile:
+            if raised is not None:
+                raised["text"] = (raised["text"] + " " + text).strip()
 
     # -- recording -----------------------------------------------------------
-    def _noter(self, tag):
+    def _note(self, tag):
         if tag in HEADINGS:
-            cle = "heading"
+            key = "heading"
         elif tag in ACTIONS:
-            cle = "action"
+            key = "action"
         elif tag == "form":
-            cle = "form"
+            key = "form"
         else:
             return
-        for _tag, releve in self._pile:
-            if releve is not None:
-                releve[cle] = True
+        for _tag, raised in self._pile:
+            if raised is not None:
+                raised[key] = True
 
 
 def substance_errors(html: str, rules: dict[str, dict]) -> list[str]:
@@ -169,33 +169,33 @@ def substance_errors(html: str, rules: dict[str, dict]) -> list[str]:
     presence check, and saying it twice would muddle the report."""
     if not rules:
         return []
-    sonde = _Sonde(rules)
-    sonde.feed(html)
-    sonde.close()
+    probe = _Probe(rules)
+    probe.feed(html)
+    probe.close()
     errors = []
-    for marker, regle in rules.items():
-        releve = sonde.releves.get(marker)
-        if releve is None:
+    for marker, rule in rules.items():
+        raised = probe.raised.get(marker)
+        if raised is None:
             continue
-        nom = marker.partition("=")[2].strip('"') or marker
-        manques = []
-        if regle.get("heading") and not releve["heading"]:
-            manques.append("a heading (<h1> to <h4>)")
-        if regle.get("action") and not releve["action"]:
-            manques.append("an action (<a> or <button>)")
-        if regle.get("form") and not releve["form"]:
-            manques.append("a <form>")
-        seuil = regle.get("text")
-        if seuil:
-            longueur = len(releve["text"])
-            if longueur < seuil:
-                manques.append(
-                f"readable text ({longueur} of {seuil} characters required)"
+        name = marker.partition("=")[2].strip('"') or marker
+        missing = []
+        if rule.get("heading") and not raised["heading"]:
+            missing.append("a heading (<h1> to <h4>)")
+        if rule.get("action") and not raised["action"]:
+            missing.append("an action (<a> or <button>)")
+        if rule.get("form") and not raised["form"]:
+            missing.append("a <form>")
+        threshold = rule.get("text")
+        if threshold:
+            longueur = len(raised["text"])
+            if longueur < threshold:
+                missing.append(
+                f"readable text ({longueur} of {threshold} characters required)"
                 )
-        if manques:
+        if missing:
             errors.append(
-                f"empty or incomplete section — ‘{nom}’: missing "
-                + ", ".join(manques)
+                f"empty or incomplete section — ‘{name}’: missing "
+                + ", ".join(missing)
                 + ". A marked section must contain substantive content, not just its name."
             )
     return errors

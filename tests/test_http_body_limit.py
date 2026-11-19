@@ -1,0 +1,149 @@
+"""HTTP witnesses of the platform's shared JSON body bound."""
+
+import ast
+import http.client
+import json
+import socket
+import threading
+import time
+from pathlib import Path
+
+import pytest
+import requests
+import uvicorn
+
+from monl_platform.app import create_app
+
+
+def _port_free():
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
+@pytest.fixture()
+def platform(tmp_path):
+    port = _port_free()
+    server = uvicorn.Server(uvicorn.Config(
+        create_app(workspace=tmp_path / "projects"),
+        host="127.0.0.1",
+        port=port,
+        log_level="error",
+    ))
+    fil = threading.Thread(target=server.run, daemon=True)
+    fil.start()
+    base = f"http://127.0.0.1:{port}"
+    try:
+        for _ in range(100):
+            try:
+                if requests.get(f"{base}/health", timeout=0.2).status_code == 200:
+                    break
+            except requests.RequestException:
+                time.sleep(0.02)
+        else:
+            pytest.fail("the platform did not start")
+        yield "127.0.0.1", port
+    finally:
+        server.should_exit = True
+        fil.join(timeout=10)
+        assert not fil.is_alive()
+
+
+def _post_chunked(platform, chunks):
+    hote, port = platform
+    login = http.client.HTTPConnection(hote, port, timeout=10)
+    login.request(
+        "POST",
+        "/api/auth/login",
+        body=iter(chunks),
+        headers={"Content-Type": "application/json"},
+        encode_chunked=True,
+    )
+    response = login.getresponse()
+    content = response.read()
+    login.close()
+    return response.status, json.loads(content)
+
+
+def test_a_too_large_chunked_body_is_refused(platform):
+    chunks = [b'{"email":"x","password":"y","remplissage":"']
+    chunks += [b"a" * 50_000] * 7
+    chunks.append(b'"}')
+
+    status, content = _post_chunked(platform, chunks)
+
+    assert status == 413
+    assert content["detail"] == "Request too large."
+
+
+def test_a_bounded_valid_chunked_body_stays_accepted(platform):
+    status, content = _post_chunked(
+        platform,
+        [b'{"email":"inconnu@exemple.test",', b'"password":"mauvais"}'],
+    )
+
+    assert status == 401
+    assert content["detail"] == "Incorrect email or password."
+
+
+def test_too_large_content_length_is_refused_before_reading(platform):
+    hote, port = platform
+    login = http.client.HTTPConnection(hote, port, timeout=10)
+    login.request(
+        "POST",
+        "/api/auth/login",
+        body=b"{}",
+        headers={
+            "Content-Type": "application/json",
+            "Content-Length": "300001",
+        },
+    )
+    response = login.getresponse()
+    content = json.loads(response.read())
+    login.close()
+
+    assert response.status == 413
+    assert content["detail"] == "Request too large."
+
+
+def test_a_non_object_chunked_json_keeps_its_error(platform):
+    status, content = _post_chunked(platform, [b"[", b"]"])
+
+    assert status == 400
+    assert content["detail"] == "A JSON object is expected."
+
+
+def test_routes_do_not_read_the_body_outside_bounded_readers():
+    racine = Path(__file__).parents[1] / "src" / "monl_platform"
+    # TWO readers, not one more, and each is BOUNDED. The list has served
+    # already: the relay read `route_by_host` → `request.body()`, unbounded,
+    # and point 188 moved it into `_bounded_body` → `request.stream()`. This
+    # witness went red on that move while everything else was green, which is
+    # exactly what it is asked to do: a reader that moves declares itself
+    # again, it does not slip through.
+    allowed = {
+        ("app_http.py", "_json_body", "stream"),
+        ("builder_host.py", "_bounded_body", "stream"),
+    }
+    lectures = set()
+    for path in racine.glob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        parents = {
+            child: parent
+            for parent in ast.walk(tree)
+            for child in ast.iter_child_nodes(parent)
+        }
+        for call in (n for n in ast.walk(tree) if isinstance(n, ast.Call)):
+            target = call.func
+            if not isinstance(target, ast.Attribute) or target.attr not in {
+                "json", "body", "form", "stream"
+            }:
+                continue
+            parent = call
+            while parent in parents and not isinstance(
+                parent, (ast.FunctionDef, ast.AsyncFunctionDef)
+            ):
+                parent = parents[parent]
+            lectures.add((path.name, parent.name, target.attr))
+
+    assert lectures == allowed

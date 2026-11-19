@@ -7,16 +7,16 @@ a document the interface AI must follow.
 
 The public surface did not move when it became a package."""
 
-from .manifeste import activate_asset_manifest, build_asset_manifest
-from .marqueurs import _declared_section_markers, _section_substance
-from .noms import (
+from .manifest import activate_asset_manifest, build_asset_manifest
+from .markers import _declared_section_markers, _section_substance
+from .names import (
     ASSET_MANIFEST_FILENAME,
     DESIGN_SPEC_FILENAME,
     DESIGN_SYSTEM_FILENAME,
     GENERATED_MARKER,
 )
-from .profil import infer_design_profile
-from .rendu import ensure_design_artifacts, plan_generated_images
+from .profile import infer_design_profile
+from .rendering import ensure_design_artifacts, plan_generated_images
 
 # POINT 139: there is NO palette here anymore, and there must not be one. Five
 # palettes indexed on the kind of business lived in this place. Point 72

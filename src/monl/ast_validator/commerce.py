@@ -5,13 +5,13 @@ breaking refusal of point 79 lives here: an amount the client can write
 makes compilation fail, because the owner is the only one who can pay —
 so a writable amount is an amount the payer sets."""
 
-from .socle import ASTValidationError
+from .base import ASTValidationError
 
 
 class CommerceMixin:
     """Charging: who pays, for what, and on which amount."""
 
-    def _valider_requires_own_et_payable(self):
+    def _validate_requires_own_and_payable(self):
         """'requiresOwn' (brick 17) and 'payable' (payment brick) — the creation
         prerequisites that protect who can act and who can charge (point 111).
         Extracted together because they share the ownership, public visibility
@@ -30,7 +30,7 @@ class CommerceMixin:
         for rule in self.rules:
             if rule["type"] != "requiresOwn":
                 continue
-            self.required_profiles.update([self._exiger_requires_own(rule)])
+            self.required_profiles.update([self._require_requires_own(rule)])
 
         # ADDED (roadmap, payment brick -- point 74): validation of 'payable'.
         # The rule names the field that carries the AMOUNT; the entity
@@ -41,10 +41,10 @@ class CommerceMixin:
         for rule in self.rules:
             if rule["type"] != "payable":
                 continue
-            entity, field = self._exiger_payable(rule)
+            entity, field = self._require_payable(rule)
             self.payable_fields.append({"entity": entity, "field": field})
 
-    def _exiger_requires_own(self, rule):
+    def _require_requires_own(self, rule):
         """One 'requiresOwn' rule, checked: returns (entity, required entity)."""
         if "." not in rule["reference"]:
             raise ASTValidationError(
@@ -52,7 +52,7 @@ class CommerceMixin:
                 f"received '{rule['reference']}'."
             )
         entity, act_type = rule["reference"].split(".", 1)
-        requise = rule["value"]
+        required = rule["value"]
         if entity not in self.entities:
             raise ASTValidationError(
                 f"Structure: the 'requiresOwn' rule targets entity '{entity}', which does not exist."
@@ -68,12 +68,12 @@ class CommerceMixin:
                 f"action, the record already exists and its profile can no longer "
                 f"prevent anything."
             )
-        if requise not in self.entities:
+        if required not in self.entities:
             raise ASTValidationError(
                 f"Structure: the 'requiresOwn' rule on '{entity}.Create' requires "
-                f"'{requise}', which is not a declared entity."
+                f"'{required}', which is not a declared entity."
             )
-        if requise == entity:
+        if required == entity:
             raise ASTValidationError(
                 f"Structure: '{entity}.Create requiresOwn {entity}' -- an entity "
                 f"cannot require itself: the first record could never be created."
@@ -83,21 +83,21 @@ class CommerceMixin:
         # transitively owned entity (brick 11) does not say which ACCOUNT
         # it belongs to without a join, and an entity with no owner at all
         # belongs to nobody.
-        proprietaires = {v for (ent, _act), v in self.ownership_rules.items()
-                         if ent == requise}
-        if not (proprietaires & set(self.actors)):
+        owners = {v for (ent, _act), v in self.ownership_rules.items()
+                         if ent == required}
+        if not (owners & set(self.actors)):
             raise ASTValidationError(
-                f"Structure: '{entity}.Create requiresOwn {requise}', but "
-                f"'{requise}' is not owned by any actor -- 'owning one' would "
+                f"Structure: '{entity}.Create requiresOwn {required}', but "
+                f"'{required}' is not owned by any actor -- 'owning one' would "
                 f"then have no meaning. Add a rule "
-                f"'rule {requise}.Read ownedBy <Acteur>'."
+                f"'rule {required}.Read ownedBy <Acteur>'."
             )
         # A public creation has no identity: impossible to look up "its"
         # profile. Same refusal as 'generated' and 'payable', same reason.
         if (entity, "Create") in self.public_actions:
             raise ASTValidationError(
                 f"Structure: '{entity}.Create' is 'public' but still requires an "
-                f"owned '{requise}' -- incompatible: without an identified caller, "
+                f"owned '{required}' -- incompatible: without an identified caller, "
                 f"no profile can be looked up."
             )
         if entity in self.required_profiles:
@@ -105,9 +105,9 @@ class CommerceMixin:
                 f"Structure: multiple 'requiresOwn' rules declared for "
                 f"'{entity}.Create' -- only one is allowed."
             )
-        return entity, requise
+        return entity, required
 
-    def _exiger_payable(self, rule):
+    def _require_payable(self, rule):
         """One 'payable' rule, checked: returns (entity, field)."""
         if "." not in rule["reference"]:
             raise ASTValidationError(
@@ -176,7 +176,7 @@ class CommerceMixin:
         # above). None of these three refusals is weakened.
         return entity, field
 
-    def _valider_securite_calculs_paiement(self):
+    def _validate_security_calculations_payment(self):
         """Cross-checks server fields, bounds and chargeable amounts."""
         derived = {(item["entity"], item["field"]) for item in self.derived_fields}
         sums = {(item["entity"], item["field"]): item for item in self.aggregated_fields}
@@ -206,10 +206,10 @@ class CommerceMixin:
                 )
 
         for payable in self.payable_fields:
-            self._verifier_montant_calcule(payable["entity"], payable["field"], derived, sums)
+            self._check_amount_computed(payable["entity"], payable["field"], derived, sums)
 
     @staticmethod
-    def _verifier_montant_calcule(entity, field, derived, sums):
+    def _check_amount_computed(entity, field, derived, sums):
         """A `payable` amount must be calculated by the server, and a sum must only
         add up lines that are themselves calculated. Extracted from
         `_valider_securite_calculs_paiement` (complexity ceiling)."""
@@ -236,7 +236,7 @@ class CommerceMixin:
                 f"{total['source_field']} derivedFrom Product.price by quantity'."
             )
 
-    def _valider_proprietaire_paiement(self):
+    def _validate_owner_payment(self):
         """Checks that a payable amount really climbs up to an account."""
         for payable in self.payable_fields:
             entity = payable["entity"]

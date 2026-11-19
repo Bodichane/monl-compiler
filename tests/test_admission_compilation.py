@@ -1,4 +1,4 @@
-"""Témoins HTTP de l'admission commune aux deux routes de compilation."""
+"""HTTP witnesses of the admission shared by both compilation routes."""
 
 import socket
 import threading
@@ -25,23 +25,23 @@ workflow Manage for Admin
 """
 
 
-def _port_libre():
+def _port_free():
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         return sock.getsockname()[1]
 
 
 @pytest.fixture()
-def plateforme(tmp_path, monkeypatch):
+def platform(tmp_path, monkeypatch):
     monkeypatch.setenv("MONL_MAX_CONCURRENT_COMPILES", "1")
-    port = _port_libre()
-    serveur = uvicorn.Server(uvicorn.Config(
+    port = _port_free()
+    server = uvicorn.Server(uvicorn.Config(
         create_app(workspace=tmp_path / "projects"),
         host="127.0.0.1",
         port=port,
         log_level="error",
     ))
-    fil = threading.Thread(target=serveur.run, daemon=True)
+    fil = threading.Thread(target=server.run, daemon=True)
     fil.start()
     base = f"http://127.0.0.1:{port}"
     try:
@@ -52,130 +52,130 @@ def plateforme(tmp_path, monkeypatch):
             except requests.RequestException:
                 time.sleep(0.02)
         else:
-            pytest.fail("la plateforme n'a pas démarré")
+            pytest.fail("the platform did not start")
         yield base
     finally:
-        serveur.should_exit = True
+        server.should_exit = True
         fil.join(timeout=10)
         assert not fil.is_alive()
 
 
-def _inscrire(base, email):
+def _register(base, email):
     session = requests.Session()
-    reponse = session.post(
+    response = session.post(
         f"{base}/api/auth/register",
         json={"email": email, "password": "MotDePasse-123"},
         timeout=10,
     )
-    assert reponse.status_code == 201, reponse.text
+    assert response.status_code == 201, response.text
     return session
 
 
-def _creer_projet(base, session):
-    reponse = session.post(f"{base}/api/compile", json={"spec": SPEC}, timeout=60)
-    assert reponse.status_code == 201, reponse.text
-    return reponse.json()["id"]
+def _create_project(base, session):
+    response = session.post(f"{base}/api/compile", json={"spec": SPEC}, timeout=60)
+    assert response.status_code == 201, response.text
+    return response.json()["id"]
 
 
-def test_compilation_et_recompilation_partagent_le_quota(plateforme):
-    session = _inscrire(plateforme, "quota@exemple.test")
-    projet = _creer_projet(plateforme, session)
+def test_compilation_and_recompilation_share_the_quota(platform):
+    session = _register(platform, "quota@exemple.test")
+    project = _create_project(platform, session)
 
     for _ in range(9):
-        reponse = session.post(
-            f"{plateforme}/api/projects/{projet}/compiler", timeout=60
+        response = session.post(
+            f"{platform}/api/projects/{project}/compiler", timeout=60
         )
-        assert reponse.status_code == 201, reponse.text
+        assert response.status_code == 201, response.text
 
-    refusee = session.post(f"{plateforme}/api/compile", json={"spec": SPEC}, timeout=10)
-    assert refusee.status_code == 429
-    assert "Retry-After" in refusee.headers
+    refused = session.post(f"{platform}/api/compile", json={"spec": SPEC}, timeout=10)
+    assert refused.status_code == 429
+    assert "Retry-After" in refused.headers
 
 
-def test_une_recompilation_occupe_le_semaphore_puis_le_libere(
-    plateforme, monkeypatch
+def test_a_recompilation_holds_the_semaphore_then_frees_it(
+    platform, monkeypatch
 ):
-    session = _inscrire(plateforme, "semaphore@exemple.test")
-    projet = _creer_projet(plateforme, session)
+    session = _register(platform, "semaphore@exemple.test")
+    project = _create_project(platform, session)
     entre = threading.Event()
-    sortir = threading.Event()
-    vrai_compilateur = builder_build_routes.compiler_le_projet
+    exit_ = threading.Event()
+    true_compiler = builder_build_routes.compiler_the_project
 
-    def compilation_retenue(*args, **kwargs):
+    def compilation_kept(*args, **kwargs):
         entre.set()
-        assert sortir.wait(timeout=10)
-        return vrai_compilateur(*args, **kwargs)
+        assert exit_.wait(timeout=10)
+        return true_compiler(*args, **kwargs)
 
-    monkeypatch.setattr(builder_build_routes, "compiler_le_projet", compilation_retenue)
-    resultat = {}
+    monkeypatch.setattr(builder_build_routes, "compiler_the_project", compilation_kept)
+    result = {}
 
-    def lancer():
-        resultat["reponse"] = session.post(
-            f"{plateforme}/api/projects/{projet}/compiler", timeout=60
+    def launch():
+        result["reponse"] = session.post(
+            f"{platform}/api/projects/{project}/compiler", timeout=60
         )
 
-    fil = threading.Thread(target=lancer)
+    fil = threading.Thread(target=launch)
     fil.start()
     assert entre.wait(timeout=10)
-    occupe = session.post(f"{plateforme}/api/projects/{projet}/compiler", timeout=10)
-    assert occupe.status_code == 503
-    assert occupe.headers["Retry-After"] == "5"
-    sortir.set()
+    occupied = session.post(f"{platform}/api/projects/{project}/compiler", timeout=10)
+    assert occupied.status_code == 503
+    assert occupied.headers["Retry-After"] == "5"
+    exit_.set()
     fil.join(timeout=60)
-    assert resultat["reponse"].status_code == 201, resultat["reponse"].text
+    assert result["reponse"].status_code == 201, result["reponse"].text
 
-    suivante = session.post(f"{plateforme}/api/projects/{projet}/compiler", timeout=60)
-    assert suivante.status_code == 201, suivante.text
+    next_ = session.post(f"{platform}/api/projects/{project}/compiler", timeout=60)
+    assert next_.status_code == 201, next_.text
 
 
-def test_compilation_et_recompilation_partagent_le_semaphore(
-    plateforme, monkeypatch
+def test_compilation_and_recompilation_share_the_semaphore(
+    platform, monkeypatch
 ):
-    session = _inscrire(plateforme, "semaphore-partage@exemple.test")
-    projet = _creer_projet(plateforme, session)
+    session = _register(platform, "semaphore-partage@exemple.test")
+    project = _create_project(platform, session)
     entre = threading.Event()
-    sortir = threading.Event()
-    vraie_compilation = CompilationService.compile
+    exit_ = threading.Event()
+    true_compilation = CompilationService.compile
 
-    def compilation_retenue(service, spec, **kwargs):
+    def compilation_kept(service, spec, **kwargs):
         entre.set()
-        assert sortir.wait(timeout=10)
-        return vraie_compilation(service, spec, **kwargs)
+        assert exit_.wait(timeout=10)
+        return true_compilation(service, spec, **kwargs)
 
-    monkeypatch.setattr(CompilationService, "compile", compilation_retenue)
-    resultat = {}
+    monkeypatch.setattr(CompilationService, "compile", compilation_kept)
+    result = {}
 
-    def lancer():
-        resultat["reponse"] = session.post(
-            f"{plateforme}/api/compile", json={"spec": SPEC}, timeout=60
+    def launch():
+        result["reponse"] = session.post(
+            f"{platform}/api/compile", json={"spec": SPEC}, timeout=60
         )
 
-    fil = threading.Thread(target=lancer)
+    fil = threading.Thread(target=launch)
     fil.start()
     assert entre.wait(timeout=10)
-    occupe = session.post(f"{plateforme}/api/projects/{projet}/compiler", timeout=10)
-    assert occupe.status_code == 503
-    assert occupe.headers["Retry-After"] == "5"
-    sortir.set()
+    occupied = session.post(f"{platform}/api/projects/{project}/compiler", timeout=10)
+    assert occupied.status_code == 503
+    assert occupied.headers["Retry-After"] == "5"
+    exit_.set()
     fil.join(timeout=60)
-    assert resultat["reponse"].status_code == 201, resultat["reponse"].text
+    assert result["reponse"].status_code == 201, result["reponse"].text
 
-    suivante = session.post(f"{plateforme}/api/projects/{projet}/compiler", timeout=60)
-    assert suivante.status_code == 201, suivante.text
+    next_ = session.post(f"{platform}/api/projects/{project}/compiler", timeout=60)
+    assert next_.status_code == 201, next_.text
 
 
-def test_un_appel_legitime_passe_et_les_erreurs_liberent_la_place(plateforme):
-    session = _inscrire(plateforme, "erreurs@exemple.test")
+def test_a_legitimate_call_passes_and_errors_free_the_slot(platform):
+    session = _register(platform, "erreurs@exemple.test")
 
-    invalide = session.post(f"{plateforme}/api/compile", json={"spec": ""}, timeout=10)
-    assert invalide.status_code == 422
-    projet = _creer_projet(plateforme, session)
+    invalid = session.post(f"{platform}/api/compile", json={"spec": ""}, timeout=10)
+    assert invalid.status_code == 422
+    project = _create_project(platform, session)
 
-    absent = session.post(
-        f"{plateforme}/api/projects/projet-absent/compiler", timeout=10
+    missing = session.post(
+        f"{platform}/api/projects/projet-absent/compiler", timeout=10
     )
-    assert absent.status_code == 404
-    legitime = session.post(
-        f"{plateforme}/api/projects/{projet}/compiler", timeout=60
+    assert missing.status_code == 404
+    legitimate = session.post(
+        f"{platform}/api/projects/{project}/compiler", timeout=60
     )
-    assert legitime.status_code == 201, legitime.text
+    assert legitimate.status_code == 201, legitimate.text

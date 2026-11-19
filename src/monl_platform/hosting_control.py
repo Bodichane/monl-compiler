@@ -8,35 +8,35 @@ import threading
 from pathlib import Path
 
 
-def _prefixe(workspace):
-    empreinte = hashlib.sha256(str(Path(workspace).resolve()).encode()).hexdigest()
-    return "@monl-sites-" + empreinte + "-"
+def _prefix(workspace):
+    fingerprint = hashlib.sha256(str(Path(workspace).resolve()).encode()).hexdigest()
+    return "@monl-sites-" + fingerprint + "-"
 
 
-def _adresse(workspace):
-    return "\0" + _prefixe(workspace)[1:] + str(os.getpid())
+def _address(workspace):
+    return "\0" + _prefix(workspace)[1:] + str(os.getpid())
 
 
-def _adresses(workspace):
-    prefixe = _prefixe(workspace)
+def _addresses(workspace):
+    prefix = _prefix(workspace)
     with Path("/proc/net/unix").open() as flux:
-        return {"\0" + champs[7][1:] for ligne in flux
-                if len(champs := ligne.split()) == 8 and champs[7].startswith(prefixe)}
+        return {"\0" + fields[7][1:] for line in flux
+                if len(fields := line.split()) == 8 and fields[7].startswith(prefix)}
 
 
-def arreter_distant(workspace, project_id):
-    confirme = False
-    for adresse in _adresses(workspace):
-        if _arreter_worker(adresse, project_id):
-            confirme = True
-    return confirme
+def stop_distant(workspace, project_id):
+    confirmed = False
+    for address in _addresses(workspace):
+        if _stop_worker(address, project_id):
+            confirmed = True
+    return confirmed
 
 
-def _arreter_worker(adresse, project_id):
+def _stop_worker(address, project_id):
     with socket.socket(socket.AF_UNIX) as canal:
         canal.settimeout(15)
         try:
-            canal.connect(adresse)
+            canal.connect(address)
         except ConnectionRefusedError:
             return False
         canal.sendall(project_id.encode())
@@ -46,22 +46,22 @@ def _arreter_worker(adresse, project_id):
     return True
 
 
-class ControleSites:
+class ControlSites:
     def __init__(self, sites):
         self.sites = sites
-        sites.controle_local = True
-        self.arret = threading.Event()
+        sites.control_local = True
+        self.stop_event = threading.Event()
         self.canal = socket.socket(socket.AF_UNIX)
-        self.canal.bind(_adresse(sites.workspace_root))
+        self.canal.bind(_address(sites.workspace_root))
         self.canal.settimeout(0.2)
-        self.fil = threading.Thread(target=self._boucle, daemon=True)
+        self.fil = threading.Thread(target=self._loop, daemon=True)
 
     def start(self):
         self.canal.listen()
         self.fil.start()
 
-    def _boucle(self):
-        while not self.arret.is_set():
+    def _loop(self):
+        while not self.stop_event.is_set():
             try:
                 canal, _ = self.canal.accept()
             except TimeoutError:
@@ -74,13 +74,13 @@ class ControleSites:
                     continue
                 try:
                     with canal.makefile("rb") as flux:
-                        projet = flux.read(256).decode()
-                    self.sites.stop_project(projet)
+                        project = flux.read(256).decode()
+                    self.sites.stop_project(project)
                     canal.sendall(b"1")
                 except (OSError, UnicodeError):
                     continue
 
     def stop(self):
-        self.arret.set()
+        self.stop_event.set()
         self.fil.join(timeout=5)
         self.canal.close()

@@ -51,10 +51,10 @@ def event_counter_fields(security: SecurityIR) -> frozenset[FieldKey]:
 
 def event_counters_by_entity(security: SecurityIR) -> dict[str, list[str]]:
     """The event counters grouped by entity, which creation sets to 0."""
-    groupes: dict[str, list[str]] = {}
+    groups: dict[str, list[str]] = {}
     for entity, field in sorted(event_counter_fields(security)):
-        groupes.setdefault(entity, []).append(field)
-    return groupes
+        groups.setdefault(entity, []).append(field)
+    return groups
 
 
 def _field_directives(security: SecurityIR) -> _FieldDirectives:

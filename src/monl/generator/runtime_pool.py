@@ -2,7 +2,7 @@
 
 from string import Template
 
-from .runtime_socle import DB_POOL_MAX_ENV, DB_POOL_MIN_ENV
+from .runtime_base import DB_POOL_MAX_ENV, DB_POOL_MIN_ENV
 
 
 class PoolRuntimeMixin:

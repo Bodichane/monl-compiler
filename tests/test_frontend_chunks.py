@@ -1,4 +1,4 @@
-"""Régressions de la génération séquentielle avec fournisseur factice réel."""
+"""Regressions of sequential generation with a real fake provider."""
 
 import json
 import re
@@ -22,8 +22,8 @@ SPEC = """app ChunkRetryApp
 entity Item
     label: String
 
-# Le back-office est provisionné hors ligne ; ces tests vérifient le découpage
-# de génération, pas une vitrine publique complète.
+# The back office is provisioned offline; these tests check the generation
+# splitting, not a complete public showcase.
 actor Admin
 
 rule Item.label required
@@ -65,7 +65,7 @@ def _target(prompt):
     return line.rsplit(": ", 1)[1]
 
 
-def test_le_contexte_conserve_tous_les_selecteurs_sans_rejouer_les_contenus():
+def test_the_context_keeps_all_selectors_without_replaying_contents():
     html = (
         '<main id="app" class="shell dark" data-page="home">'
         '<h1 class="hero-title">Prose éditoriale à ne pas recopier</h1>'
@@ -107,7 +107,7 @@ def test_le_contexte_conserve_tous_les_selecteurs_sans_rejouer_les_contenus():
     assert "ce JavaScript ne doit pas être recopié" not in app_prompt
 
 
-def test_la_generation_decoupee_reduit_l_entree_cumulee(tmp_path):
+def test_split_generation_reduces_cumulative_input(tmp_path):
     generated = {
         "index.html": (
             '<main id="app" class="shell dark" data-page="home">'
@@ -191,7 +191,7 @@ class TruncateStylesOnce:
         return json.dumps({"files": {target: GOOD_FILES[target]}})
 
 
-def test_un_morceau_tronque_est_repris_sans_regenerer_les_precedents(project):
+def test_a_truncated_chunk_is_resumed_without_regenerating_previous_ones(project):
     provider = TruncateStylesOnce()
 
     ok, errors = generate_and_verify(str(project), provider, say=lambda _msg: None)
@@ -239,7 +239,7 @@ class AlwaysTruncated:
         return json.dumps({"files": {target: "incomplet"}})[:-1]
 
 
-def test_un_morceau_toujours_tronque_n_effectue_pas_une_seconde_generation_complete(project):
+def test_an_always_truncated_chunk_does_not_run_a_second_full_generation(project):
     provider = AlwaysTruncated()
 
     ok, errors = generate_and_verify(str(project), provider, say=lambda _msg: None)
@@ -248,19 +248,19 @@ def test_un_morceau_toujours_tronque_n_effectue_pas_une_seconde_generation_compl
     assert errors
     assert len(provider.calls) == 3
     assert [target for target, _limit in provider.calls] == ["index.html"] * 3
-    # Les paliers sont DÉRIVÉS des constantes, jamais recopiés : figés ici en
-    # dur, ils avaient laissé l'échelle monter 8 000 → 12 000 → 18 000 pendant
-    # que le code annonçait une borne de 32 000 que rien n'atteignait.
-    paliers = [limit for _target_name, limit in provider.calls]
-    attendus = [DEFAULT_CHUNK_MAX_OUTPUT_TOKENS]
-    while len(attendus) <= CHUNK_MAX_RETRIES:
-        suivant = min(int(attendus[-1] * CHUNK_RETRY_OUTPUT_TOKEN_FACTOR),
+    # The steps are DERIVED from the constants, never copied: hard-coded here,
+    # they had let the ladder climb 8,000 → 12,000 → 18,000 while the code
+    # announced a 32,000 bound nothing reached.
+    steps = [limit for _target_name, limit in provider.calls]
+    expected_items = [DEFAULT_CHUNK_MAX_OUTPUT_TOKENS]
+    while len(expected_items) <= CHUNK_MAX_RETRIES:
+        next_ = min(int(expected_items[-1] * CHUNK_RETRY_OUTPUT_TOKEN_FACTOR),
                       CHUNK_RETRY_MAX_OUTPUT_TOKENS)
-        attendus.append(suivant)
-    assert paliers == attendus, (paliers, attendus)
-    assert paliers[-1] == CHUNK_RETRY_MAX_OUTPUT_TOKENS, (
-        "la dernière reprise n'atteint pas la borne déclarée : celle-ci ne "
-        "contraint alors rien, et le message d'erreur qui la cite ment")
+        expected_items.append(next_)
+    assert steps == expected_items, (steps, expected_items)
+    assert steps[-1] == CHUNK_RETRY_MAX_OUTPUT_TOKENS, (
+        "the last retry does not reach the declared bound: the bound then "
+        "constrains nothing, and the error message citing it lies")
     assert "no second complete attempt" in errors[0]
     events = [json.loads(line) for line in
               (project / USAGE_FILENAME).read_text(encoding="utf-8").splitlines()]
@@ -292,11 +292,11 @@ class AppTimeoutAfterValidChunks:
         }
         if target == "app.js":
             from monl.frontend_ai import FrontendAIError
-            raise FrontendAIError("délai fournisseur dépassé")
+            raise FrontendAIError("provider timeout exceeded")
         return json.dumps({"files": {target: GOOD_FILES[target]}})
 
 
-def test_timeout_d_un_morceau_ne_rejoue_pas_les_fichiers_deja_payes(project):
+def test_a_chunk_timeout_does_not_replay_already_paid_files(project):
     provider = AppTimeoutAfterValidChunks()
 
     ok, errors = generate_and_verify(str(project), provider, say=lambda _msg: None)
@@ -309,78 +309,78 @@ def test_timeout_d_un_morceau_ne_rejoue_pas_les_fichiers_deja_payes(project):
     ]
 
 
-# ---- Le budget demandé suit le contrat (point 149) ----
+# ---- The requested budget follows the contract (point 149) ----
 
-def _contrat(tmp_path, nb_routes, nb_entites=3):
+def _contract(tmp_path, nb_routes, nb_entities=3):
     tmp_path.mkdir(parents=True, exist_ok=True)
     (tmp_path / "frontend_contract.json").write_text(json.dumps({
         "routes": [{"method": "GET", "path": f"/r{i}"} for i in range(nb_routes)],
-        "entities": {f"E{i}": {} for i in range(nb_entites)},
+        "entities": {f"E{i}": {} for i in range(nb_entities)},
     }), encoding="utf-8")
     return str(tmp_path)
 
 
-def test_le_budget_d_app_js_suit_le_nombre_de_routes(tmp_path):
-    """monl demandait « environ 1 500 tokens » quel que soit le contrat.
+def test_the_app_js_budget_follows_the_number_of_routes(tmp_path):
+    """monl asked for "about 1,500 tokens" whatever the contract.
 
-    Mesuré contre le vrai service : le modèle obéit au jeton près — 1 698 de
-    sortie pour une boutique à quinze routes — puis monl refuse le fichier
-    pour incomplétude. On demandait l'impossible, puis on le rejetait. Les
-    frontends complets du dépôt pèsent 26 à 43 Ko, soit 7 000 à 11 000 jetons.
+    Measured against the real service: the model obeys to the token — 1,698 of
+    output for a fifteen-route shop — then monl refuses the file as incomplete.
+    We asked for the impossible, then rejected it. The repository's complete
+    frontends weigh 26 to 43 KB, that is 7,000 to 11,000 tokens.
     """
-    from monl.frontend_ai import ampleur_du_contrat
+    from monl.frontend_ai import extent_of_contract
 
-    petit = _build_chunk_prompt("brief", "app.js", {},
-                                ampleur_du_contrat(_contrat(tmp_path / "a", 2)))
+    small = _build_chunk_prompt("brief", "app.js", {},
+                                extent_of_contract(_contract(tmp_path / "a", 2)))
     grand = _build_chunk_prompt("brief", "app.js", {},
-                                ampleur_du_contrat(_contrat(tmp_path / "b", 15)))
+                                extent_of_contract(_contract(tmp_path / "b", 15)))
 
-    assert _vise(grand) > _vise(petit), (_vise(petit), _vise(grand))
-    assert _vise(grand) >= 6_000, "un contrat à 15 routes ne tient pas en moins"
+    assert _vise(grand) > _vise(small), (_vise(small), _vise(grand))
+    assert _vise(grand) >= 6_000, "a 15-route contract does not fit in less"
     assert "1,500 tokens" not in grand and "1500 tokens" not in grand
 
 
-def test_le_budget_ne_depasse_jamais_le_plafond_de_l_etage(tmp_path):
-    """Demander plus que ce que l'étage peut rendre produirait une troncature
-    à chaque construction : le plafond de sortie est la vraie borne."""
-    from monl.frontend_ai import DEFAULT_CHUNK_MAX_OUTPUT_TOKENS, ampleur_du_contrat
+def test_the_budget_never_exceeds_the_stage_ceiling(tmp_path):
+    """Asking more than the stage can return would produce a truncation on every
+    build: the output ceiling is the real bound."""
+    from monl.frontend_ai import DEFAULT_CHUNK_MAX_OUTPUT_TOKENS, extent_of_contract
 
-    enorme = _build_chunk_prompt("brief", "app.js", {},
-                                 ampleur_du_contrat(_contrat(tmp_path / "c", 400)))
+    huge = _build_chunk_prompt("brief", "app.js", {},
+                                 extent_of_contract(_contract(tmp_path / "c", 400)))
 
-    assert _vise(enorme) <= DEFAULT_CHUNK_MAX_OUTPUT_TOKENS
-
-
-def test_la_limite_dure_ne_contredit_plus_le_budget(tmp_path):
-    """Elle valait 12 000 caractères pour un fichier de 26 à 43 Ko."""
-    from monl.frontend_ai import ampleur_du_contrat
-
-    prompt = _build_chunk_prompt("brief", "app.js", {},
-                                 ampleur_du_contrat(_contrat(tmp_path / "d", 15)))
-    caracteres = int(re.search(r"finish before (\d+) characters", prompt).group(1))
-
-    assert caracteres >= _vise(prompt) * 3, (
-        "la limite dure recoupe le budget demandé : le modèle obéit à la plus "
-        "petite des deux, et c'est elle qui décide de la complétude")
+    assert _vise(huge) <= DEFAULT_CHUNK_MAX_OUTPUT_TOKENS
 
 
-def test_le_plancher_de_routes_est_ENONCE_au_modele(tmp_path):
-    """Le brief disait « n'appeler QUE les routes listées » — un plafond.
-    Le refus, lui, porte sur un plancher que rien n'énonçait à l'étage."""
-    from monl.frontend_ai import ampleur_du_contrat
+def test_the_hard_limit_no_longer_contradicts_the_budget(tmp_path):
+    """It was 12,000 characters for a 26 to 43 KB file."""
+    from monl.frontend_ai import extent_of_contract
 
     prompt = _build_chunk_prompt("brief", "app.js", {},
-                                 ampleur_du_contrat(_contrat(tmp_path / "e", 15)))
+                                 extent_of_contract(_contract(tmp_path / "d", 15)))
+    characters = int(re.search(r"finish before (\d+) characters", prompt).group(1))
+
+    assert characters >= _vise(prompt) * 3, (
+        "the hard limit cuts into the requested budget: the model obeys the "
+        "smaller of the two, and that one decides completeness")
+
+
+def test_the_route_floor_is_STATED_to_the_model(tmp_path):
+    """The brief said "call ONLY the listed routes" — a ceiling. The refusal,
+    however, is about a floor nothing stated at the stage."""
+    from monl.frontend_ai import extent_of_contract
+
+    prompt = _build_chunk_prompt("brief", "app.js", {},
+                                 extent_of_contract(_contract(tmp_path / "e", 15)))
 
     assert "15 routes" in prompt
     assert "REFUSED" in prompt
 
 
-def test_sans_contrat_lisible_le_dimensionnement_ne_casse_pas(tmp_path):
-    """Les tests et les appels historiques n'ont pas de contrat sous la main."""
-    from monl.frontend_ai import ampleur_du_contrat
+def test_without_readable_contract_sizing_does_not_break(tmp_path):
+    """Tests and historical calls have no contract at hand."""
+    from monl.frontend_ai import extent_of_contract
 
-    assert ampleur_du_contrat(str(tmp_path / "nulle-part")) is None
+    assert extent_of_contract(str(tmp_path / "nulle-part")) is None
     prompt = _build_chunk_prompt("brief", "app.js", {}, None)
     assert "Aim for about" in prompt
 

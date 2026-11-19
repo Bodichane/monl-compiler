@@ -38,7 +38,7 @@ most complete.
 ## What the test suite does with them
 
 In the monl repository, `tests/test_compile_all.py` compiles all five on each run, and
-`tests/test_audit_offensif_exemples.py` reruns the offensive audit on each one — role
+`tests/test_offensive_audit_examples.py` reruns the offensive audit on each one — role
 impersonation, forged JWT, privilege escalation. CI reports compilation failures and regressions covered by these audits;
 these checks do not guarantee that every possible vulnerability is detected.
 The test files belong to the repository and are not shipped with the plugin.

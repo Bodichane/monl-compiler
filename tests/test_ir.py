@@ -1,7 +1,7 @@
-"""Tests unitaires de la représentation intermédiaire typée."""
+"""Unit tests of the typed intermediate representation."""
 
 from monl.ast_validator import MonlAST
-from monl.frontend_contract.assemblage import build_contract
+from monl.frontend_contract.assembly import build_contract
 from monl.generator import MonlSecureGenerator
 from monl.ir import AccessPolicy, EffectPlan, RelationModel, RoutePlan
 from monl.parser import parse_monl_string
@@ -23,7 +23,7 @@ workflow Superviser for Admin
 """
 
 
-def test_route_plan_fusionne_acteurs_et_workflows_sans_duplicata(tmp_path):
+def test_route_plan_merges_actors_and_workflows_without_duplicates(tmp_path):
     ir = MonlAST(parse_monl_string(SPEC)).validate_and_audit()
     generator = MonlSecureGenerator(ir, output_dir=str(tmp_path))
 
@@ -39,7 +39,7 @@ def test_route_plan_fusionne_acteurs_et_workflows_sans_duplicata(tmp_path):
     assert lecture.tags == ["Ecrire", "Superviser"]
 
 
-def test_route_plan_execute_conserve_la_cible_qualifiee(tmp_path):
+def test_execute_route_plan_keeps_the_qualified_target(tmp_path):
     spec = SPEC.replace(
         "workflow Superviser for Admin\n    Read Note",
         "custom Publier\n    description: \"Publie une note\"\n"
@@ -56,7 +56,7 @@ def test_route_plan_execute_conserve_la_cible_qualifiee(tmp_path):
     assert plan.actors == {"Admin"}
 
 
-def test_entity_model_consolide_les_politiques_de_champ(tmp_path):
+def test_entity_model_consolidates_field_policies(tmp_path):
     spec = """app Politiques
 
 entity Note
@@ -92,7 +92,7 @@ workflow Ecrire for Auteur
     assert note.fields["creeLe"].server_generated
 
 
-def test_relation_models_orientent_les_trois_types_de_relation(tmp_path):
+def test_relation_models_orient_the_three_relation_types(tmp_path):
     spec = """app Relations
 
 entity Parent
@@ -116,12 +116,12 @@ workflow Gerer for Admin
     ir = MonlAST(parse_monl_string(spec)).validate_and_audit()
     generator = MonlSecureGenerator(ir, output_dir=str(tmp_path))
 
-    beaucoup, unique, inverse = generator.relation_models
+    many, unique, inverse = generator.relation_models
 
-    assert isinstance(beaucoup, RelationModel)
-    assert (beaucoup.owner_entity, beaucoup.held_entity) == ("Parent", "Enfant")
-    assert beaucoup.fk_column == "parent_id"
-    assert not beaucoup.unique
+    assert isinstance(many, RelationModel)
+    assert (many.owner_entity, many.held_entity) == ("Parent", "Enfant")
+    assert many.fk_column == "parent_id"
+    assert not many.unique
     assert (unique.owner_entity, unique.held_entity) == ("Parent", "Profil")
     assert unique.unique
     assert (inverse.owner_entity, inverse.held_entity) == ("Parent", "Adresse")
@@ -135,7 +135,7 @@ workflow Gerer for Admin
     assert placements["Adresse"][0]["owner_entity"] == "Parent"
 
 
-def test_access_policy_reunit_visibilite_acteurs_et_propriete(tmp_path):
+def test_access_policy_combines_visibility_actors_and_ownership(tmp_path):
     spec = """app Acces
 
 entity Auteur
@@ -159,19 +159,19 @@ workflow Consulter for Auteur
     ir = MonlAST(parse_monl_string(spec)).validate_and_audit()
     generator = MonlSecureGenerator(ir, output_dir=str(tmp_path))
 
-    prive = generator.access_policies[("Note", "Read")]
+    private = generator.access_policies[("Note", "Read")]
     public = generator.access_policies[("Page", "Read")]
 
-    assert isinstance(prive, AccessPolicy)
-    assert prive.actors == frozenset({"Auteur"})
-    assert prive.owner_entity == "Auteur"
-    assert not prive.public
-    assert not prive.party_fields
+    assert isinstance(private, AccessPolicy)
+    assert private.actors == frozenset({"Auteur"})
+    assert private.owner_entity == "Auteur"
+    assert not private.public
+    assert not private.party_fields
     assert public.public
     assert public.owner_entity is None
 
 
-def test_effect_plans_cataloguent_les_effets_metier(tmp_path):
+def test_effect_plans_catalog_business_effects(tmp_path):
     spec = """app Effets
 
 entity Produit
@@ -217,7 +217,7 @@ workflow Acheter for Client
     assert generator._derived_field_names("Ligne") == ["sousTotal"]
     assert generator._aggregated_field_names("Commande") == ["total"]
 
-    # Le backend et le contrat partagent le même plan de dérivation résolu.
+    # Backend and contract share the same resolved derivation plan.
     derived = generator.derived_by_entity["Ligne"][0]
     assert derived.source_fk == "produit_id"
     assert generator.compilation_plans.entity_models["Ligne"].fields[
@@ -239,8 +239,9 @@ workflow Acheter for Client
     assert generator.compilation_plans.reputation_rules_by_trigger["Ligne"][0] is counter
     assert counter.target_fk == "produit_id"
 
-    # L'analyse est un instantané : modifier la règle brute après construction
-    # ne peut pas faire dériver les deux émetteurs ni changer le calcul publié.
+    # The analysis is a snapshot: changing the raw rule after construction
+    # cannot make the two emitters diverge nor change the published
+    # calculation.
     ir["security"]["derived_fields"][0]["source_field"] = "autrePrix"
     ir["security"]["derived_fields"][0]["factor"] = "autreQuantite"
     ir["security"]["aggregated_fields"][0]["source_field"] = "autreSomme"

@@ -10,7 +10,7 @@ def _write(directory: Path, name: str, value: str) -> None:
     (directory / name).write_text(value, encoding="utf-8")
 
 
-def test_publication_remplace_le_jeu_complet_sans_toucher_les_autres_fichiers(tmp_path):
+def test_publishing_replaces_the_whole_set_without_touching_other_files(tmp_path):
     target = tmp_path / "projet"
     staging = tmp_path / "stage"
     target.mkdir()
@@ -27,7 +27,7 @@ def test_publication_remplace_le_jeu_complet_sans_toucher_les_autres_fichiers(tm
     assert (target / "frontend.txt").read_text(encoding="utf-8") == "créé par l'utilisateur"
 
 
-def test_publication_restaure_tous_les_anciens_fichiers_si_un_remplacement_echoue(
+def test_publishing_restores_all_old_files_if_a_replacement_fails(
     tmp_path, monkeypatch
 ):
     target = tmp_path / "projet"
@@ -46,7 +46,7 @@ def test_publication_restaure_tous_les_anciens_fichiers_si_un_remplacement_echou
         nonlocal calls
         calls += 1
         if calls == 3:
-            raise OSError("disque plein simulé")
+            raise OSError("simulated full disk")
         real_replace(source, destination)
 
     monkeypatch.setattr(artifacts, "_replace", fail_on_second_replace)
@@ -58,7 +58,7 @@ def test_publication_restaure_tous_les_anciens_fichiers_si_un_remplacement_echou
     assert (target / "schema.sql").read_text(encoding="utf-8") == "ancien schema"
 
 
-def test_publication_refuse_un_staging_incomplet(tmp_path):
+def test_publication_refuses_an_incomplete_staging(tmp_path):
     target = tmp_path / "projet"
     staging = tmp_path / "stage"
     target.mkdir()
@@ -71,7 +71,7 @@ def test_publication_refuse_un_staging_incomplet(tmp_path):
     assert not (target / "app.py").exists()
 
 
-def test_compile_project_ne_publie_rien_si_la_transaction_finale_echoue(
+def test_compile_project_publishes_nothing_if_the_final_transaction_fails(
     tmp_path, monkeypatch
 ):
     spec = tmp_path / "spec.ml"
@@ -96,7 +96,7 @@ workflow Gerer for Admin
     (tmp_path / "frontend" / "index.html").write_text("<h1>user</h1>", encoding="utf-8")
 
     def fail_publish(*args, **kwargs):
-        raise artifacts.ArtifactPublicationError("publication simulée")
+        raise artifacts.ArtifactPublicationError("simulated publication")
 
     monkeypatch.setattr("monl.cli.construction.publish_files", fail_publish)
 

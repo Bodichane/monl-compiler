@@ -1,25 +1,26 @@
-"""`monl diff` : voir le delta avant d'écrire — point 103.
+"""`monl diff`: see the delta before writing — point 103.
 
-`monl update` écrit PUIS rapporte. Tant que le rapport dit ce qu'on attendait,
-l'ordre est sans conséquence ; le jour où il annonce un écran entier à réécrire,
-on aimerait l'avoir su avant d'avoir recompilé et remplacé le contrat de
-référence. `monl diff` répond à la même question sans rien toucher.
+`monl update` writes THEN reports. As long as the report says what was
+expected, the order has no consequence; the day it announces a whole screen
+to rewrite, one would like to have known before recompiling and replacing the
+reference contract. `monl diff` answers the same question without touching
+anything.
 
-Ce que le geste décide :
+What the gesture decides:
 
-* **le rapport a UNE source.** `_rapporter_delta` est extrait de `cmd_update` et
-  partagé : deux calculs de delta finiraient par diverger, et c'est justement le
-  calcul dont six points (88 à 91, 94, 99) ont montré qu'il est difficile à
-  tenir juste. Le test qui l'atteste est
-  `test_diff_et_update_disent_exactement_la_meme_chose` ;
-* **le dossier de sortie est jetable, mais `base_dir` reste le VRAI projet.**
-  Les assets déclarés vivent dans le projet ; les chercher dans un dossier
-  temporaire ferait échouer la compilation pour une raison qui n'existe pas
-  (brique 13, point 83). C'est le piège que ce geste devait éviter, et il a
-  fallu ouvrir `compile_project` pour ça ;
-* **aucun fichier du projet n'est écrit** — ni `app.py`, ni le contrat, ni
-  `monl.json`, ni la consigne d'évolution. Vérifié par empreinte de l'ARBRE
-  entier, pas par une liste de noms qu'on pourrait oublier de compléter.
+* **the report has ONE source.** `_rapporter_delta` is extracted from
+  `cmd_update` and shared: two delta calculations would end up diverging, and
+  it is precisely the calculation six points (88 to 91, 94, 99) showed to be
+  hard to keep right. The test attesting it is
+  `test_diff_and_update_say_exactly_the_same_thing`;
+* **the output folder is throwaway, but `base_dir` stays the REAL project.**
+  Declared assets live in the project; looking for them in a temporary folder
+  would make compilation fail for a reason that does not exist (brick 13,
+  point 83). It is the trap this gesture had to avoid, and `compile_project`
+  had to be opened for it;
+* **no project file is written** — neither `app.py`, nor the contract, nor
+  `monl.json`, nor the evolution instruction. Checked by fingerprint of the
+  WHOLE tree, not by a list of names one could forget to complete.
 """
 import hashlib
 import os
@@ -48,173 +49,173 @@ workflow Ecrire for Auteur
 """
 
 
-def _empreinte(dossier):
-    """Empreinte de l'ARBRE entier — chemins, tailles et contenus.
+def _fingerprint(folder):
+    """Fingerprint of the WHOLE tree — paths, sizes and contents.
 
-    Lister les fichiers qu'on s'attend à ne pas voir bouger laisserait passer
-    celui auquel on n'a pas pensé ; c'est le raisonnement du garde-fou
-    d'empreinte du point 73, appliqué en sens inverse."""
-    condensat = hashlib.sha256()
-    for racine, _sous, fichiers in sorted(os.walk(dossier)):
-        for nom in sorted(fichiers):
-            chemin = os.path.join(racine, nom)
-            condensat.update(os.path.relpath(chemin, dossier).encode())
-            with open(chemin, "rb") as fh:
-                condensat.update(fh.read())
-    return condensat.hexdigest()
+    Listing the files one expects not to move would let through the one nobody
+    thought of; it is the reasoning of point 73's fingerprint safeguard, applied
+    in reverse."""
+    digest = hashlib.sha256()
+    for racine, _sous, files in sorted(os.walk(folder)):
+        for name in sorted(files):
+            path = os.path.join(racine, name)
+            digest.update(os.path.relpath(path, folder).encode())
+            with open(path, "rb") as fh:
+                digest.update(fh.read())
+    return digest.hexdigest()
 
 
 @pytest.fixture
-def projet(tmp_path, capsys):
+def project(tmp_path, capsys):
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     capsys.readouterr()
     return tmp_path
 
 
-def _lignes_de_delta(sortie):
-    """Les lignes du rapport, sans le bruit de compilation ni les bandeaux
-    propres à chacun des deux gestes."""
-    gardees, dedans = [], False
-    for ligne in sortie.splitlines():
-        if ligne.startswith("─── Frontend contract delta"):
-            dedans = True
+def _delta_lines(output):
+    """The report lines, without the compilation noise nor the banners specific
+    to each of the two gestures."""
+    kept, inside = [], False
+    for line in output.splitlines():
+        if line.startswith("─── Frontend contract delta"):
+            inside = True
             continue
-        if dedans:
-            if ligne.startswith("───"):
+        if inside:
+            if line.startswith("───"):
                 break
-            if "Instructions ready" in ligne:
-                continue  # propre à `update`, qui écrit le brief
-            gardees.append(ligne.rstrip())
-    return gardees
+            if "Instructions ready" in line:
+                continue  # specific to `update`, which writes the brief
+            kept.append(line.rstrip())
+    return kept
 
 
-def _modifier(projet):
-    spec = (projet / "spec.ml").read_text(encoding="utf-8")
+def _modifier(project):
+    spec = (project / "spec.ml").read_text(encoding="utf-8")
     spec = spec.replace("    corps: Text", "    corps: Text\n    chapeau: String")
     spec = spec.replace("rule Article.Read public",
                         "rule Article.Read public\n"
                         'rule Article.statut oneOf "brouillon", "publie"')
     spec = spec.replace("    titre: String", "    titre: String\n    statut: String")
-    (projet / "spec.ml").write_text(spec, encoding="utf-8")
+    (project / "spec.ml").write_text(spec, encoding="utf-8")
 
 
 # --------------------------------------------------------------------------
-# Ce que le dry-run ne doit PAS faire
+# What the dry run must NOT do
 # --------------------------------------------------------------------------
 
-def test_diff_necrit_rien_quand_la_spec_a_change(projet, capsys):
-    """LE test qui porte le geste. L'empreinte porte sur l'arbre entier."""
-    _modifier(projet)
-    avant = _empreinte(projet)
-    cmd_diff(str(projet))
+def test_diff_writes_nothing_when_the_spec_changed(project, capsys):
+    """THE test that carries the gesture. The fingerprint covers the whole tree."""
+    _modifier(project)
+    before = _fingerprint(project)
+    cmd_diff(str(project))
     capsys.readouterr()
-    assert _empreinte(projet) == avant
+    assert _fingerprint(project) == before
 
 
-def test_diff_necrit_pas_la_consigne_devolution(projet, capsys):
-    """`update` écrit FRONTEND_UPDATE_PROMPT.md quand il y a de quoi réécrire.
-    `diff` doit annoncer le même changement et ne rien déposer."""
-    _modifier(projet)
-    cmd_diff(str(projet))
+def test_diff_does_not_write_the_evolution_instruction(project, capsys):
+    """`update` writes FRONTEND_UPDATE_PROMPT.md when there is something to
+    rewrite. `diff` must announce the same change and drop nothing."""
+    _modifier(project)
+    cmd_diff(str(project))
     capsys.readouterr()
-    assert not (projet / "docs/FRONTEND_UPDATE_PROMPT.md").exists()
+    assert not (project / "docs/FRONTEND_UPDATE_PROMPT.md").exists()
 
-    cmd_update(str(projet))
+    cmd_update(str(project))
     capsys.readouterr()
-    assert (projet / "docs/FRONTEND_UPDATE_PROMPT.md").exists()
+    assert (project / "docs/FRONTEND_UPDATE_PROMPT.md").exists()
 
 
-def test_diff_ne_touche_pas_au_contrat_de_reference(projet, capsys):
-    """Le contrat déjà posé est la RÉFÉRENCE de la comparaison : l'écraser
-    pendant un dry-run rendrait le geste suivant aveugle."""
-    _modifier(projet)
-    avant = (projet / "frontend_contract.json").read_text(encoding="utf-8")
-    cmd_diff(str(projet))
+def test_diff_does_not_touch_the_reference_contract(project, capsys):
+    """The contract already in place is the comparison's REFERENCE: overwriting
+    it during a dry run would make the next gesture blind."""
+    _modifier(project)
+    before = (project / "frontend_contract.json").read_text(encoding="utf-8")
+    cmd_diff(str(project))
     capsys.readouterr()
-    assert (projet / "frontend_contract.json").read_text(encoding="utf-8") == avant
+    assert (project / "frontend_contract.json").read_text(encoding="utf-8") == before
 
 
 # --------------------------------------------------------------------------
-# Ce qu'il doit dire
+# What it must say
 # --------------------------------------------------------------------------
 
-def test_diff_et_update_disent_exactement_la_meme_chose(projet, capsys):
-    """Le test que le geste réclamait dès sa conception : un rapport, une
-    source. Deux implémentations du delta finiraient par diverger."""
-    _modifier(projet)
-    cmd_diff(str(projet))
-    par_diff = _lignes_de_delta(capsys.readouterr().out)
-    cmd_update(str(projet))
-    par_update = _lignes_de_delta(capsys.readouterr().out)
+def test_diff_and_update_say_exactly_the_same_thing(project, capsys):
+    """The test the gesture called for from its design: one report, one source.
+    Two implementations of the delta would end up diverging."""
+    _modifier(project)
+    cmd_diff(str(project))
+    par_diff = _delta_lines(capsys.readouterr().out)
+    cmd_update(str(project))
+    par_update = _delta_lines(capsys.readouterr().out)
 
     assert par_diff == par_update
-    assert par_diff, "le banc doit produire un delta, sinon il ne compare rien"
+    assert par_diff, "the bench must produce a delta, otherwise it compares nothing"
 
 
-def test_diff_se_tait_quand_la_spec_na_pas_bouge(projet, capsys):
-    cmd_diff(str(projet))
-    sortie = capsys.readouterr().out
-    assert "no interface changes" in sortie
-    assert "monl update" not in sortie, \
-        "ne pas envoyer appliquer un changement qui n'existe pas"
+def test_diff_stays_quiet_when_the_spec_did_not_move(project, capsys):
+    cmd_diff(str(project))
+    output = capsys.readouterr().out
+    assert "no interface changes" in output
+    assert "monl update" not in output, \
+        "do not send people to apply a change that does not exist"
 
 
-def test_diff_annonce_quil_na_rien_ecrit(projet, capsys):
-    _modifier(projet)
-    cmd_diff(str(projet))
-    sortie = capsys.readouterr().out
-    assert "[DRY-RUN]" in sortie
-    assert "No files changed" in sortie
+def test_diff_announces_it_wrote_nothing(project, capsys):
+    _modifier(project)
+    cmd_diff(str(project))
+    output = capsys.readouterr().out
+    assert "[DRY-RUN]" in output
+    assert "No files changed" in output
 
 
-def test_diff_renvoie_vers_update_quand_il_y_a_de_quoi(projet, capsys):
-    _modifier(projet)
-    cmd_diff(str(projet))
+def test_diff_points_to_update_when_there_is_something(project, capsys):
+    _modifier(project)
+    cmd_diff(str(project))
     assert "monl update" in capsys.readouterr().out
 
 
-def test_diff_sans_etat_de_projet_sarrete(tmp_path, capsys):
+def test_diff_without_project_state_stops(tmp_path, capsys):
     with pytest.raises(SystemExit):
         cmd_diff(str(tmp_path))
     assert "not found" in capsys.readouterr().out
 
 
 # --------------------------------------------------------------------------
-# Le piège que le dossier temporaire tendait
+# The trap the temporary folder set
 # --------------------------------------------------------------------------
 
-SPEC_AVEC_ASSET = SPEC.replace("entity Article", """assets
+SPEC_WITH_ASSET = SPEC.replace("entity Article", """assets
     logo: "medias/logo.svg"
 
 entity Article""")
 
 
-def test_diff_trouve_les_assets_du_vrai_projet(tmp_path, capsys):
-    """Le piège du dossier jetable. `compile_project` vérifiait l'existence des
-    assets dans son dossier de SORTIE ; en compilant ailleurs, un projet
-    parfaitement valide aurait échoué en annonçant un fichier manquant qui, lui,
-    est bien là. C'est pour ça que `base_dir` a dû devenir un paramètre."""
+def test_diff_finds_the_real_projects_assets(tmp_path, capsys):
+    """The throwaway folder trap. `compile_project` checked asset existence in
+    its OUTPUT folder; compiling elsewhere, a perfectly valid project would have
+    failed announcing a missing file that is actually there. That is why
+    `base_dir` had to become a parameter."""
     (tmp_path / "medias").mkdir()
     (tmp_path / "medias" / "logo.svg").write_text(
         '<svg xmlns="http://www.w3.org/2000/svg"></svg>', encoding="utf-8")
-    (tmp_path / "spec.ml").write_text(SPEC_AVEC_ASSET, encoding="utf-8")
+    (tmp_path / "spec.ml").write_text(SPEC_WITH_ASSET, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     capsys.readouterr()
 
     cmd_diff(str(tmp_path))
-    sortie = capsys.readouterr().out
-    assert "no interface changes" in sortie
-    assert "not found" not in sortie
-    assert "manquant" not in sortie
+    output = capsys.readouterr().out
+    assert "no interface changes" in output
+    assert "not found" not in output
+    assert "manquant" not in output
 
 
-def test_une_spec_cassee_montre_le_message_du_compilateur(projet, capsys):
-    """Quand la compilation d'essai échoue, c'est SON message qui est utile —
-    le nôtre ne dirait que « ça n'a pas marché »."""
-    spec = (projet / "spec.ml").read_text(encoding="utf-8")
-    (projet / "spec.ml").write_text(
+def test_a_broken_spec_shows_the_compiler_message(project, capsys):
+    """When the trial compilation fails, ITS message is the useful one — ours
+    would only say "it did not work"."""
+    spec = (project / "spec.ml").read_text(encoding="utf-8")
+    (project / "spec.ml").write_text(
         spec + "rule Article.fantome hidden\n", encoding="utf-8")
     with pytest.raises(SystemExit):
-        cmd_diff(str(projet))
+        cmd_diff(str(project))
     assert "fantome" in capsys.readouterr().out

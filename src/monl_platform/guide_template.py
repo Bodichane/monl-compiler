@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .coloration import coloriser
+from .coloration import colorize
 
 EXTRA_CSS = """
 .doc { display: grid; grid-template-columns: 248px minmax(0, 1fr); gap: var(--space-7);
@@ -88,7 +88,7 @@ SCRIPT = """
 </script>
 """
 
-SPEC_EXEMPLE = coloriser("""# A complete specification fits on one page.
+SPEC_EXAMPLE = colorize("""# A complete specification fits on one page.
 app WorkshopNotebook
 
 entity Note

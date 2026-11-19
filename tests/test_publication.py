@@ -1,4 +1,4 @@
-"""La publication est sans secret et ses témoins mordent vraiment."""
+"""Publishing is secretless and its witnesses really bite."""
 
 import os
 import re
@@ -8,7 +8,7 @@ import pytest
 import yaml
 
 from scripts.check_publication_version import PublicationVersionError, validate_tag_version
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cases import check_each_case
 
 
 def _racine():
@@ -16,26 +16,26 @@ def _racine():
 
 
 def _guide():
-    with open(os.path.join(_racine(), "docs", "PUBLICATION.md"), encoding="utf-8") as fichier:
-        return fichier.read()
+    with open(os.path.join(_racine(), "docs", "PUBLICATION.md"), encoding="utf-8") as file:
+        return file.read()
 
 
-def _workflow(nom="publication.yml"):
-    chemin = Path(_racine()) / ".github" / "workflows" / nom
-    with chemin.open(encoding="utf-8") as fichier:
-        return yaml.safe_load(fichier)
+def _workflow(name="publication.yml"):
+    path = Path(_racine()) / ".github" / "workflows" / name
+    with path.open(encoding="utf-8") as file:
+        return yaml.safe_load(file)
 
 
-def _extras_installes(job):
-    """Les extras que le job passe à `pip install -e ".[…]"`.
+def _extras_installed(job):
+    """The extras the job passes to `pip install -e ".[…]"`.
 
-    Un job qui n'installe le paquet par aucune commande de cette forme lève :
-    rendre un ensemble vide ferait passer l'égalité entre deux jobs muets.
+    A job installing the package through no command of this form raises:
+    returning an empty set would make equality pass between two silent jobs.
     """
-    commandes = "\n".join(etape.get("run", "") for etape in job["steps"])
-    trouves = re.findall(r'pip install -e "\.\[([^\]]*)\]"', commandes)
-    assert len(trouves) == 1, f"installation du paquet introuvable ou multiple : {trouves}"
-    return {extra.strip() for extra in trouves[0].split(",")}
+    commands = "\n".join(step.get("run", "") for step in job["steps"])
+    found = re.findall(r'pip install -e "\.\[([^\]]*)\]"', commands)
+    assert len(found) == 1, f"package installation not found or multiple: {found}"
+    return {extra.strip() for extra in found[0].split(",")}
 
 
 def _project():
@@ -44,23 +44,23 @@ def _project():
     except ModuleNotFoundError:  # Python 3.10
         import tomli as tomllib
 
-    with open(os.path.join(_racine(), "pyproject.toml"), "rb") as fichier:
-        return tomllib.load(fichier)["project"]
+    with open(os.path.join(_racine(), "pyproject.toml"), "rb") as file:
+        return tomllib.load(file)["project"]
 
 
-def test_le_guide_publie_la_meme_version_dans_le_bon_ordre():
+def test_the_guide_publishes_the_same_version_in_the_right_order():
     guide = _guide()
     project = _project()
 
     assert project["name"] in guide
     assert project["version"] in guide
-    commandes = (
+    commands = (
         "python -m build",
         "python -m twine check dist/*",
         "python -m twine upload --repository testpypi dist/*",
         "python -m twine upload dist/*",
     )
-    positions = [guide.index(commande) for commande in commandes]
+    positions = [guide.index(command) for command in commands]
     assert positions == sorted(positions)
     assert "https://test.pypi.org/simple/" in guide
     assert "https://pypi.org/simple/" in guide
@@ -68,7 +68,7 @@ def test_le_guide_publie_la_meme_version_dans_le_bon_ordre():
     assert "https://upload.pypi.org/legacy/" in guide
 
 
-def test_le_guide_isole_les_identifiants_du_depot_et_des_commandes():
+def test_the_guide_isolates_repository_and_command_identifiers():
     guide = _guide()
 
     assert "~/.pypirc" in guide
@@ -78,44 +78,43 @@ def test_le_guide_isole_les_identifiants_du_depot_et_des_commandes():
     assert "Do not rebuild between the two uploads" in guide
 
 
-def test_le_guide_fait_vider_dist_avant_de_construire():
-    """`dist/` survit d'une construction à l'autre, et `twine upload dist/*`
-    envoie TOUT ce qu'il y trouve.
+def test_the_guide_empties_dist_before_building():
+    """`dist/` survives from one build to the next, and `twine upload dist/*`
+    sends EVERYTHING it finds there.
 
-    Le dossier est ignoré par git, donc absent d'un dépôt fraîchement cloné —
-    mais présent sur la machine qui publie, qui est précisément celle qui a
-    déjà construit. Mesuré au moment d'écrire ce témoin : `dist/` portait
-    `monl_compiler-0.9.0b7` alors que la version à publier était `0.9.0b8`.
-    Sans nettoyage, les deux partent, et **un numéro de version envoyé à PyPI
-    ne peut plus être réutilisé, même après suppression** : la faute est
-    définitive.
+    The folder is ignored by git, so absent from a freshly cloned repository —
+    but present on the publishing machine, which is precisely the one that has
+    already built. Measured when writing this witness: `dist/` carried
+    `monl_compiler-0.9.0b7` while the version to publish was `0.9.0b8`. Without
+    cleaning, both go, and **a version number sent to PyPI can never be reused,
+    even after deletion**: the mistake is final.
 
-    Le témoin exige le nettoyage AVANT `python -m build` — l'ordre EST la
-    garantie, un `rm -rf dist/` écrit après ne protégerait de rien.
+    The witness requires cleaning BEFORE `python -m build` — the order IS the
+    guarantee, an `rm -rf dist/` written after would protect from nothing.
     """
     guide = _guide()
 
     assert "rm -rf dist/" in guide, (
-        "le guide construit sans vider dist/ : une version périmée déjà "
-        "présente serait publiée avec la nouvelle")
+        "the guide builds without emptying dist/: a stale version already "
+        "present would be published with the new one")
     assert guide.index("rm -rf dist/") < guide.index("python -m build"), (
-        "le nettoyage est écrit APRÈS la construction : il ne protège de rien")
-    # La conséquence doit être écrite, sinon la commande passe pour une
-    # coquetterie et le premier qui publie sous pression la saute.
+        "cleaning is written AFTER building: it protects from nothing")
+    # The consequence must be written, otherwise the command looks like a fad
+    # and the first person publishing under pressure skips it.
     assert "cannot be reused" in guide or "does not allow republishing" in guide, (
-        "le guide ne dit pas qu'un numéro de version envoyé est définitif")
+        "the guide does not say an uploaded version number is final")
 
 
-def test_le_tag_qui_correspond_est_accepte():
+def test_the_matching_tag_is_accepted():
     validate_tag_version("v0.9.0-beta.8", "0.9.0-beta.8")
 
 
-def test_le_tag_qui_diverge_est_refuse_et_nomme_les_deux_valeurs():
+def test_the_diverging_tag_is_refused_and_names_both_values():
     with pytest.raises(PublicationVersionError, match=r"v0\.9\.0b9.*0\.9\.0-beta\.8"):
         validate_tag_version("v0.9.0b9", "0.9.0-beta.8")
 
 
-def test_les_deux_ecritures_d_une_meme_version_sont_acceptees():
+def test_both_spellings_of_one_version_are_accepted():
     table = [
         ("v0.9.0b8", "0.9.0-beta.8"),
         ("v0.9.0-beta.8", "0.9.0b8"),
@@ -124,10 +123,10 @@ def test_les_deux_ecritures_d_une_meme_version_sont_acceptees():
     def cas(tag, declared_version):
         validate_tag_version(tag, declared_version)
 
-    verifier_chaque_cas(table, cas)
+    check_each_case(table, cas)
 
 
-def test_le_workflow_est_parse_et_porte_la_chaine_sans_secret():
+def test_the_workflow_parses_and_carries_the_secretless_chain():
     workflow = _workflow()
     jobs = workflow["jobs"]
     triggers = workflow.get("on", workflow.get(True))
@@ -152,33 +151,33 @@ def test_le_workflow_est_parse_et_porte_la_chaine_sans_secret():
     assert jobs["publish-testpypi"]["environment"] == "testpypi"
     assert jobs["publish-pypi"]["environment"] == "pypi"
 
-    contenu = (Path(_racine()) / ".github" / "workflows" / "publication.yml").read_text(
+    content = (Path(_racine()) / ".github" / "workflows" / "publication.yml").read_text(
         encoding="utf-8"
     )
-    assert "secrets." not in contenu
-    assert contenu.count("python -m build") == 1
-    assert "actions/upload-artifact@v4.6.2" in contenu
-    assert contenu.count("actions/download-artifact@v4.3.0") == 2
-    assert "pypa/gh-action-pypi-publish@v1.14.2" in contenu
-    actions = re.findall(r"uses:\s+([^\s]+)", contenu)
+    assert "secrets." not in content
+    assert content.count("python -m build") == 1
+    assert "actions/upload-artifact@v4.6.2" in content
+    assert content.count("actions/download-artifact@v4.3.0") == 2
+    assert "pypa/gh-action-pypi-publish@v1.14.2" in content
+    actions = re.findall(r"uses:\s+([^\s]+)", content)
     assert actions and all(re.search(r"@v\d+\.\d+\.\d+$", action) for action in actions)
 
 
-def test_le_lint_et_les_tests_sont_des_dependances_de_la_construction():
+def test_lint_and_tests_are_dependencies_of_the_build():
     workflow = _workflow()
     build = workflow["jobs"]["build"]
     tests_steps = workflow["jobs"]["tests"]["steps"]
-    commandes = [etape.get("run", "") for etape in tests_steps]
+    commands = [step.get("run", "") for step in tests_steps]
 
-    assert "ruff check src tests" in commandes
-    assert any("pytest tests/" in commande for commande in commandes)
+    assert "ruff check src tests" in commands
+    assert any("pytest tests/" in command for command in commands)
     assert set(build["needs"]) >= {"tests", "verify-tag"}
 
 
-def test_le_guide_nomme_le_workflow_et_les_environnements_reels():
+def test_the_guide_names_the_real_workflow_and_environments():
     guide = _guide()
     workflow = _workflow()
-    environnements = {
+    environments = {
         job["environment"]
         for job in workflow["jobs"].values()
         if "environment" in job
@@ -189,66 +188,66 @@ def test_le_guide_nomme_le_workflow_et_les_environnements_reels():
     assert "| Workflow | `publication.yml` |" in guide
     assert "| Environment | `pypi` |" in guide
     assert "| Environment | `testpypi` |" in guide
-    assert {"testpypi", "pypi"} <= environnements
-    for environnement in environnements:
-        assert f"`{environnement}`" in guide
+    assert {"testpypi", "pypi"} <= environments
+    for environment in environments:
+        assert f"`{environment}`" in guide
 
 
-def test_le_tableau_de_l_editeur_de_confiance_dit_le_vrai_depot():
-    """Un champ faux dans ce tableau produit `invalid-publisher`, sans plus.
+def test_the_trusted_publisher_table_names_the_real_repository():
+    """A wrong field in this table produces `invalid-publisher`, nothing more.
 
-    PyPI ne vérifie pas l'éditeur de confiance au moment où on le déclare : il
-    le confronte au jeton OIDC lors de l'envoi. Une faute sur le propriétaire,
-    le dépôt ou le nom du projet ne se voit donc qu'à la publication, sous la
-    forme d'un refus qui ne dit pas LEQUEL des champs est faux — et le
-    mainteneur n'a aucun moyen de le deviner depuis GitHub.
+    PyPI does not check the trusted publisher when it is declared: it checks it
+    against the OIDC token at upload time. A mistake on the owner, the repository
+    or the project name therefore only shows at publishing, as a refusal that
+    does not say WHICH field is wrong — and the maintainer has no way to guess
+    it from GitHub.
 
-    Le tableau est donc confronté à `[project.urls].Repository`, qui est déjà
-    figé par `tests/test_package_metadata.py`. Deux vérités tenues séparément
-    finissent toujours par se contredire : ici l'une est une métadonnée
-    publiée, l'autre une consigne à recopier à la main dans un formulaire.
+    The table is therefore checked against `[project.urls].Repository`, which is
+    already pinned by `tests/test_package_metadata.py`. Two truths kept
+    separately always end up contradicting each other: here one is published
+    metadata, the other an instruction to copy by hand into a form.
     """
     import re
 
     project = _project()
     depot = project["urls"]["Repository"]
-    correspondance = re.fullmatch(
+    match = re.fullmatch(
         r"https://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?", depot)
-    assert correspondance, f"URL de dépôt illisible : {depot!r}"
-    proprietaire, nom_du_depot = correspondance.groups()
+    assert match, f"unreadable repository URL: {depot!r}"
+    owner, name_of_upload = match.groups()
 
     guide = _guide()
-    # Deux tableaux : PyPI et TestPyPI. Les DEUX doivent porter la valeur —
-    # n'en vérifier qu'un laisserait l'instance d'essai diverger, et c'est
-    # justement celle qu'on remplit en premier.
+    # Two tables: PyPI and TestPyPI. BOTH must carry the value — checking only
+    # one would let the test instance diverge, and it is precisely the one
+    # filled in first.
     for etiquette, valeur in (
         ("Project", project["name"]),
-        ("Repository owner", proprietaire),
-        ("Repository", nom_du_depot),
+        ("Repository owner", owner),
+        ("Repository", name_of_upload),
     ):
-        ligne = f"| {etiquette} | `{valeur}` |"
-        assert guide.count(ligne) == 2, (
-            f"le guide devrait porter deux fois {ligne!r} (PyPI et TestPyPI), "
-            f"il le porte {guide.count(ligne)} fois — l'éditeur de confiance "
-            f"refuserait l'envoi sans dire quel champ est faux")
+        line = f"| {etiquette} | `{valeur}` |"
+        assert guide.count(line) == 2, (
+            f"the guide should carry {line!r} twice (PyPI and TestPyPI), "
+            f"it carries it {guide.count(line)} times — the trusted publisher "
+            f"would refuse the upload without saying which field is wrong")
 
 
-def test_la_publication_eprouve_le_tag_dans_l_environnement_de_la_ci():
-    """Même raison que la matrice, portée sur ce qui est INSTALLÉ et MONTÉ.
+def test_publishing_tests_the_tag_in_the_ci_environment():
+    """Same reason as the matrix, applied to what is INSTALLED and MOUNTED.
 
-    La première exécution réelle de cette chaîne, sur le tag v0.9.0-beta.9, a
-    échoué sur un seul test : la publication installait `.[dev]` quand la CI
-    installe `.[dev,postgres]`, et `psycopg` manquait. Rien n'était publié —
-    le garde-fou a tenu — mais la cause est une liste tenue à la main à deux
-    endroits. Pire que le test rouge : sans le service PostgreSQL, seize
-    tests auraient SAUTÉ ici alors qu'ils s'exécutent en CI, et la chaîne
-    aurait publié un tag moins éprouvé que le commit de `main`.
+    The first real run of this chain, on tag v0.9.0-beta.9, failed on a single
+    test: publishing installed `.[dev]` while CI installs `.[dev,postgres]`, and
+    `psycopg` was missing. Nothing was published — the safeguard held — but the
+    cause is a list kept by hand in two places. Worse than the red test: without
+    the PostgreSQL service, sixteen tests would have SKIPPED here while running
+    in CI, and the chain would have published a tag less tested than `main`'s
+    commit.
     """
     ci = _workflow("ci.yml")["jobs"]["verifier"]
     publication = _workflow()["jobs"]["tests"]
 
-    extras_ci = _extras_installes(ci)
-    assert "postgres" in extras_ci, "prémisse : la CI éprouve PostgreSQL"
-    assert _extras_installes(publication) == extras_ci
+    extras_ci = _extras_installed(ci)
+    assert "postgres" in extras_ci, "premise: CI tests PostgreSQL"
+    assert _extras_installed(publication) == extras_ci
     assert publication.get("services") == ci.get("services")
     assert publication.get("env") == ci.get("env")

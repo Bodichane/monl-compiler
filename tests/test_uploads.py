@@ -1,9 +1,9 @@
-"""Brique B1 : dépôt final, ACL du fichier et stockage hors artefacts.
+"""Brick B1: final upload, file ACL and storage outside artifacts.
 
-Le client de ce test est volontairement aussi borné qu'un frontend produit
-par le contrat : le champ multipart, la limite de 16 octets et les MIME sont
-des valeurs écrites en dur ici. Une évolution de la règle doit donc casser ce
-smoke test, comme elle casserait un vrai client vérificateur.
+This test's client is deliberately as narrow as a frontend produced from the
+contract: the multipart field, the 16-byte limit and the MIME types are
+hard-coded here. A change to the rule must therefore break this smoke test,
+as it would break a real checking client.
 """
 
 from __future__ import annotations
@@ -63,7 +63,7 @@ def upload_database_url(request):
         return
     base = os.environ.get("MONL_TEST_DATABASE_URL", "").strip()
     if not base:
-        pytest.skip("MONL_TEST_DATABASE_URL absent : PostgreSQL d'intégration non demandé")
+        pytest.skip("MONL_TEST_DATABASE_URL missing: integration PostgreSQL not requested")
     try:
         import psycopg
     except ImportError:
@@ -121,7 +121,7 @@ def _account(base, name):
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
 
-def test_la_forme_upload_est_distincte_et_complete(capsys):
+def test_the_upload_form_is_distinct_and_complete(capsys):
     ast = MonlAST(parse_monl_string(SPEC)).validate_and_audit()
     assert ast["schema"]["entities"]["Profile"][FIELD_NAME] == "Upload"
     assert ast["security"]["upload_fields"] == [{
@@ -131,7 +131,7 @@ def test_la_forme_upload_est_distincte_et_complete(capsys):
     capsys.readouterr()
 
 
-def test_un_upload_sans_regle_ne_produit_pas_une_fausse_promesse(capsys):
+def test_an_upload_without_rule_makes_no_false_promise(capsys):
     spec = SPEC.replace(
         'rule Profile.avatar upload max 16 types "image/png", "image/jpeg"\n', "")
     with pytest.raises(ASTValidationError, match="has no upload rule"):
@@ -139,7 +139,7 @@ def test_un_upload_sans_regle_ne_produit_pas_une_fausse_promesse(capsys):
     capsys.readouterr()
 
 
-def test_la_signature_frontend_voit_la_limite_et_les_types(capsys):
+def test_the_frontend_signature_sees_the_limit_and_types(capsys):
     ast = MonlAST(parse_monl_string(SPEC)).validate_and_audit()
     generator = MonlSecureGenerator(ast)
     contract = build_contract(ast, generator)
@@ -150,7 +150,7 @@ def test_la_signature_frontend_voit_la_limite_et_les_types(capsys):
     capsys.readouterr()
 
 
-def test_html_et_svg_ne_sont_pas_des_types_upload_acceptes(capsys):
+def test_html_and_svg_are_not_accepted_upload_types(capsys):
     spec = SPEC.replace(
         'rule Profile.avatar upload max 16 types "image/png", "image/jpeg"',
         'rule Profile.avatar upload max 16 types "text/html"',
@@ -162,7 +162,7 @@ def test_html_et_svg_ne_sont_pas_des_types_upload_acceptes(capsys):
     capsys.readouterr()
 
 
-def test_upload_reel_acl_octets_limite_type_nom_et_suppression(upload_database_url):
+def test_real_upload_acl_bytes_limit_type_name_and_deletion(upload_database_url):
     with application(upload_database_url) as (directory, storage, base):
         alice = _account(base, f"alice-upload-{uuid4().hex[:8]}")
         bob = _account(base, f"bob-upload-{uuid4().hex[:8]}")

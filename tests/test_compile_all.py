@@ -1,26 +1,24 @@
-"""
-Test de non-régression : chaque fichier de exemples/*.ml (ou *.yaml, ancienne extension) doit compiler
-sans exception. Conçu pour tourner en local (pytest) et en CI (voir
-.github/workflows/ci.yml), et détecter une régression comme celle du bug
-v6 #2 (un exemple casse silencieusement après un refactor) avant qu'elle
-ne s'accumule sur plusieurs versions.
+"""Non-regression test: every file of exemples/*.ml (or *.yaml, the old
+extension) must compile without exception. Designed to run locally (pytest)
+and in CI (see .github/workflows/ci.yml), and to catch a regression like bug
+v6 #2 (an example silently breaking after a refactor) before it piles up over
+several versions.
 
-Usage local : pytest tests/test_compile_all.py -v
+Local usage: pytest tests/test_compile_all.py -v
 
-POINT 64 : ces tests compilaient DANS LA RACINE DU DÉPÔT — chaque exécution
-de la suite y redéposait app.py, schema.sql, sandbox_ai.py, manage.py et
-.jwt_secret, et le rituel de nettoyage de CLAUDE.md existait pour ça. Le
-générateur accepte un output_dir depuis longtemps ; il est désormais utilisé.
-Compiler ailleurs que dans le dépôt rend aussi les assertions plus fortes :
-un artefact trouvé ne peut plus être le reliquat d'une compilation
-précédente.
+POINT 64: these tests compiled IN THE REPOSITORY ROOT — every run of the
+suite dropped app.py, schema.sql, sandbox_ai.py, manage.py and .jwt_secret
+there again, and CLAUDE.md's cleanup ritual existed for that. The generator
+has long accepted an output_dir; it is now used. Compiling outside the
+repository also makes the assertions stronger: an artifact found can no
+longer be the leftover of a previous compilation.
 
-POINT 85 : `base_dir` est désormais passé au validateur. Sans lui, la
-vérification d'EXISTENCE des assets (brique 13, point 83) se tait — et se
-taisait ici, puisque aucun exemple ne déclarait d'assets. `01_portfolio.ml` en
-déclare maintenant : ces tests vérifient donc aussi que les fichiers du dossier
-`exemples/assets/` sont RÉELLEMENT là. Retirer `base_dir` rendrait ces
-compilations muettes sur la moitié de ce qu'elles éprouvent.
+POINT 85: `base_dir` is now passed to the validator. Without it, the asset
+EXISTENCE check (brick 13, point 83) stays silent — and stayed silent here,
+since no example declared assets. `01_portfolio.ml` now declares some: these
+tests therefore also check that the files of `exemples/assets/` are REALLY
+there. Removing `base_dir` would make these compilations silent on half of
+what they test.
 """
 import ast
 import glob
@@ -30,96 +28,97 @@ import tempfile
 from monl.ast_validator import MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_file
-from tests.support.cas import verifier_chaque_cas
+from tests.support.cases import check_each_case
 
-EXEMPLES_DIR = os.path.join(os.path.dirname(__file__), "../exemples")
-PLUGIN_EXEMPLES_DIR = os.path.join(os.path.dirname(__file__), "../plugin/reference/exemples")
+EXAMPLES_DIR = os.path.join(os.path.dirname(__file__), "../exemples")
+PLUGIN_EXAMPLES_DIR = os.path.join(os.path.dirname(__file__), "../plugin/reference/exemples")
 EXAMPLE_FILES = sorted(
-    path for directory in (EXEMPLES_DIR, PLUGIN_EXEMPLES_DIR)
+    path for directory in (EXAMPLES_DIR, PLUGIN_EXAMPLES_DIR)
     for extension in ("ml", "monl", "yaml")
     for path in glob.glob(os.path.join(directory, "**", f"*.{extension}"), recursive=True))
 
 
 def test_example_compiles():
-    """Compile le socle déterministe (parsing + audit + génération) pour
-    chaque exemple, et vérifie qu'il aboutit sans erreur."""
+    """Compiles the deterministic base (parsing + audit + generation) for each
+    example, and checks that it succeeds without error."""
     table = EXAMPLE_FILES
-    noms = [os.path.basename(p) for p in EXAMPLE_FILES]
+    names = [os.path.basename(p) for p in EXAMPLE_FILES]
 
     def cas(yaml_path):
         raw_json = parse_monl_file(yaml_path)
         ast_manager = MonlAST(raw_json, base_dir=os.path.dirname(yaml_path))
         normalized_ast = ast_manager.validate_and_audit()
-        with tempfile.TemporaryDirectory() as sortie:
-            MonlSecureGenerator(normalized_ast, output_dir=sortie).generate_all()
+        with tempfile.TemporaryDirectory() as output:
+            MonlSecureGenerator(normalized_ast, output_dir=output).generate_all()
 
-            # Vérifie que les 3 artefacts d'infrastructure attendus ont bien été
-            # produits. SUPPRESSION (roadmap, sur demande explicite) :
-            # 'frontend.html' (l'ancien back-office React '/ui') n'est plus généré
-            # du tout — voir docs/design_decisions.md, point 22. Plus AUCUN front
-            # n'est généré depuis le pivot (point 41) — voir le dernier test.
-            for artefact in ("app.py", "schema.sql"):
-                artefact_path = os.path.join(sortie, artefact)
-                assert os.path.exists(artefact_path), f"{artefact} n'a pas été généré pour {os.path.basename(yaml_path)}"
-            # Une présence sur disque ne prouve pas qu'un émetteur a produit un
-            # module importable. Parser chaque source générée attrape immédiatement
-            # une quote ou une indentation cassée, sans exécuter le code produit ni
-            # dépendre d'un service externe.
+            # Checks that the 3 expected infrastructure artifacts were
+            # produced. REMOVAL (roadmap, on explicit request): 'frontend.html'
+            # (the old React back office '/ui') is no longer generated at all —
+            # see docs/design_decisions.md, point 22. NO frontend at all is
+            # generated since the pivot (point 41) — see the last test.
+            for artifact in ("app.py", "schema.sql"):
+                artifact_path = os.path.join(output, artifact)
+                assert os.path.exists(artifact_path), f"{artifact} was not generated for {os.path.basename(yaml_path)}"
+            # Presence on disk does not prove an emitter produced an importable
+            # module. Parsing each generated source catches a broken quote or
+            # indentation at once, without running the produced code or
+            # depending on an external service.
             for module in ("app.py", "manage.py", "sandbox_ai.py"):
-                module_path = os.path.join(sortie, module)
+                module_path = os.path.join(output, module)
                 if os.path.exists(module_path):
                     with open(module_path, encoding="utf-8") as generated:
                         ast.parse(generated.read(), filename=module)
-            # `sandbox_ai.py` n'est plus livré à un projet SANS bloc `custom` :
-            # il ne contenait qu'un commentaire, `app.py` l'importait sans jamais
-            # l'appeler, et le supprimer faisait échouer le démarrage. Aucun des
-            # cinq exemples n'a de bloc `custom` — son absence est donc la bonne
-            # sortie, et on l'affirme plutôt que de cesser de regarder.
-            assert not os.path.exists(os.path.join(sortie, "sandbox_ai.py")), (
-                f"{os.path.basename(yaml_path)} n'a aucun bloc 'custom' et reçoit "
-            "pourtant le module vide")
+            # `sandbox_ai.py` is no longer shipped to a project WITHOUT a
+            # `custom` block: it only held a comment, `app.py` imported it
+            # without ever calling it, and deleting it made startup fail. None
+            # of the five examples has a `custom` block — its absence is
+            # therefore the right output, and we assert it rather than stop
+            # looking.
+            assert not os.path.exists(os.path.join(output, "sandbox_ai.py")), (
+                f"{os.path.basename(yaml_path)} has no 'custom' block and yet "
+            "gets the empty module")
 
-    verifier_chaque_cas([(valeur,) for valeur in table], cas, ids=noms)
+    check_each_case([(valeur,) for valeur in table], cas, ids=names)
 
 
 def test_at_least_one_example_exists():
-    """Garde-fou : évite un faux 'tout est vert' si le dossier exemples/ est vide."""
-    for directory in (EXEMPLES_DIR, PLUGIN_EXEMPLES_DIR):
+    """Safeguard: avoids a false 'all green' if the exemples/ folder is empty."""
+    for directory in (EXAMPLES_DIR, PLUGIN_EXAMPLES_DIR):
         assert any(p.startswith(directory + os.sep)
                    for p in EXAMPLE_FILES), f"No specs in {directory}"
 
 
 def test_no_example_ever_produces_frontend_html():
-    """SUPPRESSION (roadmap, sur demande explicite) : verrouille l'absence de
-    tout back-office '/ui' auto-généré — pour TOUS les exemples, y compris
-    ceux avec un bloc 'landing'. Si 'frontend.html' réapparaît un jour (ex.
-    une régression qui restaure _generate_frontend), ce test doit échouer."""
+    """REMOVAL (roadmap, on explicit request): locks the absence of any
+    auto-generated '/ui' back office — for ALL examples, including those with a
+    'landing' block. If 'frontend.html' ever reappears (e.g. a regression
+    restoring _generate_frontend), this test must fail."""
     for yaml_path in EXAMPLE_FILES:
         raw_json = parse_monl_file(yaml_path)
         normalized_ast = MonlAST(raw_json, base_dir=os.path.dirname(yaml_path)).validate_and_audit()
-        with tempfile.TemporaryDirectory() as sortie:
-            MonlSecureGenerator(normalized_ast, output_dir=sortie).generate_all()
-            frontend_path = os.path.join(sortie, "frontend.html")
+        with tempfile.TemporaryDirectory() as output:
+            MonlSecureGenerator(normalized_ast, output_dir=output).generate_all()
+            frontend_path = os.path.join(output, "frontend.html")
         assert not os.path.exists(frontend_path), (
-            f"'frontend.html' a été généré pour {os.path.basename(yaml_path)} — "
-            f"monl ne doit plus jamais produire de back-office auto-généré."
+            f"'frontend.html' was generated for {os.path.basename(yaml_path)} — "
+            f"monl must never again produce an auto-generated back office."
         )
 
 
 def test_no_example_ever_produces_any_generated_frontend():
-    """PIVOT (point 41) : monl ne génère plus AUCUN frontend — ni
-    'frontend.html' (retiré au point 22), ni 'landing.html', ni
-    'dashboard.html'. Si l'un d'eux réapparaît, ce test doit échouer :
-    l'interface vient exclusivement de l'IA frontend, via le contrat."""
+    """PIVOT (point 41): monl no longer generates ANY frontend — neither
+    'frontend.html' (removed at point 22), nor 'landing.html', nor
+    'dashboard.html'. If one of them reappears, this test must fail: the
+    interface comes exclusively from the frontend AI, through the contract."""
     for yaml_path in EXAMPLE_FILES:
         raw_json = parse_monl_file(yaml_path)
         normalized_ast = MonlAST(raw_json, base_dir=os.path.dirname(yaml_path)).validate_and_audit()
-        with tempfile.TemporaryDirectory() as sortie:
-            MonlSecureGenerator(normalized_ast, output_dir=sortie).generate_all()
-            fantomes = {g: os.path.exists(os.path.join(sortie, g))
+        with tempfile.TemporaryDirectory() as output:
+            MonlSecureGenerator(normalized_ast, output_dir=output).generate_all()
+            phantoms = {g: os.path.exists(os.path.join(output, g))
                         for g in ("landing.html", "dashboard.html", "frontend.html")}
-        for ghost, present in fantomes.items():
+        for ghost, present in phantoms.items():
             assert not present, (
-                f"'{ghost}' a été généré pour {os.path.basename(yaml_path)} — "
-                f"monl ne doit plus produire aucun frontend (point 41)."
+                f"'{ghost}' was generated for {os.path.basename(yaml_path)} — "
+                f"monl must no longer produce any frontend (point 41)."
             )

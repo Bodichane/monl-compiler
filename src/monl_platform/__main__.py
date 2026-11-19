@@ -8,17 +8,17 @@ import sys
 import uvicorn
 
 
-def _resume(fonction) -> str:
+def _resume(function) -> str:
     """The first line of a verb's docstring: it is what `--help` says about it.
     A verb without a docstring fails rather than displaying an empty line — a
     mute help is the defect of issue #84."""
-    doc = (fonction.__doc__ or "").strip()
+    doc = (function.__doc__ or "").strip()
     if not doc:
-        raise ValueError(f"verb {fonction.__name__} has no docstring")
+        raise ValueError(f"verb {function.__name__} has no docstring")
     return doc.splitlines()[0]
 
 
-def _aide_des_verbes() -> str:
+def _help_of_verbs() -> str:
     """The epilog of `monl-platform --help`, DERIVED from `VERBES`.
 
     Before issue #84, the top-level help only described `--host` and
@@ -26,11 +26,11 @@ def _aide_des_verbes() -> str:
     `docs/EXPLOITATION.md`, which does not travel in the wheel. Reading the
     dispatch table (point 190) guarantees that a served verb is an announced
     verb."""
-    largeur = max(len(nom) for nom in VERBES)
-    lignes = [f"  {nom.ljust(largeur)}  {_resume(fonction)}"
-              for nom, fonction in VERBES.items()]
+    width = max(len(name) for name in VERBS)
+    lines = [f"  {name.ljust(width)}  {_resume(function)}"
+              for name, function in VERBS.items()]
     return ("commands (no command: serve the platform):\n"
-            + "\n".join(lignes)
+            + "\n".join(lines)
             + "\n\nHelp for a command: monl-platform <command> --help")
 
 
@@ -38,24 +38,24 @@ def _build_serve_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="monl-platform",
         description="Monl web platform",
-        epilog=_aide_des_verbes(),
+        epilog=_help_of_verbs(),
         formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8022)
     return parser
 
 
-def _administrer(argv: list[str]) -> int:
+def _administer(argv: list[str]) -> int:
     """Operational actions on accounts and projects.
 
     LAZY import: administration pulls in the database, serving does not need
     it."""
-    from .administration import main as administrer
+    from .administration import main as administer
 
-    return administrer(argv)
+    return administer(argv)
 
 
-def _sauvegarder(argv: list[str]) -> int:
+def _back_up(argv: list[str]) -> int:
     """Consistent copy of the accounts database, with the server running.
 
     `monl-platform backup <destination>` (`sauvegarde` still accepted).
@@ -77,17 +77,17 @@ def _sauvegarder(argv: list[str]) -> int:
                              "in the same folder. 0 (default) deletes nothing.")
     args = parser.parse_args(argv)
 
-    magasin = IdentityStore(CompilationService(args.workspace).workspace)
-    cible = magasin.sauvegarder(args.destination)
-    print(f"Database backed up: {cible} ({cible.stat().st_size} bytes)")
-    for perimee in _rotation(cible, args.garder):
-        print(f"Backup removed: {perimee}")
+    store = IdentityStore(CompilationService(args.workspace).workspace)
+    target = store.back_up(args.destination)
+    print(f"Database backed up: {target} ({target.stat().st_size} bytes)")
+    for stale in _rotation(target, args.garder):
+        print(f"Backup removed: {stale}")
     print("Project folders are NOT included: they are temporary "
           "and can be regenerated from the specs.")
     return 0
 
 
-def _rotation(cible, garder: int) -> list:
+def _rotation(target, keep: int) -> list:
     """Removes the extra backups, and returns the list of what went.
 
     A periodic backup without rotation fills the disk, and a full disk stops
@@ -102,16 +102,16 @@ def _rotation(cible, garder: int) -> list:
     Only touches files in the same folder carrying the same suffix as the
     target: a backup folder shared with something else must not be emptied by
     accident."""
-    if garder <= 0:
+    if keep <= 0:
         return []
-    voisines = sorted(
-        (f for f in cible.parent.iterdir()
-         if f.is_file() and f.suffix == cible.suffix),
+    neighbors = sorted(
+        (f for f in target.parent.iterdir()
+         if f.is_file() and f.suffix == target.suffix),
         key=lambda f: f.stat().st_mtime, reverse=True)
     retirees = []
-    for perimee in voisines[garder:]:
-        perimee.unlink()
-        retirees.append(perimee)
+    for stale in neighbors[keep:]:
+        stale.unlink()
+        retirees.append(stale)
     return retirees
 
 
@@ -122,22 +122,22 @@ def _rotation(cible, garder: int) -> list:
 #: the witness read a list written for it — it is exactly the defect of point
 #: 164, where the `/mcp` page announced four nonexistent tools because its list
 #: was copied by hand.
-VERBES = {
-    "backup": _sauvegarder,
-    "admin": _administrer,
+VERBS = {
+    "backup": _back_up,
+    "admin": _administer,
 }
 
 #: The French names the verbs had before the English migration. They stay
 #: accepted: crontabs, compose files and runbooks written with them must
 #: keep working. The dispatch reads this table too, so an alias here is an
 #: alias served.
-ALIAS_DES_VERBES = {"sauvegarde": "backup"}
+ALIAS_OF_VERBS = {"sauvegarde": "backup"}
 
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
-    if argv and ALIAS_DES_VERBES.get(argv[0], argv[0]) in VERBES:
-        return VERBES[ALIAS_DES_VERBES.get(argv[0], argv[0])](argv[1:])
+    if argv and ALIAS_OF_VERBS.get(argv[0], argv[0]) in VERBS:
+        return VERBS[ALIAS_OF_VERBS.get(argv[0], argv[0])](argv[1:])
 
     parser = _build_serve_parser()
     args = parser.parse_args(argv)

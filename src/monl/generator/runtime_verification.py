@@ -48,7 +48,7 @@ CREATE INDEX IF NOT EXISTS idx_verify_resend ON _monl_verify_email_resends (iden
     print(f'ℹ️ {_historical} older account(s) remain confirmed: existing accounts are not converted.')
 '''.splitlines()]
 
-    def _lookup_avec_verification(self, lines):
+    def _lookup_with_verification(self, lines):
         if not self.auth_features.get('verify_email'):
             return lines
         guard = self._verification_login_lines()

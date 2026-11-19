@@ -138,7 +138,7 @@ def _yandex_aspect_ratio(aspect_ratio):
     return {"widthRatio": width, "heightRatio": height}
 
 
-def _attendre_image(requests, api_key, operation_id):
+def _wait_image(requests, api_key, operation_id):
     """Polls the YandexART operation until the image, the failure or the
     timeout. Extracted from `call` (complexity ceiling); errors and timeouts
     unchanged."""
@@ -249,7 +249,7 @@ def yandexart_provider(model=None, *, key_env="YANDEX_API_KEY",
             raise ImageProviderError("YandexART returned an operation without an ID.")
 
         if image is None:
-            image = _attendre_image(requests, api_key, operation_id)
+            image = _wait_image(requests, api_key, operation_id)
 
         call.last_usage = {
             "duration_seconds": round(time.monotonic() - started, 3),
@@ -287,6 +287,6 @@ def record_image_usage(project_dir, provider, operation, attempt, *, run_id,
         event["stage"] = stage
     if path is not None:
         event["asset_path"] = path
-    journal = os.path.join(project_dir, IMAGE_USAGE_FILENAME)
-    with open(journal, "a", encoding="utf-8") as fh:
+    log = os.path.join(project_dir, IMAGE_USAGE_FILENAME)
+    with open(log, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(event, ensure_ascii=False, sort_keys=True) + "\n")

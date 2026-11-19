@@ -25,7 +25,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "src"))
 
 from tracage import rendre as _masque
 
-from monl_platform.brand import MARK_PATH, VUE, WORDMARK_PATH
+from monl_platform.brand import MARK_PATH, VIEW, WORDMARK_PATH
 
 STATIQUE = (pathlib.Path(__file__).resolve().parent.parent
             / "src" / "monl_platform" / "static")
@@ -65,8 +65,8 @@ def fabriquer_wordmark(destination, largeur=1024):
     """The word on a TRANSPARENT background: set on a hard background, it would
     only suit one theme. The letters take the light ink, the only choice that
     holds on the dark surfaces where a raster ends up."""
-    echelle = largeur / VUE[0] * 4
-    grand = (largeur * 4, int(VUE[1] * echelle))
+    echelle = largeur / VIEW[0] * 4
+    grand = (largeur * 4, int(VIEW[1] * echelle))
     image = Image.new("RGBA", grand, (0, 0, 0, 0))
     image.paste(ENCRE + (255,), (0, 0), _masque(WORDMARK_PATH, grand, echelle))
     image.resize((largeur, grand[1] // 4), Image.LANCZOS).save(destination)
@@ -84,9 +84,9 @@ def fabriquer_social(destination, taille=(1200, 630)):
     grand = (taille[0] * facteur, taille[1] * facteur)
     image = Image.new("RGB", grand, PAPIER)
     largeur_mot = grand[0] * 0.56
-    echelle = largeur_mot / VUE[0]
+    echelle = largeur_mot / VIEW[0]
     decalage = ((grand[0] - largeur_mot) / 2,
-                (grand[1] - VUE[1] * echelle) / 2)
+                (grand[1] - VIEW[1] * echelle) / 2)
     _poser_mot(image, echelle, decalage, ENCRE)
     image.resize(taille, Image.LANCZOS).save(destination, optimize=True)
     return destination

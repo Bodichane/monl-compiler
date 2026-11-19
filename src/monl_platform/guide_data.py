@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-# The grammar's twelve types (`TYPE` in src/monl/parser/grammaire.py). A test
+# The grammar's twelve types (`TYPE` in src/monl/parser/lark_grammar.py). A test
 # refuses any divergence, in both directions.
 TYPES: list[tuple[str, str]] = [
     ("String", "Short single-line text: a name, a reference, a category."),
@@ -23,7 +23,7 @@ TYPES: list[tuple[str, str]] = [
     ("Upload", "A file the client uploads at runtime."),
 ]
 
-REGLES_ACCES: list[tuple[str, str]] = [
+RULES_ACCESS: list[tuple[str, str]] = [
     ("rule Entity.Action ownedBy Actor",
      "Only the owner acts. The filter <b>also covers reads</b> — list and "
      "direct access. The ownership column is filled from the token at "
@@ -55,7 +55,7 @@ REGLES_ACCES: list[tuple[str, str]] = [
      "cannot be shipped."),
 ]
 
-REGLES_CHAMPS: list[tuple[str, str]] = [
+RULES_FIELDS: list[tuple[str, str]] = [
     ("rule Product.price min 0",
      "Input bound, <b>422 before any INSERT</b>. Value for numbers, length for "
      "text."),
@@ -71,7 +71,7 @@ REGLES_CHAMPS: list[tuple[str, str]] = [
      "allowed values, and the contract asks for a dropdown menu."),
 ]
 
-REGLES_SERVEUR: list[tuple[str, str]] = [
+RULES_SERVER: list[tuple[str, str]] = [
     ("rule Message.author generated",
      "The server writes a stable pseudonym per account. The field disappears "
      "from the request body: a free field guarantees no identity."),
@@ -96,7 +96,7 @@ REGLES_SERVEUR: list[tuple[str, str]] = [
      "<code>otherwise</code>: coverage is complete."),
 ]
 
-REGLES_COMMERCE: list[tuple[str, str]] = [
+RULES_COMMERCE: list[tuple[str, str]] = [
     ("rule Line.Create decrements Product.stock by quantity",
      "Deducts <b>the quantity requested</b>. A <code>min 0</code> declared on "
      "the stock arms the availability check: without it, a counter keeps the "
@@ -117,7 +117,7 @@ REGLES_COMMERCE: list[tuple[str, str]] = [
      "dedicated route reserved to the named role — never to the owner."),
 ]
 
-CONTENU: list[tuple[str, str]] = [
+CONTENT: list[tuple[str, str]] = [
     ("seed Entity", "Demo dataset, written once and only into an empty "
      "table. An empty storefront cannot be judged."),
     ("seed Child for Parent.field \"value\"",
@@ -179,7 +179,7 @@ ROUTES_API: list[tuple[str, str, str]] = [
     ("POST", "/mcp", "MCP HTTP transport, authenticated by Bearer key."),
 ]
 
-OUTILS_MCP: list[tuple[str, str]] = [
+TOOLS_MCP: list[tuple[str, str]] = [
     ("monl_list_templates", "Discover the business templates."),
     ("monl_validate_spec", "The errors of the real parser and audit."),
     ("monl_compile_backend", "Compile a project ready for /start, and receive its identifier."),
