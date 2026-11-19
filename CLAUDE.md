@@ -1157,7 +1157,7 @@ making a touch-up: does the content really say what we want to see?
   library imported by a test is declared in `dev`, never in an extra that CI
   does not install.** See point 158.
 - **POINT 158ter: an image test compares PIXELS, never bytes.**
-  `test_les_images_raster_ne_derivent_pas_de_la_marque` compared files byte for
+  `test_raster_images_do_not_drift_from_the_mark` compared files byte for
   byte: green locally, red on all three Python versions in CI. An `.ico` and a
   `.png` contain COMPRESSED pixels, and the same Pillow 12.3 linked to
   different zlib versions does not write the same byte sequence for the same

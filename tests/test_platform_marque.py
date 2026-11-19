@@ -1,16 +1,15 @@
-"""L'identité, vérifiée plutôt qu'espérée.
+"""The identity, verified rather than hoped for.
 
-`theme.py` affirme dans son propre docstring que les contrastes tiennent WCAG
-AA. Une affirmation dans un commentaire ne protège de rien : c'est exactement
-ce que le point 85 reproche aux règles qui ne produisent rien. Ce fichier
-calcule les ratios depuis les variables réellement déclarées, et refuse les
-couleurs écrites en dur ailleurs que dans la feuille.
+`theme.py` claims in its own docstring that the contrasts meet WCAG AA. A claim
+in a comment protects from nothing: it is exactly what point 85 holds against
+rules that produce nothing. This file computes the ratios from the variables
+really declared, and refuses colors hard-coded anywhere but the stylesheet.
 
-Ce qu'il a fallu pour l'écrire : la refonte d'identité précédente avait laissé
-CINQ verts de l'ancienne palette dans `console.py` (bordure du terminal,
-points, texte des commentaires, bordure du champ de saisie). Ils ont traversé
-un changement complet de palette sans que rien ne le dise, parce qu'une
-couleur en dur n'appartient à aucun thème et ne casse jamais.
+What it took to write it: the previous identity overhaul had left FIVE greens
+from the old palette in `console.py` (terminal border, dots, comment text,
+input field border). They went through a complete palette change without
+anything saying so, because a hard-coded color belongs to no theme and never
+breaks.
 """
 
 import pathlib
@@ -39,7 +38,7 @@ def contraste(avant: str, arriere: str) -> float:
 
 
 def _palette(bloc: str) -> dict[str, str]:
-    """Les variables d'un bloc de déclarations CSS."""
+    """The variables of a CSS declaration block."""
     return {nom: valeur for nom, valeur in
             re.findall(r"--([a-z0-9-]+):\s*(#[0-9a-fA-F]{6})\s*;", bloc)}
 
@@ -50,13 +49,13 @@ def _blocs() -> dict[str, dict[str, str]]:
     sombre_debut = css.index(':root[data-theme="dark"] {')
     sombre = css[sombre_debut:css.index("}", sombre_debut)]
     clair = _palette(racine)
-    # Le thème sombre ne redéclare que ce qui change : le reste est hérité.
+    # The dark theme only redeclares what changes: the rest is inherited.
     return {"clair": clair, "sombre": {**clair, **_palette(sombre)}}
 
 
-# Les couples qui portent du texte ou délimitent un contrôle. Un couple absent
-# de cette liste n'est pas « sûr », il n'est pas mesuré — l'ajouter est le
-# geste attendu quand on ajoute un rôle de couleur.
+# The pairs that carry text or delimit a control. A pair absent from this list
+# is not "safe", it is not measured — adding it is the expected gesture when
+# adding a color role.
 COUPLES_TEXTE = [
     ("ink", "bg"), ("ink", "surface"), ("ink", "surface-2"),
     ("muted", "bg"), ("muted", "surface"), ("muted", "surface-2"),
@@ -68,8 +67,8 @@ COUPLES_TEXTE = [
 COUPLES_CONTROLE = [("line-strong", "bg"), ("line-strong", "surface")]
 
 
-def test_la_palette_de_texte_tient_sur_les_trois_surfaces():
-    """Le témoin de la palette assombrie lit la feuille, jamais une copie."""
+def test_the_text_palette_holds_on_the_three_surfaces():
+    """The darkened palette's witness reads the stylesheet, never a copy."""
     table = ["clair", "sombre"]
 
     def cas(theme_nom):
@@ -84,7 +83,7 @@ def test_la_palette_de_texte_tient_sur_les_trois_surfaces():
     verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
 
-def test_le_texte_tient_le_contraste_wcag_aa():
+def test_the_text_meets_wcag_aa_contrast():
     table = ["clair", "sombre"]
 
     def cas(theme_nom):
@@ -99,10 +98,10 @@ def test_le_texte_tient_le_contraste_wcag_aa():
     verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
 
-def test_les_controles_se_distinguent_du_fond():
-    """WCAG 1.4.11 : un composant d'interface se délimite à 3:1. C'est la
-    raison d'être de `--line-strong` — `--line`, lui, ne sépare que des cartes
-    et n'a pas à tenir ce seuil."""
+def test_controls_stand_out_from_the_background():
+    """WCAG 1.4.11: an interface component is delimited at 3:1. It is
+    `--line-strong`'s reason for being — `--line` only separates cards and need
+    not meet this threshold."""
     table = ["clair", "sombre"]
 
     def cas(theme_nom):
@@ -116,10 +115,10 @@ def test_les_controles_se_distinguent_du_fond():
     verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
 
-def test_les_deux_themes_declarent_les_memes_roles():
-    """Un rôle défini d'un seul côté laisse l'autre thème hériter d'une
-    couleur pensée pour le premier — c'est ainsi qu'un fond clair se retrouve
-    sur une page sombre."""
+def test_both_themes_declare_the_same_roles():
+    """A role defined on one side only lets the other theme inherit a color
+    designed for the first — that is how a light background ends up on a dark
+    page."""
     table = ["clair", "sombre"]
 
     def cas(theme_nom):
@@ -130,10 +129,9 @@ def test_les_deux_themes_declarent_les_memes_roles():
     verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
 
-def test_aucune_couleur_en_dur_hors_de_la_feuille():
-    """La refonte précédente a laissé cinq verts dans `console.py`. Une couleur
-    en dur n'appartient à aucun thème : elle survit à tout changement de
-    palette sans jamais échouer."""
+def test_no_hard_coded_color_outside_the_stylesheet():
+    """The previous overhaul left five greens in `console.py`. A hard-coded color
+    belongs to no theme: it survives any palette change without ever failing."""
     fautifs = {}
     for module in sorted(PAQUET.glob("*.py")):
         if module.name in {"theme.py", "theme_fragments.py"}:
@@ -146,46 +144,46 @@ def test_aucune_couleur_en_dur_hors_de_la_feuille():
         "employez une variable CSS (var(--brand), var(--code-muted)…)")
 
 
-def test_le_signe_de_la_page_suit_la_couleur_du_texte():
-    """Le défaut d'origine : un signe qui portait son propre fond disparaissait
-    sur le thème sombre. En `currentColor`, il ne le peut plus."""
+def test_the_page_mark_follows_the_text_color():
+    """The original defect: a mark carrying its own background disappeared on the
+    dark theme. In `currentColor`, it no longer can."""
     assert "currentColor" in theme.LOGO_MARK
     assert "<text" not in theme.LOGO_MARK, "un tracé ne dépend d'aucune police"
-    # Le signe est désormais entièrement monochrome : aucune couleur figée,
-    # et aucun fond qui le ferait disparaître dans l'un des deux thèmes.
+    # The mark is now entirely monochrome: no fixed color, and no background
+    # that would make it disappear in one of the two themes.
     assert "<rect" not in theme.LOGO_MARK, "le signe s'est remis un fond"
     figees = set(COULEUR.findall(theme.LOGO_MARK))
     assert not figees, f"couleur figée inattendue : {figees}"
 
 
-def test_le_favicon_porte_ses_couleurs_car_il_na_rien_a_heriter():
-    """La seule exception, et elle est justifiée : un onglet de navigateur
-    n'offre aucune couleur héritée, et en attend un fond."""
+def test_the_favicon_carries_its_colors_as_it_has_nothing_to_inherit():
+    """The only exception, and it is justified: a browser tab offers no inherited
+    color, and expects a background."""
     assert "<text" not in theme.FAVICON
     assert "currentColor" not in theme.FAVICON
-    # Écrit SANS citer de couleur : la version précédente attendait `#ffb020`
-    # en dur et n'aurait rien vu d'un favicon repeint dans une teinte
-    # illisible, tant que ce littéral y figurait. Ce qui compte est le
-    # CONTRASTE entre la pastille et ses tracés — c'est vrai de toute palette.
+    # Written WITHOUT citing a color: the previous version expected a
+    # hard-coded `#ffb020` and would have seen nothing of a favicon repainted
+    # in an unreadable tint, as long as that literal appeared in it. What
+    # counts is the CONTRAST between the badge and its strokes — that holds for
+    # any palette.
     couleurs = COULEUR.findall(theme.FAVICON)
     assert len(couleurs) >= 2, f"il faut un fond et au moins un tracé : {couleurs}"
     fond, traces = couleurs[0], couleurs[1:]
     ratios = [contraste(trace, fond) for trace in traces]
-    # 3:1 est le seuil de WCAG 2.2 pour un objet GRAPHIQUE (1.4.11) — une
-    # icône n'est pas du texte, et la norme exempte même explicitement les
-    # logotypes. Le seuil de 4,5 valait quand la marque était une LETTRE.
-    # Mais un plancher seul laisserait l'icône devenir une bouillie à faible
-    # contraste : on exige donc AUSSI qu'au moins un tracé tienne 4,5, celui
-    # qui porte la lecture.
+    # 3:1 is WCAG 2.2's threshold for a GRAPHICAL object (1.4.11) — an icon is
+    # not text, and the standard even explicitly exempts logotypes. The 4.5
+    # threshold applied when the mark was a LETTER. But a floor alone would let
+    # the icon become a low-contrast mush: we therefore ALSO require at least
+    # one stroke to hold 4.5, the one carrying the reading.
     for trace, ratio in zip(traces, ratios, strict=True):
         assert ratio >= 3.0, f"tracé {trace} sur {fond} : {ratio:.2f}:1"
     assert max(ratios) >= 4.5, (
         f"aucun tracé ne porte l'icône : {[f'{r:.2f}' for r in ratios]}")
 
 
-def test_le_fichier_de_marque_et_la_feuille_dessinent_le_meme_signe():
-    """Deux sources finiraient par diverger, et c'est `docs/BRAND.md` qui
-    renvoie vers le fichier : il doit montrer ce que la page sert vraiment."""
+def test_the_mark_file_and_the_stylesheet_draw_the_same_sign():
+    """Two sources would end up diverging, and `docs/BRAND.md` points to the file:
+    it must show what the page really serves."""
     svg = (pathlib.Path(theme.__file__).parents[2] / "docs/brand/monl-mark.svg"
            ).read_text(encoding="utf-8")
     traces = re.findall(r'd="([^"]+)"', theme.LOGO_MARK)
@@ -198,10 +196,10 @@ def test_le_fichier_de_marque_et_la_feuille_dessinent_le_meme_signe():
 # Cibles tactiles
 # ---------------------------------------------------------------------------
 
-# Sélecteur → module qui le déclare. La liste est explicite plutôt que
-# devinée : un test qui cherche « tout ce qui ressemble à un bouton » finit
-# par mesurer des conteneurs, et un test qui se trompe sur une page correcte
-# apprend à ne plus lire les tests (point 57).
+# Selector → module declaring it. The list is explicit rather than guessed: a
+# test looking for "everything that looks like a button" ends up measuring
+# containers, and a test wrong about a correct page teaches people to stop
+# reading tests (point 57).
 CIBLES = [
     (".navlinks a", "theme_fragments.py"),
     (".primary, .secondary, .ghost, .nav-cta", "theme_fragments.py"),
@@ -211,9 +209,9 @@ CIBLES = [
     (".toc a", "guide_template.py"),
     (".rail button", "console_template.py"),
     (".auth-tabs button", "account.py"),
-    # Ajoutés APRÈS mesure au navigateur : la liste ne les contenait pas, donc
-    # le test était vert pendant que treize liens de pied de page rendaient
-    # 22,4 px sur CHAQUE page. Une garantie ne couvre que ce qu'on y inscrit.
+    # Added AFTER measuring in the browser: the list did not contain them, so
+    # the test was green while thirteen footer links rendered at 22.4 px on
+    # EVERY page. A guarantee only covers what is written into it.
     (".footer nav a", "theme_fragments.py"),
     (".service-status", "theme_fragments.py"),
     (".docs-nav a", "docs_page.py"),
@@ -222,7 +220,7 @@ MINIMUM = 44
 
 
 def _hauteur_declaree(source: str, selecteur: str) -> int | None:
-    """La `min-height` (ou `height`) du bloc qui suit ce sélecteur."""
+    """The `min-height` (or `height`) of the block following this selector."""
     debut = source.find(selecteur + " {")
     if debut == -1:
         debut = source.find(selecteur + "{")
@@ -233,10 +231,10 @@ def _hauteur_declaree(source: str, selecteur: str) -> int | None:
     return int(trouve.group(1)) if trouve else None
 
 
-def test_les_cibles_tactiles_font_au_moins_44px():
-    """WCAG 2.5.5 : une cible se rate au doigt sous 44 px. Un lien de
-    navigation raté n'échoue pas — il ouvre la page d'à côté, ce qui est pire
-    qu'un clic sans effet."""
+def test_touch_targets_are_at_least_44px():
+    """WCAG 2.5.5: a target is missed by finger under 44 px. A missed navigation
+    link does not fail — it opens the neighboring page, which is worse than a
+    click without effect."""
     table = CIBLES
 
     def cas(selecteur, module):
@@ -252,20 +250,20 @@ def test_les_cibles_tactiles_font_au_moins_44px():
     verifier_chaque_cas(table, cas)
 
 
-def test_le_wordmark_suit_le_theme_au_lieu_de_porter_son_fond():
-    """Le défaut mesuré : en `<img>`, la bannière du logo garde son fond
-    #2e2b25 quel que soit le thème — soit 1,29:1 contre la page sombre, un
-    logo littéralement invisible dans l'en-tête. Un raster ne peut pas suivre
-    un thème ; c'est la raison du SVG en ligne, pas une préférence.
+def test_the_wordmark_follows_the_theme_instead_of_carrying_its_background():
+    """The measured defect: as an `<img>`, the logo banner keeps its background
+    #2e2b25 whatever the theme — that is 1.29:1 against the dark page, a logo
+    literally invisible in the header. A raster cannot follow a theme; that is
+    the reason for inline SVG, not a preference.
 
-    Le test porte donc sur le MOYEN autant que sur le résultat : revenir à une
-    balise `<img>` reperdrait la garantie sans qu'aucune couleur ne change."""
+    The test is therefore about the MEANS as much as the result: going back to an
+    `<img>` tag would lose the guarantee again without any color changing."""
     assert "<img" not in theme.WORDMARK, (
         "un raster ne suit aucun thème — le wordmark doit rester en SVG inline")
     assert "currentColor" in theme.WORDMARK, "les lettres doivent hériter du texte"
-    # Plus de plaque du tout : le lockup est peint en direct et le fond de
-    # la page se voit à travers ses ouvertures. C'est plus fort que
-    # l'ancienne garantie, qui creusait les lettres dans une bannière.
+    # No plate at all any more: the lockup is painted directly and the page
+    # background shows through its openings. It is stronger than the old
+    # guarantee, which hollowed the letters out of a banner.
     assert "<rect" not in theme.WORDMARK, "le wordmark s'est remis un fond"
     figees = set(COULEUR.findall(theme.WORDMARK))
     assert not figees, f"couleur figée dans le wordmark : {figees}"
@@ -273,10 +271,10 @@ def test_le_wordmark_suit_le_theme_au_lieu_de_porter_son_fond():
         "le wordmark compact n'est pas servi dans la page")
 
 
-def test_le_wordmark_reste_lisible_dans_les_deux_themes():
-    """Le lockup prend `--ink` sur la page : c'est ce couple qui porte la
-    lecture du mot. Il doit donc
-    tenir dans les DEUX thèmes, sans quoi le logo pâlit d'un côté."""
+def test_the_wordmark_stays_readable_in_both_themes():
+    """The lockup takes `--ink` on the page: this pair carries the reading of the
+    word. It must therefore hold in BOTH themes, otherwise the logo fades on one
+    side."""
     table = ["clair", "sombre"]
 
     def cas(theme_nom):
@@ -289,12 +287,12 @@ def test_le_wordmark_reste_lisible_dans_les_deux_themes():
     verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
 
-def test_les_traces_de_marque_ne_portent_aucune_couleur():
-    """`brand.py` est de la DONNÉE : les couleurs se composent dans theme.py.
+def test_mark_strokes_carry_no_color():
+    """`brand.py` is DATA: colors are composed in theme.py.
 
-    Exempter un fichier de plus de la règle « aucune couleur en dur » élargirait
-    la porte que `test_aucune_couleur_en_dur_hors_de_la_feuille` ferme — c'est
-    pourquoi les tracés en sortent au lieu d'y entrer."""
+    Exempting one more file from the "no hard-coded color" rule would widen the
+    door `test_no_hard_coded_color_outside_the_stylesheet` closes — which is why
+    the strokes leave it instead of entering it."""
     from monl_platform import brand
     source = pathlib.Path(brand.__file__).read_text(encoding="utf-8")
     assert not COULEUR.findall(source), COULEUR.findall(source)
@@ -304,11 +302,11 @@ def test_les_traces_de_marque_ne_portent_aucune_couleur():
         "VUE porte le viewBox du mot : sans elle, theme.py le devinerait")
 
 
-def test_les_balises_de_partage_ninventent_aucune_adresse(monkeypatch):
-    """Une image de partage doit être ABSOLUE pour qu'un robot la récupère.
-    La déduire de l'en-tête `Host` la ferait pointer où un tiers veut — même
-    frontière qu'au point 145 pour l'adresse de retour OAuth. Sans URL publique
-    déclarée, monl se tait plutôt que de deviner."""
+def test_the_share_tags_invent_no_address(monkeypatch):
+    """A share image must be ABSOLUTE for a robot to fetch it. Deducing it from
+    the `Host` header would make it point wherever a third party wants — same
+    boundary as at point 145 for the OAuth return address. Without a declared
+    public URL, monl stays silent rather than guessing."""
     monkeypatch.delenv("MONL_PLATFORM_PUBLIC_URL", raising=False)
     muet = theme.page(title="t", description="d", body="")
     assert "og:image" not in muet, "une image de partage a été inventée"
@@ -320,28 +318,24 @@ def test_les_balises_de_partage_ninventent_aucune_adresse(monkeypatch):
     assert 'content="summary_large_image"' in parlant
 
 
-def test_les_images_raster_ne_derivent_pas_de_la_marque():
-    """`/favicon.ico` doit exister, et dire la MÊME chose que `/favicon.svg`.
+def test_raster_images_do_not_drift_from_the_mark():
+    """`/favicon.ico` must exist, and say the SAME thing as `/favicon.svg`.
 
-    Les navigateurs demandent ce chemin d'office, même quand la page déclare
-    un SVG. Il répondait 404 — et un 404 ne remplace rien : le navigateur
-    gardait l'ancienne icône de son cache, qui « réapparaissait » sans que le
-    serveur y soit pour rien.
+    Browsers request this path by default, even when the page declares an SVG. It
+    answered 404 — and a 404 replaces nothing: the browser kept the old icon from
+    its cache, which "reappeared" through no fault of the server.
 
-    Fabriqué DEPUIS `brand.MARK_PATH`, jamais
-    recopié d'un PNG :
-    un `.ico` recopié dériverait le jour où la marque change, en silence. Le
-    test régénère et compare, comme le fichier de marque du point 156 — qui
-    avait dérivé, et qu'un test a rattrapé.
+    Made FROM `brand.MARK_PATH`, never copied from a PNG: a copied `.ico` would
+    drift the day the mark changes, silently. The test regenerates and compares,
+    like point 156's mark file — which had drifted, and which a test caught.
 
-    **La comparaison porte sur les PIXELS, jamais sur les octets.** Le premier
-    essai comparait les fichiers octet pour octet : vert en local, rouge sur
-    les trois versions de Python de la CI. Un `.ico` et un `.png` portent des
-    pixels COMPRESSÉS, et le même Pillow 12.3 lié à des zlib différents
-    n'écrit pas la même suite d'octets pour la même image. Le test mesurait
-    donc l'ENCODEUR et pas le DESSIN — il aurait dénoncé une mise à jour de
-    dépendance aussi fort qu'une dérive de la marque. Le décodage, lui, est
-    sans perte.
+    **The comparison is about PIXELS, never bytes.** The first try compared the
+    files byte for byte: green locally, red on CI's three Python versions. An
+    `.ico` and a `.png` carry COMPRESSED pixels, and the same Pillow 12.3 linked
+    to different zlib versions does not write the same byte sequence for the same
+    image. The test therefore measured the ENCODER and not the DRAWING — it would
+    have denounced a dependency update as loudly as a drift of the mark. Decoding,
+    however, is lossless.
     """
     import importlib.util
     import tempfile
@@ -355,7 +349,7 @@ def test_les_images_raster_ne_derivent_pas_de_la_marque():
     spec.loader.exec_module(module)
 
     def _pixels(chemin):
-        """Les pixels décodés : toutes les tailles d'un ICO, l'image d'un PNG."""
+        """The decoded pixels: every size of an ICO, a PNG's image."""
         with Image.open(chemin) as image:
             if getattr(image, "format", "") != "ICO":
                 return [(image.size, image.convert("RGBA").tobytes())]
@@ -365,9 +359,9 @@ def test_les_images_raster_ne_derivent_pas_de_la_marque():
                 rendus.append((taille, image.convert("RGBA").tobytes()))
             return rendus
 
-    # Les TROIS artefacts raster viennent du même outil et de la même source.
-    # N'en garder qu'un laisserait les deux autres dériver en silence — et la
-    # carte de partage est précisément celle que personne ne regarde.
+    # The THREE raster artifacts come from the same tool and the same source.
+    # Keeping only one would let the other two drift silently — and the share
+    # card is precisely the one nobody looks at.
     with tempfile.TemporaryDirectory() as dossier:
         temporaire = pathlib.Path(dossier)
         for nom, fabrique in (("favicon.ico", module.fabriquer_ico),
@@ -386,11 +380,11 @@ def test_les_images_raster_ne_derivent_pas_de_la_marque():
                     "tracés de la marque — relancer outils/fabriquer_images.py")
 
 
-def test_les_pages_declarent_les_deux_icones():
-    """Le SVG reste préféré, le `.ico` est le repli qui empêche le 404.
+def test_pages_declare_both_icons():
+    """The SVG stays preferred, the `.ico` is the fallback preventing the 404.
 
-    Déclarer le seul SVG laissait les navigateurs demander `/favicon.ico` et
-    n'en rien recevoir.
+    Declaring the SVG alone let browsers request `/favicon.ico` and receive
+    nothing.
     """
     from monl_platform.theme import page
 
@@ -401,14 +395,14 @@ def test_les_pages_declarent_les_deux_icones():
         "le SVG doit être déclaré APRÈS le .ico pour rester préféré")
 
 
-def test_l_adresse_de_l_icone_change_avec_son_contenu():
-    """L'empreinte déclarée est celle de l'octet servi, pas un numéro à la main.
+def test_the_icon_address_changes_with_its_content():
+    """The declared fingerprint is the served byte's, not a hand-written number.
 
-    `/favicon.ico` est une adresse qui ne change jamais : le navigateur garde
-    l'icône qu'il a déjà, et l'ANCIENNE réapparaît sans que le serveur y soit
-    pour rien — le défaut rapporté au changement de logo. Une empreinte du
-    CONTENU change exactement quand l'image change ; un numéro écrit à la main
-    aurait le même défaut le jour où on oublie de l'incrémenter.
+    `/favicon.ico` is an address that never changes: the browser keeps the icon it
+    already has, and the OLD one reappears through no fault of the server — the
+    defect reported when the logo changed. A CONTENT fingerprint changes exactly
+    when the image changes; a hand-written number would have the same defect the
+    day someone forgets to increment it.
     """
     import hashlib
 
@@ -423,12 +417,12 @@ def test_l_adresse_de_l_icone_change_avec_son_contenu():
     assert f"/favicon.svg?v={VERSION_SVG}" in html
 
 
-def test_seule_l_adresse_versionnee_se_garde_longtemps():
-    """Une URL nue ne peut pas être versionnée : elle se garde peu.
+def test_only_the_versioned_address_is_kept_long():
+    """A bare URL cannot be versioned: it is kept briefly.
 
-    C'est celle que le navigateur demande D'OFFICE sans lire la page. La garder
-    un an, comme avant, faisait survivre une icône périmée bien après son
-    remplacement — et c'est ce qui rendait le défaut si tenace.
+    It is the one the browser requests BY DEFAULT without reading the page. Keeping
+    it a year, as before, made a stale icon survive long after its replacement —
+    and that is what made the defect so persistent.
     """
     from monl_platform.theme import VERSION_ICO, cache_icone
 
@@ -443,17 +437,16 @@ def test_seule_l_adresse_versionnee_se_garde_longtemps():
         f"l'adresse nue se garde {nue} — une icône périmée survivrait")
 
 
-def test_le_formulaire_de_compte_ne_refuse_jamais_en_silence():
-    """Un refus doit s'écrire DANS la page, jamais dans une bulle du navigateur.
+def test_the_account_form_never_refuses_silently():
+    """A refusal must be written IN the page, never in a browser bubble.
 
-    Mesuré : avec « joe » comme adresse, aucune requête ne partait, la
-    bannière `#auth-error` restait VIDE, et le seul message était la bulle
-    native — celle qu'une fenêtre de gestionnaire de mots de passe recouvre.
-    Le bouton semblait ne rien faire.
+    Measured: with "joe" as address, no request went out, the `#auth-error`
+    banner stayed EMPTY, and the only message was the native bubble — the one a
+    password manager window covers. The button seemed to do nothing.
 
-    `novalidate` est ce qui donne la main au script : sans lui, le navigateur
-    bloque l'envoi et `onsubmit` n'est jamais appelé. Le message n'est pas
-    réécrit — on reprend `validationMessage`, déjà traduit par le navigateur.
+    `novalidate` is what hands control to the script: without it, the browser
+    blocks the submission and `onsubmit` is never called. The message is not
+    rewritten — we reuse `validationMessage`, already translated by the browser.
     """
     from monl_platform import account
 
@@ -464,27 +457,25 @@ def test_le_formulaire_de_compte_ne_refuse_jamais_en_silence():
     assert "error.className='form-error show'" in account.AUTH_HTML
 
 
-def test_les_traces_ressemblent_au_dessin_fourni():
-    """LA FIDÉLITÉ, que rien d'autre ne garde.
+def test_the_strokes_look_like_the_provided_drawing():
+    """FIDELITY, which nothing else guards.
 
-    Tous les autres témoins de ce fichier comparent les artefacts ENTRE EUX —
-    les rasters ne dérivent pas de la marque, la feuille dessine le même signe
-    que le fichier. Ils resteraient donc VERTS sur un logo faux, pourvu qu'il
-    soit faux partout de la même façon. Seule la confrontation au PNG fourni
-    par l'humain dit si le tracé ressemble à ce qu'on a demandé.
+    All the other witnesses of this file compare the artifacts WITH EACH OTHER —
+    the rasters do not drift from the mark, the stylesheet draws the same sign as
+    the file. They would therefore stay GREEN on a wrong logo, as long as it is
+    wrong everywhere in the same way. Only the comparison with the PNG provided by
+    the human says whether the stroke looks like what was asked for.
 
-    Le garde-fou existe aussi dans `outils/vectoriser_logo.py`, qui REFUSE
-    d'écrire au-delà de la tolérance. Ce n'est pas un doublon : l'outil ne
-    tourne que le jour où quelqu'un re-vectorise, ce témoin tourne à chaque
-    exécution de la suite. L'un empêche d'écrire un mauvais tracé, l'autre
-    empêche d'en garder un.
+    The safeguard also exists in `outils/vectoriser_logo.py`, which REFUSES to
+    write beyond the tolerance. It is not a duplicate: the tool only runs the day
+    someone re-vectorizes, this witness runs on every run of the suite. One
+    prevents writing a bad stroke, the other prevents keeping one.
 
-    LE PIÈGE DE CADRAGE, mesuré en s'y laissant prendre : l'outil seuille le
-    canal alpha à `ALPHA_MIN` avant de recadrer. Comparer sur un `getbbox()`
-    nu — qui retient le moindre pixel d'antialiasing — donne une emprise de
-    1676 x 492 au lieu de 1667 x 438, deux cadrages différents, et un écart
-    annoncé de 234 % sur un logo parfaitement fidèle. Le seuil fait partie de
-    la mesure.
+    THE FRAMING TRAP, measured by falling into it: the tool thresholds the alpha
+    channel at `ALPHA_MIN` before cropping. Comparing on a bare `getbbox()` —
+    which keeps the slightest antialiasing pixel — gives a footprint of 1676 x 492
+    instead of 1667 x 438, two different framings, and an announced gap of 234 %
+    on a perfectly faithful logo. The threshold is part of the measurement.
     """
     outils = pathlib.Path(__file__).resolve().parent.parent / "outils"
     sys.path.insert(0, str(outils))
@@ -521,9 +512,9 @@ def test_les_traces_ressemblent_au_dessin_fourni():
     assert not trop_loin, (
         f"le tracé ne ressemble plus au dessin fourni : {trop_loin} "
         f"(tolérance {vectoriser_logo.TOLERANCE:.0%})")
-    # Le pendant : une tolérance très au-dessus de ce qu'on mesure ne refuse
-    # plus rien. Si les écarts réels tombaient à zéro, c'est la MESURE qu'il
-    # faudrait suspecter — un rendu identique au pixel près supposerait qu'on
-    # compare le tracé à lui-même.
+    # The counterpart: a tolerance far above what we measure no longer refuses
+    # anything. If the real gaps fell to zero, the MEASUREMENT would be suspect
+    # — a pixel-identical rendering would assume the stroke is compared with
+    # itself.
     assert max(mesures.values()) > 0, (
         "écart nul : la mesure compare probablement le tracé avec lui-même")

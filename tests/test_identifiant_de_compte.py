@@ -1,27 +1,25 @@
-"""Inscription par e-mail ou téléphone — point 95.
+"""Registration by email or phone — point 95.
 
-`capability auth` était déclaratif depuis la brique 1 : le bloc se parsait, se
-validait, traversait tout le pipeline et ne changeait RIEN à la génération.
-C'est sa première vraie fonction — contraindre la FORME de l'identifiant de
-compte.
+`capability auth` had been declarative since brick 1: the block was parsed,
+validated, went through the whole pipeline and changed NOTHING in generation.
+This is its first real function — constraining the FORM of the account
+identifier.
 
-Ce que la brique décide, et qui ne va pas de soi :
+What the brick decides, and what does not go without saying:
 
-* **le champ reste `username` SUR LE FIL.** Le renommer en `email` aurait cassé
-  le formulaire d'inscription de tout projet existant pour un gain cosmétique.
-  C'est le CONTRAT qui dit quelle forme il attend, et l'IA d'interface qui
-  étiquette l'écran ;
-* **la substance n'est pas la validation, c'est la NORMALISATION.**
-  `Jean@Ex.com` et `jean@ex.com` sont la même boîte, `06 12 34 56 78` et
-  `+33612345678` le même numéro. Sans forme canonique, l'unicité est
-  contournable — deux comptes pour une personne — et la connexion échoue selon
-  la façon dont on tape ;
-* **la même normalisation aux TROIS endroits** : `/register`, `/login` et
-  `manage.py`. Un seul oubli crée des comptes auxquels on ne peut pas se
-  connecter ;
-* **rien n'est déclaré = rien ne change.** Toute spec écrite avant ce point
-  compile à l'identique. Deviner « email par défaut » verrouillerait tous les
-  projets existants au premier recompilage.
+* **the field stays `username` ON THE WIRE.** Renaming it `email` would have
+  broken the registration form of every existing project for a cosmetic gain.
+  The CONTRACT says which form it expects, and the interface AI labels the
+  screen;
+* **the substance is not validation, it is NORMALIZATION.** `Jean@Ex.com` and
+  `jean@ex.com` are the same mailbox, `06 12 34 56 78` and `+33612345678` the
+  same number. Without a canonical form, uniqueness can be bypassed — two
+  accounts for one person — and login fails depending on how one types;
+* **the same normalization in THREE places**: `/register`, `/login` and
+  `manage.py`. A single omission creates accounts one cannot log into;
+* **nothing declared = nothing changes.** Every spec written before this point
+  compiles identically. Guessing "email by default" would lock every existing
+  project at the first recompilation.
 """
 import json
 import sqlite3
@@ -67,39 +65,39 @@ def _valide(spec):
 
 
 # --------------------------------------------------------------------------
-# Ce que la compilation accepte et refuse
+# What compilation accepts and refuses
 # --------------------------------------------------------------------------
 
-def test_les_formes_declarees_traversent_last(capsys):
+def test_declared_forms_go_through_the_ast(capsys):
     ast = _valide(SPEC)
     assert ast["security"]["auth_identifier"] == ["email", "phone"]
     capsys.readouterr()
 
 
-def test_sans_declaration_aucune_contrainte(capsys):
-    """None et non [] : « rien de déclaré » n'est pas « aucune forme valide »."""
+def test_without_declaration_no_constraint(capsys):
+    """None and not []: "nothing declared" is not "no valid form"."""
     assert _valide(SANS_FORME)["security"]["auth_identifier"] is None
     capsys.readouterr()
 
 
-def test_une_forme_inconnue_est_refusee(capsys):
+def test_an_unknown_form_is_refused(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace("identifier: email, phone", "identifier: pigeon"))
     assert "pigeon" in str(refus.value)
     capsys.readouterr()
 
 
-def test_libre_cumule_avec_une_forme_stricte_est_refuse(capsys):
-    """'libre' accepte tout : le cumuler annule l'autre sans le dire. Une règle
-    écrite qui ne produit rien, c'est exactement ce que le point 85 refuse."""
+def test_libre_combined_with_a_strict_form_is_refused(capsys):
+    """'libre' accepts everything: combining it cancels the other without saying
+    so. A written rule producing nothing is exactly what point 85 refuses."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace("identifier: email, phone", "identifier: email, libre"))
     assert "libre" in str(refus.value)
     capsys.readouterr()
 
 
-def test_identifier_hors_de_auth_est_refuse(capsys):
-    """C'est l'inscription qu'il contraint : ailleurs, il ne voudrait rien dire."""
+def test_identifier_outside_auth_is_refused(capsys):
+    """It is registration it constrains: elsewhere, it would mean nothing."""
     spec = SPEC.replace("capability auth\n    identifier: email, phone",
                         "capability auth\ncapability payment\n    identifier: email")
     with pytest.raises(ASTValidationError) as refus:
@@ -108,15 +106,15 @@ def test_identifier_hors_de_auth_est_refuse(capsys):
     capsys.readouterr()
 
 
-def test_une_spec_sans_bloc_indente_compile_comme_avant(tmp_path, capsys):
-    """LE témoin de compatibilité : le bloc indenté est optionnel, et une brique
-    dormante qui se réveille ne doit rien casser de ce qui existait."""
+def test_a_spec_without_indented_block_compiles_as_before(tmp_path, capsys):
+    """THE compatibility witness: the indented block is optional, and a dormant
+    brick waking up must break nothing of what existed."""
     (tmp_path / "a.ml").write_text(SANS_FORME, encoding="utf-8")
     compile_project(str(tmp_path / "a.ml"), str(tmp_path / "a"))
     genere = (tmp_path / "a" / "app.py").read_text(encoding="utf-8")
     capsys.readouterr()
     assert "AUTH_IDENTIFIER_FORMS = []" in genere
-    # La fonction existe quand même : un seul chemin de code, exercé partout.
+    # The function exists anyway: a single code path, exercised everywhere.
     assert "def _normalize_identifier" in genere
 
 
@@ -178,8 +176,8 @@ def serveur(tmp_path):
 
 
 def _degeler(dossier):
-    """La limitation de débit (5 essais/minute) répondrait à la place de la
-    brique : ce n'est pas elle qu'on éprouve ici."""
+    """Rate limiting (5 tries/minute) would answer instead of the brick: it is not
+    what is tested here."""
     conn = sqlite3.connect(str(dossier / "app.db"))
     conn.execute("DELETE FROM _monl_rate_limit")
     conn.commit()
@@ -199,7 +197,7 @@ def _connecter(base, dossier, login, mdp="motdepasse1"):
 
 @pytest.mark.parametrize("bon", ["alice@exemple.fr", "+33 6 12 34 56 78",
                                  "0612345699", "a.b+c@sous.domaine.co.uk"])
-def test_les_formes_declarees_sont_acceptees(serveur, bon):
+def test_declared_forms_are_accepted(serveur, bon):
     base, dossier = serveur
     code, reponse = _inscrire(base, dossier, bon)
     assert code == 200, reponse
@@ -207,29 +205,28 @@ def test_les_formes_declarees_sont_acceptees(serveur, bon):
 
 @pytest.mark.parametrize("mauvais", ["alice", "pas-un-courriel", "alice@",
                                      "@exemple.fr", "12345", "alice exemple.fr"])
-def test_les_autres_formes_sont_refusees(serveur, mauvais):
+def test_other_forms_are_refused(serveur, mauvais):
     base, dossier = serveur
     code, reponse = _inscrire(base, dossier, mauvais)
     assert code == 422, reponse
 
 
-def test_deux_ecritures_de_la_meme_adresse_sont_UN_seul_compte(serveur):
-    """LE cœur de la brique. Sans forme canonique, le contrôle d'unicité est
-    contournable en changeant une majuscule : deux comptes pour une personne,
-    et le second reçoit les commandes du premier."""
+def test_two_spellings_of_the_same_address_are_ONE_account(serveur):
+    """THE heart of the brick. Without a canonical form, the uniqueness check can
+    be bypassed by changing a capital letter: two accounts for one person, and
+    the second gets the first one's orders."""
     base, dossier = serveur
     assert _inscrire(base, dossier, "alice@exemple.fr")[0] == 200
 
     code, reponse = _inscrire(base, dossier, "Alice@Exemple.FR")
 
     assert code == 409, reponse
-    # Et le message nomme ce qui est vraiment en conflit.
+    # And the message names what is really in conflict.
     assert "address" in reponse["detail"] or "identifier" in reponse["detail"]
 
 
-def test_deux_ecritures_du_meme_numero_sont_UN_seul_compte(serveur):
-    """Un numéro se tape avec des espaces, des points ou des tirets — jamais
-    deux fois pareil."""
+def test_two_spellings_of_the_same_number_are_ONE_account(serveur):
+    """A number is typed with spaces, dots or dashes — never twice the same way."""
     base, dossier = serveur
     assert _inscrire(base, dossier, "+33 6 12 34 56 78")[0] == 200
     for variante in ["+33612345678", "+33-6-12-34-56-78", "+33 (6) 12.34.56.78"]:
@@ -239,26 +236,26 @@ def test_deux_ecritures_du_meme_numero_sont_UN_seul_compte(serveur):
 
 @pytest.mark.parametrize("variante", ["alice@exemple.fr", "Alice@Exemple.FR",
                                       "  alice@exemple.fr  ", "ALICE@EXEMPLE.FR"])
-def test_on_se_reconnecte_quelle_que_soit_la_facon_de_taper(serveur, variante):
-    """L'AUTRE moitié, et celle qu'on oublie : normaliser d'un seul côté crée
-    des comptes auxquels on ne peut plus se connecter."""
+def test_login_works_however_one_types(serveur, variante):
+    """The OTHER half, and the one people forget: normalizing on one side only
+    creates accounts one can no longer log into."""
     base, dossier = serveur
     _inscrire(base, dossier, "alice@exemple.fr")
     code, reponse = _connecter(base, dossier, variante)
     assert code == 200, reponse
 
 
-def test_un_identifiant_mal_forme_a_la_connexion_ne_revele_rien(serveur):
-    """401 et non 422 : la connexion ne doit pas apprendre à un attaquant quelle
-    forme les comptes ont — un identifiant mal formé n'existe simplement pas."""
+def test_a_malformed_identifier_at_login_reveals_nothing(serveur):
+    """401 and not 422: login must not teach an attacker which form the accounts
+    have — a malformed identifier simply does not exist."""
     base, dossier = serveur
     code, _ = _connecter(base, dossier, "alice")
     assert code == 401
 
 
-def test_le_jeton_porte_la_forme_canonique(serveur):
-    """`sub` sert d'identité dans tout le backend : y laisser la casse tapée
-    ferait deux identités pour un compte."""
+def test_the_token_carries_the_canonical_form(serveur):
+    """`sub` serves as identity throughout the backend: leaving the typed case in
+    it would make two identities for one account."""
     import base64
     base, dossier = serveur
     _inscrire(base, dossier, "alice@exemple.fr")
@@ -268,11 +265,10 @@ def test_le_jeton_porte_la_forme_canonique(serveur):
     assert json.loads(base64.urlsafe_b64decode(corps))["sub"] == "alice@exemple.fr"
 
 
-def test_manage_py_normalise_comme_le_serveur(serveur):
-    """Le troisième endroit, celui qu'on oublie. Un compte provisionné hors
-    ligne avec 'Patron@Ex.com' serait stocké tel quel, et la connexion — qui
-    normalise — chercherait 'patron@ex.com' : un compte tout neuf auquel on ne
-    peut pas se connecter."""
+def test_manage_py_normalizes_like_the_server(serveur):
+    """The third place, the one people forget. An account provisioned offline
+    with 'Patron@Ex.com' would be stored as is, and login — which normalizes —
+    would look for 'patron@ex.com': a brand new account one cannot log into."""
     base, dossier = serveur
     proc = subprocess.run(
         [sys.executable, "manage.py", "adduser", "Patron@Exemple.FR", "Patron"],
@@ -292,20 +288,20 @@ def test_manage_py_normalise_comme_le_serveur(serveur):
 
 
 def test_un_compte_anterieur_continue_de_fonctionner(serveur):
-    """La règle ne vaut que pour les inscriptions à VENIR. Convertir un compte
-    existant est impossible (on n'invente pas une adresse) et le supprimer
-    serait pire — le serveur les compte et les nomme au démarrage, comme au
-    point 89 pour les horodatages manquants."""
+    """The rule only applies to FUTURE registrations. Converting an existing
+    account is impossible (an address is not invented) and deleting it would be
+    worse — the server counts and names them at startup, as at point 89 for
+    missing timestamps."""
     base, dossier = serveur
-    # LE PIÈGE : sans ce compte-ci, l'INSERT ... SELECT ci-dessous ne copie
-    # RIEN (table vide), et le test passerait en prouvant l'inverse de ce qu'il
-    # annonce — un 401 pour compte inexistant au lieu d'un 401 pour mot de passe
-    # faux. Même famille de piège qu'au point 90 (« existe-t-il au moins une
-    # fiche ? » passait tant qu'on n'employait qu'UN compte).
+    # THE TRAP: without this account, the INSERT ... SELECT below copies
+    # NOTHING (empty table), and the test would pass proving the opposite of
+    # what it announces — a 401 for a nonexistent account instead of a 401 for
+    # a wrong password. Same family of trap as at point 90 ("is there at least
+    # one record?" passed as long as only ONE account was used).
     assert _inscrire(base, dossier, "alice@exemple.fr")[0] == 200
     conn = sqlite3.connect(str(dossier / "app.db"))
-    # Un compte tel qu'il existait AVANT la déclaration : un pseudo, et le
-    # hachage d'un mot de passe connu (celui d'alice, donc 'motdepasse1').
+    # An account as it existed BEFORE the declaration: a nickname, and the hash
+    # of a known password (alice's, hence 'motdepasse1').
     copies = conn.execute(
         "INSERT INTO _monl_users (username, password_hash, salt, actor, anon_handle)"
         " SELECT 'ancien_pseudo', password_hash, salt, 'Client', 'Anon#4242'"
@@ -319,16 +315,15 @@ def test_un_compte_anterieur_continue_de_fonctionner(serveur):
     assert code == 200, f"un compte antérieur doit continuer de se connecter : {reponse}"
 
 
-def test_le_smoke_test_respecte_la_forme_quil_fait_appliquer(tmp_path, capsys):
-    """LE bug trouvé en appliquant la brique à un vrai projet. Le smoke test
-    inscrivait un compte nommé 'smoke' en dur : sur toute app déclarant
-    `identifier: email`, il recevait 422 sur sa PROPRE inscription et déclarait
-    l'application cassée. Le vérificateur ne peut pas ignorer une règle qu'il
-    fait par ailleurs appliquer.
+def test_the_smoke_test_respects_the_form_it_enforces(tmp_path, capsys):
+    """THE bug found by applying the brick to a real project. The smoke test
+    registered an account hard-coded as 'smoke': on any app declaring
+    `identifier: email`, it got 422 on its OWN registration and declared the
+    application broken. The verifier cannot ignore a rule it otherwise enforces.
 
-    Vu sur `projets/SneakerLab` : trois erreurs (`/register` 422, `/login` 401,
-    `POST /customer` 401) qui ne venaient ni du backend ni du frontend, mais de
-    monl lui-même."""
+    Seen on `projets/SneakerLab`: three errors (`/register` 422, `/login` 401,
+    `POST /customer` 401) coming from neither the backend nor the frontend, but
+    from monl itself."""
     from monl.smoke_test import run_smoke_test
 
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
@@ -340,11 +335,11 @@ def test_le_smoke_test_respecte_la_forme_quil_fait_appliquer(tmp_path, capsys):
     assert ok, erreurs
 
 
-def test_lidentifiant_du_smoke_suit_la_forme_declaree():
-    """Trois formes, trois identifiants — et des identifiants DISTINCTS par
-    rang : la boucle d'élévation de privilège en essaie un par rôle
-    provisionné, et deux inscriptions sous le même identifiant donneraient un
-    409 qu'on lirait à tort comme un refus de rôle."""
+def test_the_smoke_identifier_follows_the_declared_form():
+    """Three forms, three identifiers — and DISTINCT identifiers per rank: the
+    privilege escalation loop tries one per provisioned role, and two
+    registrations under the same identifier would give a 409 wrongly read as a
+    role refusal."""
     from monl.smoke_test import _identifiant_smoke
 
     def contrat(formes):
@@ -358,14 +353,14 @@ def test_lidentifiant_du_smoke_suit_la_forme_declaree():
 
 
 # --------------------------------------------------------------------------
-# L'indicatif : '06…' et '+336…' sont la même ligne — si on sait d'où
+# The calling code: '06…' and '+336…' are the same line — if we know from where
 # --------------------------------------------------------------------------
 
 SPEC_PREFIXE = SPEC.replace('    identifier: email, phone\n',
                             '    identifier: email, phone\n    phone_prefix: "+33"\n')
 
 
-def test_un_indicatif_mal_forme_est_refuse(capsys):
+def test_a_malformed_calling_code_is_refused(capsys):
     for mauvais in ['"33"', '"+"', '"+abc"', '"+123456"']:
         with pytest.raises(ASTValidationError) as refus:
             _valide(SPEC_PREFIXE.replace('"+33"', mauvais))
@@ -373,9 +368,9 @@ def test_un_indicatif_mal_forme_est_refuse(capsys):
     capsys.readouterr()
 
 
-def test_un_indicatif_sans_forme_phone_est_refuse(capsys):
-    """Il ne s'appliquerait à rien : une règle écrite qui ne produit rien est
-    exactement ce que le point 85 refuse."""
+def test_a_calling_code_without_phone_form_is_refused(capsys):
+    """It would apply to nothing: a written rule producing nothing is exactly what
+    point 85 refuses."""
     spec = SPEC_PREFIXE.replace("identifier: email, phone", "identifier: email")
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec)
@@ -383,7 +378,7 @@ def test_un_indicatif_sans_forme_phone_est_refuse(capsys):
     capsys.readouterr()
 
 
-def test_le_contrat_transmet_lindicatif_au_frontend(tmp_path, capsys):
+def test_the_contract_passes_the_calling_code_to_the_frontend(tmp_path, capsys):
     (tmp_path / "spec.ml").write_text(SPEC_PREFIXE, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     contrat = json.loads(
@@ -431,11 +426,10 @@ def serveur_prefixe(tmp_path):
             proc.stdout.close()
 
 
-def test_national_et_international_sont_UN_seul_compte(serveur_prefixe):
-    """LE trou trouvé en éprouvant la brique sur le vrai site : '06 12 34 56 78'
-    et '+33612345678' désignent la même ligne et faisaient deux comptes. monl ne
-    peut pas le deviner — l'indicatif dépend du pays — alors il le fait
-    DÉCLARER."""
+def test_national_and_international_are_ONE_account(serveur_prefixe):
+    """THE hole found by testing the brick on the real site: '06 12 34 56 78' and
+    '+33612345678' designate the same line and made two accounts. monl cannot
+    guess it — the calling code depends on the country — so it has it DECLARED."""
     base, dossier = serveur_prefixe
     assert _inscrire(base, dossier, "06 12 34 56 78")[0] == 200
     for variante in ["+33612345678", "+33 6 12 34 56 78", "0612345678"]:
@@ -443,9 +437,10 @@ def test_national_et_international_sont_UN_seul_compte(serveur_prefixe):
         assert code == 409, f"{variante} a créé un second compte : {reponse}"
 
 
-def test_la_forme_stockee_est_linternationale(serveur_prefixe):
-    """La forme canonique doit être celle qui ne dépend pas du pays : c'est
-    elle qu'on enverra un jour à un prestataire, et elle ne se relit pas."""
+def test_the_stored_form_is_the_international_one(serveur_prefixe):
+    """The canonical form must be the one that does not depend on the country: it
+    is the one that will someday be sent to a provider, and it does not get
+    reread."""
     base, dossier = serveur_prefixe
     _inscrire(base, dossier, "06 12 34 56 78")
     connexion = sqlite3.connect(str(dossier / "app.db"))
@@ -459,37 +454,36 @@ def test_la_forme_stockee_est_linternationale(serveur_prefixe):
 
 @pytest.mark.parametrize("notation", ["06 12 34 56 78", "+33612345678",
                                       "0612345678", "+33 6 12 34 56 78"])
-def test_on_se_connecte_dans_les_deux_notations(serveur_prefixe, notation):
+def test_login_works_in_both_notations(serveur_prefixe, notation):
     base, dossier = serveur_prefixe
     _inscrire(base, dossier, "06 12 34 56 78")
     code, reponse = _connecter(base, dossier, notation)
     assert code == 200, reponse
 
 
-def test_sans_indicatif_declare_les_deux_notations_restent_distinctes(serveur):
-    """La limite ÉNONCÉE, et son témoin. Sans `phone_prefix`, monl ignore de
-    quel pays vient un '06…' : il ne le rattache à rien plutôt que de deviner
-    la France. Le test existe pour que ce comportement soit un choix visible
-    et non un oubli — c'est la déclaration qui l'ouvre."""
+def test_without_declared_calling_code_both_notations_stay_distinct(serveur):
+    """The STATED limit, and its witness. Without `phone_prefix`, monl does not
+    know which country a '06…' comes from: it attaches it to nothing rather than
+    guessing France. The test exists so that this behavior is a visible choice
+    and not an oversight — the declaration is what opens it."""
     base, dossier = serveur
     assert _inscrire(base, dossier, "06 12 34 56 78")[0] == 200
     assert _inscrire(base, dossier, "+33612345678")[0] == 200
 
 
 # --------------------------------------------------------------------------
-# POINT 138 — un pays SANS zéro interurbain
+# POINT 138 — a country WITHOUT a trunk zero
 #
-# Tout ce qui précède éprouve la France, où le numéro national porte un `0` de
-# tête que la forme internationale remplace. La règle avait été écrite depuis
-# cet exemple, puis généralisée sans être éprouvée ailleurs : elle ne
-# canonicalisait QUE les numéros commençant par zéro.
+# Everything above tests France, where the national number carries a leading
+# `0` that the international form replaces. The rule had been written from this
+# example, then generalized without being tested elsewhere: it canonicalized
+# ONLY numbers starting with zero.
 #
-# Au Bénin — marché visé, et pays d'`projets/AtelierNaya` — le numéro local
-# s'écrit sans zéro de tête. `phone_prefix: "+229"` ne produisait donc RIEN :
-# la personne inscrite en « 97 12 34 56 » ne se reconnaissait pas en
-# « +229 97 12 34 56 », soit exactement les deux comptes que l'indicatif
-# existe pour empêcher. Une règle déclarée qui ne produit rien est ce que le
-# point 85 refuse.
+# In Benin — the target market, and `projets/AtelierNaya`'s country — the local
+# number is written without a leading zero. `phone_prefix: "+229"` therefore
+# produced NOTHING: the person registered as "97 12 34 56" was not recognized
+# as "+229 97 12 34 56", exactly the two accounts the calling code exists to
+# prevent. A declared rule producing nothing is what point 85 refuses.
 # --------------------------------------------------------------------------
 SPEC_BENIN = SPEC.replace('    identifier: email, phone\n',
                           '    identifier: phone\n    phone_prefix: "+229"\n')
@@ -529,10 +523,9 @@ def serveur_benin(tmp_path):
             proc.stdout.close()
 
 
-def test_un_numero_sans_zero_de_tete_est_bien_internationalise(serveur_benin):
-    """Le cœur du défaut. Avant, la forme STOCKÉE restait « 97123456 » — un
-    numéro qu'aucun prestataire ne sait joindre et qui ne se relit pas hors du
-    Bénin."""
+def test_a_number_without_leading_zero_is_internationalized(serveur_benin):
+    """The heart of the defect. Before, the STORED form remained "97123456" — a
+    number no provider can reach and that cannot be read outside Benin."""
     base, dossier = serveur_benin
     assert _inscrire(base, dossier, "97 12 34 56")[0] == 200
     connexion = sqlite3.connect(str(dossier / "app.db"))
@@ -546,7 +539,7 @@ def test_un_numero_sans_zero_de_tete_est_bien_internationalise(serveur_benin):
 @pytest.mark.parametrize("notation", ["97123456", "97 12 34 56", "97-12-34-56",
                                       "+22997123456", "+229 97 12 34 56",
                                       "22997123456"])
-def test_toutes_les_facons_decrire_un_numero_beninois_ouvrent_le_meme_compte(
+def test_every_way_of_writing_a_beninese_number_opens_the_same_account(
         serveur_benin, notation):
     base, dossier = serveur_benin
     _inscrire(base, dossier, "97123456")
@@ -554,10 +547,10 @@ def test_toutes_les_facons_decrire_un_numero_beninois_ouvrent_le_meme_compte(
     assert code == 200, reponse
 
 
-def test_un_numero_deja_international_nest_pas_prefixe_deux_fois(serveur_benin):
-    """Le piège que la correction pouvait introduire : « 22997123456 », tapé
-    sans le `+`, ne doit pas devenir « +22922997123456 » — ce serait un
-    TROISIÈME compte, créé par la correction elle-même."""
+def test_an_already_international_number_is_not_prefixed_twice(serveur_benin):
+    """The trap the fix could introduce: "22997123456", typed without the `+`,
+    must not become "+22922997123456" — that would be a THIRD account, created by
+    the fix itself."""
     base, dossier = serveur_benin
     assert _inscrire(base, dossier, "22997123456")[0] == 200
     connexion = sqlite3.connect(str(dossier / "app.db"))
@@ -569,9 +562,9 @@ def test_un_numero_deja_international_nest_pas_prefixe_deux_fois(serveur_benin):
     assert _inscrire(base, dossier, "97123456")[0] == 409
 
 
-def test_manage_py_normalise_comme_le_serveur_sans_zero_de_tete(serveur_benin):
-    """Point 95, le troisième endroit — celui qu'on oublie. Diverger ici crée
-    un compte que `manage.py` sait écrire et que personne ne sait ouvrir."""
+def test_manage_py_normalizes_like_the_server_without_leading_zero(serveur_benin):
+    """Point 95, the third place — the one people forget. Diverging here creates
+    an account `manage.py` can write and nobody can open."""
     base, dossier = serveur_benin
     sortie = subprocess.run(
         [sys.executable, "manage.py", "adduser", "97 99 88 77", "Patron"],
