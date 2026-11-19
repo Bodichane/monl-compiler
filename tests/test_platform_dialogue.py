@@ -1,4 +1,4 @@
-"""Preuves du rejeu HTTP du dialogue guidé dans la console."""
+"""Proofs of the HTTP replay of the guided dialogue in the console."""
 
 import socket
 import threading
@@ -58,7 +58,7 @@ def _session(base):
     return session
 
 
-def test_le_rejeu_est_borne_sans_tronquer():
+def test_the_replay_is_bounded_without_truncating():
     with pytest.raises(ValueError, match="at most"):
         bounded_answers(["x"] * (MAX_DIALOGUE_ANSWERS + 1))
     with pytest.raises(ValueError, match="bytes"):
@@ -67,8 +67,8 @@ def test_le_rejeu_est_borne_sans_tronquer():
         bounded_answers("pas une liste")
 
 
-def test_le_rejeu_http_complet_produit_un_backend_attendu(running_platform):
-    """Le parcours entier se fait par HTTP contre uvicorn, sans session serveur."""
+def test_the_full_http_replay_produces_the_expected_backend(running_platform):
+    """The whole journey goes over HTTP against uvicorn, without a server session."""
     base = running_platform
     session = _session(base)
     reponses = []
@@ -110,7 +110,7 @@ def test_le_rejeu_http_complet_produit_un_backend_attendu(running_platform):
     assert {"app.py", "schema.sql", "frontend_contract.json"} <= set(manifeste["files"])
 
 
-def test_le_rejeu_refuse_les_entrees_bornees_par_http(running_platform):
+def test_the_replay_refuses_inputs_bounded_by_http(running_platform):
     session = _session(running_platform)
     trop_long = session.post(
         f"{running_platform}/api/dialogue",
@@ -128,7 +128,7 @@ def test_le_rejeu_refuse_les_entrees_bornees_par_http(running_platform):
     assert "bytes" in trop_grand.json()["detail"]
 
 
-def test_le_rejeu_pur_reste_stable_et_s_arrete_a_la_question_suivante():
+def test_the_pure_replay_stays_stable_and_stops_at_the_next_question():
     premier = replay([])
     suivant = replay(["1"])
     assert premier == replay([])
@@ -136,19 +136,18 @@ def test_le_rejeu_pur_reste_stable_et_s_arrete_a_la_question_suivante():
     assert suivant["question"] == "Application name (e.g. StudioNova) > "
 
 
-def test_trois_fautes_de_frappe_ne_tuent_pas_le_dialogue(running_platform):
-    """Le défaut trouvé en relisant Codex, mesuré avant d'être corrigé.
+def test_three_typos_do_not_kill_the_dialogue(running_platform):
+    """The defect found while reviewing Codex, measured before being fixed.
 
-    Le moteur retente trois fois avant de lever (``max_retries``), et le
-    navigateur ne dépilait jamais : une réponse refusée restait dans la liste
-    et brûlait une tentative POUR TOUJOURS. À la troisième faute de frappe sur
-    la même question, tout rejeu ultérieur répondait 422 — quarante-huit
-    réponses perdues, sans retour possible, pendant que la console proposait
-    poliment de « recommencer ».
+    The engine retries three times before raising (``max_retries``), and the
+    browser never popped: a refused answer stayed in the list and burned an
+    attempt FOREVER. At the third typo on the same question, every later replay
+    answered 422 — forty-eight answers lost, with no way back, while the console
+    politely offered to "start over".
 
-    La correction : le serveur rend la liste FAISANT AUTORITÉ, et une réponse
-    qu'il a refusée n'y entre pas. Ce test envoie SIX fautes — deux fois le
-    budget de tentatives — puis vérifie que la bonne réponse passe encore.
+    The fix: the server returns the AUTHORITATIVE list, and an answer it refused
+    does not enter it. This test sends SIX mistakes — twice the attempt budget —
+    then checks that the right answer still goes through.
     """
     session = _session(running_platform)
     retenues = []
@@ -162,8 +161,8 @@ def test_trois_fautes_de_frappe_ne_tuent_pas_le_dialogue(running_platform):
         data = reponse.json()
         assert data["accepted"] is False
         assert data["answers"] == [], "une réponse refusée ne doit JAMAIS être retenue"
-        # L'usager doit savoir POURQUOI : sans le message, sa question revient
-        # sans explication et il refait la même faute.
+        # The user must know WHY: without the message, their question comes
+        # back unexplained and they make the same mistake again.
         assert any("✗" in ligne for ligne in data["messages"]), data["messages"]
         retenues = data["answers"]
 
@@ -178,13 +177,13 @@ def test_trois_fautes_de_frappe_ne_tuent_pas_le_dialogue(running_platform):
     assert "Application name" in suite.json()["question"]
 
 
-# ─────────── POINT 171 : la liste des choix ne se jette plus ───────────
+# ────────── POINT 171: the list of choices is no longer thrown away ──────────
 #
-# `_ask` recevait `kind` et `options` depuis toujours et ne s'en servait
-# JAMAIS : la console ne recevait que le texte de TERMINAL et le collait dans
-# un <pre>. Onze modèles s'affichaient en une bouillie de crochets. Ces
-# témoins portent sur ce que la ROUTE renvoie, pas sur ce que le moteur
-# calcule : c'est entre les deux que la métadonnée se perdait.
+# `_ask` had always received `kind` and `options` and NEVER used them: the
+# console only received the TERMINAL text and stuck it in a <pre>. Eleven
+# templates showed as a mess of brackets. These witnesses are about what the
+# ROUTE returns, not what the engine computes: the metadata got lost between
+# the two.
 
 def _premiere_question(base):
     session = _session(base)
@@ -193,7 +192,7 @@ def _premiere_question(base):
     return reponse.json()
 
 
-def test_les_choix_arrivent_jusqua_la_route(running_platform):
+def test_the_choices_reach_the_route(running_platform):
     data = _premiere_question(running_platform)
     assert data["kind"] == "choice"
     assert data["title"] == "What type of application are you building?"
@@ -201,7 +200,8 @@ def test_les_choix_arrivent_jusqua_la_route(running_platform):
     assert len(options) == 11, options
     assert [o["value"] for o in options] == [str(n) for n in range(1, 12)]
     assert options[0]["label"] == "Portfolio / showcase site"
-    # Le texte de terminal reste servi : un client qui l'affichait continue.
+    # The terminal text is still served: a client that displayed it keeps
+    # working.
     assert "[1] Portfolio" in data["question"]
 
 
@@ -212,13 +212,12 @@ def test_chaque_choix_porte_son_aide(running_platform):
         assert aides.get(option["label"]), option["label"]
 
 
-def test_la_valeur_a_repondre_vient_du_serveur_jamais_du_rang():
-    """« aucun » se répond par 0, et cette règle ne vit qu'à un endroit.
+def test_the_value_to_answer_comes_from_the_server_never_the_rank():
+    """"none" is answered with 0, and this rule lives in only one place.
 
-    Sans elle portée par le serveur, une couche de présentation numéroterait
-    « aucun » d'après son rang dans la liste et enverrait 12 sur onze
-    modèles — deux mises en œuvre d'une même règle divergent toujours
-    (point 146).
+    Without the server carrying it, a presentation layer would number "none"
+    from its rank in the list and send 12 out of eleven templates — two
+    implementations of the same rule always diverge (point 146).
     """
     dialogue = GuidedDialogue(ask=lambda _prompt: "0")
     assert dialogue._ask_choice("Une question ?", ["a", "b"],

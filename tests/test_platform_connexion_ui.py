@@ -1,4 +1,4 @@
-"""La porte d'entrée fonctionne dans un vrai DOM contre un vrai serveur."""
+"""The front door works in a real DOM against a real server."""
 
 import json
 import os
@@ -222,7 +222,7 @@ def rapport_connexion_jsdom(tmp_path, plateforme):
     return rapport
 
 
-def test_la_vraie_page_de_connexion_fonctionne_dans_jsdom(rapport_connexion_jsdom):
+def test_the_real_login_page_works_in_jsdom(rapport_connexion_jsdom):
     assert rapport_connexion_jsdom["github"] == {
         "texte": "Continue with GitHub", "chemin": "/auth/github"}
     assert rapport_connexion_jsdom["oauth_vide"]
@@ -238,14 +238,13 @@ def test_la_vraie_page_de_connexion_fonctionne_dans_jsdom(rapport_connexion_jsdo
 LOGIN = {"titre": "Sign in", "code_masque": True, "lien": "Forgot your password?"}
 
 
-def test_la_reprise_masque_les_fournisseurs_puis_ramene_a_la_connexion(
+def test_recovery_hides_providers_then_returns_to_login(
         rapport_connexion_jsdom):
-    """Issue #75, M5 et M6 — sur la page qui A un fournisseur.
+    """Issue #75, M5 and M6 — on the page that HAS a provider.
 
-    Sans fournisseur la zone est vide de toute façon : on ne pourrait pas voir
-    si elle est masquée. Et le SECOND clic est la seule sortie visible du mode
-    reprise hors des onglets : ne cliquer qu'une fois laisse le retour non
-    éprouvé.
+    Without a provider the area is empty anyway: one could not see whether it is
+    hidden. And the SECOND click is the only visible way out of recovery mode
+    outside the tabs: clicking only once leaves the way back untested.
     """
     assert rapport_connexion_jsdom["reprise_avant"] == {**LOGIN, "oauth_masque": False}
     assert rapport_connexion_jsdom["reprise_ouverte"] == {
@@ -254,9 +253,9 @@ def test_la_reprise_masque_les_fournisseurs_puis_ramene_a_la_connexion(
     assert rapport_connexion_jsdom["reprise_fermee"] == {**LOGIN, "oauth_masque": False}
 
 
-def test_un_fournisseur_ne_peut_ni_detourner_l_adresse_ni_injecter_du_balisage(
+def test_a_provider_can_neither_hijack_the_address_nor_inject_markup(
         rapport_connexion_jsdom):
-    """Issue #75, M2 : le nom est ENCODÉ dans l'adresse, le libellé reste du texte."""
+    """Issue #75, M2: the name is ENCODED in the address, the label stays text."""
     assert rapport_connexion_jsdom["piege"] == {
         "chemin": "/auth/x%2Fy%3F%23",
         "texte": 'Continue with <img src="x" id="injecte">Piège',
@@ -264,23 +263,23 @@ def test_un_fournisseur_ne_peut_ni_detourner_l_adresse_ni_injecter_du_balisage(
     }
 
 
-def test_l_inclinaison_de_la_carte_obeit_a_la_reduction_de_mouvement(
+def test_the_card_tilt_obeys_reduced_motion(
         rapport_connexion_jsdom):
-    """Issue #75, M10 : la moitié JavaScript de « réduction de mouvement ».
+    """Issue #75, M10: the JavaScript half of "reduced motion".
 
-    Le CSS est gardé par des recherches de chaînes ; le script, lui, ne l'était
-    par rien. Les DEUX sens sont exigés : sans le second, un script qui
-    n'inclinerait jamais rien passerait pour respectueux.
+    The CSS is guarded by string searches; the script was guarded by nothing.
+    BOTH directions are required: without the second, a script that never
+    tilted anything would pass for respectful.
     """
     assert rapport_connexion_jsdom["mouvement_reduit"] == {"present": True, "tilt": ["", ""]}
-    # Pointeur à (150, 25) sur une zone de 200×100 : x = +0,25, y = -0,25, donc
-    # 0,75° sur chaque axe. Une valeur EXACTE : « finit par deg » acceptait
-    # « NaNdeg » et « -Infinitydeg », que le navigateur rejette (issue #80).
+    # Pointer at (150, 25) on a 200×100 area: x = +0.25, y = -0.25, hence 0.75°
+    # on each axis. An EXACT value: "ends with deg" accepted "NaNdeg" and
+    # "-Infinitydeg", which the browser rejects (issue #80).
     assert rapport_connexion_jsdom["mouvement_libre"] == {
         "present": True, "tilt": ["0.75deg", "0.75deg"]}
 
 
-def test_le_formulaire_reste_structure_et_nomme():
+def test_the_form_stays_structured_and_named():
     assert '<label for="email">' in AUTH_HTML
     assert '<label for="password"' in AUTH_HTML
     assert 'autocomplete="current-password"' in AUTH_HTML
@@ -289,12 +288,12 @@ def test_le_formulaire_reste_structure_et_nomme():
     assert 'id="auth-recovery"' in AUTH_HTML
 
 
-def test_les_decors_sont_ignores_par_les_technologies_d_assistance():
+def test_decorations_are_ignored_by_assistive_technologies():
     assert 'class="auth-backdrop" aria-hidden="true"' in AUTH_HTML
     assert 'class="console-ambient" aria-hidden="true"' in CONSOLE_HTML
 
 
-def test_les_animations_respectent_la_reduction_de_mouvement():
+def test_animations_respect_reduced_motion():
     assert "@media(prefers-reduced-motion:reduce)" in AUTH_HTML
     assert "@media(prefers-reduced-motion:reduce)" in CONSOLE_HTML
     assert ".auth-backdrop::before,.auth-backdrop::after{animation:none}" in AUTH_HTML
@@ -309,13 +308,13 @@ def test_l_accueil_a_un_ambient_visuel_discret_et_accessible():
     assert "console-node-f" in CONSOLE_HTML
 
 
-def test_l_accueil_pointe_vers_le_depot_github_officiel():
+def test_the_home_page_points_to_the_official_github_repository():
     assert GITHUB_URL == "https://github.com/Bodichane/monl-compiler"
     assert f'href="{GITHUB_URL}" target="_blank" rel="noopener"' in LANDING_HTML
     assert "View the project on GitHub" in LANDING_HTML
 
 
-def test_toutes_les_pages_recoivent_l_ambiance_partagee():
+def test_every_page_gets_the_shared_ambiance():
     html = page(title="Test", description="Test", body="<h1>Test</h1>")
     assert AMBIANCE_CSS in html
     assert 'class="site-ambient" aria-hidden="true"' in html

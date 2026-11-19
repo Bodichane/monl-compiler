@@ -1,17 +1,16 @@
-"""Le parcours de commandes de l'orchestrateur — compile → run --check →
-update (point 64).
+"""The orchestrator's command journey — compile → run --check → update
+(point 64).
 
-`cli.py` était le point bas de la couverture (35 %) : ses chemins n'étaient
-éprouvés qu'indirectement, à travers d'autres tests ou des sous-processus que
-l'instrument ne suit pas. Le choix fait ici n'est PAS de faire monter un
-chiffre, mais de couvrir ce qu'un utilisateur traverse réellement, et ce dont
-l'échec serait silencieux : l'état écrit dans monl.json, la détection d'une
-incohérence entre la spec et le backend, et le delta de contrat sur lequel
-repose `monl update`.
+`cli.py` was the low point of coverage (35%): its paths were only tested
+indirectly, through other tests or subprocesses the instrument does not
+follow. The choice made here is NOT to raise a figure, but to cover what a
+user really goes through, and whose failure would be silent: the state
+written in monl.json, detection of an inconsistency between spec and backend,
+and the contract delta `monl update` relies on.
 
-Le smoke test est délibérément écarté (`skip_smoke=True`) : il démarre un
-serveur et est déjà éprouvé par tests/test_smoke_and_frontend_ai.py — le
-rejouer ici n'ajouterait que de la lenteur.
+The smoke test is deliberately left out (`skip_smoke=True`): it starts a
+server and is already tested by tests/test_smoke_and_frontend_ai.py —
+replaying it here would only add slowness.
 """
 import json
 
@@ -44,7 +43,7 @@ def projet(tmp_path):
     return tmp_path
 
 
-def test_compile_ecrit_l_etat_et_le_contrat(projet):
+def test_compile_writes_the_state_and_contract(projet):
     for artefact in ("app.py", "schema.sql", "manage.py",
                      "frontend_contract.json", "docs/FRONTEND_PROMPT.md",
                      "requirements.txt", STATE_FILENAME):
@@ -55,15 +54,14 @@ def test_compile_ecrit_l_etat_et_le_contrat(projet):
     assert etat["language_version"] == LANGUAGE_VERSION
 
 
-def test_la_coherence_passe_juste_apres_une_compilation(projet):
+def test_consistency_passes_right_after_a_compilation(projet):
     ok, erreurs, _avertissements = check_coherence(str(projet))
     assert ok, erreurs
 
 
-def test_un_backend_modifie_a_la_main_est_detecte(projet):
-    """La promesse de `monl run` : app.py est SCELLÉ. Une retouche manuelle
-    doit être vue, sinon la spec cesse d'être la source de vérité sans que
-    personne ne le sache."""
+def test_a_hand_edited_backend_is_detected(projet):
+    """The promise of `monl run`: app.py is SEALED. A manual edit must be seen,
+    otherwise the spec stops being the source of truth without anyone knowing."""
     chemin = projet / "app.py"
     chemin.write_text(chemin.read_text(encoding="utf-8") + "\n# retouche\n",
                       encoding="utf-8")
@@ -72,9 +70,8 @@ def test_un_backend_modifie_a_la_main_est_detecte(projet):
     assert any("app.py" in e for e in erreurs), erreurs
 
 
-def test_run_check_s_arrete_sur_une_incoherence(projet):
-    """Et il s'arrête AVANT de lancer quoi que ce soit : sortie non nulle,
-    pas de serveur démarré."""
+def test_run_check_stops_on_an_inconsistency(projet):
+    """And it stops BEFORE starting anything: non-zero exit, no server started."""
     chemin = projet / "schema.sql"
     chemin.write_text(chemin.read_text(encoding="utf-8") + "\n-- retouche\n",
                       encoding="utf-8")
@@ -83,32 +80,32 @@ def test_run_check_s_arrete_sur_une_incoherence(projet):
     assert sortie.value.code == 1
 
 
-def test_run_check_passe_sur_un_projet_sain(projet):
-    cmd_run(str(projet), check_only=True, skip_smoke=True)   # ne doit pas sortir
+def test_run_check_passes_on_a_healthy_project(projet):
+    cmd_run(str(projet), check_only=True, skip_smoke=True)   # must not exit
 
 
-def test_update_rapporte_le_champ_ajoute_et_prepare_la_consigne(projet, capsys):
+def test_update_reports_the_added_field_and_prepares_the_instruction(projet, capsys):
     (projet / "spec.ml").write_text(SPEC_ETENDUE, encoding="utf-8")
     cmd_update(str(projet))
     sortie = capsys.readouterr().out
     assert "Note.body" in sortie, sortie
     assert "field added" in sortie, sortie
     assert (projet / "docs/FRONTEND_UPDATE_PROMPT.md").exists()
-    # Le delta doit aussi être arrivé dans le contrat lui-même.
+    # The delta must also have reached the contract itself.
     contrat = json.loads((projet / "frontend_contract.json").read_text(encoding="utf-8"))
     assert "body" in str(contrat)
 
 
-def test_update_sans_changement_ne_fabrique_pas_de_consigne(projet, capsys):
-    """Une consigne de mise à jour envoyée pour rien ferait retravailler
-    l'IA frontend sur une interface déjà juste."""
+def test_update_without_change_makes_no_instruction(projet, capsys):
+    """An update instruction sent for nothing would make the frontend AI rework
+    an interface that is already right."""
     cmd_update(str(projet))
     sortie = capsys.readouterr().out
     assert "no interface changes" in sortie, sortie
     assert not (projet / "docs/FRONTEND_UPDATE_PROMPT.md").exists()
 
 
-def test_update_refuse_un_dossier_qui_n_est_pas_un_projet(tmp_path):
+def test_update_refuses_a_folder_that_is_not_a_project(tmp_path):
     with pytest.raises(SystemExit) as sortie:
         cmd_update(str(tmp_path))
     assert sortie.value.code == 1

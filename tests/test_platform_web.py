@@ -1,21 +1,21 @@
-"""La plateforme web, éprouvée contre un VRAI serveur.
+"""The web platform, tested against a REAL server.
 
-Ce fichier montait la plateforme avec `TestClient` de Starlette. Deux raisons
-de ne plus le faire, la première mesurée en CI :
+This file mounted the platform with Starlette's `TestClient`. Two reasons to
+stop doing so, the first measured in CI:
 
-1. `starlette.testclient` exige désormais `httpx2`, absent des dépendances du
-   dépôt. La suite s'arrêtait à la COLLECTE sur les trois versions de Python
-   — une plateforme parfaitement fonctionnelle déclarée cassée par son propre
-   vérificateur, ce que le point 95 nomme déjà : le vérificateur est un client
-   comme un autre.
-2. Le reste du dépôt éprouve tout scénario HTTP contre un uvicorn éphémère
-   (`tests/support/server.py`). Ce fichier était le seul à prendre un
-   raccourci en processus, et ce raccourci ne traverse ni la couche ASGI
-   réelle, ni le démarrage du serveur.
+1. `starlette.testclient` now requires `httpx2`, missing from the
+   repository's dependencies. The suite stopped at COLLECTION on all three
+   Python versions — a perfectly working platform declared broken by its own
+   checker, which point 95 already names: the checker is a client like any
+   other.
+2. The rest of the repository tests every HTTP scenario against an ephemeral
+   uvicorn (`tests/support/server.py`). This file was the only one taking an
+   in-process shortcut, and that shortcut crosses neither the real ASGI layer
+   nor server startup.
 
-Le sous-processus tourne dans `tmp_path` avec `src/` sur le PYTHONPATH : la
-racine du dépôt ne peut donc rien recevoir (point 64), et le test reste vrai
-que le paquet soit installé ou non.
+The subprocess runs in `tmp_path` with `src/` on the PYTHONPATH: the
+repository root can therefore receive nothing (point 64), and the test stays
+true whether the package is installed or not.
 """
 
 import os
@@ -30,7 +30,7 @@ SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src")
 
 
 def _plateforme(tmp_path):
-    """Monte la plateforme sur un port libre, l'espace de travail isolé."""
+    """Mounts the platform on a free port, with an isolated workspace."""
     env = os.environ.copy()
     env["MONL_PLATFORM_WORKSPACE"] = str(tmp_path / "espace")
     env["PYTHONPATH"] = SRC + os.pathsep + env.get("PYTHONPATH", "")
@@ -60,9 +60,9 @@ def test_page_explique_compile_et_mcp(tmp_path):
         assert "0</b><span>network calls to compile" in page.text
         assert "Try it in the console" in page.text
         assert "A clear rule becomes a usable backend." in page.text
-        # Le TITRE de la section, pas son accroche : les accroches ont été
-        # retirées du site, et un test accroché à un ornement retient une
-        # décoration au lieu du contenu.
+        # The section's TITLE, not its overline: overlines were removed from
+        # the site, and a test hooked to an ornament keeps a decoration instead
+        # of content.
         assert "Four applications, four families of rules" in page.text
         assert 'href="/security"' in page.text
         assert "The same engine for MCP agents" in page.text
@@ -146,7 +146,7 @@ def test_erreurs_web_restent_actionnables(tmp_path):
         assert session.get(base + "/api/projects/invalide", timeout=30).status_code == 404
 
 
-def test_connexion_est_limitee_et_annonce_le_delai(tmp_path):
+def test_login_is_limited_and_announces_the_delay(tmp_path):
     with _plateforme(tmp_path) as base:
         for _ in range(5):
             response = requests.post(base + "/api/auth/login", json={
@@ -204,16 +204,17 @@ def test_comptes_isolent_projets_et_cles_mcp(tmp_path):
         assert alice.get(f"{base}/api/projects/{project_id}", timeout=30).status_code == 404
 
 
-def test_le_module_de_la_plateforme_est_livre_par_le_depot(tmp_path):
-    """Témoin du défaut de `.gitignore` : `src/monl_platform/app.py` avait
-    disparu du dépôt sans un mot, avalé par un motif non ancré.
+def test_the_platform_module_is_shipped_by_the_repository(tmp_path):
+    """Witness of the `.gitignore` defect: `src/monl_platform/app.py` had
+    vanished from the repository without a word, swallowed by an unanchored
+    pattern.
 
-    Il faut une assertion à part parce qu'elle nomme la cause. Les deux tests
-    ci-dessus font désormais ÉCHOUER un module absent — `uvicorn_server` ne
-    traduit plus la mort d'un serveur par un `pytest.skip` (point 140) — mais
-    ils le rapportent comme une panne de serveur, avec la trace d'uvicorn.
-    Celui-ci dit en une ligne que le dépôt est amputé, ce qui est le vrai
-    diagnostic. Le garder coûte un import ; le perdre coûterait une enquête.
+    A separate assertion is needed because it names the cause. The two tests
+    above now make a missing module FAIL — `uvicorn_server` no longer turns a
+    server's death into a `pytest.skip` (point 140) — but they report it as a
+    server failure, with uvicorn's trace. This one says in one line that the
+    repository is truncated, which is the real diagnosis. Keeping it costs an
+    import; losing it would cost an investigation.
     """
     from monl_platform.app import create_app
 
@@ -222,10 +223,10 @@ def test_le_module_de_la_plateforme_est_livre_par_le_depot(tmp_path):
             "/mcp"} <= chemins
 
 
-def test_le_guide_est_servi_et_couvre_ses_sections(tmp_path):
-    """Une plateforme qui accepte une spécification doit dire comment on
-    l'écrit. Le guide est donc une route comme une autre, éprouvée comme
-    telle — pas un fichier qu'on espère présent."""
+def test_the_guide_is_served_and_covers_its_sections(tmp_path):
+    """A platform that accepts a specification must say how to write one. The
+    guide is therefore a route like any other, tested as such — not a file one
+    hopes is present."""
     with _plateforme(tmp_path) as base:
         page = requests.get(base + "/guide", timeout=30)
         assert page.status_code == 200
@@ -233,17 +234,17 @@ def test_le_guide_est_servi_et_couvre_ses_sections(tmp_path):
         for ancre in ('id="frontiere"', 'id="demarrer"', 'id="dsl"',
                       'id="api"', 'id="mcp"', 'id="limites"'):
             assert ancre in page.text, ancre
-        # Les limites doivent être ÉNONCÉES, pas découvertes en collant une
-        # spec qui déclare un logo. Les intitulés sont LUS dans la table et
-        # jamais recopiés ici : la phrase figée qui vivait à cette ligne a
-        # survécu à la brique qui l'avait rendue fausse (point 180).
+        # The limits must be STATED, not discovered by pasting a spec that
+        # declares a logo. The labels are READ from the table and never copied
+        # here: the frozen sentence that lived on this line survived the brick
+        # that had made it false (point 180).
         for titre, _texte in LIMITES:
             assert titre in page.text, titre
 
 
-def test_les_exemples_sont_servis_et_compilent_par_lapi(tmp_path):
-    """Le catalogue n'est pas décoratif : ce qu'il sert doit traverser tout le
-    parcours, de la galerie à l'archive."""
+def test_the_examples_are_served_and_compile_through_the_api(tmp_path):
+    """The catalog is not decorative: what it serves must go through the whole
+    journey, from the gallery to the archive."""
     with _plateforme(tmp_path) as base:
         session = _compte(base, "examples@example.com")
         catalogue = requests.get(base + "/api/examples", timeout=30).json()["examples"]
@@ -283,14 +284,14 @@ def test_version_favicon_et_page_introuvable(tmp_path):
         logo = requests.get(base + "/logo.svg", timeout=30)
         assert logo.status_code == 200
         assert logo.headers["content-type"].startswith("image/svg+xml")
-        # Comparé à la SOURCE et non à un littéral : un logo servi dans une
-        # autre couleur que celle de la feuille est un défaut, quelle que
-        # soit la palette du moment.
+        # Compared with the SOURCE and not a literal: a logo served in another
+        # color than the sheet's is a defect, whatever the palette of the
+        # moment.
         from monl_platform.theme import LOGO_SVG
         assert logo.text == LOGO_SVG
 
-        # Un visiteur reçoit une page, un client d'API reçoit du JSON : servir
-        # du HTML à curl rendrait l'erreur illisible là où on la lit.
+        # A visitor gets a page, an API client gets JSON: serving HTML to curl
+        # would make the error unreadable where it is read.
         navigateur = requests.get(base + "/inexistant",
                                   headers={"Accept": "text/html"}, timeout=30)
         assert navigateur.status_code == 404

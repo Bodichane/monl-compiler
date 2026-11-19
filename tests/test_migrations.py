@@ -1,18 +1,16 @@
-"""AJOUT (roadmap long terme, migrations sans perte de données) : vérifie
-qu'ajouter des champs à une spec puis recompiler dans le même dossier
-préserve les données déjà présentes et rend les nouvelles colonnes
-utilisables, sans réinitialiser la base.
+"""ADDED (long-term roadmap, migrations without data loss): checks that adding
+fields to a spec then recompiling in the same folder preserves the data
+already present and makes the new columns usable, without resetting the
+database.
 
-Le test compile une spec v1, insère une donnée via un vrai serveur, arrête
-le serveur, recompile une spec v2 (deux champs ajoutés à une entité + une
-nouvelle entité) DANS LE MÊME DOSSIER en conservant app.db, redémarre, et
-vérifie :
-  - la donnée v1 est toujours là et correctement alignée (le bug de
-    décalage de colonnes, où ADD COLUMN place les nouvelles colonnes en fin
-    de table alors que le code de lecture supposait un autre ordre, est
-    couvert ici) ;
-  - les nouvelles colonnes existent et acceptent des écritures ;
-  - la nouvelle table est créée.
+The test compiles a v1 spec, inserts a row through a real server, stops the
+server, recompiles a v2 spec (two fields added to an entity + a new entity)
+IN THE SAME FOLDER keeping app.db, restarts, and checks:
+  - the v1 row is still there and correctly aligned (the column shift bug,
+    where ADD COLUMN puts new columns at the end of the table while the read
+    code assumed another order, is covered here);
+  - the new columns exist and accept writes;
+  - the new table is created.
 """
 import os
 import sqlite3
@@ -137,7 +135,7 @@ def _serve_expected_failure(workdir):
 
 def test_additive_migration_preserves_data():
     with tempfile.TemporaryDirectory() as workdir:
-        # --- v1 : insère une donnée ---
+        # --- v1: insert a row ---
         _compile(SPEC_V1, workdir)
         port = _find_free_port()
         proc = _serve(workdir, port)
@@ -154,7 +152,7 @@ def test_additive_migration_preserves_data():
         finally:
             _stop(proc)
 
-        # --- v2 : recompile dans le même dossier, app.db conservée ---
+        # --- v2: recompile in the same folder, app.db kept ---
         assert os.path.exists(os.path.join(workdir, "app.db"))
         _compile(SPEC_V2, workdir)
         port = _find_free_port()
@@ -165,16 +163,16 @@ def test_additive_migration_preserves_data():
                                 json={"username": "u", "password": "motdepasse8"}).json()["access_token"]
             headers = {"Authorization": f"Bearer {tok}"}
 
-            # La donnée v1 a survécu, correctement alignée.
+            # The v1 row survived, correctly aligned.
             r = requests.get(f"{base}/note/{note_id}", headers=headers)
             assert r.status_code == 200, r.text
             data = r.json()["data"]
             assert data["title"] == "note v1"       # champ d'origine intact
-            assert data["user_id"] == 1              # FK correctement alignée (pas décalée)
-            assert data["body"] is None              # nouvelle colonne, défaut NULL
+            assert data["user_id"] == 1              # FK correctly aligned (not shifted)
+            assert data["body"] is None              # new column, NULL default
             assert data["priority"] is None
 
-            # Les nouvelles colonnes acceptent des écritures.
+            # The new columns accept writes.
             r = requests.post(f"{base}/note", headers=headers,
                               json={"title": "note v2", "body": "corps", "priority": 5})
             assert r.status_code == 200, r.text
@@ -201,7 +199,7 @@ def test_additive_migration_preserves_data():
         assert all(len(row[3]) == 64 for row in rows)
 
 
-def test_migration_non_additive_est_nommee_refusee_puis_appliquee():
+def test_non_additive_migration_is_named_refused_then_applied():
     spec_v1 = """app MigNonAdditive
 
 entity User
@@ -279,7 +277,7 @@ migration note_fields
             _stop(proc)
 
 
-def test_migration_reversible_retablit_le_schema_avant():
+def test_reversible_migration_restores_the_earlier_schema():
     spec_v1 = """app MigDown
 
 entity Note
@@ -329,14 +327,14 @@ migration note_fields
                 "assert [r[0] for r in h] == ['up','up','down','down']; c.close()"
             )], cwd=workdir, check=True,
         )
-        # Recompiler la spec d'avant rend à nouveau la base servable.
+        # Recompiling the earlier spec makes the database servable again.
         _compile_cli(spec_v1, workdir)
         port = _find_free_port()
         proc = _serve(workdir, port)
         _stop(proc)
 
 
-def test_echec_de_migration_est_atomique_et_ne_sert_pas_un_moitie():
+def test_migration_failure_is_atomic_and_serves_no_half():
     spec_v1 = """app MigAtomic
 
 entity Note
@@ -383,18 +381,18 @@ migration broken
         assert returncode != 0 and "the database will not be served" in output
 
 
-def test_manage_py_nomme_le_remede_au_lieu_de_dechirer_une_trace():
-    """Défaut trouvé en revue de A2. Sur une base qui attend une migration non
-    additive, `manage.py` refuse d'écrire — c'est juste : provisionner un
-    compte dans un schéma en attente le met au même risque que le servir. Mais
-    il sortait sur un `RuntimeError` NON RATTRAPÉ : le diagnostic d'app.py,
-    correct et précis, se retrouvait noyé sous quinze lignes de trace.
+def test_manage_py_names_the_remedy_instead_of_dumping_a_trace():
+    """Defect found while reviewing A2. On a database awaiting a non-additive
+    migration, `manage.py` refuses to write — rightly: provisioning an account in
+    a pending schema puts it at the same risk as serving it. But it exited on an
+    UNCAUGHT `RuntimeError`: app.py's diagnostic, correct and precise, was
+    drowned under fifteen lines of traceback.
 
-    Une trace n'apprend rien à qui doit décider quoi faire. C'est le reproche
-    des points 97 et 105, sur un troisième point d'entrée : la sortie doit
-    NOMMER le remède et le dossier concerné. `manage.py` est par ailleurs le
-    SEUL chemin pour créer un compte à rôle privilégié, donc son message est
-    celui que lit un exploitant bloqué."""
+    A traceback teaches nothing to whoever must decide what to do. It is the
+    complaint of points 97 and 105, on a third entry point: the output must NAME
+    the remedy and the folder concerned. `manage.py` is moreover the ONLY path to
+    create a privileged-role account, so its message is the one a blocked
+    operator reads."""
     with tempfile.TemporaryDirectory() as workdir:
         _compile_cli(SPEC_V2, workdir)
         port = _find_free_port()
@@ -404,8 +402,8 @@ def test_manage_py_nomme_le_remede_au_lieu_de_dechirer_une_trace():
         finally:
             _stop(proc)
 
-        # La spec v1 a un champ de moins que la base créée par la v2 :
-        # c'est un retrait non additif, sans `migration` déclarée.
+        # The v1 spec has one field fewer than the database created by v2: it
+        # is a non-additive removal, without a declared `migration`.
         _compile_cli(SPEC_V1, workdir)
         resultat = subprocess.run(
             [sys.executable, os.path.join(workdir, "manage.py"), "users"],
