@@ -1,29 +1,29 @@
-"""Brique 21 : un jeu de démonstration peut rattacher un enfant — point 100.
+"""Brick 21: a demo dataset can attach a child — point 100.
 
-Pourquoi la brique. Le point 99 a rendu honnête la clé étrangère d'une entité
-fille d'une table métier. Restait qu'une telle entité ne pouvait pas figurer
-dans les données de démonstration : un `seed` n'accepte que des champs DÉCLARÉS,
-et une colonne de rattachement n'en est pas un. Une boutique à variantes
-s'ouvrait donc sur un catalogue dont rien n'était commandable — la couverture de
-compilation sans le comportement, exactement ce que le point 95 dénonce.
+Why the brick. Point 99 made honest the foreign key of an entity that is a
+child of a business table. Such an entity still could not appear in demo
+data: a `seed` only accepts DECLARED fields, and an attachment column is not
+one. A shop with variants therefore opened on a catalog where nothing could
+be ordered — compile coverage without the behavior, exactly what point 95
+denounces.
 
     seed Variant for Product.name "Chaise Ligne"
         finish: "Chêne naturel", price: 249.90, stock: 12
 
-Ce que la brique décide, et qui n'allait pas de soi :
+What the brick decides, and what did not go without saying:
 
-* **désigner par une VALEUR, jamais par un rang.** Un numéro de ligne ne se lit
-  pas et se décale dès qu'on insère une ligne au milieu. C'est déjà le choix de
-  `monl assets add --for "Halo RS"` (point 84), et pour la même raison : c'est
-  ce que l'humain a sous les yeux ;
-* **une désignation ambiguë est REFUSÉE.** Deux lignes portant la valeur
-  désignée donneraient une vitrine différente d'une compilation à l'autre, et
-  personne ne le verrait avant de regarder l'écran ;
-* **le rattachement se résout au DÉMARRAGE, par une lecture.** Un rang calculé à
-  la compilation aurait supposé que le parent vient d'être semé. Or le socle ne
-  sème une table que si elle est VIDE : sur une base où les produits existent
-  déjà, le rang aurait désigné la mauvaise ligne. Le test qui le prouve est
-  `test_le_rattachement_suit_lid_reel_pas_le_rang`.
+* **designate by a VALUE, never by a rank.** A line number cannot be read and
+  shifts as soon as a line is inserted in the middle. It is already the choice
+  of `monl assets add --for "Halo RS"` (point 84), and for the same reason: it
+  is what the human has in front of them;
+* **an ambiguous designation is REFUSED.** Two rows carrying the designated
+  value would give a different showcase from one compilation to the next, and
+  nobody would see it before looking at the screen;
+* **the attachment is resolved at STARTUP, by a read.** A rank computed at
+  compile time would have assumed the parent was just seeded. But the base
+  only seeds a table if it is EMPTY: on a database where the products already
+  exist, the rank would have designated the wrong row. The test proving it is
+  `test_the_attachment_follows_the_real_id_not_the_rank`.
 """
 import json
 import sqlite3
@@ -71,9 +71,9 @@ seed Produit
     nom: "Lampe Arc", categorie: "Luminaires"
     nom: "Table Onde", categorie: "Tables"
 
-# Le parent visé est le TROISIÈME : si le rattachement se calculait par un rang
-# dans le bloc enfant, il tomberait sur le premier produit et le test passerait
-# pour de mauvaises raisons.
+# The targeted parent is the THIRD: if the attachment were computed from a rank
+# in the child block, it would land on the first product and the test would
+# pass for the wrong reasons.
 seed Variante for Produit.nom "Table Onde"
     finition: "Frêne ondé", prix: 1200.00, stock: 2
     finition: "Noyer massif", prix: 1450.00, stock: 1
@@ -88,11 +88,11 @@ def _valide(spec):
 
 
 # --------------------------------------------------------------------------
-# Ce que la compilation doit refuser
+# What compilation must refuse
 # --------------------------------------------------------------------------
 
 def test_the_bench_spec_compiles(capsys):
-    """Le témoin des sept refus qui suivent."""
+    """The witness of the seven refusals that follow."""
     ast = _valide(SPEC)
     blocs = [s for s in ast["seeds"] if s["entity"] == "Variante"]
     assert len(blocs) == 2
@@ -101,7 +101,7 @@ def test_the_bench_spec_compiles(capsys):
     capsys.readouterr()
 
 
-def test_un_parent_qui_nest_pas_une_entite_est_refuse(capsys):
+def test_a_parent_that_is_not_an_entity_is_refused(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace('for Produit.nom "Table Onde"',
                              'for Fantome.nom "Table Onde"'))
@@ -109,24 +109,24 @@ def test_un_parent_qui_nest_pas_une_entite_est_refuse(capsys):
     capsys.readouterr()
 
 
-def test_un_parent_sans_relation_est_refuse(capsys):
-    """Sans relation, aucune colonne ne porte le rattachement : l'écrire n'aurait
-    nulle part où aller."""
+def test_a_parent_without_relation_is_refused(capsys):
+    """Without a relation, no column carries the attachment: writing it would
+    have nowhere to go."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace("relation Produit hasMany Variante\n", ""))
     assert "no relation links them" in str(refus.value)
     capsys.readouterr()
 
 
-def test_un_parent_acteur_est_refuse(capsys):
-    """POINT 99 : la colonne d'un parent ACTEUR porte un identifiant de COMPTE.
-    Un jeu de démonstration s'insère au démarrage, quand aucun compte n'existe
-    encore — il n'a personne à désigner.
+def test_an_actor_parent_is_refused(capsys):
+    """POINT 99: an ACTOR parent's column carries an ACCOUNT id. A demo dataset
+    is inserted at startup, when no account exists yet — it has nobody to
+    designate.
 
-    Le parent visé est ici une entité qui est AUSSI un acteur (`Client`, comme
-    le `Customer` de `projets/SneakerLab`) : c'est le seul cas où le refus est
-    atteignable, un acteur sans entité homonyme tombant d'abord sur « n'est pas
-    une entité déclarée »."""
+    The targeted parent here is an entity that is ALSO an actor (`Client`, like
+    `projets/SneakerLab`'s `Customer`): it is the only case where the refusal is
+    reachable, an actor without a namesake entity first hitting "is not a
+    declared entity"."""
     spec = SPEC.replace(
         "entity Variante",
         "entity Client\n    nom: String\n\nentity Variante")
@@ -143,7 +143,7 @@ def test_un_parent_acteur_est_refuse(capsys):
     capsys.readouterr()
 
 
-def test_un_champ_de_designation_inexistant_est_refuse(capsys):
+def test_a_nonexistent_designation_field_is_refused(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace('for Produit.nom "Table Onde"',
                              'for Produit.fantome "Table Onde"'))
@@ -151,9 +151,9 @@ def test_un_champ_de_designation_inexistant_est_refuse(capsys):
     capsys.readouterr()
 
 
-def test_designer_par_un_nombre_est_refuse(capsys):
-    """Rapprocher deux flottants est déjà douteux ; surtout, un prix ne NOMME
-    rien. La désignation doit se lire."""
+def test_designating_by_a_number_is_refused(capsys):
+    """Matching two floats is already dubious; above all, a price NAMES nothing.
+    The designation must be readable."""
     spec = SPEC.replace("entity Produit\n    nom: String",
                         "entity Produit\n    poids: Float\n    nom: String")
     with pytest.raises(ASTValidationError) as refus:
@@ -163,10 +163,10 @@ def test_designer_par_un_nombre_est_refuse(capsys):
     capsys.readouterr()
 
 
-def test_un_parent_seme_apres_lenfant_est_refuse(capsys):
-    """Les données sont insérées dans l'ordre des blocs. Un parent déclaré après
-    son enfant ne serait pas en base au moment de rattacher — et la ligne serait
-    écartée au démarrage, sans que la spec ait rien dit de faux."""
+def test_a_parent_seeded_after_the_child_is_refused(capsys):
+    """Data is inserted in block order. A parent declared after its child would
+    not be in the database when attaching — and the row would be discarded at
+    startup, without the spec having said anything false."""
     lignes = SPEC.split("seed Produit")
     inverse = ("app BancSemis" + lignes[0].split("app BancSemis")[1]
                + "seed Variante for Produit.nom \"Table Onde\"\n"
@@ -179,9 +179,9 @@ def test_un_parent_seme_apres_lenfant_est_refuse(capsys):
     capsys.readouterr()
 
 
-def test_une_valeur_que_personne_ne_porte_est_refusee(capsys):
-    """LA coquille que la brique doit attraper : sans ce refus, la vitrine
-    serait amputée d'une rubrique entière et rien ne le dirait."""
+def test_a_value_nobody_carries_is_refused(capsys):
+    """THE slip the brick must catch: without this refusal, the showcase would be
+    missing a whole section and nothing would say so."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace('for Produit.nom "Table Onde"',
                              'for Produit.nom "Table Ondée"'))
@@ -189,9 +189,9 @@ def test_une_valeur_que_personne_ne_porte_est_refusee(capsys):
     capsys.readouterr()
 
 
-def test_une_designation_ambigue_est_refusee(capsys):
-    """Deux lignes portant la valeur désignée : rien ne dit à laquelle. Deviner
-    donnerait une vitrine différente d'une compilation à l'autre."""
+def test_an_ambiguous_designation_is_refused(capsys):
+    """Two rows carrying the designated value: nothing says which one. Guessing
+    would give a different showcase from one compilation to the next."""
     spec = SPEC.replace('    nom: "Lampe Arc", categorie: "Luminaires"',
                         '    nom: "Table Onde", categorie: "Luminaires"')
     with pytest.raises(ASTValidationError) as refus:
@@ -202,12 +202,12 @@ def test_une_designation_ambigue_est_refusee(capsys):
 
 
 # --------------------------------------------------------------------------
-# Ce que la génération doit écrire
+# What generation must write
 # --------------------------------------------------------------------------
 
-def test_le_socle_porte_la_designation_pas_un_rang(tmp_path, capsys):
-    """La décision de conception, vérifiée dans le code produit : ce qui voyage
-    jusqu'au serveur est la VALEUR, pas un identifiant calculé."""
+def test_the_base_carries_the_designation_not_a_rank(tmp_path, capsys):
+    """The design decision, checked in the produced code: what travels to the
+    server is the VALUE, not a computed identifier."""
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     capsys.readouterr()
@@ -218,10 +218,9 @@ def test_le_socle_porte_la_designation_pas_un_rang(tmp_path, capsys):
     assert "'value': 'Table Onde'" in ligne
 
 
-def test_une_spec_sans_rattachement_seme_comme_avant(tmp_path, capsys):
-    """Non-régression : la forme des données de démonstration a changé (chaque
-    entrée est un couple), mais une spec qui n'emploie pas la brique doit semer
-    exactement ce qu'elle semait."""
+def test_a_spec_without_attachment_seeds_as_before(tmp_path, capsys):
+    """Non-regression: the shape of demo data changed (each entry is a pair), but
+    a spec not using the brick must seed exactly what it seeded."""
     spec = SPEC.split("# Le parent visé")[0]
     (tmp_path / "spec.ml").write_text(spec, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
@@ -246,7 +245,7 @@ def _appel(url):
 
 
 def _demarrer(dossier, port):
-    """Démarre le serveur et rend (processus, journal-de-démarrage)."""
+    """Starts the server and returns (process, startup log)."""
     processus = subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "app:app", "--host", "127.0.0.1",
          "--port", str(port)],
@@ -270,7 +269,7 @@ def _demarrer(dossier, port):
 def _arreter(processus):
     processus.terminate()
     try:
-        # communicate() lit jusqu'au bout ET ferme les tubes.
+        # communicate() reads to the end AND closes the pipes.
         return processus.communicate(timeout=10)[0].decode("utf-8", "replace")
     except subprocess.TimeoutExpired:
         arreter_processus(processus)
@@ -295,9 +294,9 @@ def compile_banc(tmp_path):
     return tmp_path
 
 
-def test_les_variantes_semees_sont_rattachees_au_bon_produit(compile_banc):
-    """Le comportement que tout le reste sert. Lu en BASE par une jointure : la
-    route de lecture rendrait la même chose quelle que soit la valeur écrite."""
+def test_seeded_variants_are_attached_to_the_right_product(compile_banc):
+    """The behavior everything else serves. Read in the DATABASE through a join:
+    the read route would return the same thing whatever value was written."""
     processus, base = _demarrer(compile_banc, _port_libre())
     try:
         code, catalogue = _appel(base + "/variante?limit=10")
@@ -312,9 +311,9 @@ def test_les_variantes_semees_sont_rattachees_au_bon_produit(compile_banc):
     ]
 
 
-def test_le_semis_reste_idempotent(compile_banc):
-    """Le socle ne sème que dans une table VIDE. Un redémarrage ne doit pas
-    empiler les variantes — la brique ne doit pas défaire cette garantie."""
+def test_seeding_stays_idempotent(compile_banc):
+    """The base only seeds into an EMPTY table. A restart must not stack the
+    variants — the brick must not undo that guarantee."""
     processus, _ = _demarrer(compile_banc, _port_libre())
     _arreter(processus)
     processus, _ = _demarrer(compile_banc, _port_libre())
@@ -322,14 +321,14 @@ def test_le_semis_reste_idempotent(compile_banc):
     assert len(_variantes(compile_banc / "app.db")) == 3
 
 
-def test_le_rattachement_suit_lid_reel_pas_le_rang(compile_banc):
-    """LE test qui départage les deux conceptions possibles.
+def test_the_attachment_follows_the_real_id_not_the_rank(compile_banc):
+    """THE test that settles between the two possible designs.
 
-    On peuple la table des produits AVANT le premier démarrage, avec des id qui
-    ne correspondent à aucun rang de bloc : le socle n'y sèmera donc rien
-    (table non vide), et « Table Onde » porte l'id 41. Un rattachement calculé à
-    la compilation aurait écrit 3 — le rang de la ligne dans `seed Produit` —
-    et les variantes auraient atterri sur un produit inexistant."""
+    We populate the products table BEFORE the first start, with ids matching no
+    block rank: the base will therefore seed nothing there (non-empty table), and
+    "Table Onde" carries id 41. An attachment computed at compile time would have
+    written 3 — the row's rank in `seed Produit` — and the variants would have
+    landed on a nonexistent product."""
     connexion = sqlite3.connect(str(compile_banc / "app.db"))
     connexion.executescript((compile_banc / "schema.sql").read_text(encoding="utf-8"))
     connexion.execute('INSERT INTO "produit" (id, nom, categorie) VALUES (?,?,?)',
@@ -352,10 +351,10 @@ def test_le_rattachement_suit_lid_reel_pas_le_rang(compile_banc):
                      ("Chêne naturel", 17)]
 
 
-def test_un_parent_introuvable_au_demarrage_est_nomme(compile_banc):
-    """Le seul chemin où la résolution échoue : une base dont la table parente
-    est déjà peuplée AUTREMENT. La ligne est écartée — mais jamais en silence,
-    sinon on chercherait la panne dans le frontend."""
+def test_a_parent_not_found_at_startup_is_named(compile_banc):
+    """The only path where resolution fails: a database whose parent table is
+    already populated OTHERWISE. The row is discarded — but never silently,
+    otherwise one would look for the failure in the frontend."""
     connexion = sqlite3.connect(str(compile_banc / "app.db"))
     connexion.executescript((compile_banc / "schema.sql").read_text(encoding="utf-8"))
     connexion.execute('INSERT INTO "produit" (nom, categorie) VALUES (?,?)',
@@ -368,6 +367,6 @@ def test_un_parent_introuvable_au_demarrage_est_nomme(compile_banc):
 
     assert "Table Onde" in journal
     assert "Demo data skipped" in journal
-    # « Chaise Ligne » non plus n'existe pas : les trois lignes sont écartées,
-    # et le serveur tourne quand même.
+    # "Chaise Ligne" does not exist either: the three rows are discarded, and
+    # the server runs anyway.
     assert _variantes(compile_banc / "app.db") == []

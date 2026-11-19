@@ -608,7 +608,7 @@ anonymous social network as the final test bench.
     an `id` frozen at compilation would assume the parent had just been seeded,
     while the foundation seeds only into an EMPTY table — on an already
     populated database, the position would designate the wrong row
-    (`test_le_rattachement_suit_lid_reel_pas_le_rang` settles the question).
+    (`test_the_attachment_follows_the_real_id_not_the_rank` settles the question).
     Seven refusals, including AMBIGUITY (two rows with the value → a
     nondeterministic storefront), a value carried by no row, an ACTOR parent
     (its column carries an ACCOUNT id, point 99 — and no account exists at
