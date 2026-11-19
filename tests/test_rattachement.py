@@ -1,31 +1,32 @@
-"""Le rattachement fantôme — point 99.
+"""The phantom attachment — point 99.
 
-Ce que le compilateur faisait. Une entité fille d'une table MÉTIER (une variante
-et son produit) recevait, dans la colonne `produit_id`, l'identifiant du COMPTE
-qui l'avait créée — et `schema.sql` la déclarait `REFERENCES _monl_users(id)`.
-Le client n'avait aucun moyen de désigner le produit : la colonne portait le nom
-du lien métier et contenait autre chose. Silencieux, à la compilation comme à
-l'exécution.
+What the compiler did. An entity that is a child of a BUSINESS table (a
+variant and its product) received, in the `produit_id` column, the id of the
+ACCOUNT that created it — and `schema.sql` declared it
+`REFERENCES _monl_users(id)`. The client had no way to designate the product:
+the column carried the business link's name and contained something else.
+Silent, at compile time as at runtime.
 
-Pourquoi personne ne l'avait vu. Aucun exemple du dépôt ne présente ce cas :
-`Like` et `Report` y échappent parce qu'ils sont cibles d'un compteur (le client
-désigne « CE post »), `Comment` parce qu'il déclare `ownedBy Member`, `OrderLine`
-parce qu'il est possédé transitivement. Les cinq exemples compilent tous une
-entité fille d'un ACTEUR. La sonde qui l'a révélé tenait en trois relations.
+Why nobody had seen it. No example of the repository presents this case:
+`Like` and `Report` escape it because they are counter targets (the client
+designates "THIS post"), `Comment` because it declares `ownedBy Member`,
+`OrderLine` because it is owned transitively. All five examples compile an
+entity that is a child of an ACTOR. The probe that revealed it fit in three
+relations.
 
-Ce que le point décide, et qui n'allait pas de soi :
+What the point decides, and what did not go without saying:
 
-* **« peuplée depuis l'identité » exige que le parent SOIT un compte.** La
-  condition manquait : toute relation entrante faisait l'affaire. C'est le défaut
-  du point 80 par l'autre bout — là on nommait une entité comme propriétaire et
-  le rattachement était faux, ici on n'en nomme aucune et il l'est tout autant ;
-* **le choix ne dépend plus de l'ordre de déclaration.** Seuls les parents
-  acteurs sont candidats ; entre eux, `ownedBy` tranche ;
-* **`payable` perd une sécurité ACCIDENTELLE, donc gagne un refus.** La route de
-  règlement comparait la colonne de propriété à l'appelant. Elle n'était juste
-  que parce que la colonne recevait `current_user_id` faute de mieux — c'est-à-dire
-  à cause du bug. Le rattachement redevenu honnête, la comparaison deviendrait
-  fausse : le refus doit être écrit.
+* **"filled from identity" requires the parent to BE an account.** The
+  condition was missing: any incoming relation would do. It is point 80's
+  defect from the other end — there an entity was named as owner and the
+  attachment was wrong, here none is named and it is just as wrong;
+* **the choice no longer depends on declaration order.** Only actor parents
+  are candidates; among them, `ownedBy` decides;
+* **`payable` loses an ACCIDENTAL safeguard, hence gains a refusal.** The
+  payment route compared the ownership column with the caller. It was only
+  right because the column received `current_user_id` for lack of anything
+  better — that is, because of the bug. With the attachment honest again, the
+  comparison would become wrong: the refusal must be written.
 """
 import json
 import sqlite3
@@ -43,9 +44,9 @@ from monl.parser import parse_monl_string
 from tests.support.processus import arreter_processus
 from tests.support.server import free_port as _port_libre
 
-# La relation MÉTIER (`Produit hasMany Variante`) est déclarée AVANT les autres,
-# à dessein : l'ancienne implémentation retenait la première relation entrante
-# venue, et un banc qui la déclarerait en dernier masquerait la moitié du défaut.
+# The BUSINESS relation (`Produit hasMany Variante`) is declared BEFORE the
+# others, on purpose: the old implementation kept the first incoming relation
+# that came along, and a bench declaring it last would hide half of the defect.
 SPEC = """app BancRattachement
 
 entity Produit
@@ -120,19 +121,19 @@ def _compile(tmp_path, spec=SPEC):
 
 
 # --------------------------------------------------------------------------
-# Ce que la génération doit écrire
+# What generation must write
 # --------------------------------------------------------------------------
 
 def test_the_bench_spec_compiles(tmp_path, capsys):
-    """Le témoin de tout ce qui suit."""
+    """The witness of everything that follows."""
     contrat, _, _ = _compile(tmp_path)
     assert "Variante" in contrat["entities"]
     capsys.readouterr()
 
 
-def test_le_parent_metier_reference_la_table_metier(tmp_path, capsys):
-    """LE bug. `produit_id` se déclarait `REFERENCES _monl_users(id)` : la
-    variante pointait vers le registre des comptes, jamais vers son produit."""
+def test_the_business_parent_references_the_business_table(tmp_path, capsys):
+    """THE bug. `produit_id` was declared `REFERENCES _monl_users(id)`: the
+    variant pointed to the account registry, never to its product."""
     _, _, schema = _compile(tmp_path)
     capsys.readouterr()
     fk = next(li for li in schema.splitlines() if '"produit_id"' in li
@@ -141,9 +142,9 @@ def test_le_parent_metier_reference_la_table_metier(tmp_path, capsys):
     assert "_monl_users" not in fk
 
 
-def test_le_parent_metier_est_designe_par_le_client(tmp_path, capsys):
-    """L'autre moitié du même défaut : la colonne recevait `current_user_id`,
-    donc AUCUN produit ne pouvait être désigné à la création."""
+def test_the_business_parent_is_designated_by_the_client(tmp_path, capsys):
+    """The other half of the same defect: the column received `current_user_id`,
+    so NO product could be designated at creation."""
     _, genere, _ = _compile(tmp_path)
     capsys.readouterr()
     insertion = next(li for li in genere.splitlines()
@@ -154,20 +155,20 @@ def test_le_parent_metier_est_designe_par_le_client(tmp_path, capsys):
     assert "current_user_id" not in valeurs
 
 
-def test_le_parent_metier_entre_dans_le_schema_dentree(tmp_path, capsys):
-    """Une colonne que le client doit fournir et qu'aucun schéma n'accepte
-    donnerait un 422 imparable — c'est le défaut du point 57, rejoué."""
+def test_the_business_parent_enters_the_input_schema(tmp_path, capsys):
+    """A column the client must provide and no schema accepts would give an
+    unavoidable 422 — point 57's defect, replayed."""
     _, genere, _ = _compile(tmp_path)
     capsys.readouterr()
     debut = genere.index("class VarianteSchema")
     assert "produit_id: int" in genere[debut:debut + 400]
 
 
-def test_le_parent_acteur_na_pas_bouge(tmp_path, capsys):
-    """La non-régression qui compte : le cas CORRECT — une entité fille d'un
-    acteur — doit continuer de se peupler depuis le jeton. Une correction qui
-    rendrait toutes les clés étrangères clientes ouvrirait un trou bien plus
-    large que celui qu'elle ferme."""
+def test_the_actor_parent_did_not_move(tmp_path, capsys):
+    """The non-regression that counts: the CORRECT case — an entity that is a
+    child of an actor — must keep being filled from the token. A fix making every
+    foreign key client-supplied would open a much wider hole than the one it
+    closes."""
     _, genere, schema = _compile(tmp_path)
     capsys.readouterr()
     fk = next(li for li in schema.splitlines() if '"client_id"' in li
@@ -181,10 +182,10 @@ def test_le_parent_acteur_na_pas_bouge(tmp_path, capsys):
         "la colonne du propriétaire ne doit JAMAIS entrer dans le corps de requête"
 
 
-def test_la_cible_dun_compteur_reste_designee_par_le_client(tmp_path, capsys):
-    """Non-régression de la brique 3 : « je signale CE membre » est un choix du
-    client, pas une propriété déduite. Ce cas passait déjà — il doit continuer,
-    et par le même chemin qu'avant."""
+def test_a_counter_target_stays_designated_by_the_client(tmp_path, capsys):
+    """Brick 3 non-regression: "I report THIS member" is the client's choice, not
+    a deduced ownership. This case already passed — it must keep doing so, and
+    through the same path as before."""
     spec = SPEC.replace("relation Variante hasMany Ligne",
                         "relation Variante hasMany Ligne\nrelation Produit hasMany Avis")
     spec = spec.replace("entity Client\n    nom: String",
@@ -204,10 +205,10 @@ def test_la_cible_dun_compteur_reste_designee_par_le_client(tmp_path, capsys):
     assert "data.produit_id" in genere
 
 
-def test_le_choix_ne_depend_pas_de_lordre_des_relations(tmp_path, capsys):
-    """L'ancienne implémentation retenait `placements[0]` : deux parents, et le
-    propriétaire se décidait à l'ordre d'écriture de la spec. Un parent métier
-    déclaré en premier volait la place de l'acteur."""
+def test_the_choice_does_not_depend_on_relation_order(tmp_path, capsys):
+    """The old implementation kept `placements[0]`: two parents, and the owner
+    was decided by the spec's writing order. A business parent declared first
+    stole the actor's place."""
     base = SPEC.replace("entity Client\n    nom: String",
                         "entity Client\n    nom: String\n\nentity Avis\n    note: Integer")
     base = base.replace("    Read Variante\n\nworkflow Gerer",
@@ -226,8 +227,8 @@ def test_le_choix_ne_depend_pas_de_lordre_des_relations(tmp_path, capsys):
 
     def liens_avis(schema):
         bloc = schema[schema.index('CREATE TABLE IF NOT EXISTS "avis"'):]
-        # La virgule finale dépend du RANG de la ligne dans le bloc, pas de son
-        # sens : la retirer, sinon le test compare une mise en forme.
+        # The trailing comma depends on the line's RANK in the block, not its
+        # meaning: remove it, otherwise the test compares formatting.
         return {li.strip().rstrip(",") for li in bloc.splitlines()
                 if "FOREIGN KEY" in li}
 
@@ -239,13 +240,13 @@ def test_le_choix_ne_depend_pas_de_lordre_des_relations(tmp_path, capsys):
 
 
 # --------------------------------------------------------------------------
-# Ce que le contrat doit dire
+# What the contract must say
 # --------------------------------------------------------------------------
 
-def test_le_contrat_dit_ce_que_la_colonne_contient(tmp_path, capsys):
-    """POINT 88 : une jointure faite sur la mauvaise des deux natures marche À
-    MOITIÉ. Le contrat annonçait `references_account` sur une colonne qui porte
-    l'id d'un produit."""
+def test_the_contract_says_what_the_column_contains(tmp_path, capsys):
+    """POINT 88: a join made on the wrong one of the two natures works HALFWAY.
+    The contract announced `references_account` on a column carrying a product
+    id."""
     contrat, _, _ = _compile(tmp_path)
     capsys.readouterr()
     lien = next(li for li in contrat["entities"]["Variante"]["foreign_keys"]
@@ -255,9 +256,9 @@ def test_le_contrat_dit_ce_que_la_colonne_contient(tmp_path, capsys):
     assert "produit_id" in contrat["entities"]["Variante"]["client_foreign_keys"]
 
 
-def test_le_contrat_reclame_le_parent_dans_le_corps(tmp_path, capsys):
-    """Sans ça, une IA d'interface fidèle au contrat bâtit un formulaire sans
-    choix du produit et récolte un 422 à chaque création."""
+def test_the_contract_asks_for_the_parent_in_the_body(tmp_path, capsys):
+    """Without it, an interface AI faithful to the contract builds a form without
+    product choice and collects a 422 on every creation."""
     contrat, _, _ = _compile(tmp_path)
     capsys.readouterr()
     route = next(r for r in contrat["routes"]
@@ -265,10 +266,10 @@ def test_le_contrat_reclame_le_parent_dans_le_corps(tmp_path, capsys):
     assert "produit_id" in route["request_fields"]
 
 
-def test_le_delta_voit_le_changement_de_nature(tmp_path, capsys):
-    """La question que CLAUDE.md impose de poser AVANT d'écrire : est-ce que
-    `_contract_signature` le voit ? Une clé étrangère ne vit pas dans `fields` —
-    la réponse était non, pour la sixième fois."""
+def test_the_delta_sees_the_change_of_nature(tmp_path, capsys):
+    """The question CLAUDE.md requires asking BEFORE writing: does
+    `_contract_signature` see it? A foreign key does not live in `fields` — the
+    answer was no, for the sixth time."""
     contrat_metier, _, _ = _compile(tmp_path)
     acteur = SPEC.replace("relation Produit hasMany Variante",
                           "relation Client hasMany Variante")
@@ -284,13 +285,13 @@ def test_le_delta_voit_le_changement_de_nature(tmp_path, capsys):
 
 
 # --------------------------------------------------------------------------
-# Le refus que la correction rend nécessaire
+# The refusal the fix makes necessary
 # --------------------------------------------------------------------------
 
 
-# Le montant des lignes est CALCULÉ (point 77) : sans quoi le recoupement du
-# point 82 refuserait la spec avant d'arriver au contrôle qu'on veut éprouver —
-# sommer un montant que le client écrit est déjà interdit.
+# The line amount is CALCULATED (point 77): otherwise point 82's cross-check
+# would refuse the spec before reaching the check we want to test — summing an
+# amount the client writes is already forbidden.
 SPEC_PAIEMENT = """app BancEncaissement
 
 entity Produit
@@ -325,10 +326,10 @@ workflow Acheter for Client
     Read Ligne
 """
 
-# Le même encaissement, mais la facture est possédée À TRAVERS la commande :
-# la jointure du point 87 rend un id de COMPTE, donc le refus ne doit pas
-# s'appliquer. Écrit en entier plutôt que dérivé par substitution — une chaîne
-# de propriété se lit mal en `.replace()`.
+# The same charge, but the invoice is owned THROUGH the order: point 87's join
+# returns an ACCOUNT id, so the refusal must not apply. Written in full rather
+# than derived by substitution — an ownership chain reads badly in
+# `.replace()`.
 SPEC_PAIEMENT_TRANSITIF = """app BancEncaissementTransitif
 
 entity Produit
@@ -372,13 +373,12 @@ workflow Acheter for Client
 """
 
 
-def test_encaisser_sans_proprietaire_acteur_est_refuse(capsys):
-    """La sécurité ACCIDENTELLE que la correction retire. Cette spec compilait :
-    la route de règlement comparait `produit_id` à l'id du compte appelant, et
-    la comparaison était juste uniquement parce que la colonne recevait
-    `current_user_id` — c'est-à-dire à cause du bug. Sans ce refus, le
-    propriétaire ne pourrait plus payer, et un inconnu le pourrait dès que les
-    deux identifiants coïncident."""
+def test_charging_without_an_actor_owner_is_refused(capsys):
+    """The ACCIDENTAL safeguard the fix removes. This spec compiled: the payment
+    route compared `produit_id` with the calling account's id, and the comparison
+    was right only because the column received `current_user_id` — that is,
+    because of the bug. Without this refusal, the owner could no longer pay, and a
+    stranger could as soon as the two ids coincide."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_PAIEMENT)
     assert "ACTOR" in str(refus.value)
@@ -386,9 +386,9 @@ def test_encaisser_sans_proprietaire_acteur_est_refuse(capsys):
     capsys.readouterr()
 
 
-def test_le_temoin_du_refus(capsys):
-    """La même spec avec un parent acteur doit compiler — sans quoi le refus
-    ci-dessus interdirait la brique au lieu d'interdire la faute."""
+def test_the_refusal_witness(capsys):
+    """The same spec with an actor parent must compile — otherwise the refusal
+    above would forbid the brick instead of forbidding the fault."""
     ast = _valide(SPEC_PAIEMENT.replace(
         "relation Produit hasMany Facture",
         "relation Produit hasMany Facture\nrelation Client hasMany Facture"))
@@ -396,9 +396,9 @@ def test_le_temoin_du_refus(capsys):
     capsys.readouterr()
 
 
-def test_le_refus_laisse_passer_la_propriete_transitive(capsys):
-    """POINT 87 : sous chaîne, la jointure rend un id de COMPTE. Le nouveau
-    refus ne doit pas rouvrir le verrou que ce point-là avait levé."""
+def test_the_refusal_lets_transitive_ownership_through(capsys):
+    """POINT 87: under a chain, the join returns an ACCOUNT id. The new refusal
+    must not reopen the lock that point had lifted."""
     ast = _valide(SPEC_PAIEMENT_TRANSITIF)
     assert ast["security"]["payable_fields"]
     capsys.readouterr()
@@ -448,11 +448,11 @@ def boutique(tmp_path):
                 time.sleep(0.25)
         else:
             pytest.fail("le serveur n'a jamais répondu")
-        # Le vendeur est inscrit en DERNIER, après trois autres comptes : son
-        # identifiant (4) ne coïncide alors avec celui d'AUCUN des trois
-        # produits. Sans cette divergence, « id du compte » et « id du produit »
-        # se valent et le rattachement fautif passerait le test — c'est la leçon
-        # de la sonde du point 81, et elle vaut ici mot pour mot.
+        # The seller registers LAST, after three other accounts: their id (4)
+        # then coincides with NONE of the three products'. Without this
+        # divergence, "account id" and "product id" are equivalent and the
+        # faulty attachment would pass the test — it is the lesson of point
+        # 81's probe, and it holds here word for word.
         for figurant in ("zoe", "ines", "malik"):
             _appel(base + "/register", {"username": figurant,
                                         "password": "motdepasse1",
@@ -477,10 +477,10 @@ def _en_base(tmp_path, requete, params=()):
         connexion.close()
 
 
-def test_la_variante_se_rattache_a_son_produit(boutique):
-    """Le comportement que tout le reste sert. Lu en BASE, pas dans la réponse :
-    la route de lecture ferait un `SELECT *` et rendrait la même chose quelle
-    que soit la valeur écrite."""
+def test_the_variant_attaches_to_its_product(boutique):
+    """The behavior everything else serves. Read in the DATABASE, not in the
+    response: the read route would do a `SELECT *` and return the same thing
+    whatever value was written."""
     base, _, patron, tmp_path = boutique
     _, catalogue = _appel(base + "/produit?limit=20")
     deck = next(p for p in catalogue["data"] if p["nom"] == "Deck Low")
@@ -501,9 +501,9 @@ def test_la_variante_se_rattache_a_son_produit(boutique):
         "la colonne portait l'id du COMPTE créateur, jamais celui du produit"
 
 
-def test_le_produit_designe_est_celui_quon_demande(boutique):
-    """Deux produits, deux variantes : le rattachement doit SUIVRE la demande,
-    pas une constante qui se trouverait juste une fois sur deux."""
+def test_the_designated_product_is_the_requested_one(boutique):
+    """Two products, two variants: the attachment must FOLLOW the request, not a
+    constant that would happen to be right one time out of two."""
     base, _, patron, tmp_path = boutique
     _, catalogue = _appel(base + "/produit?limit=20")
     produits = {p["nom"]: p["id"] for p in catalogue["data"]}
@@ -518,10 +518,10 @@ def test_le_produit_designe_est_celui_quon_demande(boutique):
                         (variante_id,))[0][0] == produits[nom]
 
 
-def test_le_stock_se_decompte_par_variante(boutique):
-    """La chaîne entière, bout à bout : c'est le modèle « stock par taille »
-    qu'un marchand tient, et il ne tenait pas debout tant que la variante ne
-    savait pas à quel produit elle appartenait."""
+def test_stock_is_counted_per_variant(boutique):
+    """The whole chain, end to end: it is the "stock per size" model a merchant
+    keeps, and it did not hold together as long as the variant did not know which
+    product it belonged to."""
     base, client, patron, _ = boutique
     _, catalogue = _appel(base + "/produit?limit=20")
     halo = next(p["id"] for p in catalogue["data"] if p["nom"] == "Halo RS")
@@ -544,9 +544,9 @@ def test_le_stock_se_decompte_par_variante(boutique):
         "deux tailles du même produit ont des stocks INDÉPENDANTS"
 
 
-def test_le_plancher_tient_par_variante(boutique):
-    """Le témoin du précédent : sans plancher effectif, « stock par taille »
-    afficherait des paires qui n'existent pas."""
+def test_the_floor_holds_per_variant(boutique):
+    """The previous test's witness: without an effective floor, "stock per size"
+    would show pairs that do not exist."""
     base, client, patron, _ = boutique
     _, catalogue = _appel(base + "/produit?limit=20")
     halo = next(p["id"] for p in catalogue["data"] if p["nom"] == "Halo RS")
@@ -563,10 +563,10 @@ def test_le_plancher_tient_par_variante(boutique):
     assert apres["data"]["stock"] == 2, "un refus ne doit rien avoir consommé"
 
 
-def test_un_produit_inexistant_ne_cree_pas_de_variante_orpheline(boutique):
-    """La contrepartie de « le client fournit la clé » : elle doit être VÉRIFIÉE
-    à l'écriture. Ici c'est la contrainte de clé étrangère qui s'en charge —
-    règle de conception du point 81, appliquée à l'autre famille de colonnes."""
+def test_a_nonexistent_product_creates_no_orphan_variant(boutique):
+    """The counterpart of "the client provides the key": it must be CHECKED on
+    write. Here the foreign key constraint takes care of it — point 81's design
+    rule, applied to the other family of columns."""
     base, _, patron, tmp_path = boutique
     avant = _en_base(tmp_path, 'SELECT COUNT(*) FROM "variante"')[0][0]
     code, _ = _appel(base + "/variante",
